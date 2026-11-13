@@ -1,5 +1,6 @@
 import type { CoordinatorKey, CoordinatorState } from '../../lib/coordinator-types.ts';
 import type { CoordinatorText, CoordinatorView } from '../types.ts';
+import { clock } from '../view.ts';
 import { $, el, icon, post, SERVER_DOWN, store, timed } from './ui.ts';
 import { isReconnecting } from './update-dialog.ts';
 
@@ -114,7 +115,7 @@ export function setupCoordinator(hooks: CoordinatorHooks) {
   const turnKey = () => `${view.sessionId}:${view.turn}`;
   const isUnseen = () => view.state === 'turn-ended' && view.sessionId !== null && turnKey() !== seen;
   const staleCause = () => view.error ?? (isDown ? SERVER_DOWN : null);
-  const timeOf = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString() : 'no good read');
+  const timeOf = (iso: string | null) => (iso ? clock(iso) : 'no good read');
   const atEnd = () => log.scrollHeight - log.scrollTop - log.clientHeight < 4;
   const can = (action: CoordinatorView['actions'][number]) => view.actions.includes(action) && !ended;
   const setText = (node: HTMLElement, value: string) => {
@@ -220,7 +221,10 @@ export function setupCoordinator(hooks: CoordinatorHooks) {
     const age = state === 'ended' || state === 'none' ? null : view.since;
     if (pillKey !== `${state}|${age}`) {
       pillKey = `${state}|${age}`;
-      pill.replaceChildren(el('span', '', WORDS[state]), ...(age ? [timed(age, true)] : []));
+      pill.replaceChildren(
+        el('span', '', WORDS[state]),
+        ...(age ? [timed(age, state === 'starting' || state === 'works' || state === 'dialog')] : []),
+      );
     }
     const scope = $('coordinator-scope');
     const scopeText =

@@ -288,6 +288,9 @@ signal color.
 anything a machine wrote: issue numbers, PR numbers, SHAs, paths, commands, effort levels, and line
 deltas.
 
+The sizes are set in `rem` on a 16px base, so the text follows the default font size of the browser.
+The `px` values in this section are the sizes at that default.
+
 ### Hierarchy
 
 - **Headline** (600, 16.5px, 1.4): the title in the details panel. It is the largest text in normal
@@ -363,11 +366,14 @@ above the page uses Float. No other shadow exists.
 **The Ring Not Glow Rule.** Selection and focus are rings: a 2px Current Blue outline with a 2px
 offset for focus, and a 1px Ink Faint ring for the selected card. Never use a colored glow.
 
+**The No Blur Rule.** The side panels and the header have no backdrop blur. Only the backdrop of a
+modal dialog blurs the page, at 2px.
+
 ## Shapes
 
 Corners are gently rounded and nest: an inner shape is smaller than its container. Surfaces use
-16px (columns, the details panel), cards, toasts, and the update dialog 12px, the palette 14px,
-controls 8px, the view
+16px (columns, the details panel, the queue), cards, toasts, and the update dialog 12px, the palette
+14px, controls 8px, the view
 switch 9px around 7px tabs, tags 6px, and small marks 5px. Dots are full circles. Borders are always
 1px hairlines. The start label draws each default value with a dashed outline.
 
@@ -395,6 +401,8 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
   `hot` variant, used while something needs you, tints its fill and border with Beacon Orange.
 - **Tag:** a 22px chip with a Veil fill for PR, checks, and review state. Check and review tags take
   an 8% tint and a 28–30% border of their state color.
+- **Status pill:** a 24px minimum pill that wraps its text. The text is the state color mixed with
+  Ink (30% Ink for blue and red, 20% for orange and amber) on the same tint, 4.5:1 in both themes.
 - **Gate:** an 18px label. `auto` is Go Green on a 13% green tint; `manual` shows no gate label.
 - **Start label:** an 18px Geist Mono capsule of two segments, the model and then the level. The
   model segment has the stronger fill. A pinned value has a pin icon, and a default value has a
@@ -428,13 +436,23 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
 ### Navigation
 
 - **View switch:** a 30px Veil track with a 9px radius and 24px tabs. The active tab is Card Slate
-  with Raise and Ink text; an inactive tab is Ink Faint and turns Ink on hover.
-- **Status bar:** 34px, 12px Ink Faint text, a top hairline. It wraps on a phone and keeps the
-  update control.
+  with Raise and Ink text; an inactive tab is Ink Faint and turns Ink on hover. On a phone the
+  tabs are 44px high with text labels and no icons, and the active tab also has a 2px Ink bottom
+  edge.
+- **Status bar:** 34px, 12px Ink Faint text, a top hairline. On a phone it has two rows: the read
+  item (tracker name and state words) alone on the first row, and the other items, with the update
+  control, on the second. Each item shows its words; only the daemon item hides.
+- **Menu rows:** the run menu shows the icon of each agent in place of the run icon, and the first
+  included agent of the order has a `Default` tag after its label: Ink Muted on Veil Strong, 11px,
+  outside the label that can be cut. Level rows keep the run icon, and the current level the check.
+- **Menu:** on a phone it keeps 12px from each screen edge, wraps its labels, has rows of 44px or
+  more, and shows no key hints. A coarse pointer shows no key hints at any width.
 - **Update control:** a 24px status bar button (44px on a phone) whose label names the update
   state. Only **Update available** and **Restart needed**, the states that need you, take the
   accent: Beacon Orange text on a 10% Beacon Tint fill (13% on hover). Each other state is Ink
   Faint, as the other status bar buttons.
+- **Agent order:** an excluded row keeps full opacity: a grayscale icon, the name in Ink Muted, and
+  a 12px Ink Faint detail. The `First` badge is a Veil Strong fill with Ink Muted text, not a color.
 
 - **Coordinator control:** a ghost header button after New intake: the message icon, the label
   `Coordinator`, a 7px state mark, and the state words in Ink Muted. The mark changes its shape
@@ -453,7 +471,7 @@ radius, as the details panel.
 - **Head:** 48px minimum, the title in Title type, the host in 11.5px Geist Mono Ink Faint, the
   state pill with its age, and text-style acts (Interrupt, End session, Go) and Close at the right.
   The pill is Current Blue on a 12% tint while it starts or works and Beacon Orange on a 12% tint
-  for a dialog.
+  for a dialog; its text takes the mix of the Status pill.
 - **Lines:** the line of a failed read or an ended session sits under the head on Veil at 12.5px,
   and the log dims to 0.7. The line of the visible screen is 12px Ink Faint above the log, with a hairline under it.
 - **Log:** Geist Mono at 12.5px on 1.7, Ink, in a column of at most 104ch with at least 20px of
@@ -472,10 +490,12 @@ radius, as the details panel.
 
 ### Lane Track (signature)
 
-A row of 14px × 4px segments with a 2px radius at the right of each card. Done steps are Ink Faint
-at 80%; later steps are Ink Faint at 28%. The current step is 20px wide and takes the state color:
-Ink when idle, a moving Current Blue flow (1.6s) while the agent works, Beacon Orange when it waits
-or is blocked, Fault Red for no progress, and Caution Amber for a dirty tree.
+A row of 14px × 6px segments with a 3px radius at the right of each card. Done steps are solid Ink
+Faint; later steps are a 1px Ink Faint outline with no fill. The current step is 20px wide and takes
+the state color: Ink when idle, a moving Current Blue flow (1.6s) while the agent works, Beacon
+Orange when it waits or is blocked, Fault Red for no progress, and Caution Amber for a dirty tree.
+A run that starts shows the current step as a 1.5px Current Blue outline. Each mark is at least 3:1
+against the card in both themes, and the track keeps its `Step n of m` name.
 
 ### Update dialog
 

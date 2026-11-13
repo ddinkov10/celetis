@@ -25,7 +25,13 @@ export const COLUMNS: { key: Column; name: string; note: string; empty: [string,
 export const GROUPS = [
   { key: 'answer', label: 'Waits for your answer', short: 'waiting', states: ['waits'], isCompact: false },
   { key: 'stuck', label: 'Stuck', short: 'stuck', states: ['no-progress', 'dirty-tree'], isCompact: false },
-  { key: 'input', label: 'Your input on the issue', short: 'input on the issue', states: ['blocked'], isCompact: true },
+  {
+    key: 'input',
+    label: 'Your input on the issue',
+    short: 'need your input on the issue',
+    states: ['blocked'],
+    isCompact: true,
+  },
   { key: 'paused', label: 'Paused by usage limits', short: 'paused', states: ['quota-wait'], isCompact: true },
   { key: 'ready', label: 'Ready to run', short: 'ready to run', states: null, isCompact: true },
 ];
@@ -146,6 +152,17 @@ export const stateLabel = (card: Card) => {
   return STATES[card.state as string] ?? card.state;
 };
 
+export const LIVE: ReadonlySet<string> = new Set(['works', 'waits']);
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const two = (value: number) => String(value).padStart(2, '0');
+
+export const clock = (iso: string, withDate = false) => {
+  const date = new Date(iso);
+  const time = `${two(date.getHours())}:${two(date.getMinutes())}`;
+  return withDate ? `${MONTHS[date.getMonth()]} ${date.getDate()} ${time}` : time;
+};
+
 export const age = (iso: string, now: number, isFine = false) => {
   const seconds = Math.max(0, Math.floor((now - Date.parse(iso)) / 1000));
   const minutes = Math.floor(seconds / 60);
@@ -181,13 +198,13 @@ export const tone = (board: Pick<Board, 'columns' | 'coordinator'>) => {
   return board.columns.running.some((card) => card.state === 'works') ? 'works' : 'calm';
 };
 
-const BADGES: Record<string, string> = { needs: '#FF7A45', works: '#5EA2FF' };
-
-export const favicon = (badge: string) => {
-  const dot = BADGES[badge]
-    ? `<circle cx="24" cy="8" r="6" fill="${BADGES[badge]}" stroke="#18181B" stroke-width="2"/>`
-    : '';
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#18181B"/><rect x="7" y="7" width="7.5" height="18" rx="2.25" fill="#EEEEF0"/><rect x="17.5" y="7" width="7.5" height="11" rx="2.25" fill="#EEEEF0"/>${dot}</svg>`;
+export const favicon = (
+  badge: string,
+  colors: Readonly<{ tile: string; bar: string; needs: string; works: string }>,
+) => {
+  const fill = badge === 'needs' || badge === 'works' ? colors[badge] : null;
+  const dot = fill ? `<circle cx="24" cy="8" r="6" fill="${fill}" stroke="${colors.tile}" stroke-width="2"/>` : '';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="${colors.tile}"/><rect x="7" y="7" width="7.5" height="18" rx="2.25" fill="${colors.bar}"/><rect x="17.5" y="7" width="7.5" height="11" rx="2.25" fill="${colors.bar}"/>${dot}</svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 };
 

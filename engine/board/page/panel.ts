@@ -3,16 +3,17 @@ import type { Registry } from '../../lib/host-names.ts';
 import type { Action, Card, Flow } from '../types.ts';
 import {
   agentOf,
+  clock,
   diffText,
   gateOf,
+  LIVE,
   laneTrack,
   levelSource,
   modelSource,
-  prFacts,
   shortPath,
   stateLabel,
 } from '../view.ts';
-import { $, actionButton, copy, el, icon, iconButton, link, mark, timed } from './ui.ts';
+import { $, actionButton, copy, el, icon, iconButton, link, mark, prChips, timed } from './ui.ts';
 
 const TONES: Record<string, string> = {
   waits: 'needs',
@@ -20,6 +21,7 @@ const TONES: Record<string, string> = {
   works: 'working',
   starts: 'working',
   'no-progress': 'danger',
+  'quota-wait': 'muted',
   'dirty-tree': 'amber',
 };
 const PILL_ICONS: Record<string, string> = {
@@ -29,15 +31,13 @@ const PILL_ICONS: Record<string, string> = {
   'no-progress': 'alert',
   'dirty-tree': 'diff',
   blocked: 'person',
+  'quota-wait': 'clock',
 };
 const ASKS: Record<string, [string, string]> = {
   dialog: ['question', 'waits for your answer'],
   turn: ['message', 'ended its turn'],
 };
 const COPIES: Record<string, string> = { 'no-progress': 'command', 'dirty-tree': 'path' };
-
-const clock = (iso: string) =>
-  new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
 const section = (title: string, aside: string | null, ...children: HTMLElement[]) => {
   const node = el('section', 'sec');
@@ -57,7 +57,7 @@ const ask = (card: Card, actions: Action[], registry: Registry) => {
     icon(glyph),
     el('b', '', agentOf(card, registry)?.name ?? 'The agent'),
     el('span', '', verb),
-    timed(card.since, true, ' ago'),
+    timed(card.since, LIVE.has(card.state as string), ' ago'),
   );
   node.append(head);
   const lines = screen(card);
@@ -142,26 +142,8 @@ const effortFacts = (pair: StartPair<RowSource> | null | undefined): Fact[] =>
     : [];
 
 const pr = (card: Card) => {
-  const items = prFacts(card.pr);
-  if (items.length === 0) return null;
-  const row = el('div', 'chips');
-  for (const item of items) {
-    const chip = link(`chip2 chip-${item.kind}`, '', item.url);
-    chip.append(
-      icon(
-        item.kind === 'pr'
-          ? 'pr'
-          : item.kind.startsWith('checks-fail')
-            ? 'xcircle'
-            : item.kind.startsWith('checks-pass') || item.kind === 'review-approved'
-              ? 'check'
-              : 'clock',
-      ),
-      item.text,
-    );
-    row.append(chip);
-  }
-  return section('Pull request', null, row);
+  const row = prChips(card.pr);
+  return row && section('Pull request', null, row);
 };
 
 export const drawPanel = (
@@ -211,7 +193,8 @@ export const drawPanel = (
     pill.append(icon('pending'), el('span', 'pill-label', `next: ${card.step}`));
     line.append(pill);
   }
-  if (card.state !== 'starts') line.append(el('span', '', 'since'), timed(card.since, Boolean(card.sessionId)));
+  if (card.state !== 'starts')
+    line.append(el('span', '', 'since'), timed(card.since, Boolean(card.sessionId) && LIVE.has(card.state as string)));
   top.append(title, line);
   if (card.warning) top.append(el('p', 'warning', card.warning));
 
@@ -242,7 +225,7 @@ export const drawPanel = (
           ],
         card.act && !COPIES[card.state as string] && ['Your act', card.act],
         ...effortFacts(card.effort),
-        ['Updated', `${clock(card.since)}`],
+        ['Updated', clock(card.since)],
       ];
   const pane = isSession && !asks ? screen(card) : null;
   body.append(

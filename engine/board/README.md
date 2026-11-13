@@ -396,7 +396,7 @@ the first result, History shows loading; an initial failure shows an error. Succ
 history shows `No landed issues found on <trunk>.` A failed refresh retains the rows and shows
 the read error; recovery clears it. History has no Run or Resume action.
 Each row has one control on its right side. A row with no page has Make visual
-(`Make the visual of #<n>`); a press sends only the issue number, and the button reads `Starting…`
+(`Make visual, #<n>`); a press sends only the issue number, and the button reads `Starting…`
 (with `aria-busy`) while the press runs. While its `#<n> visual` tab is open, the row shows
 `Making…` (a status with a turning icon, in Current Blue). A row with a page has the link
 `Open visual` to `/visual/<sha>`, in a new browser tab. A refused press gives the toast
@@ -1191,7 +1191,7 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   on the handle of the same agent. While a run waits because every included agent is limited,
   the list names the issue, the cause, and its next reset or `No reset time is known`, with
   `Retry #<n>` for each waiting issue. When every included agent is limited and no run waits,
-  the list says that new default work waits. A long wait list scrolls inside the picker, which
+  the list says that new default work waits. A long agent list or wait list scrolls inside the picker, which
   stays above its pill and within the viewport. Changes and Retry results go to a polite live region.
   Below 720 px width, the pill, the handles, the menu items, and Retry are at least 44 px high, and
   the handles are 44 px wide.
@@ -1200,7 +1200,7 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   **Up to date**, **Update available**, **Restart needed**, **Update check failed**, **Update in
   progress**, **Restarting…**, **Update completed**, **Update needs attention**, or **Restart needs
   attention**. It uses the accent look only for **Update available** and **Restart needed**, the
-  two states that need an action. Its accessible name and tooltip are `Celetis: <label>` in each
+  two states that need an action. Its accessible name and tooltip are `<label>, Celetis` in each
   state. Each state change goes to the polite status region, also when the label stays. Below
   720 px the button is 44 px high.
   The footer can wrap; its controls remain below the dialog. While the coordinator panel is open,
@@ -1301,7 +1301,7 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   usage limits, and Ready to run. The first two groups show full cards, and the other groups show one row for each card,
   as Idle does. The label of a group stays in view while the column scrolls. When cards are below
   the fold, a line at the foot of the column names them, for example
-  `3 more below: 1 input on the issue, 2 ready to run`; a press scrolls to the first of them.
+  `3 more below: 1 need your input on the issue, 2 ready to run`; a press scrolls to the first of them.
   Each column of Now and each stage of Pipeline keeps its current vertical position during a data
   refresh; the browser clamps it when the content shrinks, and a switch of the view starts each
   column at the top.
@@ -1333,7 +1333,9 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   buttons, and under both the number, the type, and the state. The title shows at most two lines,
   and a narrow card hides the type. The step name, the start label, and `auto` of a `ready` card stay
   whole; a card with no room for them in one line wraps them to a second line.
-- The chevron beside Run opens the run menu: Run with each agent. On a `ready` card, a rule and
+- The chevron beside Run opens the run menu: Run with each agent. Each agent row shows the icon of
+  its agent, and the first included agent of the agent order has the tag `Default` after its label.
+  On a `ready` card, a rule and
   `Run at low`, `Run at medium`, `Run at high`, `Run at xhigh`, and `Run at max` follow. The current
   level has a check mark and the suffix `(decided by <by>)`, `(pinned by the config)`, or `(default)`
   of its source; the title of the current level is
@@ -1366,9 +1368,14 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   the dot while one of its hidden cards has it.
 - The status bar shows when the board last read the data, with the name of the tracker (`Issues`
   before the first good read), whether herdr-core answers (the item `herdr`), and the state of the
-  master daemon (the item `Daemon`, hidden until the first data and below 720 px). It shows
-  the keys of the focused card, the landed-issue count (a press opens History), the Notify switch,
-  and the list of keys. The item `Daemon` shows `daemon` of each placement ("The data"):
+  master daemon (the item `Daemon`, hidden until the first data and below 720 px). Below 720 px
+  the bar has two rows: the tracker item shows its name and state words alone on the first row (a
+  long `cannot read:` text keeps `cannot read` and ends with an ellipsis, and the full text is the
+  title), and the items `herdr` and the others share the second row with their words. Only the
+  item `Daemon` hides there. The board menu on a phone leaves out the rows for the queue and
+  History, because the header keeps their buttons; Search keeps both commands at each width. The
+  status bar also shows the keys of the focused card, the landed-issue count (a press opens
+  History), the Notify switch, and the list of keys. The item `Daemon` shows `daemon` of each placement ("The data"):
 
   | Auto mode | Text | Tone | Title |
   |---|---|---|---|
@@ -1392,7 +1399,7 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   step. A strip at the top, Not in a step, holds the issues whose step is in no stage. The Idle
   cards of a stage group in the same way: the row has the chevron, the number, the title, and the
   count, a press shows or hides the children, and a group starts closed.
-- When a request of the page fails, the cards of the last good read stay, dimmed, under a message
+- When a request of the page fails, the cards of the last good read stay at full contrast, under a message
   that says the board read failed and that the cards and history show the last good read.
 - A card that changes its column moves to its new place. The page shows no motion when the OS asks
   for reduced motion.
@@ -1404,6 +1411,14 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   of the coordinator session that the panel showed. The open epic groups follow a change
   in another tab of the same board. A board on another port has its own choices.
 
+**The clock.** Each time of day on the page is a 24-hour local time, `14:05` (`00:05` after
+midnight), in the facts, the tooltip of `#fresh` (`<tracker> was read at 14:05`), the reset time of
+the agent order, and the read time of the coordinator. A time with a date has the form `Nov 12 14:05`
+with an English month, in the History rows and in each tooltip of an age. The form does not
+follow the language of the browser. An age shows seconds (`3m 05s`, `1h 05m`) only where it ticks
+live: on a card or a session that `works` or `waits`, and on the coordinator pill while the
+coordinator starts, works, or shows a dialog. Each other age shows its largest unit (`3m`, `1h`).
+
 **The keys.** `⌘K` (`Ctrl K` off macOS) or `/` opens the search: it lists the issue work that needs
 you first, then the running cards, the steps that can start, the human sessions (a waiting one
 too), the landed issues, and the commands of the board. `#<n>` lists `Go to #<n>` first, and `Enter`
@@ -1412,8 +1427,9 @@ column, the focus stays in the details. The actions of the card follow under
 `Actions for #<n>`, and `Enter` runs no action unless you move to one. The number of an epic lists
 `Go to epic #<n>`, which opens the group and focuses its row; it first closes the details or History
 when they cover the page or hide the row. An empty search lists no `Go to` row.
-`<n>` alone also finds a human session whose title is `<n>`. `j` and `k` move to the next or the previous card,
-`h` and `l` to the column on the left or the right; `Enter` presses the main button of the card,
+`<n>` alone also finds a human session whose title is `<n>`. `j` and `k` (and `↓` and `↑`) move to the next or the previous card,
+`h` and `l` (and `←` and `→`) to the column on the left or the right; `Enter` presses the main
+button of the card (Go, Run, Resume, Open agent, Open shell, or Open issue),
 `Space` opens its details, `m` opens all its actions, `o` opens the issue, and `c` copies the
 command or the path of the card. `v` changes between Now and Pipeline, `d` shows or hides History, `r`
 reads the issues again, and `?` shows the list. `j`, `k`, `h`, `l`, and the arrows stop at the row of an

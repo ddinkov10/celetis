@@ -14,10 +14,10 @@
 <header class="top">
   <div class="brand"><span class="logo" id="logo"></span><h1>Agent board</h1><span class="slash" aria-hidden="true">/</span><span class="repo" id="repo"></span></div>
   <div class="views" role="group" aria-label="View"><button type="button" data-view="now"><span class="label">Now</span></button><button type="button" data-view="pipeline"><span class="label">Pipeline</span></button></div>
-  <nav class="summary" id="summary" aria-label="Counts"></nav>
+  <div class="summary" id="summary" role="group" aria-label="Counts"></div>
   <div class="intake-control"><button type="button" class="btn primary" id="intake" aria-describedby="intake-reason"><span class="label">New intake</span></button><span id="intake-reason" class="intake-reason" hidden></span></div>
   <button type="button" class="btn ghost co-open" id="coordinator-open" aria-controls="coordinator" aria-expanded="false" data-state="none"><span class="label">Coordinator</span><i class="co-mark" aria-hidden="true"></i><span class="co-open-state">no session</span><i class="co-new" aria-hidden="true" hidden></i></button>
-  <button type="button" class="find" id="find" aria-label="Search the cards, history, and commands" aria-keyshortcuts="Control+K Meta+K /"><span class="find-text">Search or run a step</span><kbd>⌘K</kbd></button>
+  <button type="button" class="find" id="find" aria-label="Search or run a step: the cards, history, and commands" aria-keyshortcuts="Control+K Meta+K /"><span class="find-text">Search or run a step</span><kbd>⌘K</kbd></button>
   <button type="button" class="btn ghost" id="queue-open" aria-controls="queue" aria-pressed="false">Queue</button>
   <button type="button" class="btn ghost" id="history" aria-controls="panel" aria-expanded="false" title="Show or hide history (d)"><span class="label">History</span></button>
   <button type="button" class="btn ghost" id="refresh" title="Read the issues again (r)"><span class="label">Refresh</span></button>
@@ -27,9 +27,9 @@
   <p class="banner" id="stale" role="alert" hidden>The board read failed. The cards and history show the last good read.</p>
 </div>
 <section class="human" id="human" aria-labelledby="human-title" hidden></section>
-<div class="work">
+<main class="work">
   <section class="queue" id="queue" aria-label="Issue queue" hidden></section>
-  <main class="board" id="columns" aria-busy="true"></main>
+  <div class="board" id="columns" aria-busy="true"></div>
   <aside class="panel" id="panel" aria-label="Card details" hidden></aside>
   <aside class="coordinator" id="coordinator" aria-labelledby="coordinator-title" data-state="none" hidden>
     <header class="co-head">
@@ -58,24 +58,24 @@
       <div class="co-start" id="coordinator-start-block" hidden><p class="co-start-text" id="coordinator-start-text" hidden></p><button type="button" class="btn primary" id="coordinator-start"><span class="label">Start a new session</span></button></div>
     </div>
   </aside>
-</div>
+</main>
 <footer class="statusbar">
   <span class="sb-item" id="fresh"></span>
   <span class="sb-item" id="terminal"><i class="dot"></i><span class="sb-name">herdr</span><span class="sb-text">checking</span></span>
   <span class="sb-item" id="daemon" hidden></span>
   <div class="agent-picker" id="agent-picker" hidden></div>
-  <button type="button" class="sb-btn update-open" id="update-open" aria-controls="update-dialog" aria-expanded="false" aria-label="Celetis: Check for updates" title="Celetis: Check for updates"><span class="label">Check for updates</span></button>
+  <button type="button" class="sb-btn update-open" id="update-open" aria-controls="update-dialog" aria-expanded="false" aria-label="Check for updates, Celetis" title="Check for updates, Celetis"><span class="label">Check for updates</span></button>
   <span class="sb-end">
     <span class="hints" id="hints" aria-hidden="true"></span>
     <button type="button" class="sb-btn" id="history-count" aria-controls="panel" title="Open landed history"><span class="sb-name">Landed</span><b id="history-total">0</b></button>
     <button type="button" class="sb-btn" id="notify" aria-pressed="false"></button>
     <button type="button" class="sb-btn" id="keys-open" title="Keyboard shortcuts (?)"><span class="sb-name">Keys</span></button>
-    <button type="button" class="sb-btn" id="board-more" aria-label="More board actions" aria-haspopup="menu" title="More board actions"></button>
+    <button type="button" class="sb-btn" id="board-more" aria-label="More board actions" aria-haspopup="menu" aria-expanded="false" title="More board actions"></button>
   </span>
 </footer>
 <p class="sr-only" id="announce" aria-live="polite"></p>
 <div class="toast" id="toast" role="alert" hidden><span class="toast-icon" id="toast-icon"></span><span id="toast-text"></span><button type="button" class="toast-close" id="toast-close" aria-label="Close"></button></div>
-<div class="menu" id="menu" role="menu" aria-label="Card actions" popover></div>
+<div class="menu" id="menu" role="menu" popover></div>
 <dialog class="palette" id="palette" aria-label="Search the cards, history, and commands">
   <div class="pal-input-row"><input id="pal-input" type="text" role="combobox" aria-expanded="true" aria-controls="pal-list" aria-autocomplete="list" autocomplete="off" spellcheck="false" placeholder="Search an issue, a step, or a command; #n jumps to an issue"></div>
   <div class="pal-list" id="pal-list" role="listbox" aria-label="Results"></div>
@@ -85,9 +85,9 @@
   <div class="keys-head"><h2 id="keys-title">Keyboard shortcuts</h2><button type="button" class="icon-btn" id="keys-close" aria-label="Close"></button></div>
   <dl class="keys-list">
     <div><dt><kbd>⌘K</kbd><kbd>/</kbd></dt><dd>Search the cards, history, and commands, or type #n to jump to an issue</dd></div>
-    <div><dt><kbd>j</kbd><kbd>k</kbd></dt><dd>Next or previous card or epic group</dd></div>
-    <div><dt><kbd>h</kbd><kbd>l</kbd></dt><dd>Card in the column to the left or right</dd></div>
-    <div><dt><kbd>Enter</kbd></dt><dd>Main button of the card: Go, Run, Resume, Open shell, or Open issue</dd></div>
+    <div><dt><kbd>j</kbd><kbd>k</kbd><kbd>↓</kbd><kbd>↑</kbd></dt><dd>Next or previous card or epic group</dd></div>
+    <div><dt><kbd>h</kbd><kbd>l</kbd><kbd>←</kbd><kbd>→</kbd></dt><dd>Card in the column to the left or right</dd></div>
+    <div><dt><kbd>Enter</kbd></dt><dd>Main button of the card: Go, Run, Resume, Open agent, Open shell, or Open issue</dd></div>
     <div><dt><kbd>Space</kbd></dt><dd>Show the details of the card; <kbd>Esc</kbd> hides them</dd></div>
     <div><dt><kbd>Enter</kbd><kbd>Space</kbd></dt><dd>On an epic group, show or hide its issues</dd></div>
     <div><dt><kbd>m</kbd></dt><dd>All the actions of the card</dd></div>

@@ -22,7 +22,13 @@ var COLUMNS = [
 var GROUPS = [
   { key: "answer", label: "Waits for your answer", short: "waiting", states: ["waits"], isCompact: false },
   { key: "stuck", label: "Stuck", short: "stuck", states: ["no-progress", "dirty-tree"], isCompact: false },
-  { key: "input", label: "Your input on the issue", short: "input on the issue", states: ["blocked"], isCompact: true },
+  {
+    key: "input",
+    label: "Your input on the issue",
+    short: "need your input on the issue",
+    states: ["blocked"],
+    isCompact: true
+  },
   { key: "paused", label: "Paused by usage limits", short: "paused", states: ["quota-wait"], isCompact: true },
   { key: "ready", label: "Ready to run", short: "ready to run", states: null, isCompact: true }
 ];
@@ -112,6 +118,14 @@ var stateLabel = (card) => {
     return card.reason;
   return STATES[card.state] ?? card.state;
 };
+var LIVE = new Set(["works", "waits"]);
+var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+var two = (value) => String(value).padStart(2, "0");
+var clock = (iso, withDate = false) => {
+  const date = new Date(iso);
+  const time = `${two(date.getHours())}:${two(date.getMinutes())}`;
+  return withDate ? `${MONTHS[date.getMonth()]} ${date.getDate()} ${time}` : time;
+};
 var age = (iso, now, isFine = false) => {
   const seconds = Math.max(0, Math.floor((now - Date.parse(iso)) / 1000));
   const minutes = Math.floor(seconds / 60);
@@ -143,10 +157,10 @@ var tone = (board) => {
     return "needs";
   return board.columns.running.some((card) => card.state === "works") ? "works" : "calm";
 };
-var BADGES = { needs: "#FF7A45", works: "#5EA2FF" };
-var favicon = (badge) => {
-  const dot = BADGES[badge] ? `<circle cx="24" cy="8" r="6" fill="${BADGES[badge]}" stroke="#18181B" stroke-width="2"/>` : "";
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#18181B"/><rect x="7" y="7" width="7.5" height="18" rx="2.25" fill="#EEEEF0"/><rect x="17.5" y="7" width="7.5" height="11" rx="2.25" fill="#EEEEF0"/>${dot}</svg>`;
+var favicon = (badge, colors) => {
+  const fill = badge === "needs" || badge === "works" ? colors[badge] : null;
+  const dot = fill ? `<circle cx="24" cy="8" r="6" fill="${fill}" stroke="${colors.tile}" stroke-width="2"/>` : "";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="${colors.tile}"/><rect x="7" y="7" width="7.5" height="18" rx="2.25" fill="${colors.bar}"/><rect x="17.5" y="7" width="7.5" height="11" rx="2.25" fill="${colors.bar}"/>${dot}</svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 };
 var who = (card) => card.number === null ? card.title ? `Human session "${card.title}"` : "A human session" : `#${card.number}`;
@@ -274,6 +288,10 @@ var ICONS = {
     ["path", { d: "M10.5 3.5V3A1.5 1.5 0 0 0 9 1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5" }]
   ],
   check: [["path", { d: "m3.5 8.5 3 3 6-7" }]],
+  "move-first": [["path", { d: "M3.5 2.75h9M8 13.25v-7.5M4.75 9 8 5.75 11.25 9" }]],
+  "move-up": [["path", { d: "M8 12.75v-9.5M4.5 6.75 8 3.25l3.5 3.5" }]],
+  "move-down": [["path", { d: "M8 3.25v9.5M4.5 9.25 8 12.75l3.5-3.5" }]],
+  "move-last": [["path", { d: "M3.5 13.25h9M8 2.75v7.5M4.75 7 8 10.25 11.25 7" }]],
   alert: [
     ["path", { d: "M7.13 2.5a1 1 0 0 1 1.74 0l5.5 9.75a1 1 0 0 1-.87 1.5H2.5a1 1 0 0 1-.87-1.5Z" }],
     ["path", { d: "M8 6.25v3" }],
@@ -405,12 +423,26 @@ var link = (className, text, url) => {
   }
   return el("span", className, text);
 };
+var prChips = (pr) => {
+  const items = prFacts(pr);
+  if (items.length === 0)
+    return null;
+  const node = el("div", "chips");
+  for (const item of items) {
+    const chip = link(`chip2 chip-${item.kind}`, "", item.url);
+    chip.append(icon(item.kind === "pr" ? "pr" : item.kind.startsWith("checks-fail") ? "xcircle" : item.kind.startsWith("checks-pass") || item.kind === "review-approved" ? "check" : "clock"), item.text);
+    if (item.url)
+      chip.addEventListener("click", (event) => event.stopPropagation());
+    node.append(chip);
+  }
+  return node;
+};
 var timed = (iso, isFine = false, suffix = "") => {
   const node = el("time", "time", `${age(iso, Date.now(), isFine)}${suffix}`);
   node.dateTime = iso;
   node.dataset.since = iso;
   node.dataset.suffix = suffix;
-  node.title = new Date(iso).toLocaleString();
+  node.title = clock(iso, true);
   if (isFine)
     node.dataset.fine = "";
   return node;
@@ -518,7 +550,8 @@ var iconButton = (name, label, press, className = "") => {
   node.append(icon(name));
   node.addEventListener("click", (event) => {
     event.stopPropagation();
-    press(event);
+    if (node.getAttribute("aria-disabled") !== "true")
+      press(event);
   });
   return node;
 };
@@ -559,6 +592,212 @@ var mark = (card, registry, identifiedByText = false) => {
   if (!card.type && card.number !== null)
     node.title = "No lane yet";
   return node;
+};
+
+// engine/board/page/palette.ts
+var items = [];
+var shown = [];
+var active = 0;
+var exactNumber = () => /^#?(\d+)$/.exec($("pal-input").value.trim())?.[1];
+var option = (item, index) => {
+  const node = el("div", `pal-row${index === active ? " on" : ""}${item.isGoTo ? " go" : ""}${item.tone ? ` tone-${item.tone}` : ""}`);
+  node.id = `pal-${index}`;
+  node.setAttribute("role", "option");
+  node.setAttribute("aria-selected", String(index === active));
+  if (item.isDisabled)
+    node.setAttribute("aria-disabled", "true");
+  if (item.isGoTo)
+    node.setAttribute("aria-label", `${item.label}, ${item.context}. Press Enter to go.`);
+  if (item.title)
+    node.title = item.title;
+  const context = el("span", "ctx");
+  if (item.number !== null && !item.isGoTo)
+    context.append(el("span", "num", `#${item.number}`));
+  if (item.context)
+    context.append(item.context);
+  node.append(icon(item.icon), el("b", "", item.label), context, item.isGoTo ? el("kbd", "", "Enter to go") : item.key ? el("kbd", "", item.key) : el("span"));
+  node.addEventListener("mousemove", () => {
+    if (active !== index)
+      select(index);
+  });
+  node.addEventListener("click", () => pick(index));
+  return node;
+};
+var draw = () => {
+  const list = $("pal-list");
+  const rows = [];
+  let group = null;
+  let section = null;
+  const exact = exactNumber();
+  shown.forEach((item, index) => {
+    const label = exact && !item.isGoTo && String(item.number) === exact ? `Actions for #${exact}` : item.group;
+    if (section === null || label !== group) {
+      group = label;
+      const heading = el("div", "pal-group", group);
+      heading.id = `pal-g-${rows.length}`;
+      section = el("div");
+      section.setAttribute("role", "group");
+      section.setAttribute("aria-labelledby", heading.id);
+      section.append(heading);
+      rows.push(section);
+    }
+    section.append(option(item, index));
+  });
+  if (shown.length === 0)
+    rows.push(el("p", "pal-empty", "No card or command matches."));
+  list.replaceChildren(...rows);
+  $("pal-input").setAttribute("aria-activedescendant", shown.length ? `pal-${active}` : "");
+};
+var mark2 = (index, isOn) => {
+  const row = $(`pal-${index}`);
+  row.classList.toggle("on", isOn);
+  row.setAttribute("aria-selected", String(isOn));
+};
+var select = (index) => {
+  mark2(active, false);
+  active = index;
+  mark2(active, true);
+  $("pal-input").setAttribute("aria-activedescendant", `pal-${active}`);
+  $(`pal-${active}`).scrollIntoView({ block: "nearest" });
+};
+var pick = (index) => {
+  const item = shown[index];
+  if (!item)
+    return;
+  $("palette").close();
+  item.run();
+};
+var filter = () => {
+  shown = filterItems(items, $("pal-input").value);
+  active = 0;
+  draw();
+};
+var openPalette = (next) => {
+  items = next;
+  $("pal-input").value = "";
+  filter();
+  $("palette").showModal();
+  $("pal-input").focus();
+};
+var setupPalette = () => {
+  $("pal-input").addEventListener("input", filter);
+  $("pal-input").addEventListener("keydown", (event) => {
+    const moves = { ArrowDown: 1, ArrowUp: -1 };
+    if (event.key in moves && shown.length) {
+      event.preventDefault();
+      select((active + moves[event.key] + shown.length) % shown.length);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      pick(active);
+    }
+  });
+  $("palette").addEventListener("click", (event) => {
+    if (event.target === $("palette"))
+      $("palette").close();
+  });
+};
+var anchor = null;
+var closed;
+var position = (menu, from) => {
+  menu.style.left = "12px";
+  const box = from.getBoundingClientRect();
+  const width = menu.offsetWidth;
+  const height = menu.offsetHeight;
+  const left = Math.min(Math.max(12, box.right - width), innerWidth - width - 12);
+  const below = box.bottom + 6 + height <= innerHeight - 12;
+  menu.style.left = `${left}px`;
+  menu.style.top = `${below ? box.bottom + 6 : Math.max(12, box.top - height - 6)}px`;
+};
+var agentMark = (host) => {
+  const node = el("span", "menu-agent");
+  const image = el("img");
+  image.src = AGENT_ICONS[host];
+  image.alt = "";
+  node.append(image);
+  return node;
+};
+var openMenu = (from, entries, options) => {
+  const menu = $("menu");
+  const isOpen = menu.matches(":popover-open");
+  const active = document.activeElement;
+  const kept = options.focus === "keep" && active instanceof HTMLElement && menu.contains(active) ? active.dataset.id : undefined;
+  if (isOpen && options.focus !== "keep") {
+    const done = closed;
+    closed = undefined;
+    done?.();
+  }
+  if (anchor !== from)
+    anchor?.setAttribute("aria-expanded", "false");
+  anchor = from;
+  closed = options.onClose;
+  menu.setAttribute("aria-label", options.label);
+  menu.replaceChildren(...entries.map((entry) => {
+    if (entry === "rule")
+      return el("hr");
+    const node = el("button", "menu-row");
+    node.type = "button";
+    node.setAttribute("role", "menuitem");
+    if (entry.id)
+      node.dataset.id = entry.id;
+    const text = el("div", "menu-text");
+    text.append(el("span", "", entry.label));
+    if (entry.tag)
+      text.append(el("em", "menu-tag", entry.tag));
+    node.append(entry.host ? agentMark(entry.host) : icon(entry.icon), text, entry.key ? el("kbd", "", entry.key) : el("span"));
+    if (entry.isDisabled)
+      node.setAttribute("aria-disabled", "true");
+    if (entry.title)
+      node.title = entry.title;
+    node.addEventListener("click", (event) => {
+      event.stopPropagation();
+      menu.hidePopover();
+      entry.run();
+    });
+    return node;
+  }));
+  if (isOpen)
+    from.setAttribute("aria-expanded", "true");
+  else
+    menu.showPopover();
+  position(menu, from);
+  (kept && menu.querySelector(`.menu-row[data-id="${CSS.escape(kept)}"]`) || menu.querySelector(".menu-row"))?.focus();
+};
+var placeMenu = () => {
+  const menu = $("menu");
+  if (anchor && menu.matches(":popover-open"))
+    position(menu, anchor);
+};
+var closeMenu = () => {
+  const menu = $("menu");
+  if (menu.matches(":popover-open"))
+    menu.hidePopover();
+};
+var setupMenu = () => {
+  const menu = $("menu");
+  menu.addEventListener("keydown", (event) => {
+    const rows = [...menu.querySelectorAll(".menu-row")];
+    const at = rows.indexOf(document.activeElement);
+    const moves = { ArrowDown: 1, ArrowUp: -1 };
+    if (event.key in moves) {
+      event.preventDefault();
+      rows[(at + moves[event.key] + rows.length) % rows.length]?.focus();
+    } else if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      (event.key === "Home" ? rows[0] : rows.at(-1))?.focus();
+    } else if (event.key === "Tab") {
+      menu.hidePopover();
+    }
+  });
+  menu.addEventListener("beforetoggle", (event) => {
+    if (event.newState !== "closed")
+      return;
+    if (menu.contains(document.activeElement))
+      anchor?.focus();
+    const done = closed;
+    closed = undefined;
+    done?.();
+  });
+  menu.addEventListener("toggle", (event) => anchor?.setAttribute("aria-expanded", String(event.newState === "open")));
 };
 
 // engine/board/page/agent-picker.ts
@@ -615,7 +854,7 @@ var resetText = (at) => {
     return "reset unknown";
   const date = new Date(at);
   const today = date.toDateString() === new Date().toDateString();
-  return `resets ${date.toLocaleString([], today ? { hour: "2-digit", minute: "2-digit" } : { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`;
+  return `resets ${clock(date.toISOString(), !today)}`;
 };
 var same = (a, b) => a.length === b.length && a.every((host, at) => b[at] === host);
 function createAgentPicker(root, actions) {
@@ -628,7 +867,9 @@ function createAgentPicker(root, actions) {
   let menuFor = null;
   let drag = null;
   let suppressClick = false;
+  let pressedWith = null;
   let drawn = "";
+  let polled = "";
   const retrying = new Set;
   const trigger = el("button", "ap-trigger");
   trigger.type = "button";
@@ -648,10 +889,11 @@ function createAgentPicker(root, actions) {
   head.append(title, el("p", "", "New default work uses the first available agent. Drag a handle, or press it for move actions."));
   const list = el("ol", "ap-list");
   list.setAttribute("aria-label", "Agents in priority order");
+  const marker = el("div", "ap-drop");
+  marker.hidden = true;
   const message = el("p", "ap-notice");
-  message.setAttribute("role", "status");
   const waits = el("div", "ap-waits");
-  pop.append(head, list, message, waits);
+  pop.append(head, list, marker, message, waits);
   const live = el("p", "sr-only");
   live.setAttribute("aria-live", "polite");
   root.replaceChildren(trigger, pop, live);
@@ -675,6 +917,8 @@ function createAgentPicker(root, actions) {
     const left = Math.max(EDGE, Math.min(box.left, innerWidth - pop.offsetWidth - EDGE));
     pop.style.left = `${left}px`;
     pop.style.top = `${Math.max(EDGE, box.top - pop.offsetHeight - GAP)}px`;
+    if (menuFor)
+      placeMenu();
   };
   const resize = new ResizeObserver(place);
   resize.observe(pop);
@@ -699,6 +943,7 @@ function createAgentPicker(root, actions) {
     const handle = el("button", "ap-handle");
     handle.type = "button";
     handle.setAttribute("aria-haspopup", "menu");
+    handle.setAttribute("aria-expanded", "false");
     handle.setAttribute("aria-label", rank === null ? `${nameOf(host)}, excluded from default work. Actions` : `${nameOf(host)}, priority ${rank} of ${shown().length}. Move or exclude`);
     if (saving)
       handle.setAttribute("aria-disabled", "true");
@@ -733,8 +978,6 @@ function createAgentPicker(root, actions) {
     if (active === trigger)
       return "trigger";
     const host = active.closest(".ap-row")?.dataset.host;
-    if (active.matches(".ap-menu button"))
-      return `menu:${active.dataset.action}`;
     if (host)
       return `handle:${host}`;
     if (active.dataset.wait)
@@ -744,13 +987,13 @@ function createAgentPicker(root, actions) {
   const restore = (key) => {
     if (!key)
       return;
-    const target = key === "trigger" ? trigger : key.startsWith("menu:") ? list.querySelector(`.ap-menu [data-action="${key.slice(5)}"]:not(:disabled)`) : key.startsWith("handle:") ? handleOf(key.slice(7)) : waits.querySelector(`[data-wait="${CSS.escape(key.slice(5))}"]`);
+    const target = key === "trigger" ? trigger : key.startsWith("handle:") ? handleOf(key.slice(7)) : waits.querySelector(`[data-wait="${CSS.escape(key.slice(5))}"]`);
     (target ?? (open ? list.querySelector(".ap-handle") : trigger))?.focus({ preventScroll: true });
   };
   const draw = (force = false) => {
     if (!view || !confirmed || drag)
       return;
-    const signature = JSON.stringify([view, confirmed, saving, notice, open, menuFor, [...retrying]]);
+    const signature = JSON.stringify([view, confirmed, saving, notice, open, [...retrying]]);
     if (!force && signature === drawn)
       return;
     drawn = signature;
@@ -762,14 +1005,19 @@ function createAgentPicker(root, actions) {
     trigger.setAttribute("aria-label", `Agent order: ${order.map((host) => nameOf(host)).join(", then ")}.${using}${paused() ? " Default work is paused." : ""}`);
     trigger.title = `Agent order: ${order.map((host) => nameOf(host)).join(" › ")}`;
     trigger.dataset.state = paused() ? "paused" : "ready";
-    list.replaceChildren(...order.map((host, at) => row(host, at + 1)), ...excluded().map((host) => row(host, null)), Object.assign(el("div", "ap-drop"), { hidden: true }));
+    list.replaceChildren(...order.map((host, at) => row(host, at + 1)), ...excluded().map((host) => row(host, null)));
     list.setAttribute("aria-busy", String(Boolean(saving)));
     const status = notice || (saving ? "Saving the agent order." : view.error ? `The agent state is unavailable: ${view.error}` : paused() && !view.waits.length ? "New default work waits: every included agent reached a usage limit." : "");
     message.textContent = status;
     message.hidden = !status;
+    if (!saving && !notice && status !== polled) {
+      polled = status;
+      if (status && open)
+        announce(status);
+    }
     waits.replaceChildren(...view.waits.map(waitLine));
     if (menuFor)
-      showMenu(menuFor, false);
+      showMenu(menuFor, "keep");
     place();
     restore(focus);
   };
@@ -779,7 +1027,6 @@ function createAgentPicker(root, actions) {
     const version = confirmed.version;
     saving = next;
     notice = "";
-    announce("Saving the agent order.");
     draw();
     try {
       confirmed = await actions.replace(next, version);
@@ -832,64 +1079,48 @@ function createAgentPicker(root, actions) {
       draw();
     }
   };
-  const closeMenu = (refocus) => {
-    const host = menuFor;
-    list.querySelector(".ap-menu")?.remove();
-    menuFor = null;
-    if (refocus && host)
-      handleOf(host)?.focus();
-  };
-  const showMenu = (host, focus = true) => {
-    list.querySelector(".ap-menu")?.remove();
-    const item = list.querySelector(`.ap-row[data-host="${host}"]`);
-    if (!item) {
-      menuFor = null;
-      return;
-    }
-    menuFor = host;
+  const entries = (host) => {
     const order = shown();
     const at = order.indexOf(host);
     const included = at >= 0;
     const last = order.length - 1;
-    const menu = el("div", "ap-menu");
-    menu.setAttribute("role", "menu");
-    menu.setAttribute("aria-label", `${nameOf(host)} actions`);
-    const entry = (action, label, disabled, run) => {
-      const button = el("button", "", label);
-      button.type = "button";
-      button.dataset.action = action;
-      button.setAttribute("role", "menuitem");
-      button.disabled = disabled || Boolean(saving);
-      button.addEventListener("click", () => {
-        closeMenu(false);
-        handleOf(host)?.focus();
-        run();
-      });
-      return button;
-    };
-    menu.append(entry("first", "Move first", !included || at === 0, () => move(host, 0)), el("hr"), entry("up", "Move up", !included || at === 0, () => move(host, at - 1)), entry("down", "Move down", !included || at === last, () => move(host, at + 1)), entry("bottom", "Move to bottom", !included || at === last, () => move(host, last)), el("hr"), included ? entry("exclude", "Exclude from default work", order.length === 1, () => toggle(host)) : entry("include", "Include in default work", false, () => toggle(host)));
-    if (included && order.length === 1)
-      menu.append(el("p", "ap-menu-note", "At least one agent stays included."));
-    list.append(menu);
-    const rows = list.getBoundingClientRect();
-    const box = item.getBoundingClientRect();
-    const below = box.bottom + menu.offsetHeight <= innerHeight - EDGE;
-    menu.style.top = `${(below ? box.bottom : Math.max(EDGE, box.top - menu.offsetHeight)) - rows.top}px`;
-    menu.addEventListener("keydown", (event) => {
-      const buttons = [...menu.querySelectorAll("button:not(:disabled)")];
-      const index = buttons.indexOf(document.activeElement);
-      const step = event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
-      if (step && buttons.length) {
-        event.preventDefault();
-        buttons[(index + step + buttons.length) % buttons.length]?.focus();
-      } else if (event.key === "Home" || event.key === "End") {
-        event.preventDefault();
-        (event.key === "Home" ? buttons[0] : buttons.at(-1))?.focus();
-      } else if (event.key === "Tab")
-        closeMenu(false);
+    const act = (id, icon, label, blocked, run, title) => ({
+      id,
+      icon,
+      label,
+      isDisabled: blocked || Boolean(saving),
+      ...blocked && title ? { title } : {},
+      run: () => {
+        if (!blocked && !saving)
+          run();
+      }
     });
-    if (focus)
-      menu.querySelector("button:not(:disabled)")?.focus();
+    return [
+      act("first", "move-first", "Move first", !included || at === 0, () => move(host, 0)),
+      "rule",
+      act("up", "move-up", "Move up", !included || at === 0, () => move(host, at - 1)),
+      act("down", "move-down", "Move down", !included || at === last, () => move(host, at + 1)),
+      act("bottom", "move-last", "Move to bottom", !included || at === last, () => move(host, last)),
+      "rule",
+      included ? act("exclude", "xcircle", "Exclude from default work", order.length === 1, () => toggle(host), "At least one agent stays included.") : act("include", "check", "Include in default work", false, () => toggle(host))
+    ];
+  };
+  const showMenu = (host, focus = "first") => {
+    const handle = handleOf(host);
+    if (!handle)
+      return closeMenu();
+    openMenu(handle, entries(host), {
+      label: `${nameOf(host)} actions`,
+      focus,
+      onClose: () => {
+        menuFor = null;
+      }
+    });
+    menuFor = host;
+  };
+  const hideMenu = () => {
+    if (menuFor)
+      closeMenu();
   };
   const setOpen = (value, refocus = true) => {
     open = value;
@@ -898,7 +1129,7 @@ function createAgentPicker(root, actions) {
     trigger.setAttribute("aria-expanded", String(open));
     if (!open) {
       cancelDrag();
-      closeMenu(false);
+      hideMenu();
       if (refocus)
         trigger.focus();
       return;
@@ -914,9 +1145,7 @@ function createAgentPicker(root, actions) {
     ghost?.remove();
     item.classList.remove("ap-dragging");
     root.classList.remove("ap-is-dragging");
-    const marker = list.querySelector(".ap-drop");
-    if (marker)
-      marker.hidden = true;
+    marker.hidden = true;
     const handle = item.querySelector(".ap-handle");
     if (handle?.hasPointerCapture(pointer))
       handle.releasePointerCapture(pointer);
@@ -924,6 +1153,8 @@ function createAgentPicker(root, actions) {
   trigger.addEventListener("click", () => setOpen(!open));
   list.addEventListener("click", (event) => {
     const handle = event.target.closest(".ap-handle");
+    const pressed = event.detail === 0 ? null : pressedWith;
+    pressedWith = null;
     if (!handle)
       return;
     if (suppressClick) {
@@ -931,14 +1162,16 @@ function createAgentPicker(root, actions) {
       return;
     }
     const host = handle.closest(".ap-row")?.dataset.host;
-    if (menuFor === host)
-      closeMenu(true);
-    else
+    if (pressed === host || menuFor === host) {
+      hideMenu();
+      handle.focus();
+    } else
       showMenu(host);
   });
   list.addEventListener("pointerdown", (event) => {
     const handle = event.target.closest(".ap-handle");
     suppressClick = false;
+    pressedWith = handle ? menuFor : null;
     if (!handle || event.button !== 0 || saving)
       return;
     const item = handle.closest(".ap-row");
@@ -965,7 +1198,7 @@ function createAgentPicker(root, actions) {
       if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 4)
         return;
       drag.started = true;
-      closeMenu(false);
+      hideMenu();
       root.classList.add("ap-is-dragging");
       drag.row.classList.add("ap-dragging");
       const box = drag.row.getBoundingClientRect();
@@ -988,14 +1221,13 @@ function createAgentPicker(root, actions) {
       }
     }
     const from = rows.indexOf(drag.row);
-    const marker = list.querySelector(".ap-drop");
     if (slot === from || slot === from + 1) {
       marker.hidden = true;
       drag.to = null;
       return;
     }
     const near = rows[Math.min(slot, rows.length - 1)];
-    marker.style.top = `${slot < rows.length ? near.offsetTop - 2 : near.offsetTop + near.offsetHeight}px`;
+    marker.style.top = `${list.offsetTop - list.scrollTop + (slot < rows.length ? near.offsetTop - 2 : near.offsetTop + near.offsetHeight)}px`;
     marker.hidden = false;
     drag.to = slot > from ? slot - 1 : slot;
   });
@@ -1049,12 +1281,13 @@ function createAgentPicker(root, actions) {
       cancelDrag();
       draw(true);
     } else if (menuFor)
-      closeMenu(true);
+      hideMenu();
     else
       setOpen(false);
   };
   const onOutside = (event) => {
-    if (open && !root.contains(event.target))
+    const target = event.target;
+    if (open && !root.contains(target) && !(menuFor && $("menu").contains(target)))
       setOpen(false, false);
   };
   root.addEventListener("keydown", onKey);
@@ -1232,7 +1465,7 @@ function setupUpdates() {
     const busy = phase === "updating" || phase === "restarting";
     const failed = phase === "update-failed" || phase === "restart-refused" || phase === "check-failed" || phase === "timeout";
     label.textContent = busy ? kind === "restart" ? "Restarting…" : "Update in progress" : phase === "checking" ? "Checking…" : phase === "check-failed" ? "Update check failed" : failed ? kind === "restart" ? "Restart needs attention" : "Update needs attention" : phase === "restart-needed" ? "Restart needed" : phase === "available" ? "Update available" : phase === "updated" ? "Update completed" : phase === "current" ? "Up to date" : "Check for updates";
-    const name = `Celetis: ${label.textContent}`;
+    const name = `${label.textContent}, Celetis`;
     opener.setAttribute("aria-label", name);
     opener.title = name;
     opener.classList.toggle("is-accent", phase === "available" || phase === "restart-needed");
@@ -1296,9 +1529,9 @@ function setupUpdates() {
     later.textContent = busy ? "Hide progress" : failed || phase === "updated" ? "Close" : "Later";
     start.hidden = phase !== "available" && phase !== "restart-needed";
     start.textContent = phase === "restart-needed" ? "Restart" : "Update and restart";
-    start.disabled = submitting !== null || checking || phase === "available" && !update?.offer;
+    start.setAttribute("aria-disabled", String(submitting !== null || checking || phase === "available" && !update?.offer));
     check.hidden = !failed;
-    check.disabled = checking;
+    check.setAttribute("aria-disabled", String(checking));
     if (focused === start && start.hidden || focused === check && check.hidden)
       title.focus();
     opener.setAttribute("aria-expanded", String(dialog.open));
@@ -1524,7 +1757,10 @@ function setupUpdates() {
     }
     await poll();
   };
-  start.addEventListener("click", () => void (phaseOf() === "restart-needed" ? restart() : approve()));
+  start.addEventListener("click", () => {
+    if (start.getAttribute("aria-disabled") !== "true")
+      phaseOf() === "restart-needed" ? restart() : approve();
+  });
   const requestCheck = async () => {
     if (phaseOf() === "checking" || pending && !timedOut)
       return;
@@ -1545,7 +1781,10 @@ function setupUpdates() {
       checkFailure = "The update check could not start. Check again.";
     await poll(true);
   };
-  check.addEventListener("click", () => void requestCheck());
+  check.addEventListener("click", () => {
+    if (check.getAttribute("aria-disabled") !== "true")
+      requestCheck();
+  });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden || timedOut || submitting || checking)
       return;
@@ -1656,7 +1895,7 @@ function setupCoordinator(hooks) {
   const turnKey = () => `${view.sessionId}:${view.turn}`;
   const isUnseen = () => view.state === "turn-ended" && view.sessionId !== null && turnKey() !== seen;
   const staleCause = () => view.error ?? (isDown ? SERVER_DOWN : null);
-  const timeOf = (iso) => iso ? new Date(iso).toLocaleTimeString() : "no good read";
+  const timeOf = (iso) => iso ? clock(iso) : "no good read";
   const atEnd = () => log.scrollHeight - log.scrollTop - log.clientHeight < 4;
   const can = (action) => view.actions.includes(action) && !ended;
   const setText = (node, value) => {
@@ -1759,7 +1998,7 @@ function setupCoordinator(hooks) {
     const age = state === "ended" || state === "none" ? null : view.since;
     if (pillKey !== `${state}|${age}`) {
       pillKey = `${state}|${age}`;
-      pill.replaceChildren(el("span", "", WORDS[state]), ...age ? [timed(age, true)] : []);
+      pill.replaceChildren(el("span", "", WORDS[state]), ...age ? [timed(age, state === "starting" || state === "works" || state === "dialog")] : []);
     }
     const scope = $("coordinator-scope");
     const scopeText = state === "starting" ? "The session starts in a tab of the Herdr app." : state === "none" || state === "ended" || full ? null : "Only the visible screen. The full text shows when the turn ends.";
@@ -2105,149 +2344,6 @@ function setupCoordinator(hooks) {
   };
 }
 
-// engine/board/page/palette.ts
-var items = [];
-var shown = [];
-var active = 0;
-var exactNumber = () => /^#?(\d+)$/.exec($("pal-input").value.trim())?.[1];
-var option = (item, index) => {
-  const node = el("div", `pal-row${index === active ? " on" : ""}${item.isGoTo ? " go" : ""}${item.tone ? ` tone-${item.tone}` : ""}`);
-  node.id = `pal-${index}`;
-  node.setAttribute("role", "option");
-  node.setAttribute("aria-selected", String(index === active));
-  if (item.isDisabled)
-    node.setAttribute("aria-disabled", "true");
-  if (item.isGoTo)
-    node.setAttribute("aria-label", `${item.label}, ${item.context}. Press Enter to go.`);
-  if (item.title)
-    node.title = item.title;
-  const context = el("span", "ctx");
-  if (item.number !== null)
-    context.append(el("span", "num", `#${item.number}`));
-  if (item.context)
-    context.append(item.context);
-  node.append(icon(item.icon), el("b", "", item.label), context, item.isGoTo ? el("kbd", "", "Enter to go") : item.key ? el("kbd", "", item.key) : el("span"));
-  node.addEventListener("mousemove", () => {
-    if (active !== index)
-      select(index);
-  });
-  node.addEventListener("click", () => pick(index));
-  return node;
-};
-var draw = () => {
-  const list = $("pal-list");
-  const rows = [];
-  let group = null;
-  const exact = exactNumber();
-  shown.forEach((item, index) => {
-    const label = exact && !item.isGoTo && String(item.number) === exact ? `Actions for #${exact}` : item.group;
-    if (label !== group) {
-      group = label;
-      rows.push(el("div", "pal-group", group));
-    }
-    rows.push(option(item, index));
-  });
-  if (shown.length === 0)
-    rows.push(el("p", "pal-empty", "No card or command matches."));
-  list.replaceChildren(...rows);
-  $("pal-input").setAttribute("aria-activedescendant", shown.length ? `pal-${active}` : "");
-};
-var mark2 = (index, isOn) => {
-  const row = $(`pal-${index}`);
-  row.classList.toggle("on", isOn);
-  row.setAttribute("aria-selected", String(isOn));
-};
-var select = (index) => {
-  mark2(active, false);
-  active = index;
-  mark2(active, true);
-  $("pal-input").setAttribute("aria-activedescendant", `pal-${active}`);
-  $(`pal-${active}`).scrollIntoView({ block: "nearest" });
-};
-var pick = (index) => {
-  const item = shown[index];
-  if (!item)
-    return;
-  $("palette").close();
-  item.run();
-};
-var filter = () => {
-  shown = filterItems(items, $("pal-input").value);
-  active = 0;
-  draw();
-};
-var openPalette = (next) => {
-  items = next;
-  $("pal-input").value = "";
-  filter();
-  $("palette").showModal();
-  $("pal-input").focus();
-};
-var setupPalette = () => {
-  $("pal-input").addEventListener("input", filter);
-  $("pal-input").addEventListener("keydown", (event) => {
-    const moves = { ArrowDown: 1, ArrowUp: -1 };
-    if (event.key in moves && shown.length) {
-      event.preventDefault();
-      select((active + moves[event.key] + shown.length) % shown.length);
-    } else if (event.key === "Enter") {
-      event.preventDefault();
-      pick(active);
-    }
-  });
-  $("palette").addEventListener("click", (event) => {
-    if (event.target === $("palette"))
-      $("palette").close();
-  });
-};
-var anchor = null;
-var openMenu = (from, entries) => {
-  const menu = $("menu");
-  anchor = from;
-  menu.replaceChildren(...entries.map((entry) => {
-    if (entry === "rule")
-      return el("hr");
-    const node = el("button", `menu-row${entry.isDanger ? " danger" : ""}`);
-    node.type = "button";
-    node.setAttribute("role", "menuitem");
-    node.append(icon(entry.icon), el("span", "", entry.label), entry.key ? el("kbd", "", entry.key) : el("span"));
-    if (entry.isDisabled)
-      node.setAttribute("aria-disabled", "true");
-    if (entry.title)
-      node.title = entry.title;
-    node.addEventListener("click", (event) => {
-      event.stopPropagation();
-      menu.hidePopover();
-      entry.run();
-    });
-    return node;
-  }));
-  menu.showPopover();
-  const box = from.getBoundingClientRect();
-  const width = menu.offsetWidth;
-  const height = menu.offsetHeight;
-  const left = Math.min(Math.max(8, box.right - width), innerWidth - width - 8);
-  const below = box.bottom + 6 + height <= innerHeight - 8;
-  menu.style.left = `${left}px`;
-  menu.style.top = `${below ? box.bottom + 6 : Math.max(8, box.top - height - 6)}px`;
-  menu.querySelector(".menu-row")?.focus();
-};
-var setupMenu = () => {
-  const menu = $("menu");
-  menu.addEventListener("keydown", (event) => {
-    const rows = [...menu.querySelectorAll(".menu-row")];
-    const at = rows.indexOf(document.activeElement);
-    const moves = { ArrowDown: 1, ArrowUp: -1 };
-    if (event.key in moves) {
-      event.preventDefault();
-      rows[(at + moves[event.key] + rows.length) % rows.length]?.focus();
-    } else if (event.key === "Tab") {
-      menu.hidePopover();
-    }
-  });
-  menu.addEventListener("toggle", (event) => anchor?.setAttribute("aria-expanded", String(event.newState === "open")));
-};
-
 // engine/board/page/panel.ts
 var TONES = {
   waits: "needs",
@@ -2255,6 +2351,7 @@ var TONES = {
   works: "working",
   starts: "working",
   "no-progress": "danger",
+  "quota-wait": "muted",
   "dirty-tree": "amber"
 };
 var PILL_ICONS = {
@@ -2263,14 +2360,14 @@ var PILL_ICONS = {
   waits: "target",
   "no-progress": "alert",
   "dirty-tree": "diff",
-  blocked: "person"
+  blocked: "person",
+  "quota-wait": "clock"
 };
 var ASKS = {
   dialog: ["question", "waits for your answer"],
   turn: ["message", "ended its turn"]
 };
 var COPIES = { "no-progress": "command", "dirty-tree": "path" };
-var clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 var section = (title, aside, ...children) => {
   const node = el("section", "sec");
   const head = el("h3", "sec-label", title);
@@ -2285,7 +2382,7 @@ var ask = (card, actions, registry) => {
   const [glyph, verb] = ASKS[card.waitFor] ?? ["target", "waits for your answer"];
   const node = el("div", "ask");
   const head = el("div", "ask-who");
-  head.append(icon(glyph), el("b", "", agentOf(card, registry)?.name ?? "The agent"), el("span", "", verb), timed(card.since, true, " ago"));
+  head.append(icon(glyph), el("b", "", agentOf(card, registry)?.name ?? "The agent"), el("span", "", verb), timed(card.since, LIVE.has(card.state), " ago"));
   node.append(head);
   const lines = screen(card);
   if (lines)
@@ -2335,16 +2432,8 @@ var effortFacts = (pair) => pair ? [
   ["Why", el("span", "why", whyOf(pair))]
 ] : [];
 var pr = (card) => {
-  const items = prFacts(card.pr);
-  if (items.length === 0)
-    return null;
-  const row = el("div", "chips");
-  for (const item of items) {
-    const chip = link(`chip2 chip-${item.kind}`, "", item.url);
-    chip.append(icon(item.kind === "pr" ? "pr" : item.kind.startsWith("checks-fail") ? "xcircle" : item.kind.startsWith("checks-pass") || item.kind === "review-approved" ? "check" : "clock"), item.text);
-    row.append(chip);
-  }
-  return section("Pull request", null, row);
+  const row = prChips(card.pr);
+  return row && section("Pull request", null, row);
 };
 var drawPanel = (card, {
   actions,
@@ -2388,7 +2477,7 @@ var drawPanel = (card, {
     line.append(pill);
   }
   if (card.state !== "starts")
-    line.append(el("span", "", "since"), timed(card.since, Boolean(card.sessionId)));
+    line.append(el("span", "", "since"), timed(card.since, Boolean(card.sessionId) && LIVE.has(card.state)));
   top.append(title, line);
   if (card.warning)
     top.append(el("p", "warning", card.warning));
@@ -2417,7 +2506,7 @@ var drawPanel = (card, {
     ],
     card.act && !COPIES[card.state] && ["Your act", card.act],
     ...effortFacts(card.effort),
-    ["Updated", `${clock(card.since)}`]
+    ["Updated", clock(card.since)]
   ];
   const pane = isSession && !asks ? screen(card) : null;
   body.append(...[
@@ -2476,16 +2565,16 @@ function accept(view) {
 var restore = (key) => {
   if (!key)
     return;
-  const control = section2().querySelector(`[data-control="${CSS.escape(key)}"]:not(:disabled)`);
-  (control ?? section2().querySelector(".queue-move button:not(:disabled), .queue-pick button:not(:disabled)") ?? heading())?.focus({ preventScroll: true });
+  const control = section2().querySelector(`[data-control="${CSS.escape(key)}"]:not([aria-disabled="true"])`);
+  (control ?? section2().querySelector('.queue-move button:not([aria-disabled="true"]), .queue-pick button:not([aria-disabled="true"])') ?? heading())?.focus({ preventScroll: true });
 };
 var button = (text, key, action, disabled = false) => {
   const node = el("button", "btn ghost", text);
   node.type = "button";
   node.dataset.control = key;
-  node.disabled = disabled;
+  node.setAttribute("aria-disabled", String(disabled));
   node.addEventListener("click", () => {
-    if (!node.disabled)
+    if (node.getAttribute("aria-disabled") !== "true")
       action();
   });
   return node;
@@ -2557,12 +2646,12 @@ var row = (number, index, numbers) => {
       const control = iconButton("chevron", `Move #${number} ${direction}`, () => request({ kind: "move", number, direction, expected: expected() }));
       control.classList.add(`queue-${direction}`);
       control.dataset.control = `${direction}-${number}`;
-      control.disabled = busy || !authoritative() || !submitted?.actions.edit || (direction === "up" ? index === 1 : index === numbers.length - 1);
+      control.setAttribute("aria-disabled", String(busy || !authoritative() || !submitted?.actions.edit || (direction === "up" ? index === 1 : index === numbers.length - 1)));
       controls.append(control);
     }
     const remove = iconButton("close", `Remove #${number} from queue`, () => request({ kind: "remove", number, expected: expected() }));
     remove.dataset.control = `remove-${number}`;
-    remove.disabled = busy || !authoritative() || !submitted?.actions.edit;
+    remove.setAttribute("aria-disabled", String(busy || !authoritative() || !submitted?.actions.edit));
     controls.append(remove);
     node.append(controls);
   }
@@ -2620,8 +2709,13 @@ function draw2() {
     select.add(option);
   }
   select.value = chosenHost(record) ?? "";
-  select.disabled = numbers.length > 0 || busy || !authoritative();
+  const locked = numbers.length > 0 || busy || !authoritative();
+  select.setAttribute("aria-disabled", String(locked));
   select.addEventListener("change", () => {
+    if (locked) {
+      select.value = chosenHost(record) ?? "";
+      return;
+    }
     agent = select.value;
     draw2();
   });
@@ -2699,7 +2793,6 @@ var SUMMARY = [
 ];
 var COPY = { "no-progress": "command", "dirty-tree": "path" };
 var ON_ISSUE = new Set(["blocked"]);
-var LIVE = new Set(["works", "waits"]);
 var GATES = {
   auto: "Auto mode of the daemon starts this step by itself"
 };
@@ -2834,7 +2927,7 @@ var runName = ({ step, effort, number }) => `Run ${step}${effort ? ` on ${effort
 var runAction = (card, agent = null) => {
   const display = agent ? agentDisplay(agent) : null;
   const reason = runReason(agent, card.number);
-  const name = agent ? `Run ${card.step}, #${card.number} with ${display}` : runName(card);
+  const name = agent ? `Run with ${display}, ${card.step} of #${card.number}` : runName(card);
   return {
     id: agent ? `run:${agent}` : "run",
     label: agent ? `Run with ${display}` : "Run",
@@ -2859,7 +2952,7 @@ var overrideActionsOf = (card, isAgain) => {
     return isAgain ? {
       ...base,
       label: `Run again with ${display}`,
-      name: `Run ${card.step} again, #${card.number} with ${display}`,
+      name: `Run again with ${display}, ${card.step} of #${card.number}`,
       isGhost: true,
       title: base.isDisabled ? base.title : `Start the ${card.step} step again. It made no progress last time.`
     } : base;
@@ -2896,14 +2989,27 @@ var agentOrderEntry = {
       trigger?.click();
   }
 };
-var toMenuEntry = (action) => ({
-  icon: action.icon,
-  label: action.name,
-  key: action.isMain ? "Enter" : "",
-  isDisabled: action.isDisabled,
-  title: action.title,
-  run: action.href ? () => window.open(action.href, "_blank", "noopener,noreferrer") : action.run
-});
+var toMenuEntry = (action) => {
+  const host = action.id.startsWith("run:") ? action.id.slice(4) : null;
+  if (host && data && knownAgent(data.registry, host))
+    return {
+      icon: action.icon,
+      host,
+      label: action.label,
+      tag: data.picker?.order.order[0] === host ? "Default" : undefined,
+      isDisabled: action.isDisabled,
+      title: action.title,
+      run: action.run
+    };
+  return {
+    icon: action.icon,
+    label: action.name,
+    key: action.isMain ? "Enter" : "",
+    isDisabled: action.isDisabled,
+    title: action.title,
+    run: action.href ? () => window.open(action.href, "_blank", "noopener,noreferrer") : action.run
+  };
+};
 var actionsOf = (card) => {
   const list = [];
   if (card.go) {
@@ -2933,7 +3039,7 @@ var actionsOf = (card) => {
       label: "Open agent",
       icon: "terminal",
       busy: "Starting",
-      name: `Open agent for #${card.number}`,
+      name: `Open agent, #${card.number}`,
       title: reason ?? "Open an assistance session in a new herdr tab (Enter)",
       isDisabled: Boolean(reason) || !card.assist,
       run: async () => {
@@ -2966,7 +3072,7 @@ var actionsOf = (card) => {
       list.push({
         ...base,
         label: "Run again",
-        name: `Run ${card.step} again, #${card.number}`,
+        name: `Run again, #${card.number}`,
         isGhost: true,
         title: base.isDisabled ? base.title : `Start the ${card.step} step again. It made no progress last time.`
       });
@@ -2982,7 +3088,7 @@ var actionsOf = (card) => {
       label: "Open shell",
       icon: "terminal",
       busy: "Opening",
-      name: `Open a shell in the worktree of #${card.number}`,
+      name: `Open shell, #${card.number}`,
       title: "Open a shell in the worktree in a new herdr tab (Enter)",
       run: () => act("/api/shell", { number: card.number }, "Open shell failed", () => toast(`Opened a shell in the worktree of #${card.number}`, {
         detail: "Commit or stash the changes there; then the card moves on."
@@ -3119,20 +3225,6 @@ var liveLine = (card) => {
   node.title = "Changed since the branch left its base";
   return node;
 };
-var chips = (card) => {
-  const items = prFacts(card.pr);
-  if (items.length === 0)
-    return null;
-  const node = el("div", "chips");
-  for (const item of items) {
-    const chip = link(`chip2 chip-${item.kind}`, "", item.url);
-    chip.append(icon(item.kind === "pr" ? "pr" : item.kind === "checks-fail" ? "xcircle" : item.kind === "checks-pass" || item.kind === "review-approved" ? "check" : "clock"), item.text);
-    if (item.url)
-      chip.addEventListener("click", (event) => event.stopPropagation());
-    node.append(chip);
-  }
-  return node;
-};
 var actLine = (card) => {
   const what = copyWhat(card);
   if (!what)
@@ -3177,7 +3269,12 @@ var shell = (card, column, isCompact, level = "h3") => {
   id.addEventListener("click", (event) => event.stopPropagation());
   return { key, node, title, id };
 };
-var unseenDot = () => Object.assign(el("i", "unseen"), { title: "Changed since you last looked" });
+var unseenDot = () => {
+  const dot = Object.assign(el("i", "unseen"), { title: "Changed since you last looked" });
+  dot.append(el("span", "sr-only", "Changed since you last looked"));
+  return dot;
+};
+var menuName = (card, prefix) => `${prefix} ${card.number === null ? card.title : `#${card.number}`}`;
 var runWithButton = (card) => {
   const actions = actionsOf(card);
   if (!["run", "blocked"].includes(actions[0]?.id))
@@ -3186,7 +3283,9 @@ var runWithButton = (card) => {
   if (entries.length === 0)
     return null;
   const levelled = levelEntries(card);
-  const button = iconButton("chevron", levelled.length ? "Run with another agent or at another level" : "Run with another agent", (event) => openMenu(event.currentTarget, [...entries, ...levelled]));
+  const button = iconButton("chevron", levelled.length ? "Run with another agent or at another level" : "Run with another agent", (event) => openMenu(event.currentTarget, [...entries, ...levelled], {
+    label: menuName(card, "Run options of")
+  }));
   button.setAttribute("aria-haspopup", "menu");
   return button;
 };
@@ -3231,13 +3330,13 @@ var drawCard = (card, column, { isCompact = false, level } = {}) => {
   const lane = track(card);
   if (lane)
     head.append(lane);
-  const more = iconButton("dots", "More actions (m)", () => openMenu(more, menuOf(card, key)), "more");
+  const more = iconButton("dots", "More actions (m)", () => openMenu(more, menuOf(card, key), { label: menuName(card, "Actions of") }), "more");
   more.setAttribute("aria-haspopup", "menu");
   head.append(more);
   node.append(head, title);
   for (const part of [
     card.state === "works" ? liveLine(card) : null,
-    chips(card),
+    prChips(card.pr),
     card.act ? actLine(card) : null,
     card.warning ? el("p", "warning", card.warning) : null
   ])
@@ -3401,8 +3500,9 @@ var pipelineView = (columns, flow) => {
   const sections = [];
   if (hold.length) {
     const strip = el("section", "col hold");
-    strip.setAttribute("aria-label", "Not in a lane step");
+    strip.setAttribute("aria-labelledby", "hold-title");
     const label = el("h2", "hold-label", "Not in a step");
+    label.id = "hold-title";
     const list = el("div", "hold-list");
     list.append(...hold.map((card) => drawCard(card, where.get(card), { isCompact: true })));
     strip.append(label, list);
@@ -3472,10 +3572,10 @@ var humanPill = (card) => {
   open.type = "button";
   open.dataset.key = key;
   open.title = "Show the details and the screen of this session";
-  open.append(mark(card, registry()), el("span", "human-name", card.title || "A session"), el("i", "human-dot"), el("span", "human-state", stateLabel(card)), timed(card.since, true));
+  open.append(mark(card, registry()), el("span", "human-name", card.title || "A session"), el("i", "human-dot"), el("span", "human-state", stateLabel(card)));
   open.addEventListener("click", () => selected === key ? closePanel() : openPanel(key));
   const [go] = actionsOf(card);
-  pill.append(open, iconButton("go", go.name, () => go.run?.(), "human-go"));
+  pill.append(open, timed(card.since, LIVE.has(card.state)), iconButton("go", go.name, () => go.run?.(), "human-go"));
   return pill;
 };
 var drawHuman = (cards) => {
@@ -3506,7 +3606,7 @@ var visualControl = (entry) => {
       rel: "noreferrer"
     });
     node.append(icon("open"), el("span", "label", "Open visual"));
-    node.setAttribute("aria-label", `Open the visual of #${number}`);
+    node.setAttribute("aria-label", `Open visual, #${number}`);
   } else if (state === "making") {
     node = el("span", "history-action history-making");
     node.setAttribute("role", "status");
@@ -3517,7 +3617,7 @@ var visualControl = (entry) => {
     node = el("button", "btn ghost history-action");
     node.type = "button";
     node.append(icon("diff"), el("span", "label", state === "starting" ? "Starting…" : "Make visual"));
-    node.setAttribute("aria-label", `Make the visual of #${number}`);
+    node.setAttribute("aria-label", `Make visual, #${number}`);
     if (state === "starting")
       node.setAttribute("aria-busy", "true");
     else
@@ -3557,14 +3657,9 @@ var drawHistory = () => {
       const commit = link("history-sha", entry.sha.slice(0, 7), entry.commitUrl);
       commit.setAttribute("aria-label", `Commit ${entry.sha}`);
       commit.title = entry.sha;
-      const time = el("time", "", new Date(entry.committedAt).toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit"
-      }));
+      const time = el("time", "", clock(entry.committedAt, true));
       time.dateTime = entry.committedAt;
-      time.title = `Commit time: ${entry.committedAt}`;
+      time.title = `Commit time: ${clock(entry.committedAt, true)}`;
       time.setAttribute("aria-label", time.title);
       const meta = el("span", "history-meta");
       const dot = el("span", "", "·");
@@ -3638,11 +3733,16 @@ var markAllSeen = () => {
   for (const [key, { card, column }] of byKey)
     seen.set(key, signature(card, column));
 };
+var faviconColors = () => {
+  const style = getComputedStyle(document.documentElement);
+  const token = (name) => style.getPropertyValue(name).trim();
+  return { tile: token("--card"), bar: token("--fg"), needs: token("--needs"), works: token("--working") };
+};
 var systemNotice = (title, body, tag, open) => {
   const isAway = document.hidden || !document.hasFocus();
   if (!isNotifyOn || !isAway || !("Notification" in window) || Notification.permission !== "granted")
     return;
-  const shown = new Notification(title, { body, tag, icon: favicon("needs") });
+  const shown = new Notification(title, { body, tag, icon: favicon("needs", faviconColors()) });
   shown.addEventListener("click", () => {
     window.focus();
     open();
@@ -3731,7 +3831,7 @@ var drawStatus = (source, isDown) => {
   else
     text.append("read ", timed(source.readAt, false, " ago"));
   fresh.dataset.tone = state;
-  fresh.title = source.readAt ? `${name} was read at ${new Date(source.readAt).toLocaleTimeString()}` : "";
+  fresh.title = !isDown && source.error ? `cannot read: ${source.error}` : source.readAt ? `${name} was read at ${clock(source.readAt)}` : "";
   fresh.replaceChildren(el("i", "dot"), el("span", "sb-name", name), text);
   const terminal = data?.terminal;
   const terminalNode = $("terminal");
@@ -3880,7 +3980,7 @@ var drawBoard = (next) => {
   byKey = new Map;
   const needs = next.columns.needs.length;
   document.title = pageTitle(next.repo, needsYou(next).length);
-  $("favicon").href = favicon(tone(next));
+  $("favicon").href = favicon(tone(next), faviconColors());
   $("repo").textContent = next.repo;
   $("repo").title = next.repo;
   $("refresh").title = `${readAgain()} (r)`;
@@ -4130,16 +4230,18 @@ var move = (across, down) => {
       return lists[next][Math.min(row, lists[next].length - 1)].focus();
   }
 };
-var boardActions = () => [
+var boardActions = (isPhoneMenu) => [
   { label: coordinator.label(), icon: "message", key: "", run: coordinator.toggle },
-  { label: "Show the issue queue", icon: "stages", key: "", run: () => showQueue(true) },
+  ...isPhoneMenu ? [] : [{ label: "Show the issue queue", icon: "stages", key: "", run: () => showQueue(true) }],
   { label: readAgain(), icon: "refresh", key: "r", run: () => $("refresh").click() },
-  {
-    label: isHistoryOpen ? "Hide history" : "Show history",
-    icon: "clock",
-    key: "d",
-    run: () => setHistory(!isHistoryOpen)
-  },
+  ...isPhoneMenu ? [] : [
+    {
+      label: isHistoryOpen ? "Hide history" : "Show history",
+      icon: "clock",
+      key: "d",
+      run: () => setHistory(!isHistoryOpen)
+    }
+  ],
   {
     label: isNotifyOn ? "Turn notifications off" : "Turn notifications on",
     icon: isNotifyOn ? "bell-off" : "bell",
@@ -4211,7 +4313,7 @@ var paletteItems = () => {
           items.push({
             group,
             number: card.number,
-            label: `Run #${card.number} with ${id}`,
+            label: `Run with ${display}`,
             context: card.title,
             icon: "run",
             tone: group === "Needs you" ? "needs" : null,
@@ -4270,7 +4372,7 @@ var paletteItems = () => {
     icon: view === "now" ? "stages" : "board",
     key: "v",
     run: () => setView(view === "now" ? "pipeline" : "now")
-  }, ...boardActions().map((action) => ({ group: "Board", number: null, context: "", ...action })), {
+  }, ...boardActions(false).map((action) => ({ group: "Board", number: null, context: "", ...action })), {
     group: "Board",
     number: null,
     label: "Expand all epic groups",
@@ -4351,7 +4453,9 @@ var CARD_KEYS = {
   m: (card) => {
     const entry = byKey.get(card.dataset.key);
     if (entry)
-      openMenu(card.querySelector(".more") ?? card, menuOf(entry.card, card.dataset.key));
+      openMenu(card.querySelector(".more") ?? card, menuOf(entry.card, card.dataset.key), {
+        label: menuName(entry.card, "Actions of")
+      });
   }
 };
 var ROW_KEYS = {
@@ -4389,7 +4493,9 @@ document.addEventListener("keydown", (event) => {
     return;
   if (event.target.closest?.("input, textarea, select, [contenteditable]"))
     return;
-  if (event.key === "Escape" && !$("menu").matches(":popover-open") && updates.dismiss()) {
+  if (event.key === "Escape" && $("menu").matches(":popover-open"))
+    return;
+  if (event.key === "Escape" && updates.dismiss()) {
     event.preventDefault();
     return;
   }
@@ -4434,7 +4540,7 @@ columns.addEventListener("contextmenu", (event) => {
   if (!entry)
     return;
   event.preventDefault();
-  openMenu(node.querySelector(".more") ?? node, menuOf(entry.card, node.dataset.key));
+  openMenu(node.querySelector(".more") ?? node, menuOf(entry.card, node.dataset.key), { label: menuName(entry.card, "Actions of") });
 });
 columns.addEventListener("focusin", (event) => {
   const node = event.target.closest(".card[data-key]");
@@ -4496,7 +4602,9 @@ $("history-count").prepend(icon("clock"));
 $("history-count").addEventListener("click", () => setHistory(true));
 $("notify").addEventListener("click", toggleNotify);
 $("board-more").append(icon("dots"));
-$("board-more").addEventListener("click", () => openMenu($("board-more"), boardActions()));
+$("board-more").addEventListener("click", () => openMenu($("board-more"), boardActions(matchMedia("(max-width: 719px)").matches), {
+  label: "Board actions"
+}));
 $("keys-open").prepend(icon("keyboard"));
 $("keys-open").addEventListener("click", () => $("keys").showModal());
 $("keys-close").append(icon("close"));

@@ -1,7 +1,9 @@
 import type { AgentOrder, Host } from '../../lib/config-core.ts';
 import type { Registry } from '../../lib/host-names.ts';
-import type { AgentPickerView, QuotaWait } from '../types.ts';
-import { AGENT_ICONS, el } from './ui.ts';
+import type { AgentPickerView, MenuEntry, QuotaWait } from '../types.ts';
+import { clock } from '../view.ts';
+import { closeMenu, openMenu, placeMenu } from './palette.ts';
+import { $, AGENT_ICONS, el } from './ui.ts';
 
 export class OrderConflict extends Error {
   constructor(
@@ -81,7 +83,7 @@ const resetText = (at: number | null) => {
   if (at === null) return 'reset unknown';
   const date = new Date(at);
   const today = date.toDateString() === new Date().toDateString();
-  return `resets ${date.toLocaleString([], today ? { hour: '2-digit', minute: '2-digit' } : { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+  return `resets ${clock(date.toISOString(), !today)}`;
 };
 const same = (a: readonly Host[], b: readonly Host[]) => a.length === b.length && a.every((host, at) => b[at] === host);
 
@@ -98,7 +100,9 @@ export function createAgentPicker(
   let menuFor: Host | null = null;
   let drag: Drag | null = null;
   let suppressClick = false;
+  let pressedWith: Host | null = null;
   let drawn = '';
+  let polled = '';
   const retrying = new Set<string>();
 
   const trigger = el('button', 'ap-trigger');
@@ -122,10 +126,11 @@ export function createAgentPicker(
   );
   const list = el('ol', 'ap-list');
   list.setAttribute('aria-label', 'Agents in priority order');
+  const marker = el('div', 'ap-drop');
+  marker.hidden = true;
   const message = el('p', 'ap-notice');
-  message.setAttribute('role', 'status');
   const waits = el('div', 'ap-waits');
-  pop.append(head, list, message, waits);
+  pop.append(head, list, marker, message, waits);
   const live = el('p', 'sr-only');
   live.setAttribute('aria-live', 'polite');
   root.replaceChildren(trigger, pop, live);
@@ -150,6 +155,7 @@ export function createAgentPicker(
     const left = Math.max(EDGE, Math.min(box.left, innerWidth - pop.offsetWidth - EDGE));
     pop.style.left = `${left}px`;
     pop.style.top = `${Math.max(EDGE, box.top - pop.offsetHeight - GAP)}px`;
+    if (menuFor) placeMenu();
   };
   const resize = new ResizeObserver(place);
   resize.observe(pop);
@@ -171,6 +177,7 @@ export function createAgentPicker(
     const handle = el('button', 'ap-handle');
     handle.type = 'button';
     handle.setAttribute('aria-haspopup', 'menu');
+    handle.setAttribute('aria-expanded', 'false');
     handle.setAttribute(
       'aria-label',
       rank === null
@@ -217,7 +224,6 @@ export function createAgentPicker(
     if (!(active instanceof HTMLElement) || !root.contains(active)) return null;
     if (active === trigger) return 'trigger';
     const host = active.closest<HTMLElement>('.ap-row')?.dataset.host;
-    if (active.matches('.ap-menu button')) return `menu:${active.dataset.action}`;
     if (host) return `handle:${host}`;
     if (active.dataset.wait) return `wait:${active.dataset.wait}`;
     return null;
@@ -227,17 +233,15 @@ export function createAgentPicker(
     const target =
       key === 'trigger'
         ? trigger
-        : key.startsWith('menu:')
-          ? list.querySelector<HTMLElement>(`.ap-menu [data-action="${key.slice(5)}"]:not(:disabled)`)
-          : key.startsWith('handle:')
-            ? handleOf(key.slice(7) as Host)
-            : waits.querySelector<HTMLElement>(`[data-wait="${CSS.escape(key.slice(5))}"]`);
+        : key.startsWith('handle:')
+          ? handleOf(key.slice(7) as Host)
+          : waits.querySelector<HTMLElement>(`[data-wait="${CSS.escape(key.slice(5))}"]`);
     (target ?? (open ? list.querySelector<HTMLElement>('.ap-handle') : trigger))?.focus({ preventScroll: true });
   };
 
   const draw = (force = false) => {
     if (!view || !confirmed || drag) return;
-    const signature = JSON.stringify([view, confirmed, saving, notice, open, menuFor, [...retrying]]);
+    const signature = JSON.stringify([view, confirmed, saving, notice, open, [...retrying]]);
     if (!force && signature === drawn) return;
     drawn = signature;
     const focus = focusKey();
@@ -251,11 +255,7 @@ export function createAgentPicker(
     );
     trigger.title = `Agent order: ${order.map((host) => nameOf(host)).join(' › ')}`;
     trigger.dataset.state = paused() ? 'paused' : 'ready';
-    list.replaceChildren(
-      ...order.map((host, at) => row(host, at + 1)),
-      ...excluded().map((host) => row(host, null)),
-      Object.assign(el('div', 'ap-drop'), { hidden: true }),
-    );
+    list.replaceChildren(...order.map((host, at) => row(host, at + 1)), ...excluded().map((host) => row(host, null)));
     list.setAttribute('aria-busy', String(Boolean(saving)));
     const status =
       notice ||
@@ -268,8 +268,12 @@ export function createAgentPicker(
             : '');
     message.textContent = status;
     message.hidden = !status;
+    if (!saving && !notice && status !== polled) {
+      polled = status;
+      if (status && open) announce(status);
+    }
     waits.replaceChildren(...view.waits.map(waitLine));
-    if (menuFor) showMenu(menuFor, false);
+    if (menuFor) showMenu(menuFor, 'keep');
     place();
     restore(focus);
   };
@@ -279,7 +283,6 @@ export function createAgentPicker(
     const version = confirmed.version;
     saving = next;
     notice = '';
-    announce('Saving the agent order.');
     draw();
     try {
       confirmed = await actions.replace(next, version);
@@ -336,70 +339,61 @@ export function createAgentPicker(
     }
   };
 
-  const closeMenu = (refocus: boolean) => {
-    const host = menuFor;
-    list.querySelector('.ap-menu')?.remove();
-    menuFor = null;
-    if (refocus && host) handleOf(host)?.focus();
-  };
-  const showMenu = (host: Host, focus = true) => {
-    list.querySelector('.ap-menu')?.remove();
-    const item = list.querySelector<HTMLElement>(`.ap-row[data-host="${host}"]`);
-    if (!item) {
-      menuFor = null;
-      return;
-    }
-    menuFor = host;
+  const entries = (host: Host): (MenuEntry | 'rule')[] => {
     const order = shown();
     const at = order.indexOf(host);
     const included = at >= 0;
     const last = order.length - 1;
-    const menu = el('div', 'ap-menu');
-    menu.setAttribute('role', 'menu');
-    menu.setAttribute('aria-label', `${nameOf(host)} actions`);
-    const entry = (action: string, label: string, disabled: boolean, run: () => void) => {
-      const button = el('button', '', label);
-      button.type = 'button';
-      button.dataset.action = action;
-      button.setAttribute('role', 'menuitem');
-      button.disabled = disabled || Boolean(saving);
-      button.addEventListener('click', () => {
-        closeMenu(false);
-        handleOf(host)?.focus();
-        run();
-      });
-      return button;
-    };
-    menu.append(
-      entry('first', 'Move first', !included || at === 0, () => move(host, 0)),
-      el('hr'),
-      entry('up', 'Move up', !included || at === 0, () => move(host, at - 1)),
-      entry('down', 'Move down', !included || at === last, () => move(host, at + 1)),
-      entry('bottom', 'Move to bottom', !included || at === last, () => move(host, last)),
-      el('hr'),
-      included
-        ? entry('exclude', 'Exclude from default work', order.length === 1, () => toggle(host))
-        : entry('include', 'Include in default work', false, () => toggle(host)),
-    );
-    if (included && order.length === 1) menu.append(el('p', 'ap-menu-note', 'At least one agent stays included.'));
-    list.append(menu);
-    const rows = list.getBoundingClientRect();
-    const box = item.getBoundingClientRect();
-    const below = box.bottom + menu.offsetHeight <= innerHeight - EDGE;
-    menu.style.top = `${(below ? box.bottom : Math.max(EDGE, box.top - menu.offsetHeight)) - rows.top}px`;
-    menu.addEventListener('keydown', (event) => {
-      const buttons = [...menu.querySelectorAll<HTMLElement>('button:not(:disabled)')];
-      const index = buttons.indexOf(document.activeElement as HTMLElement);
-      const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
-      if (step && buttons.length) {
-        event.preventDefault();
-        buttons[(index + step + buttons.length) % buttons.length]?.focus();
-      } else if (event.key === 'Home' || event.key === 'End') {
-        event.preventDefault();
-        (event.key === 'Home' ? buttons[0] : buttons.at(-1))?.focus();
-      } else if (event.key === 'Tab') closeMenu(false);
+    const act = (
+      id: string,
+      icon: string,
+      label: string,
+      blocked: boolean,
+      run: () => void,
+      title?: string,
+    ): MenuEntry => ({
+      id,
+      icon,
+      label,
+      isDisabled: blocked || Boolean(saving),
+      ...(blocked && title ? { title } : {}),
+      run: () => {
+        if (!blocked && !saving) run();
+      },
     });
-    if (focus) menu.querySelector<HTMLElement>('button:not(:disabled)')?.focus();
+    return [
+      act('first', 'move-first', 'Move first', !included || at === 0, () => move(host, 0)),
+      'rule',
+      act('up', 'move-up', 'Move up', !included || at === 0, () => move(host, at - 1)),
+      act('down', 'move-down', 'Move down', !included || at === last, () => move(host, at + 1)),
+      act('bottom', 'move-last', 'Move to bottom', !included || at === last, () => move(host, last)),
+      'rule',
+      included
+        ? act(
+            'exclude',
+            'xcircle',
+            'Exclude from default work',
+            order.length === 1,
+            () => toggle(host),
+            'At least one agent stays included.',
+          )
+        : act('include', 'check', 'Include in default work', false, () => toggle(host)),
+    ];
+  };
+  const showMenu = (host: Host, focus: 'first' | 'keep' = 'first') => {
+    const handle = handleOf(host);
+    if (!handle) return closeMenu();
+    openMenu(handle, entries(host), {
+      label: `${nameOf(host)} actions`,
+      focus,
+      onClose: () => {
+        menuFor = null;
+      },
+    });
+    menuFor = host;
+  };
+  const hideMenu = () => {
+    if (menuFor) closeMenu();
   };
 
   const setOpen = (value: boolean, refocus = true) => {
@@ -409,7 +403,7 @@ export function createAgentPicker(
     trigger.setAttribute('aria-expanded', String(open));
     if (!open) {
       cancelDrag();
-      closeMenu(false);
+      hideMenu();
       if (refocus) trigger.focus();
       return;
     }
@@ -424,8 +418,7 @@ export function createAgentPicker(
     ghost?.remove();
     item.classList.remove('ap-dragging');
     root.classList.remove('ap-is-dragging');
-    const marker = list.querySelector<HTMLElement>('.ap-drop');
-    if (marker) marker.hidden = true;
+    marker.hidden = true;
     const handle = item.querySelector<HTMLElement>('.ap-handle');
     if (handle?.hasPointerCapture(pointer)) handle.releasePointerCapture(pointer);
   };
@@ -433,18 +426,23 @@ export function createAgentPicker(
   trigger.addEventListener('click', () => setOpen(!open));
   list.addEventListener('click', (event) => {
     const handle = (event.target as Element).closest<HTMLElement>('.ap-handle');
+    const pressed = event.detail === 0 ? null : pressedWith;
+    pressedWith = null;
     if (!handle) return;
     if (suppressClick) {
       suppressClick = false;
       return;
     }
     const host = handle.closest<HTMLElement>('.ap-row')?.dataset.host as Host;
-    if (menuFor === host) closeMenu(true);
-    else showMenu(host);
+    if (pressed === host || menuFor === host) {
+      hideMenu();
+      handle.focus();
+    } else showMenu(host);
   });
   list.addEventListener('pointerdown', (event) => {
     const handle = (event.target as Element).closest<HTMLElement>('.ap-handle');
     suppressClick = false;
+    pressedWith = handle ? menuFor : null;
     if (!handle || event.button !== 0 || saving) return;
     const item = handle.closest<HTMLElement>('.ap-row') as HTMLElement;
     const host = item.dataset.host as Host;
@@ -467,7 +465,7 @@ export function createAgentPicker(
     if (!drag.started) {
       if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 4) return;
       drag.started = true;
-      closeMenu(false);
+      hideMenu();
       root.classList.add('ap-is-dragging');
       drag.row.classList.add('ap-dragging');
       const box = drag.row.getBoundingClientRect();
@@ -490,14 +488,13 @@ export function createAgentPicker(
       }
     }
     const from = rows.indexOf(drag.row);
-    const marker = list.querySelector<HTMLElement>('.ap-drop') as HTMLElement;
     if (slot === from || slot === from + 1) {
       marker.hidden = true;
       drag.to = null;
       return;
     }
     const near = rows[Math.min(slot, rows.length - 1)] as HTMLElement;
-    marker.style.top = `${slot < rows.length ? near.offsetTop - 2 : near.offsetTop + near.offsetHeight}px`;
+    marker.style.top = `${list.offsetTop - list.scrollTop + (slot < rows.length ? near.offsetTop - 2 : near.offsetTop + near.offsetHeight)}px`;
     marker.hidden = false;
     drag.to = slot > from ? slot - 1 : slot;
   });
@@ -542,11 +539,12 @@ export function createAgentPicker(
     if (drag) {
       cancelDrag();
       draw(true);
-    } else if (menuFor) closeMenu(true);
+    } else if (menuFor) hideMenu();
     else setOpen(false);
   };
   const onOutside = (event: PointerEvent) => {
-    if (open && !root.contains(event.target as Node)) setOpen(false, false);
+    const target = event.target as Node;
+    if (open && !root.contains(target) && !(menuFor && $('menu').contains(target))) setOpen(false, false);
   };
   root.addEventListener('keydown', onKey);
   document.addEventListener('pointerdown', onOutside);

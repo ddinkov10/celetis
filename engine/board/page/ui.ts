@@ -1,6 +1,7 @@
 import type { Host, Registry } from '../../lib/host-names.ts';
+import type { Pull } from '../../lib/resolver-types.ts';
 import type { Action, Card } from '../types.ts';
-import { age, agentOf, knownAgent } from '../view.ts';
+import { age, agentOf, clock, knownAgent, prFacts } from '../view.ts';
 
 const CODEX_ICON =
   'data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjFlbSIgc3R5bGU9ImZsZXg6bm9uZTtsaW5lLWhlaWdodDoxIiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIxZW0iIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHRpdGxlPkNvZGV4PC90aXRsZT48cGF0aCBkPSJNMTkuNTAzIDBINC40OTZBNC40OTYgNC40OTYgMCAwMDAgNC40OTZ2MTUuMDA3QTQuNDk2IDQuNDk2IDAgMDA0LjQ5NiAyNGgxNS4wMDdBNC40OTYgNC40OTYgMCAwMDI0IDE5LjUwM1Y0LjQ5NkE0LjQ5NiA0LjQ5NiAwIDAwMTkuNTAzIDB6IiBmaWxsPSIjZmZmIj48L3BhdGg+PHBhdGggZD0iTTkuMDY0IDMuMzQ0YTQuNTc4IDQuNTc4IDAgMDEyLjI4NS0uMzEyYzEgLjExNSAxLjg5MS41NCAyLjY3MyAxLjI3NS4wMS4wMS4wMjQuMDE3LjAzNy4wMjFhLjA5LjA5IDAgMDAuMDQzIDAgNC41NSA0LjU1IDAgMDEzLjA0Ni4yNzVsLjA0Ny4wMjIuMTE2LjA1N2E0LjU4MSA0LjU4MSAwIDAxMi4xODggMi4zOTljLjIwOS41MS4zMTMgMS4wNDEuMzE1IDEuNTk1YTQuMjQgNC4yNCAwIDAxLS4xMzQgMS4yMjMuMTIzLjEyMyAwIDAwLjAzLjExNWMuNTk0LjYwNy45ODggMS4zMyAxLjE4MyAyLjE3LjI4OSAxLjQyNS0uMDA3IDIuNzEtLjg4NyAzLjg1NGwtLjEzNi4xNjZhNC41NDggNC41NDggMCAwMS0yLjIwMSAxLjM4OC4xMjMuMTIzIDAgMDAtLjA4MS4wNzZjLS4xOTEuNTUxLS4zODMgMS4wMjMtLjc0IDEuNDk0LS45IDEuMTg3LTIuMjIyIDEuODQ2LTMuNzExIDEuODM4LTEuMTg3LS4wMDYtMi4yMzktLjQ0LTMuMTU3LTEuMzAyYS4xMDcuMTA3IDAgMDAtLjEwNS0uMDI0Yy0uMzg4LjEyNS0uNzguMTQzLTEuMjA0LjEzOGE0LjQ0MSA0LjQ0MSAwIDAxLTEuOTQ1LS40NjYgNC41NDQgNC41NDQgMCAwMS0xLjYxLTEuMzM1Yy0uMTUyLS4yMDItLjMwMy0uMzkyLS40MTQtLjYxN2E1LjgxIDUuODEgMCAwMS0uMzctLjk2MSA0LjU4MiA0LjU4MiAwIDAxLS4wMTQtMi4yOTguMTI0LjEyNCAwIDAwLjAwNi0uMDU2LjA4NS4wODUgMCAwMC0uMDI3LS4wNDggNC40NjcgNC40NjcgMCAwMS0xLjAzNC0xLjY1MSAzLjg5NiAzLjg5NiAwIDAxLS4yNTEtMS4xOTIgNS4xODkgNS4xODkgMCAwMS4xNDEtMS42Yy4zMzctMS4xMTIuOTgyLTEuOTg1IDEuOTMzLTIuNjE4LjIxMi0uMTQxLjQxMy0uMjUxLjYwMS0uMzMuMjE1LS4wODkuNDMtLjE2NC42NDYtLjIyN2EuMDk4LjA5OCAwIDAwLjA2NS0uMDY2IDQuNTEgNC41MSAwIDAxLjgyOS0xLjYxNSA0LjUzNSA0LjUzNSAwIDAxMS44MzctMS4zODh6bTMuNDgyIDEwLjU2NWEuNjM3LjYzNyAwIDAwMCAxLjI3MmgzLjYzNmEuNjM3LjYzNyAwIDEwMC0xLjI3MmgtMy42MzZ6TTguNDYyIDkuMjNhLjYzNy42MzcgMCAwMC0xLjEwNi42MzFsMS4yNzIgMi4yMjQtMS4yNjYgMi4xMzZhLjYzNi42MzYgMCAxMDEuMDk1LjY0OWwxLjQ1NC0yLjQ1NWEuNjM2LjYzNiAwIDAwLjAwNS0uNjRMOC40NjIgOS4yM3oiIGZpbGw9InVybCgjbG9iZS1pY29ucy1jb2RleC1fUl8wXykiPjwvcGF0aD48ZGVmcz48bGluZWFyR3JhZGllbnQgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiIGlkPSJsb2JlLWljb25zLWNvZGV4LV9SXzBfIiB4MT0iMTIiIHgyPSIxMiIgeTE9IjMiIHkyPSIyMSI+PHN0b3Agc3RvcC1jb2xvcj0iI0IxQTdGRiI+PC9zdG9wPjxzdG9wIG9mZnNldD0iLjUiIHN0b3AtY29sb3I9IiM3QTlERkYiPjwvc3RvcD48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMzOTQxRkYiPjwvc3RvcD48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48L3N2Zz4=';
@@ -75,6 +76,10 @@ const ICONS: Record<string, [string, Record<string, string | number>][]> = {
     ['path', { d: 'M10.5 3.5V3A1.5 1.5 0 0 0 9 1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5' }],
   ],
   check: [['path', { d: 'm3.5 8.5 3 3 6-7' }]],
+  'move-first': [['path', { d: 'M3.5 2.75h9M8 13.25v-7.5M4.75 9 8 5.75 11.25 9' }]],
+  'move-up': [['path', { d: 'M8 12.75v-9.5M4.5 6.75 8 3.25l3.5 3.5' }]],
+  'move-down': [['path', { d: 'M8 3.25v9.5M4.5 9.25 8 12.75l3.5-3.5' }]],
+  'move-last': [['path', { d: 'M3.5 13.25h9M8 2.75v7.5M4.75 7 8 10.25 11.25 7' }]],
   alert: [
     ['path', { d: 'M7.13 2.5a1 1 0 0 1 1.74 0l5.5 9.75a1 1 0 0 1-.87 1.5H2.5a1 1 0 0 1-.87-1.5Z' }],
     ['path', { d: 'M8 6.25v3' }],
@@ -220,12 +225,36 @@ export const link = (className: string, text: string, url?: string | null) => {
   return el('span', className, text);
 };
 
+export const prChips = (pr: Pull | null | undefined) => {
+  const items = prFacts(pr);
+  if (items.length === 0) return null;
+  const node = el('div', 'chips');
+  for (const item of items) {
+    const chip = link(`chip2 chip-${item.kind}`, '', item.url);
+    chip.append(
+      icon(
+        item.kind === 'pr'
+          ? 'pr'
+          : item.kind.startsWith('checks-fail')
+            ? 'xcircle'
+            : item.kind.startsWith('checks-pass') || item.kind === 'review-approved'
+              ? 'check'
+              : 'clock',
+      ),
+      item.text,
+    );
+    if (item.url) chip.addEventListener('click', (event) => event.stopPropagation());
+    node.append(chip);
+  }
+  return node;
+};
+
 export const timed = (iso: string, isFine = false, suffix = '') => {
   const node = el('time', 'time', `${age(iso, Date.now(), isFine)}${suffix}`);
   node.dateTime = iso;
   node.dataset.since = iso;
   node.dataset.suffix = suffix;
-  node.title = new Date(iso).toLocaleString();
+  node.title = clock(iso, true);
   if (isFine) node.dataset.fine = '';
   return node;
 };
@@ -340,7 +369,7 @@ export const iconButton = (name: string, label: string, press: (event: MouseEven
   node.append(icon(name));
   node.addEventListener('click', (event) => {
     event.stopPropagation();
-    press(event);
+    if (node.getAttribute('aria-disabled') !== 'true') press(event);
   });
   return node;
 };

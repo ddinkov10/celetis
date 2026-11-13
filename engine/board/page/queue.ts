@@ -49,10 +49,14 @@ function accept(view: QueueView): void {
 }
 const restore = (key: string | undefined) => {
   if (!key) return;
-  const control = section().querySelector<HTMLElement>(`[data-control="${CSS.escape(key)}"]:not(:disabled)`);
+  const control = section().querySelector<HTMLElement>(
+    `[data-control="${CSS.escape(key)}"]:not([aria-disabled="true"])`,
+  );
   (
     control ??
-    section().querySelector<HTMLElement>('.queue-move button:not(:disabled), .queue-pick button:not(:disabled)') ??
+    section().querySelector<HTMLElement>(
+      '.queue-move button:not([aria-disabled="true"]), .queue-pick button:not([aria-disabled="true"])',
+    ) ??
     heading()
   )?.focus({ preventScroll: true });
 };
@@ -60,9 +64,9 @@ const button = (text: string, key: string, action: () => unknown, disabled = fal
   const node = el('button', 'btn ghost', text);
   node.type = 'button';
   node.dataset.control = key;
-  node.disabled = disabled;
+  node.setAttribute('aria-disabled', String(disabled));
   node.addEventListener('click', () => {
-    if (!node.disabled) action();
+    if (node.getAttribute('aria-disabled') !== 'true') action();
   });
   return node;
 };
@@ -146,18 +150,22 @@ const row = (number: number, index: number, numbers: number[]) => {
       );
       control.classList.add(`queue-${direction}`);
       control.dataset.control = `${direction}-${number}`;
-      control.disabled =
-        busy ||
-        !authoritative() ||
-        !submitted?.actions.edit ||
-        (direction === 'up' ? index === 1 : index === numbers.length - 1);
+      control.setAttribute(
+        'aria-disabled',
+        String(
+          busy ||
+            !authoritative() ||
+            !submitted?.actions.edit ||
+            (direction === 'up' ? index === 1 : index === numbers.length - 1),
+        ),
+      );
       controls.append(control);
     }
     const remove = iconButton('close', `Remove #${number} from queue`, () =>
       request({ kind: 'remove', number, expected: expected() }),
     );
     remove.dataset.control = `remove-${number}`;
-    remove.disabled = busy || !authoritative() || !submitted?.actions.edit;
+    remove.setAttribute('aria-disabled', String(busy || !authoritative() || !submitted?.actions.edit));
     controls.append(remove);
     node.append(controls);
   }
@@ -243,8 +251,13 @@ function draw(): void {
     select.add(option);
   }
   select.value = chosenHost(record) ?? '';
-  select.disabled = numbers.length > 0 || busy || !authoritative();
+  const locked = numbers.length > 0 || busy || !authoritative();
+  select.setAttribute('aria-disabled', String(locked));
   select.addEventListener('change', () => {
+    if (locked) {
+      select.value = chosenHost(record) ?? '';
+      return;
+    }
     agent = select.value;
     draw();
   });

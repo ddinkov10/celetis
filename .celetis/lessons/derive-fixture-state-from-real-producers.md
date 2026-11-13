@@ -9,12 +9,35 @@
     "process",
     "test",
     "recurring",
+    "false-positive",
     "ui"
   ],
   "date": "2026-11-07",
   "status": "active",
-  "source": "implement session of #310 (Verify phase), 2026-11-13\n\nImplementation verification of ddinkov10/celetis#287\n\nTask 2 of ddinkov10/celetis#250, implement step session (child report to the coordinator)\n\nTask 3 of ddinkov10/celetis#141 (implement session, child t3-impl); recorded by the coordinator\n\nImplementation of ddinkov10/celetis#245, temporary verification correction",
+  "source": "The implement session of ddinkov10/celetis#312 on Claude Code, Verify phase, 2026-11-14\n\nimplement session of #310 (Verify phase), 2026-11-13\n\nImplementation verification of ddinkov10/celetis#287\n\nTask 2 of ddinkov10/celetis#250, implement step session (child report to the coordinator)\n\nTask 3 of ddinkov10/celetis#141 (implement session, child t3-impl); recorded by the coordinator\n\nImplementation of ddinkov10/celetis#245, temporary verification correction",
   "incidents": [
+    {
+      "id": "bbe9439d-c8d8-455f-b9d8-dfbfffa5dfbe",
+      "date": "2026-11-14",
+      "action": "The Verify child ran the probe cases of #312 as one parallel batch on one fixture board. The cases phone-long-error (run 1) and disabled (run 2) switch the fake gh to fail and end with a state read-ok that does not refresh the board, so the board kept the read failure.",
+      "expected": "Each probe case runs on the state that it needs (a fresh read for every case but the read-failure cases), and a case that changes the fixture state restores it, so no later case measures a leaked state.",
+      "observed": "Run 1: resize failed 8 of 49 checks on span.sb-text 'cannot read: gh: HTTP 502 from' (scrollWidth 526, clientWidth 256 at 375px), then passed 49/0 after a refresh; the cases after phone-long-error in that batch reported 0 failed on the leaked state. Run 2 (sequential, with a source read before each case): the read before tokens returned error 'gh: HTTP 502 from api.github.com' after disabled; that tokens run was discarded and rerun on a fresh read (33/0).",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "disabled: 209, 0. This case LEFT a read failure on the board (the read-ok end state does not refresh): the next check read error: \"gh: HTTP 502 from api.github.com\".",
+        "reference": "docs/superpowers/verification/312/verify/report.md of the #312 lane (copied to the main checkout)"
+      },
+      "inference": "Likely cause: the fixture state read-ok removes the fail switch but does not trigger the board's read refresh, and the cases had no precondition read of the board source. Alternative: parallel cases on one board share state by design, so any state-changing case leaks. Uncertain: whether the earlier 0-failed results of run 1 were true; run 2 reran them in sequence and they passed.",
+      "diagnosis": [
+        "unknown"
+      ],
+      "revision": "40cdb46ac7b198be13cd9a8fb71e116a41ed4fd1",
+      "lesson": {
+        "name": "derive-fixture-state-from-real-producers",
+        "revision": "40cdb46ac7b198be13cd9a8fb71e116a41ed4fd1",
+        "digest": "62157e607b579ae5952f87acc0d3ea41274ee242fa66ef0a83f8985f0891bd2d"
+      }
+    },
     {
       "id": "5b0d7c1e-3f2a-4c8e-9a61-7d2e4b9f0310",
       "date": "2026-11-13",
@@ -124,7 +147,7 @@
       "revision": "40a31cb92ecce73591fc4c75321489240c5392fa plus the Idle scroll fix"
     }
   ],
-  "recurrences": 4,
+  "recurrences": 5,
   "reviews": [
     {
       "id": "6b06a4d9-8913-44c4-9181-015b1c981f26",
@@ -199,6 +222,21 @@
         "state": "proposed",
         "detail": "A harness smoke step could fail a probe board that prints `is not on PATH` before the first probe. Such structural work needs separate authorization and adds no tracked test in this review."
       }
+    },
+    {
+      "id": "aa99a3a3-f922-4e5e-9283-5c46a94c3204",
+      "requestDigest": "2f1ed69d487f5d88d767010155456a592700813d6b7832b9cc8afcaad23ca02d",
+      "date": "2026-11-14",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #312; claude child opus/high\n\nMerge under the reviewer rules: the active lesson derive-fixture-state-from-real-producers states the same rule (after a change of the inputs behind a cached read model, use the refresh producer, and confirm that the fixture reaches the required state before the check accepts the result). The incident is a recurrence of that rule: the retained report of the #312 lane (docs/superpowers/verification/312/verify/report.md) records that the state read-ok removed the fail switch without a refresh, that resize failed 8 of 49 on the leaked read failure and passed 49/0 after a refresh, and that a source read after the case disabled returned the HTTP 502 error. The proposal adds only the application to several cases on one shared fixture: a state read before each case, a confirmed restore, and state-changing cases in sequence. The survivor keeps the active name, every incident and review, and the cause as a labeled inference with its alternative and uncertainty. The proposal tags verification, fixture, and browser are not in the tag vocabulary, and AGENTS.md names no lesson tags, so the survivor adds only false-positive. isolate-verification-barriers-per-attempt is about state that an earlier run leaves in a directory, so it stays a separate related lesson. The rule adds a check, weakens none, widens no permission, and agrees with the principle test-behavior-not-implementation of the plugin celetis.",
+      "related": [
+        "confirm-the-fixture-state-before-each-probe-case",
+        "derive-fixture-state-from-real-producers"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "A separately authorized fixture helper could read the state that a case needs from the shared fixture before the case starts, and confirm the restore after a case that changes the state. This decision does not authorize or verify it, and it adds no tracked test."
+      }
     }
   ]
 }
@@ -217,6 +255,8 @@ In #287, a V3 board probe changed fixture gate configuration and read `/api/boar
 
 In the Verify phase of #310 on 2026-11-13, the harness started a read-only board in a Herdr lab with a fake `gh` and an adapter that rejects every start, but with no `claude` or `codex` on the board PATH. The board printed `celetis: claude is not on PATH` and disabled each Run and Open agent control. Task probes and the first Verify run (V1-V9 and 23 captures) ran on that board. The V8 check of an Idle card found only `Show the details` under `Actions for #119`, and every capture showed grey Run buttons. With fake `claude` and `codex` (print a version, start nothing) on the lab PATH, the same search listed the Run rows, and the whole Verify run and its captures were renewed.
 
+In the Verify phase of #312 on 2026-11-14, the probe cases ran on one fixture board. The cases `phone-long-error` (run 1) and `disabled` (run 2) switched the fake `gh` to fail and ended with the state `read-ok`, which removes the switch but does not refresh the board. The board kept the read failure. In run 1, a later `resize` case failed 8 of 49 checks on `span.sb-text` "cannot read: gh: HTTP 502 from" and passed 49/0 after a refresh; the other cases after `phone-long-error` reported 0 failed on the leaked state. Run 2 ran the cases in sequence with a read of the board source before each case. After `disabled`, that read returned `error: "gh: HTTP 502 from api.github.com"`, and the next case ran again on a fresh read (33/0).
+
 ## Root cause
 
 The source and retained output establish the #245 mismatch. Inferred: the fixture author assumed a boundary without reading its actual producer. No wider product defect is established.
@@ -228,6 +268,8 @@ In #250, observed: the run request of the daemon answers at admission, before `h
 For #287, inferred: the probe treated a successful cached GET as a new production of the model. The second attempt kept that premise and changed only the wait. The exact timing of the first read is uncertain.
 
 In #310, inferred: the harness derived the card states from the real producers, but missed one input of the board, the host commands on PATH, which gates the Run and Open agent controls. The harness author did not count host availability as an input of a derived state. Alternative: the brief named only `gh` and the adapter as fakes. Uncertain: whether an earlier task probe that asserted an Enter result on a Run action passed for the wrong reason; the Task 3 enter case used a Go action.
+
+For #312, inferred, not proven: the restore state `read-ok` changed the input behind the cached board model without its refresh producer, and no case read the board state before its first measurement. Alternative: cases on one shared board share state by design, so each case that changes the state leaks into the next case. Uncertain: whether the 0-failed results of run 1 after the leak were true; run 2 ran them again in sequence and they passed.
 
 ## Fix
 
@@ -241,15 +283,18 @@ Proposed in #287, not enforced: after changing inputs behind a cached read model
 
 Proposed in #310, not enforced: before the first probe, compare the probe board with the real board for each control that a case acts on or a capture shows, and give the probe process each host command that the page checks, as a fake that answers its read and starts nothing. A harness smoke step that fails when the board prints `is not on PATH` remains proposed structural work that needs separate authorization.
 
+Proposed in #312, not enforced: when several cases share one fixture, each case reads the state that it needs from the target (for example the read source of `/api/board`) before its first measurement and stops on another state. A case that changes the shared state restores it through its producer and the refresh, and confirms the restore. Cases that change shared state run in sequence, not in a parallel batch. A fixture helper that every case calls first remains proposed work that needs separate authorization.
+
 ## Detection signature
 
 The board prints `celetis: <host> is not on PATH`; Run and Open agent controls are disabled; a Search for an Idle card lists no Run rows.
 
 ## Rule
 
-Applies when a runtime fixture must produce a derived state for a check, including a cached read model after its inputs change, a request that must still be unanswered at a later event (a stop, a restart, a timeout), and the enabled state of a control that a case uses or a capture shows. Action: trace that state to its real input producer, and choose inputs that satisfy the existing derivation. For a cached model, trace and use the supported refresh producer and its completion boundary before asserting the new model; a successful cached read alone is no evidence of refresh. When a shared helper starts the producer, read the input that the producer stored (for example the selection of a run record) before the case waits, and stop the case when it differs from the input that the derivation needs. For a request in flight, find the point where its producer answers, put the block before that point, and observe the unanswered request directly when the event begins. For a control of a page, list each external command and service that the page reads to enable it (for the Celetis board, the host commands `claude` and `codex` on PATH), and give the probe process a fake of each that answers its read and starts nothing. Check: for a cached model, retain the old snapshot, refresh completion, and new independently expected values, and do not accept a no-refresh control as fresh evidence. The case output shows the stored input next to the expected input before the wait, and shows a request in flight still unanswered when the event begins; a control with the block after the answer point fails that observation; before the first probe, the page shows no unavailable-host message, and each control that a case uses or a capture shows is enabled as on the real board; and the fixture reaches the required state before the check accepts the scenario result.
+Applies when a runtime fixture must produce a derived state for a check, including a cached read model after its inputs change, a request that must still be unanswered at a later event (a stop, a restart, a timeout), the enabled state of a control that a case uses or a capture shows, and each case of several cases that share one fixture (a board, a server, a lab). Action: trace that state to its real input producer, and choose inputs that satisfy the existing derivation. For a cached model, trace and use the supported refresh producer and its completion boundary before asserting the new model; a successful cached read alone is no evidence of refresh. When a shared helper starts the producer, read the input that the producer stored (for example the selection of a run record) before the case waits, and stop the case when it differs from the input that the derivation needs. For a request in flight, find the point where its producer answers, put the block before that point, and observe the unanswered request directly when the event begins. For a control of a page, list each external command and service that the page reads to enable it (for the Celetis board, the host commands `claude` and `codex` on PATH), and give the probe process a fake of each that answers its read and starts nothing. When several cases share one fixture, read the state that each case needs from the target before its first measurement, and stop the case on another state; restore a state that a case changed through its producer and its refresh, confirm the restored state, and run state-changing cases in sequence, not in a parallel batch. Check: for a cached model, retain the old snapshot, refresh completion, and new independently expected values, and do not accept a no-refresh control as fresh evidence. The case output shows the stored input next to the expected input before the wait, and shows a request in flight still unanswered when the event begins; a control with the block after the answer point fails that observation; before the first probe, the page shows no unavailable-host message, and each control that a case uses or a capture shows is enabled as on the real board; the evidence shows the state read before each case of a shared fixture, and a control that leaves a changed state makes the next case refuse to start instead of measuring it; and the fixture reaches the required state before the check accepts the scenario result.
 
 ## Related lessons
 
 [[derive-plan-oracle-values-from-real-producers]]
 [[probe-real-tool-semantics-behind-fakes]]
+[[isolate-verification-barriers-per-attempt]]

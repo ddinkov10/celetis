@@ -21,12 +21,14 @@ import {
   agentOf,
   COLUMNS,
   cleanCause,
+  clock,
   favicon,
   groupEpics,
   groupNeeds,
   isCard,
   keyOf,
   knownAgent,
+  LIVE,
   laneTrack,
   levelSource,
   needsYou,
@@ -34,7 +36,6 @@ import {
   pageTitle,
   parseOpenEpics,
   pipeline,
-  prFacts,
   runTitle,
   shortPath,
   signature,
@@ -59,6 +60,7 @@ import {
   link,
   mark,
   post,
+  prChips,
   SERVER_DOWN,
   store,
   timed,
@@ -74,7 +76,6 @@ const SUMMARY: [Column | 'history', string][] = [
 ];
 const COPY: Record<string, string> = { 'no-progress': 'command', 'dirty-tree': 'path' };
 const ON_ISSUE = new Set(['blocked']);
-const LIVE = new Set(['works', 'waits']);
 const GATES: Record<string, string> = {
   auto: 'Auto mode of the daemon starts this step by itself',
 };
@@ -217,7 +218,7 @@ const runName = ({ step, effort, number }: Card) =>
 const runAction = (card: Card, agent: string | null = null): Action => {
   const display = agent ? agentDisplay(agent) : null;
   const reason = runReason(agent, card.number);
-  const name = agent ? `Run ${card.step}, #${card.number} with ${display}` : runName(card);
+  const name = agent ? `Run with ${display}, ${card.step} of #${card.number}` : runName(card);
   return {
     id: agent ? `run:${agent}` : 'run',
     label: agent ? `Run with ${display}` : 'Run',
@@ -245,7 +246,7 @@ const overrideActionsOf = (card: Card, isAgain: boolean): Action[] => {
       ? {
           ...base,
           label: `Run again with ${display}`,
-          name: `Run ${card.step} again, #${card.number} with ${display}`,
+          name: `Run again with ${display}, ${card.step} of #${card.number}`,
           isGhost: true,
           title: base.isDisabled ? base.title : `Start the ${card.step} step again. It made no progress last time.`,
         }
@@ -288,14 +289,27 @@ const agentOrderEntry = {
   },
 };
 
-const toMenuEntry = (action: Action): MenuEntry => ({
-  icon: action.icon,
-  label: action.name,
-  key: action.isMain ? 'Enter' : '',
-  isDisabled: action.isDisabled,
-  title: action.title,
-  run: action.href ? () => window.open(action.href, '_blank', 'noopener,noreferrer') : (action.run as () => unknown),
-});
+const toMenuEntry = (action: Action): MenuEntry => {
+  const host = action.id.startsWith('run:') ? action.id.slice(4) : null;
+  if (host && data && knownAgent(data.registry, host))
+    return {
+      icon: action.icon,
+      host,
+      label: action.label,
+      tag: data.picker?.order.order[0] === host ? 'Default' : undefined,
+      isDisabled: action.isDisabled,
+      title: action.title,
+      run: action.run as () => unknown,
+    };
+  return {
+    icon: action.icon,
+    label: action.name,
+    key: action.isMain ? 'Enter' : '',
+    isDisabled: action.isDisabled,
+    title: action.title,
+    run: action.href ? () => window.open(action.href, '_blank', 'noopener,noreferrer') : (action.run as () => unknown),
+  };
+};
 
 const actionsOf = (card: Card): Action[] => {
   const list: Action[] = [];
@@ -329,7 +343,7 @@ const actionsOf = (card: Card): Action[] => {
       label: 'Open agent',
       icon: 'terminal',
       busy: 'Starting',
-      name: `Open agent for #${card.number}`,
+      name: `Open agent, #${card.number}`,
       title: reason ?? 'Open an assistance session in a new herdr tab (Enter)',
       isDisabled: Boolean(reason) || !card.assist,
       run: async () => {
@@ -362,7 +376,7 @@ const actionsOf = (card: Card): Action[] => {
       list.push({
         ...base,
         label: 'Run again',
-        name: `Run ${card.step} again, #${card.number}`,
+        name: `Run again, #${card.number}`,
         isGhost: true,
         title: base.isDisabled ? base.title : `Start the ${card.step} step again. It made no progress last time.`,
       });
@@ -378,7 +392,7 @@ const actionsOf = (card: Card): Action[] => {
       label: 'Open shell',
       icon: 'terminal',
       busy: 'Opening',
-      name: `Open a shell in the worktree of #${card.number}`,
+      name: `Open shell, #${card.number}`,
       title: 'Open a shell in the worktree in a new herdr tab (Enter)',
       run: () =>
         act('/api/shell', { number: card.number }, 'Open shell failed', () =>
@@ -529,30 +543,6 @@ const liveLine = (card: Card) => {
   return node;
 };
 
-const chips = (card: Card) => {
-  const items = prFacts(card.pr);
-  if (items.length === 0) return null;
-  const node = el('div', 'chips');
-  for (const item of items) {
-    const chip = link(`chip2 chip-${item.kind}`, '', item.url);
-    chip.append(
-      icon(
-        item.kind === 'pr'
-          ? 'pr'
-          : item.kind === 'checks-fail'
-            ? 'xcircle'
-            : item.kind === 'checks-pass' || item.kind === 'review-approved'
-              ? 'check'
-              : 'clock',
-      ),
-      item.text,
-    );
-    if (item.url) chip.addEventListener('click', (event) => event.stopPropagation());
-    node.append(chip);
-  }
-  return node;
-};
-
 const actLine = (card: Card) => {
   const what = copyWhat(card);
   if (!what) return el('p', 'act', card.act);
@@ -601,7 +591,13 @@ const shell = (card: Card, column: Column, isCompact: boolean, level: 'h2' | 'h3
   return { key, node, title, id };
 };
 
-const unseenDot = () => Object.assign(el('i', 'unseen'), { title: 'Changed since you last looked' });
+const unseenDot = () => {
+  const dot = Object.assign(el('i', 'unseen'), { title: 'Changed since you last looked' });
+  dot.append(el('span', 'sr-only', 'Changed since you last looked'));
+  return dot;
+};
+
+const menuName = (card: Card, prefix: string) => `${prefix} ${card.number === null ? card.title : `#${card.number}`}`;
 
 const runWithButton = (card: Card) => {
   const actions = actionsOf(card);
@@ -612,7 +608,10 @@ const runWithButton = (card: Card) => {
   const button = iconButton(
     'chevron',
     levelled.length ? 'Run with another agent or at another level' : 'Run with another agent',
-    (event) => openMenu(event.currentTarget as HTMLElement, [...entries, ...levelled]),
+    (event) =>
+      openMenu(event.currentTarget as HTMLElement, [...entries, ...levelled], {
+        label: menuName(card, 'Run options of'),
+      }),
   );
   button.setAttribute('aria-haspopup', 'menu');
   return button;
@@ -658,13 +657,18 @@ const drawCard = (
   if (card.type) head.append(el('span', 'sep', '·'), el('span', 'type', card.type));
   const lane = track(card);
   if (lane) head.append(lane);
-  const more = iconButton('dots', 'More actions (m)', () => openMenu(more, menuOf(card, key)), 'more');
+  const more = iconButton(
+    'dots',
+    'More actions (m)',
+    () => openMenu(more, menuOf(card, key), { label: menuName(card, 'Actions of') }),
+    'more',
+  );
   more.setAttribute('aria-haspopup', 'menu');
   head.append(more);
   node.append(head, title);
   for (const part of [
     card.state === 'works' ? liveLine(card) : null,
-    chips(card),
+    prChips(card.pr),
     card.act ? actLine(card) : null,
     card.warning ? el('p', 'warning', card.warning) : null,
   ])
@@ -856,8 +860,9 @@ const pipelineView = (columns: Columns, flow: Flow | null) => {
   const sections = [];
   if (hold.length) {
     const strip = el('section', 'col hold');
-    strip.setAttribute('aria-label', 'Not in a lane step');
+    strip.setAttribute('aria-labelledby', 'hold-title');
     const label = el('h2', 'hold-label', 'Not in a step');
+    label.id = 'hold-title';
     const list = el('div', 'hold-list');
     list.append(...hold.map((card: Card) => drawCard(card, where.get(card) as Column, { isCompact: true })));
     strip.append(label, list);
@@ -949,12 +954,12 @@ const humanPill = (card: Card) => {
     el('span', 'human-name', card.title || 'A session'),
     el('i', 'human-dot'),
     el('span', 'human-state', stateLabel(card) as string),
-    timed(card.since, true),
   );
   open.addEventListener('click', () => (selected === key ? closePanel() : openPanel(key)));
   const [go] = actionsOf(card) as [Action];
   pill.append(
     open,
+    timed(card.since, LIVE.has(card.state as string)),
     iconButton('go', go.name, () => go.run?.(), 'human-go'),
   );
   return pill;
@@ -991,7 +996,7 @@ const visualControl = (entry: HistoryRow) => {
       rel: 'noreferrer',
     });
     node.append(icon('open'), el('span', 'label', 'Open visual'));
-    node.setAttribute('aria-label', `Open the visual of #${number}`);
+    node.setAttribute('aria-label', `Open visual, #${number}`);
   } else if (state === 'making') {
     node = el('span', 'history-action history-making');
     node.setAttribute('role', 'status');
@@ -1002,7 +1007,7 @@ const visualControl = (entry: HistoryRow) => {
     node = el('button', 'btn ghost history-action');
     (node as HTMLButtonElement).type = 'button';
     node.append(icon('diff'), el('span', 'label', state === 'starting' ? 'Starting…' : 'Make visual'));
-    node.setAttribute('aria-label', `Make the visual of #${number}`);
+    node.setAttribute('aria-label', `Make visual, #${number}`);
     if (state === 'starting') node.setAttribute('aria-busy', 'true');
     else node.addEventListener('click', () => void makeVisual(number));
   }
@@ -1044,18 +1049,9 @@ const drawHistory = () => {
       const commit = link('history-sha', entry.sha.slice(0, 7), entry.commitUrl);
       commit.setAttribute('aria-label', `Commit ${entry.sha}`);
       commit.title = entry.sha;
-      const time = el(
-        'time',
-        '',
-        new Date(entry.committedAt).toLocaleString(undefined, {
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-      );
+      const time = el('time', '', clock(entry.committedAt, true));
       time.dateTime = entry.committedAt;
-      time.title = `Commit time: ${entry.committedAt}`;
+      time.title = `Commit time: ${clock(entry.committedAt, true)}`;
       time.setAttribute('aria-label', time.title);
       const meta = el('span', 'history-meta');
       const dot = el('span', '', '·');
@@ -1136,10 +1132,16 @@ const markAllSeen = () => {
   for (const [key, { card, column }] of byKey) seen.set(key, signature(card, column));
 };
 
+const faviconColors = () => {
+  const style = getComputedStyle(document.documentElement);
+  const token = (name: string) => style.getPropertyValue(name).trim();
+  return { tile: token('--card'), bar: token('--fg'), needs: token('--needs'), works: token('--working') };
+};
+
 const systemNotice = (title: string, body: string, tag: string, open: () => void) => {
   const isAway = document.hidden || !document.hasFocus();
   if (!isNotifyOn || !isAway || !('Notification' in window) || Notification.permission !== 'granted') return;
-  const shown = new Notification(title, { body, tag, icon: favicon('needs') });
+  const shown = new Notification(title, { body, tag, icon: favicon('needs', faviconColors()) });
   shown.addEventListener('click', () => {
     window.focus();
     open();
@@ -1236,7 +1238,12 @@ const drawStatus = (source: Board['source'], isDown: boolean) => {
   else if (!source.readAt) text.append('no data yet');
   else text.append('read ', timed(source.readAt, false, ' ago'));
   fresh.dataset.tone = state;
-  fresh.title = source.readAt ? `${name} was read at ${new Date(source.readAt).toLocaleTimeString()}` : '';
+  fresh.title =
+    !isDown && source.error
+      ? `cannot read: ${source.error}`
+      : source.readAt
+        ? `${name} was read at ${clock(source.readAt)}`
+        : '';
   fresh.replaceChildren(el('i', 'dot'), el('span', 'sb-name', name), text);
   const terminal = data?.terminal;
   const terminalNode = $('terminal');
@@ -1415,7 +1422,7 @@ const drawBoard = (next: Board) => {
   byKey = new Map();
   const needs = next.columns.needs.length;
   document.title = pageTitle(next.repo, needsYou(next).length);
-  $('favicon').href = favicon(tone(next));
+  $('favicon').href = favicon(tone(next), faviconColors());
   $('repo').textContent = next.repo;
   $('repo').title = next.repo;
   $('refresh').title = `${readAgain()} (r)`;
@@ -1689,16 +1696,20 @@ const move = (across: number, down: number) => {
   }
 };
 
-const boardActions = () => [
+const boardActions = (isPhoneMenu: boolean) => [
   { label: coordinator.label(), icon: 'message', key: '', run: coordinator.toggle },
-  { label: 'Show the issue queue', icon: 'stages', key: '', run: () => showQueue(true) },
+  ...(isPhoneMenu ? [] : [{ label: 'Show the issue queue', icon: 'stages', key: '', run: () => showQueue(true) }]),
   { label: readAgain(), icon: 'refresh', key: 'r', run: () => $('refresh').click() },
-  {
-    label: isHistoryOpen ? 'Hide history' : 'Show history',
-    icon: 'clock',
-    key: 'd',
-    run: () => setHistory(!isHistoryOpen),
-  },
+  ...(isPhoneMenu
+    ? []
+    : [
+        {
+          label: isHistoryOpen ? 'Hide history' : 'Show history',
+          icon: 'clock',
+          key: 'd',
+          run: () => setHistory(!isHistoryOpen),
+        },
+      ]),
   {
     label: isNotifyOn ? 'Turn notifications off' : 'Turn notifications on',
     icon: isNotifyOn ? 'bell-off' : 'bell',
@@ -1773,7 +1784,7 @@ const paletteItems = () => {
           items.push({
             group,
             number: card.number,
-            label: `Run #${card.number} with ${id}`,
+            label: `Run with ${display}`,
             context: card.title,
             icon: 'run',
             tone: group === 'Needs you' ? 'needs' : null,
@@ -1832,7 +1843,7 @@ const paletteItems = () => {
       key: 'v',
       run: () => setView(view === 'now' ? 'pipeline' : 'now'),
     },
-    ...boardActions().map((action) => ({ group: 'Board', number: null, context: '', ...action })),
+    ...boardActions(false).map((action) => ({ group: 'Board', number: null, context: '', ...action })),
     {
       group: 'Board',
       number: null,
@@ -1913,7 +1924,9 @@ const CARD_KEYS: Record<string, (card: HTMLElement) => void> = {
   m: (card: HTMLElement) => {
     const entry = byKey.get(card.dataset.key as string);
     if (entry)
-      openMenu(card.querySelector<HTMLElement>('.more') ?? card, menuOf(entry.card, card.dataset.key as string));
+      openMenu(card.querySelector<HTMLElement>('.more') ?? card, menuOf(entry.card, card.dataset.key as string), {
+        label: menuName(entry.card, 'Actions of'),
+      });
   },
 };
 
@@ -1947,7 +1960,8 @@ document.addEventListener('keydown', (event) => {
   }
   if (event.metaKey || event.ctrlKey || event.altKey || $('keys').open || $('palette').open) return;
   if ((event.target as Element).closest?.<HTMLElement>('input, textarea, select, [contenteditable]')) return;
-  if (event.key === 'Escape' && !$('menu').matches(':popover-open') && updates.dismiss()) {
+  if (event.key === 'Escape' && $('menu').matches(':popover-open')) return;
+  if (event.key === 'Escape' && updates.dismiss()) {
     event.preventDefault();
     return;
   }
@@ -1990,6 +2004,7 @@ columns.addEventListener('contextmenu', (event) => {
   openMenu(
     (node as HTMLElement).querySelector<HTMLElement>('.more') ?? (node as HTMLElement),
     menuOf(entry.card, (node as HTMLElement).dataset.key as string),
+    { label: menuName(entry.card, 'Actions of') },
   );
 });
 columns.addEventListener('focusin', (event) => {
@@ -2045,7 +2060,11 @@ $('history-count').prepend(icon('clock'));
 $('history-count').addEventListener('click', () => setHistory(true));
 $('notify').addEventListener('click', toggleNotify);
 $('board-more').append(icon('dots'));
-$('board-more').addEventListener('click', () => openMenu($('board-more'), boardActions()));
+$('board-more').addEventListener('click', () =>
+  openMenu($('board-more'), boardActions(matchMedia('(max-width: 719px)').matches), {
+    label: 'Board actions',
+  }),
+);
 $('keys-open').prepend(icon('keyboard'));
 $('keys-open').addEventListener('click', () => $('keys').showModal());
 $('keys-close').append(icon('close'));

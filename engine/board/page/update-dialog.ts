@@ -192,7 +192,7 @@ export function setupUpdates(): Controls {
                   : phase === 'current'
                     ? 'Up to date'
                     : 'Check for updates';
-    const name = `Celetis: ${label.textContent}`;
+    const name = `${label.textContent}, Celetis`;
     opener.setAttribute('aria-label', name);
     opener.title = name;
     opener.classList.toggle('is-accent', phase === 'available' || phase === 'restart-needed');
@@ -250,9 +250,12 @@ export function setupUpdates(): Controls {
     later.textContent = busy ? 'Hide progress' : failed || phase === 'updated' ? 'Close' : 'Later';
     start.hidden = phase !== 'available' && phase !== 'restart-needed';
     start.textContent = phase === 'restart-needed' ? 'Restart' : 'Update and restart';
-    start.disabled = submitting !== null || checking || (phase === 'available' && !update?.offer);
+    start.setAttribute(
+      'aria-disabled',
+      String(submitting !== null || checking || (phase === 'available' && !update?.offer)),
+    );
     check.hidden = !failed;
-    check.disabled = checking;
+    check.setAttribute('aria-disabled', String(checking));
     // Chromium moves the focus to the body as soon as the focused button is hidden.
     if ((focused === start && start.hidden) || (focused === check && check.hidden)) title.focus();
     opener.setAttribute('aria-expanded', String(dialog.open));
@@ -467,7 +470,9 @@ export function setupUpdates(): Controls {
     }
     await poll();
   };
-  start.addEventListener('click', () => void (phaseOf() === 'restart-needed' ? restart() : approve()));
+  start.addEventListener('click', () => {
+    if (start.getAttribute('aria-disabled') !== 'true') void (phaseOf() === 'restart-needed' ? restart() : approve());
+  });
   const requestCheck = async (): Promise<void> => {
     if (phaseOf() === 'checking' || (pending && !timedOut)) return;
     if (timedOut) {
@@ -486,7 +491,9 @@ export function setupUpdates(): Controls {
     if (!result) checkFailure = 'The update check could not start. Check again.';
     await poll(true);
   };
-  check.addEventListener('click', () => void requestCheck());
+  check.addEventListener('click', () => {
+    if (check.getAttribute('aria-disabled') !== 'true') void requestCheck();
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden || timedOut || submitting || checking) return;
     clearTimeout(timer);

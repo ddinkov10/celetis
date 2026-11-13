@@ -174,12 +174,14 @@ export type Action = {
 };
 
 export type MenuEntry = {
+  id?: string;
   icon: string;
+  host?: Host;
   label: string;
+  tag?: string;
   key?: string;
   title?: string;
   isDisabled?: boolean;
-  isDanger?: boolean;
   run: () => unknown;
 };
 export type PaletteItem = MenuEntry & {
