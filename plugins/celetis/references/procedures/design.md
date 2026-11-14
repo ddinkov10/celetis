@@ -115,7 +115,7 @@ the parts that need no Playwright browser, also `detect`, which runs its own bro
 
 | Lane point | Command | Result |
 | --- | --- | --- |
-| The states of a look decision (`specify`, `bug`) | `shape`, only its discovery questions and its brief, with no Phase 2 (its direction or concept choice) | The "States and ranges" part of its brief is the list of states |
+| The states of a look decision (`specify`, `bug`) | `shape`, only its discovery questions without the states question, and its brief, with no Phase 2 (its direction or concept choice) | The list of states is the one of `<plugin>/references/procedures/ui.md`, "The look decision", not the "States and ranges" part of the brief |
 | A whole screen, web or mobile | The structure round: `concept-seed --scope surface` and the decision page | The locked card is the pick. With no `PRODUCT.md`, "The check" stops before the round |
 | A smaller web change | `generate` on the element, in the prototype checkout | The accepted variant is the pick |
 | The design review after the build, web and mobile | `critique`, `audit`, the refine commands, and on the web `detect` ("The design review") | Fixes on the lane branch |

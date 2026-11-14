@@ -19,8 +19,8 @@ clean.
    it in a fresh session. Order the acts of the turn by `<plugin>/references/procedures/stop.md`, "The
    act that moves the line".
 2. Ask the human only for a decision that the issue does not hold, for example a type that
-   /celetis:triage cannot tell, a state that the spec does not define, the list of states and the
-   platform row of a look decision, the references of a component research, whether a bug fix
+   /celetis:triage cannot tell, a state that the spec does not define, the platform row of a look
+   decision, the references of a component research, whether a bug fix
    needs a new look, a pick between prototype variants, a sign-in of the maintainer in the window
    browser (`<plugin>/references/procedures/browser.md`, "A page behind a sign-in"), authorization
    for a destructive act that the plan did not authorize, a consent that the plan foresees, the

@@ -10,8 +10,8 @@ If the question is about logic or a state model, this is the wrong branch. Use `
 
 ## Contents
 
-- **The look decision:** what a look decision, a state, and the design document are, and which
-  steps follow the procedure.
+- **The look decision:** what a look decision, a state, the list of states, and the design
+  document are, and which steps follow the procedure.
 - **The two paths:** the `impeccable` path and the hand-built path, by kind and size of change.
 - **The platform rows:** the live use, the switches, the sizes, and the capture of each kind.
 - **Where the variants live:** the prototype checkout, and the two sub-shapes.
@@ -29,6 +29,16 @@ screen that shows differently, for example empty, loading, an error, many items,
 The **kind** is the platform of the product: web, mobile, desktop, or terminal. The **design
 document** is `DESIGN.md` at the root of the product, when it exists. `impeccable` reads and writes
 the same file.
+
+The **list of states** of a look decision is short. It holds the **rest state** and each state
+that the change adds or changes. The rest state is the screen as a person first sees it with
+typical data. An added state is, for example, the new dialog that the change opens, or the new
+menu. A state that the change does not touch is not on the list. This holds also when the screen
+has that state (empty, loading, an error, a long name, a scrolled page). A change that restyles
+a whole screen, or a component that each state of the screen shows, puts only the rest state on
+the list. A change that is for one state puts that state on the list, next to the rest state.
+This holds also when the change is only its look. The session takes the list from the issue and
+the code. It asks the maintainer no question about the list.
 
 - `specify` follows "The procedure" for each look decision.
 - `bug` follows it when the maintainer answers that the fix needs a new look.
@@ -65,7 +75,7 @@ of the check, and the form of the capture.
 | Terminal | A terminal pane | `PROTOTYPE_VARIANT=<key>` and `PROTOTYPE_STATE=<key>`, or flags of the program | 80×24 and 160×48 (columns×rows) | A VHS tape: `Screenshot` writes a PNG of a still state, and `Output` writes a GIF of a moving one |
 
 - A variant key is `A`, `B`, `C`, `D`, or `E`. A state key is a short kebab-case name from the
-  list of states, for example `empty`, `loading`, `error`, `many-items`, or `open-dialog`.
+  list of states, for example `rest`, `open-dialog`, or `new-menu`.
 - The `AGENTS.md` of the product names its kind and each difference from the default row, for
   example a tablet size, or a debug menu that the product already has. When the product uses a key
   of the bar on the page itself, `AGENTS.md` names the replacement key.
@@ -112,13 +122,14 @@ Do the steps in this order. The build of the variants starts after step 2.
    path. A failed check is the stop that the file names. On the `impeccable` path, run `shape`
    only for its discovery questions and its brief. Skip its Phase 2, the direction or the concept
    choice of `<impeccable>/reference/new-work.md`: the structure round or `generate` of step 3
-   gives the options. Take the list of states: on the `impeccable` path from the "States and
-   ranges" part of the brief of `shape`, and on the hand-built path from the code and the issue.
-   Give each state a kebab-case key. Read `DESIGN.md` when it exists. Run the tools check of
-   "Captures". Show the path, a whole screen or a smaller change on the `impeccable` path, the
-   list of states, the kind, and the row to the user. If anything is unclear or the user must make
-   a decision, ask about that point and wait for the answer. Otherwise, continue without a
-   follow-up question.
+   gives the options. Take the list of states by "The look decision", from the code and the issue,
+   on both paths. On the `impeccable` path, skip the states question of the discovery of `shape`,
+   and do not take the list from the "States and ranges" part of its brief. Give each state a
+   kebab-case key. Read `DESIGN.md` when it exists. Run the tools check of "Captures". Show the
+   path, a whole screen or a smaller change on the `impeccable` path, the list of states, the
+   kind, and the row to the user. Ask no question about the list of states. If anything else is
+   unclear or the user must make a decision, ask about that point and wait for the answer.
+   Otherwise, continue without a follow-up question.
 2. **The research.** In `specify` or `bug`, add the guidelines of the platform to the
    `## Prior art` section that the step wrote (`<plugin>/references/procedures/prior-art.md`, "What to find"), with
    no second search for the same problem. For a look decision of a new problem, add its findings to the same
@@ -189,6 +200,7 @@ Do the steps in this order. The build of the variants starts after step 2.
    (`<plugin>/docs/issue-tracker.md`, "What lives on the issue"):
    - the question and the path;
    - the kind and each difference from its default row;
+   - the list of states, with the key of each state;
    - the branch and the commit that step 10 pushes;
    - on the hand-built path, one line for each variant, with its pattern and its trade-off, and
      the recommendation and its reason;
@@ -256,8 +268,8 @@ celetis --agent <host> issue <n> comment <body file> --attach '<file>#<alt text>
 ```
 
 One comment holds at most 50 files, and each image is at most 10 MB. More captures go into more
-comments, each with its own first line: 5 variants × 6 states × 2 sizes are 60 captures, so two
-comments. The act prints the URL of each comment. Keep it for the hand-over and the record.
+comments, each with its own first line. The act prints the URL of each comment. Keep it for the
+hand-over and the record.
 
 ## A direct run
 
@@ -285,6 +297,9 @@ structure round or `generate`, and the pick as a terminal question follow
 - **Promoting the prototype directly to production.** The variant code was written under prototype constraints (no tests, minimal error handling). Rewrite it properly when you fold it in.
 - **A text or ASCII list of options as the hand-over, on the hand-built path.** The hand-over is the live variants and their captures. The terminal question of `<plugin>/references/procedures/design.md`, "The fallback of the pick", is no such list: it is the question channel of `impeccable`.
 - **Variants before the list of states or before the research.** Step 1 and step 2 come first.
+- **A list of states with a state that the change does not touch, or with no state that the change
+  adds or changes.** The list is the rest state and each state that the change adds or changes
+  ("The look decision"). The session asks no one to confirm it.
 - **A direction question before the first variants.** The first `generate` round takes its direction from the research (`<plugin>/references/procedures/design.md`, "The pick").
 - **A question for the pick before the user could use the variants, on the hand-built path.** The pick comes after the live opening and the captures.
 - **A second pick after an `impeccable` lock or accept.** The lock or the accept is the pick.
