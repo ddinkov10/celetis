@@ -385,6 +385,7 @@ var ICONS = {
     ["rect", { x: 6.25, y: 2.5, width: 3.5, height: 8, rx: 1 }],
     ["rect", { x: 10.75, y: 2.5, width: 3.5, height: 5.5, rx: 1 }]
   ],
+  queue: [["path", { d: "M2.75 4h10.5M2.75 8h10.5M2.75 12h6.5" }]],
   stages: [
     ["path", { d: "M1.75 8h2.5M6.75 8h2.5M11.75 8h2.5" }],
     ["circle", { cx: 5.5, cy: 8, r: 1.25 }],
@@ -788,6 +789,41 @@ var agentMark = (host) => {
   node.append(image);
   return node;
 };
+var menuRow = (entry) => {
+  const menu = $("menu");
+  const node = el("button", `menu-row${entry.isInfo ? " menu-info" : ""}${entry.alert ? ` menu-${entry.alert}` : ""}`);
+  node.type = "button";
+  node.setAttribute("role", "menuitem");
+  if (entry.id)
+    node.dataset.id = entry.id;
+  const text = el("div", "menu-text");
+  text.append(el("span", "", entry.label));
+  if (entry.tag)
+    text.append(el("em", "menu-tag", entry.tag));
+  node.append(entry.host ? agentMark(entry.host) : icon(entry.icon), text, entry.key ? el("kbd", "", entry.key) : el("span"));
+  if (entry.isDisabled || entry.isInfo)
+    node.setAttribute("aria-disabled", "true");
+  if (entry.title)
+    node.title = entry.title;
+  node.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (entry.isInfo)
+      return;
+    menu.hidePopover();
+    entry.run();
+  });
+  return node;
+};
+var sections = 0;
+var menuSection = ({ heading, entries }) => {
+  const group = el("div");
+  const head = el("div", "menu-head", heading);
+  head.id = `menu-head-${sections++}`;
+  group.setAttribute("role", "group");
+  group.setAttribute("aria-labelledby", head.id);
+  group.append(head, ...entries.map(menuRow));
+  return group;
+};
 var openMenu = (from, entries, options) => {
   const menu = $("menu");
   const isOpen = menu.matches(":popover-open");
@@ -806,26 +842,7 @@ var openMenu = (from, entries, options) => {
   menu.replaceChildren(...entries.map((entry) => {
     if (entry === "rule")
       return el("hr");
-    const node = el("button", "menu-row");
-    node.type = "button";
-    node.setAttribute("role", "menuitem");
-    if (entry.id)
-      node.dataset.id = entry.id;
-    const text = el("div", "menu-text");
-    text.append(el("span", "", entry.label));
-    if (entry.tag)
-      text.append(el("em", "menu-tag", entry.tag));
-    node.append(entry.host ? agentMark(entry.host) : icon(entry.icon), text, entry.key ? el("kbd", "", entry.key) : el("span"));
-    if (entry.isDisabled)
-      node.setAttribute("aria-disabled", "true");
-    if (entry.title)
-      node.title = entry.title;
-    node.addEventListener("click", (event) => {
-      event.stopPropagation();
-      menu.hidePopover();
-      entry.run();
-    });
-    return node;
+    return "heading" in entry ? menuSection(entry) : menuRow(entry);
   }));
   if (isOpen)
     from.setAttribute("aria-expanded", "true");
@@ -936,6 +953,7 @@ function createAgentPicker(root, actions) {
   let saving = null;
   let notice = "";
   let open = false;
+  let opener = null;
   let menuFor = null;
   let drag = null;
   let suppressClick = false;
@@ -981,10 +999,12 @@ function createAgentPicker(root, actions) {
   const excluded = () => (registry ? Object.keys(registry) : []).filter((host) => !shown().includes(host));
   const handleOf = (host) => list.querySelector(`.ap-row[data-host="${host}"] .ap-handle`);
   const paused = () => Boolean(view && shown().every((host) => view?.usage[host]));
+  const placement = () => trigger.checkVisibility() ? trigger : $("board-more");
+  const returnTo = () => trigger.checkVisibility() ? trigger : opener?.isConnected && opener.checkVisibility() ? opener : $("board-more");
   const place = () => {
     if (!open)
       return;
-    const box = trigger.getBoundingClientRect();
+    const box = placement().getBoundingClientRect();
     pop.style.maxHeight = `${Math.max(0, Math.min(innerHeight - EDGE * 2, box.top - GAP - EDGE))}px`;
     const left = Math.max(EDGE, Math.min(box.left, innerWidth - pop.offsetWidth - EDGE));
     pop.style.left = `${left}px`;
@@ -1203,9 +1223,11 @@ function createAgentPicker(root, actions) {
       cancelDrag();
       hideMenu();
       if (refocus)
-        trigger.focus();
+        returnTo().focus();
       return;
     }
+    const focused = document.activeElement;
+    opener = focused instanceof HTMLElement && focused !== document.body && !pop.contains(focused) ? focused : null;
     draw(true);
     list.querySelector(".ap-handle")?.focus();
   };
@@ -2708,7 +2730,7 @@ function draw2() {
   const state = stateOf();
   section2().dataset.state = state;
   section2().setAttribute("aria-busy", String(busy));
-  $("queue-open").textContent = `Queue${numbers.length ? ` ${numbers.length}` : ""}`;
+  $("queue-open").querySelector(".label").textContent = `Queue${numbers.length ? ` ${numbers.length}` : ""}`;
   const head = el("header", "queue-head");
   const title = el("div", "queue-heading");
   title.append(el("h2", "", "Issue queue"), el("span", "queue-count", `${numbers.length} remaining`));
@@ -3848,6 +3870,7 @@ var drawHistory = () => {
     (match ?? panel.querySelector("button"))?.focus({ preventScroll: true });
   }
 };
+var phone = matchMedia("(max-width: 719px)");
 var covering = matchMedia("(max-width: 1099px), (max-height: 700px)");
 var PANEL_FOCUS = ".panel-actions .btn, .ask .btn, .icon-btn";
 var syncCover = () => {
@@ -3984,6 +4007,7 @@ var daemonItem = (daemon) => {
   const { tone, title } = AUTO[daemon.auto];
   return { text: `auto ${daemon.auto}`, tone, title: `The daemon PID ${daemon.pid} runs. ${title}` };
 };
+var statusWords = (item) => `${item.querySelector(".sb-name")?.textContent}: ${item.querySelector(".sb-text")?.textContent}`;
 var drawStatus = (source, isDown) => {
   const changed = isServerDown !== isDown;
   isServerDown = isDown;
@@ -4009,6 +4033,13 @@ var drawStatus = (source, isDown) => {
   terminalNode.dataset.tone = terminal?.ok === true ? "ok" : terminal?.ok === false ? "fail" : "wait";
   terminalNode.title = terminal?.error ? `herdr: ${terminal.error}` : "Run and Go use herdr";
   terminalNode.querySelector(".sb-text").textContent = terminal?.ok === true ? "up" : terminal?.ok === false ? "down" : "checking";
+  const more = $("board-more");
+  const moreName = [
+    "More board actions",
+    ...[fresh, terminalNode].filter((item) => item.dataset.tone === "fail").map(statusWords)
+  ].join(", ");
+  more.setAttribute("aria-label", moreName);
+  more.title = moreName;
   const daemon = $("daemon");
   daemon.hidden = !data;
   if (data) {
@@ -4171,6 +4202,14 @@ var restoreFocus = (mark) => {
   }[mark.kind]();
   target?.focus({ preventScroll: true });
 };
+var nowCount = 0;
+var drawNow = (count) => {
+  nowCount = count;
+  $("now-badge").hidden = count === 0;
+  $("now-badge").textContent = count === 0 ? "" : String(count);
+  $("now").setAttribute("aria-label", phone.matches ? count === 0 ? "Now" : `Now, ${count} need you` : "Now view");
+};
+phone.addEventListener("change", () => drawNow(nowCount));
 var drawBoard = (next) => {
   drawQueue(next);
   const mark = markFocus(document.activeElement);
@@ -4187,6 +4226,7 @@ var drawBoard = (next) => {
   if ($("dirty").textContent !== banner)
     $("dirty").textContent = banner;
   $("summary").replaceChildren(...summary(next));
+  drawNow(needsYou(next, seenTurn).length);
   if (isHistoryOpen)
     drawHistory();
   const board = $("columns");
@@ -4529,26 +4569,78 @@ var move = (across, down) => {
       return lists[next][Math.min(row, lists[next].length - 1)].focus();
   }
 };
-var boardActions = (isPhoneMenu) => [
+var readEntry = () => ({
+  label: readAgain(),
+  icon: "refresh",
+  key: "r",
+  run: () => $("refresh").click()
+});
+var historyEntry = () => ({
+  label: isHistoryOpen ? "Hide history" : "Show history",
+  icon: "clock",
+  key: "d",
+  run: () => setHistory(!isHistoryOpen)
+});
+var notifyEntry = () => ({
+  label: isNotifyOn ? "Turn notifications off" : "Turn notifications on",
+  icon: isNotifyOn ? "bell-off" : "bell",
+  key: "",
+  run: toggleNotify
+});
+var keysEntry = () => ({
+  label: "Show the keyboard shortcuts",
+  icon: "keyboard",
+  key: "?",
+  run: () => $("keys").showModal()
+});
+var boardActions = () => [
   { label: coordinator.label(), icon: "message", key: "", run: coordinator.toggle },
-  ...isPhoneMenu ? [] : [{ label: "Show the issue queue", icon: "stages", key: "", run: () => showQueue(true) }],
-  { label: readAgain(), icon: "refresh", key: "r", run: () => $("refresh").click() },
-  ...isPhoneMenu ? [] : [
-    {
-      label: isHistoryOpen ? "Hide history" : "Show history",
-      icon: "clock",
-      key: "d",
-      run: () => setHistory(!isHistoryOpen)
-    }
-  ],
-  {
-    label: isNotifyOn ? "Turn notifications off" : "Turn notifications on",
-    icon: isNotifyOn ? "bell-off" : "bell",
-    key: "",
-    run: toggleNotify
-  },
-  { label: "Show the keyboard shortcuts", icon: "keyboard", key: "?", run: () => $("keys").showModal() }
+  { label: "Show the issue queue", icon: "stages", key: "", run: () => showQueue(true) },
+  readEntry(),
+  historyEntry(),
+  notifyEntry(),
+  keysEntry()
 ];
+var statusEntry = (item, iconName) => ({
+  label: statusWords(item),
+  icon: iconName,
+  title: item.title,
+  isInfo: true,
+  ...item.dataset.tone === "fail" ? { alert: "caution" } : {},
+  run: () => {}
+});
+var phoneMenu = () => {
+  const trigger = $("agent-picker").querySelector(".ap-trigger");
+  const update = $("update-open");
+  return [
+    historyEntry(),
+    readEntry(),
+    notifyEntry(),
+    keysEntry(),
+    {
+      heading: "Board status",
+      entries: [
+        statusEntry($("fresh"), "board"),
+        statusEntry($("terminal"), "terminal"),
+        ...$("agent-picker").hidden ? [] : [
+          {
+            ...agentOrderEntry,
+            label: trigger?.getAttribute("aria-label") ?? agentOrderEntry.label,
+            title: trigger?.title ?? ""
+          }
+        ],
+        {
+          label: `Celetis: ${update.querySelector(".label")?.textContent ?? ""}`,
+          icon: "refresh",
+          title: update.title,
+          isDisabled: update.getAttribute("aria-disabled") === "true",
+          ...update.classList.contains("is-accent") ? { alert: "beacon" } : {},
+          run: () => update.click()
+        }
+      ]
+    }
+  ];
+};
 var paletteItems = () => {
   if (!data)
     return [];
@@ -4671,7 +4763,7 @@ var paletteItems = () => {
     icon: view === "now" ? "stages" : "board",
     key: "v",
     run: () => setView(view === "now" ? "pipeline" : "now")
-  }, ...boardActions(false).map((action) => ({ group: "Board", number: null, context: "", ...action })), {
+  }, ...boardActions().map((action) => ({ group: "Board", number: null, context: "", ...action })), {
     group: "Board",
     number: null,
     label: "Expand all epic groups",
@@ -4906,14 +4998,15 @@ for (const button of document.querySelectorAll(".views button")) {
   button.setAttribute("aria-pressed", String(button.dataset.view === view));
   button.addEventListener("click", () => setView(button.dataset.view));
 }
+$("queue-open").prepend(icon("queue"));
 $("intake").prepend(icon("spark"));
 $("intake").addEventListener("click", () => void openIntake());
 drawIntake();
 $("history").prepend(icon("clock"));
 $("history").addEventListener("click", () => setHistory(!isHistoryOpen));
 $("notify").addEventListener("click", toggleNotify);
-$("board-more").append(icon("dots"));
-$("board-more").addEventListener("click", () => openMenu($("board-more"), boardActions(matchMedia("(max-width: 719px)").matches), {
+$("board-more").prepend(icon("dots"));
+$("board-more").addEventListener("click", () => openMenu($("board-more"), phoneMenu(), {
   label: "Board actions"
 }));
 $("keys-open").prepend(icon("keyboard"));

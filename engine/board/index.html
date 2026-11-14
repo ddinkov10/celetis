@@ -13,12 +13,15 @@
 <body>
 <header class="top">
   <div class="brand"><span class="logo" id="logo"></span><h1>Agent board</h1><span class="slash" aria-hidden="true">/</span><span class="repo" id="repo"></span></div>
-  <div class="views" role="group" aria-label="View"><button type="button" data-view="now"><span class="label">Now</span></button><button type="button" data-view="pipeline"><span class="label">Pipeline</span></button></div>
-  <div class="summary" id="summary" role="group" aria-label="Counts"></div>
-  <div class="intake-control"><button type="button" class="btn ghost" id="intake" aria-describedby="intake-reason"><span class="label">New intake</span></button><span id="intake-reason" class="intake-reason" hidden></span></div>
+  <div class="dock">
+    <div class="views" role="group" aria-label="View"><button type="button" id="now" data-view="now"><span class="label">Now</span><span class="dock-badge" id="now-badge" hidden></span></button><button type="button" data-view="pipeline"><span class="label">Pipeline</span></button></div>
+    <div class="summary" id="summary" role="group" aria-label="Counts"></div>
+    <div class="intake-control"><button type="button" class="btn ghost" id="intake" aria-describedby="intake-reason"><span class="label">New intake</span></button><span id="intake-reason" class="intake-reason" hidden></span></div>
+    <button type="button" class="btn ghost" id="queue-open" aria-controls="queue" aria-pressed="false"><span class="label">Queue</span></button>
+    <button type="button" class="btn ghost" id="board-more" aria-label="More board actions" aria-haspopup="menu" aria-expanded="false" title="More board actions"><span class="label">More</span></button>
+  </div>
   <button type="button" class="btn ghost co-open" id="coordinator-open" aria-controls="coordinator" aria-expanded="false" data-state="none"><span class="label">Coordinator</span><i class="co-mark" aria-hidden="true"></i><span class="co-open-state">no session</span><i class="co-new" aria-hidden="true" hidden></i></button>
   <button type="button" class="find" id="find" aria-label="Search or run a step: the cards, history, and commands" aria-keyshortcuts="Control+K Meta+K /"><span class="find-text">Search or run a step</span><kbd>⌘K</kbd></button>
-  <button type="button" class="btn ghost" id="queue-open" aria-controls="queue" aria-pressed="false">Queue</button>
   <button type="button" class="btn ghost" id="history" aria-controls="panel" aria-expanded="false" title="Show or hide history (d)"><span class="label">History</span></button>
   <button type="button" class="btn ghost" id="refresh" title="Read the issues again (r)"><span class="label">Refresh</span></button>
 </header>
@@ -69,7 +72,6 @@
     <span class="hints" id="hints" aria-hidden="true"></span>
     <button type="button" class="sb-btn" id="notify" aria-pressed="false"></button>
     <button type="button" class="sb-btn" id="keys-open" title="Keyboard shortcuts (?)"><span class="sb-name">Keys</span></button>
-    <button type="button" class="sb-btn" id="board-more" aria-label="More board actions" aria-haspopup="menu" aria-expanded="false" title="More board actions"></button>
   </span>
 </footer>
 <p class="sr-only" id="announce" aria-live="polite"></p>

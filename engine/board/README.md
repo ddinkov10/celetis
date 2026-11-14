@@ -384,8 +384,10 @@ open state, scroll, and matching focused link. Escape or Close returns focus to 
 is open, `History` has `aria-expanded="true"`, a Veil Strong fill, and a strong hairline. The
 `landed` chip of the header and the `d` shortcut open the same panel; the landed count shows
 nowhere else. Search finds landed issue numbers and titles.
-History stays visible on a phone. Below 1100 px width or 701 px height the panel is a drawer;
-below 720 px width it fills the viewport. Closing it restores the board width.
+On a phone the header has no History button and no `landed` chip; the row `Show history` or
+`Hide history` of More, the `d` shortcut, and the Search command open the panel. Below 1100 px
+width or 701 px height the panel is a drawer; below 720 px width it fills the viewport. Closing
+it restores the board width.
 
 A full read, or a selected read that finds at least one closed issue, calls `readHistory` of
 `engine/lib/board-read.ts` once. Other selected reads retain History. `readHistory` reads the remote
@@ -1200,13 +1202,21 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   and of landed issues, New intake, Coordinator, Search, Queue, History, and Refresh. The title of the browser tab is
   `(<n>) <folder> · Agent board` while `<n>` cards or sessions need you, and the tab icon has an orange dot
   then; it has a blue dot while an agent of an issue works and nothing needs you.
+- Below 720 px the header is two bars. The sticky top bar holds the folder name, Coordinator, and
+  Search. The bottom bar is fixed to the bottom edge and holds Now, Pipeline, New intake, Queue,
+  and More, each with an icon and its label. The count chips do not show, and History and Refresh
+  have no button there; their rows are in More. The status bar does not show there either; its items
+  are rows of More. Now carries a badge with the `need you` count (its name is
+  `Now, <n> need you`), and the badge hides at 0. The bottom bar does not hide on scroll. The
+  details and the coordinator panel cover the bottom bar.
 - New intake is a ghost button (a Veil fill, a hairline, and Ink text), not an Ink-filled one. Only
   the chip `need you` keeps its outline, and it grows to 32 px while it needs you; the chips
   `running`, `idle`, and `landed` have no outline and no fill. After a good Refresh the Refresh
   icon is Go Green and its title reads `Read <tracker> again: done` for 2 seconds, also across a
   redraw, and the page announces `<tracker> read again` (`Issues read again` before the first good
   read) at each good Refresh, also twice in a row. A failed Refresh keeps the toast `Refresh failed`.
-- New intake stays in the header in Now, Pipeline, and Queue, with its label visible on phones.
+- New intake stays in the header in Now, Pipeline, and Queue. On a phone it is the center item of
+  the bottom bar and keeps its label there.
   Search becomes compact below 1700 px, and Refresh shows only its icon (its name stays), so the row
   holds the widest state words of Coordinator; the folder name stops at 12 characters with an
   ellipsis and a title. During a request it reads `Opening…`, announces progress,
@@ -1230,7 +1240,9 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   and Exclude from default work or Include in default work. The last included agent cannot be
   excluded; inclusion puts the agent last. On a handle, Up and Down move the focus, Alt+Up and
   Alt+Down move the agent, and Enter or Space opens the menu. Escape closes the menu, then the list,
-  and returns the focus to the handle or the pill. A press outside closes the list.
+  and returns the focus to the handle or the pill. A press outside closes the list. Below 720 px
+  width the pill has no box: the row `Agent order` of More opens the same list above the bottom
+  bar, and the focus returns to More.
 - Each change is one replacement with the version that the list read, and the list shows the new
   order at once. During a save, the list takes no other change. A failed save restores the
   confirmed order and shows the cause. A stale change shows the current order and asks for the
@@ -1239,19 +1251,21 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   the list names the issue, the cause, and its next reset or `No reset time is known`, with
   `Retry #<n>` for each waiting issue. When every included agent is limited and no run waits,
   the list says that new default work waits. A long agent list or wait list scrolls inside the picker, which
-  stays above its pill and within the viewport. Changes and Retry results go to a polite live region.
-  Below 720 px width, the pill, the handles, the menu items, and Retry are at least 44 px high, and
-  the handles are 44 px wide.
-- The status bar keeps the Celetis update control after the agent order, including on phones
-  and while its nonmodal dialog is open. The same button shows **Check for updates**, **Checking…**,
-  **Up to date**, **Update available**, **Restart needed**, **Update check failed**, **Update in
-  progress**, **Restarting…**, **Update completed**, **Update needs attention**, or **Restart needs
-  attention**. It uses the accent look only for **Update available** and **Restart needed**, the
-  two states that need an action. Its accessible name and tooltip are `<label>, Celetis` in each
-  state. Each state change goes to the polite status region, also when the label stays. Below
-  720 px the button is 44 px high.
-  The footer can wrap; its controls remain below the dialog. While the coordinator panel is open,
-  the dialog sits above the foot of the panel, so it does not cover the message field. Checks
+  stays above its pill (above More on a phone) and within the viewport. Changes and Retry results
+  go to a polite live region. Below 720 px width, the handles, the menu items, and Retry are at
+  least 44 px high, and the handles are 44 px wide.
+- The status bar keeps the Celetis update control after the agent order, also while its nonmodal
+  dialog is open. Below 720 px the status bar does not show, and the control is the last row of
+  More under `Board status`, as `Celetis: <label>`; a press closes the menu and opens the same
+  dialog above the bottom bar, and the focus returns to More. The same button shows **Check for
+  updates**, **Checking…**, **Up to date**, **Update available**, **Restart needed**, **Update
+  check failed**, **Update in progress**, **Restarting…**, **Update completed**, **Update needs
+  attention**, or **Restart needs attention**. It uses the accent look only for **Update
+  available** and **Restart needed**, the two states that need an action. Its accessible name and
+  tooltip are `<label>, Celetis` in each state. Each state change goes to the polite status
+  region, also when the label stays. On a desktop the footer can wrap; its controls remain below
+  the dialog. While the coordinator panel is open, the dialog sits above the foot of the panel, so
+  it does not cover the message field. Checks
   keep the cards and other controls usable. The dialog opens only on a press of the control, which
   moves the focus to its title; a change of state moves no focus, and the polite status region
   gives the state. Escape closes the open dialog also
@@ -1268,10 +1282,12 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   first, its host reports `blocked`: its item is orange. In the second, its host reports `idle`,
   `done`, or `error` and you have not seen that ended turn: its item shows `your turn`, an
   orange dot, and its title at weight 600, with no tint and no pulse. A new tab at its first prompt
-  is such a turn. The `need you` count in the header, the title of the browser tab, the dot of the
-  tab icon, and Notify count each of the two cases. A press on the `need you` count focuses, in this
-  order, the coordinator control in a dialog, the first human session in a dialog, the first human
-  session at an unseen ended turn, and then the first card of Needs you. The column Needs you
+  is such a turn. The `need you` count in the header (the badge on Now below 720 px), the title of
+  the browser tab, the dot of the tab icon, and Notify count each of the two cases. At 720 px
+  width and more, a press on the `need you` count focuses, in this order, the coordinator control
+  in a dialog, the first human session in a dialog, the first human session at an unseen ended
+  turn, and then the first card of Needs you. Below 720 px the count chips do not show, and a
+  press on the badge on Now only opens the view Now. The column Needs you
   and its count hold only issue work, so the header can count more than the column, and an empty
   Needs you reads `No issue needs you`. `works` needs nothing from you.
   You see a turn when you open the details of the session (a press on its item, `Space`, the press
@@ -1280,7 +1296,9 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   each card of a human session carries) is unseen again. A screen reader hears
   `Human session "<label>": your turn` once when the turn ends; the first good read after a load
   counts and marks, but announces and notifies nothing.
-- The control Coordinator follows New intake in the header in Now, Pipeline, and Queue. It shows the
+- The control Coordinator follows New intake in the header in Now, Pipeline, and Queue. Below
+  720 px it is an icon button of 44 px in the top bar, and its words show only in the state
+  `waits for your answer`. It shows the
   state of the coordinator session in words and with a mark: `no session` (an empty ring), `starts`
   (a blue ring), `works` (a blue dot), `turn ended` (a grey dot), and `waits for your answer` (an
   orange diamond on an orange tint). Its accessible name is `Coordinator, <state>`. While an ended
@@ -1485,11 +1503,18 @@ SIL Open Font License 1.1), so it loads nothing from the network.
 - The status bar shows when the board last read the data, with the name of the tracker (`Issues`
   before the first good read), whether herdr-core answers (the item `herdr`), and the state of the
   master daemon (the item `Daemon`, hidden until the first data and below 720 px). Below 720 px
-  the bar has two rows: the tracker item shows its name and state words alone on the first row (a
-  long `cannot read:` text keeps `cannot read` and ends with an ellipsis, and the full text is the
-  title), and the items `herdr` and the others share the second row with their words. Only the
-  item `Daemon` hides there. The board menu on a phone leaves out the rows for the queue and
-  History, because the header keeps their buttons; Search keeps both commands at each width. The
+  the status bar does not show. Its items are rows of More under the heading `Board status`: the
+  tracker (`<tracker>: read <age> ago`, or `<tracker>: cannot read: <line>` in Caution Amber), `herdr`,
+  `Agent order` (only while the agent order shows), and the update control. The tracker row and the
+  `herdr` row only inform: a press does nothing and the menu stays open. More builds its rows at
+  each open from the words of the status items, and an open menu keeps its words. More shows a
+  dot while an item needs you: Caution Amber when the read or `herdr` failed, otherwise Beacon
+  Orange for **Update available** or **Restart needed**. The name of More ends with
+  `, <name>: <words>` for each failed item. The banner of a failed read still shows above the
+  board. The board menu on a phone has the rows `Show history` or `Hide history`, the read again
+  row, the Notify switch, and the keyboard shortcuts, then `Board status`. It has no row for the
+  queue, because the bottom bar keeps its button, and no row for Coordinator, because the top bar
+  keeps its button. Search keeps the queue, History, and Coordinator commands at each width. The
   status bar also shows the keys of the focused card, the Notify switch, and the list of keys. The
   item `Daemon` shows `daemon` of each placement ("The data"):
 
@@ -1584,10 +1609,12 @@ the texts are `Open the issue` and `Read the issues again`.
   not run, an `hc` or a `herdr-app` that is not on `PATH`, and a press that the server or the
   master daemon refuses. For Run and Resume, the daemon checks `hc` and the Herdr app, and the
   toast shows the line of its refusal.
-- The status bar shows `herdr down` when `hc ls` fails, with the error in its title.
+- The status bar shows `herdr down` when `hc ls` fails, with the error in its title. Below 720 px
+  the row `herdr: down` of More shows it, with a Caution Amber dot on More.
   The board then shows no session card, and the issue cards stay.
 - The status bar shows `cannot read:` with one line when the last read of the issues failed ("The
-  data"). The cards of the last good read stay.
+  data"). The cards of the last good read stay. Below 720 px the tracker row of More shows it, with
+  a Caution Amber dot on More.
 - The status bar says that the board server does not answer when a request of the page failed. A
   press at that time gives a toast with that text and a line that tells the person to start the
   daemon again in a terminal with `celetis daemon start`.

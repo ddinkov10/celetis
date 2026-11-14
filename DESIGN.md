@@ -345,8 +345,11 @@ Responsive steps:
   except `waits for your answer`. At a height of 700px or less the coordinator panel also covers
   the right side.
 - At a height of 700px or less the page also scrolls as one document.
-- Below 720px the columns stack, the details and the coordinator panel cover the whole page, and
-  touch targets grow to 44px.
+- Below 720px the columns stack, the details and the coordinator panel cover the whole page (the
+  bottom bar too), and touch targets grow to 44px. The header becomes a slim sticky top bar (the
+  logo, the folder name, Coordinator, and Search) of about 61px and a fixed bottom bar of 70px
+  ("Bottom bar"); the count chips, History, and Refresh have no box. The work area keeps the bar
+  height as bottom padding.
 - Cards use container queries: below 360px card width the foot stacks and the agent name hides.
 
 ## Elevation & Depth
@@ -410,7 +413,8 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
 - **Count chip:** a 28px chip in the header with a 6px state dot and a bold Ink count. Only the
   `need you` chip has an outline; the chips `running`, `idle`, and `landed` have no outline and no
   fill. The `hot` variant of `need you`, used while something needs you, is 32px high and tints its
-  fill and border with Beacon Orange.
+  fill and border with Beacon Orange. Below 720px no count chip shows; the `need you` count is the
+  badge on Now in the bottom bar.
 - **Tag:** a 22px chip with a Veil fill for PR, checks, and review state. Check and review tags take
   an 8% tint and a 28–30% border of their state color.
 - **Status pill:** a 24px minimum pill that wraps its text. The text is the state color mixed with
@@ -470,27 +474,42 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
 
 - **View switch:** a 30px Veil track with a 1px hairline, a 9px radius, and 24px tabs. The active
   tab is Card Slate with Raise and Ink text; an inactive tab is Ink Faint and turns Ink on hover. On
-  a phone the tabs are 44px high with text labels and no icons, and the active tab also has a 2px
-  Ink bottom edge.
+  a phone the views are the first two items of the bottom bar, with an icon and a label each.
+- **Bottom bar:** below 720px only, a 70px bar fixed to the bottom edge, with a top hairline and the
+  page background, and no hide on scroll. It has five items of 56px: Now, Pipeline, New intake in
+  the center (a little wider), Queue, and More. Each item is an 18px icon above an 11px label. The
+  pressed Now, Pipeline, or Queue, and More while its menu is open, has a Veil Strong pill behind
+  its icon and Ink text; the other items are Ink Faint. New intake is the only item with a Veil
+  Strong fill and a strong hairline; while it is unavailable it loses the fill, and its reason shows
+  as a small Card Slate label above the bar. Now has a Beacon Orange badge with the `need you` count
+  on its icon; the badge hides at 0. The bar sits below the panels and above the page, and a toast
+  sits above it.
 - **Segmented control:** a group of buttons for one fixed choice, as the queue agent. The track is
   Veil with a 9px radius and 2px padding. A segment is 26px high (44px on a phone) with a 7px
   radius and 12.5px Ink Muted text; the pressed segment is Card Slate with Raise and Ink text and
   has `aria-pressed="true"`. A disabled segment is dimmed and keeps `aria-disabled="true"`.
-- **Status bar:** 34px, 12px Ink Faint text, a top hairline. On a phone it has two rows: the read
-  item (tracker name and state words) alone on the first row, and the other items, with the update
-  control, on the second. Each item shows its words; only the daemon item hides.
+- **Status bar:** 34px, 12px Ink Faint text, a top hairline. Below 720px it does not show: its
+  items are rows of More (see Menu), and the page keeps the banner of a failed read above the board.
 - **Menu rows:** the run menu shows the icon of each agent in place of the run icon, and the agent
   that the card details name has a `Default` tag after its label: Ink Muted on Veil Strong, 11px,
   outside the label that can be cut. Level rows keep the run icon, and the current level the check.
   Each agent icon is 16px.
 - **Menu:** on a phone it keeps 12px from each screen edge, wraps its labels, has rows of 44px or
   more, and shows no key hints. A coarse pointer shows no key hints at any width.
-- **Update control:** a 24px status bar button (44px on a phone) whose label names the update
+- **Menu, board status:** the More menu of a phone ends with a section headed `Board status` (12px
+  Ink Faint, the heading of its group). Its rows give the tracker read, `herdr`, the agent order,
+  and the update control, each with its name and state words. A row that only informs (the tracker
+  and `herdr`) keeps full Ink Muted text, shows no hover fill, and does nothing when pressed. A
+  failed row is Caution Amber; the update row is Beacon Orange while it needs you. More shows an
+  8px dot on its icon in the same color (Caution Amber over Beacon Orange) while a row needs you.
+- **Update control:** a 24px status bar button whose label names the update
   state. Only **Update available** and **Restart needed**, the states that need you, take the
   accent: Beacon Orange text on a 10% Beacon Tint fill (13% on hover). Each other state is Ink
-  Faint, as the other status bar buttons.
-- **Agent order:** the status bar pill is a capsule 24px high (44px on a phone) with `0 8px`
-  padding, a Veil fill, a 1px strong hairline, and Veil Strong on hover and while open. It stacks
+  Faint, as the other status bar buttons. On a phone it is the last row of `Board status`, as
+  `Celetis: <label>`.
+- **Agent order:** the status bar pill is a capsule 24px high with `0 8px`
+  padding, a Veil fill, a 1px strong hairline, and Veil Strong on hover and while open. On a phone
+  it is the row `Agent order` of `Board status`, and its list opens above the bottom bar. It stacks
   18px icon discs with a ring of the pill color; hover and keyboard focus fan the icons out. The
   list is Card Slate with Float and a 12px radius, and its rows show 18px discs. An excluded row
   keeps full opacity: a grayscale icon, the name in Ink Muted, and a 12px Ink Faint detail. The
@@ -503,7 +522,8 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
   while the host shows a dialog; then the button also takes a 10% Beacon Tint fill and a 45% Beacon
   Orange border, and the words turn Ink. A second 7px Ink dot with a soft ring marks an ended turn
   that the panel did not show. After a failed read the mark drops to 0.55 opacity and the words turn Ink Faint.
-  Open, the button has Veil Strong and the strong hairline.
+  Open, the button has Veil Strong and the strong hairline. Below 720px it is a 44px icon button in
+  the top bar: the label hides, and the state words show only in the state `dialog`.
 
 ### Coordinator panel
 
@@ -551,7 +571,8 @@ list and no note.
   error line in Fault Red and the recovery line in Ink Muted after a failure.
 - **Actions:** a column of full-width buttons, 34px high, the Primary button first and a
   transparent secondary button with a hairline border (Ink Muted, Veil and Ink on hover) under it.
-- **Phone:** below 720px the dialog keeps a 12px right inset, and the buttons are 44px high.
+- **Phone:** below 720px the dialog keeps a 12px right inset, sits 8px above the bottom bar, and
+  the buttons are 44px high.
 
 ### Toast
 

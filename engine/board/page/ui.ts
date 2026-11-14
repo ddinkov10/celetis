@@ -171,6 +171,7 @@ const ICONS: Record<string, [string, Record<string, string | number>][]> = {
     ['rect', { x: 6.25, y: 2.5, width: 3.5, height: 8, rx: 1 }],
     ['rect', { x: 10.75, y: 2.5, width: 3.5, height: 5.5, rx: 1 }],
   ],
+  queue: [['path', { d: 'M2.75 4h10.5M2.75 8h10.5M2.75 12h6.5' }]],
   stages: [
     ['path', { d: 'M1.75 8h2.5M6.75 8h2.5M11.75 8h2.5' }],
     ['circle', { cx: 5.5, cy: 8, r: 1.25 }],

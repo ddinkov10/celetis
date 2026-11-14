@@ -97,6 +97,7 @@ export function createAgentPicker(
   let saving: readonly Host[] | null = null;
   let notice = '';
   let open = false;
+  let opener: HTMLElement | null = null;
   let menuFor: Host | null = null;
   let drag: Drag | null = null;
   let suppressClick = false;
@@ -148,9 +149,13 @@ export function createAgentPicker(
   const handleOf = (host: Host) => list.querySelector<HTMLElement>(`.ap-row[data-host="${host}"] .ap-handle`);
   const paused = () => Boolean(view && shown().every((host) => view?.usage[host]));
 
+  const placement = () => (trigger.checkVisibility() ? trigger : $('board-more'));
+  const returnTo = () =>
+    trigger.checkVisibility() ? trigger : opener?.isConnected && opener.checkVisibility() ? opener : $('board-more');
+
   const place = () => {
     if (!open) return;
-    const box = trigger.getBoundingClientRect();
+    const box = placement().getBoundingClientRect();
     pop.style.maxHeight = `${Math.max(0, Math.min(innerHeight - EDGE * 2, box.top - GAP - EDGE))}px`;
     const left = Math.max(EDGE, Math.min(box.left, innerWidth - pop.offsetWidth - EDGE));
     pop.style.left = `${left}px`;
@@ -404,9 +409,11 @@ export function createAgentPicker(
     if (!open) {
       cancelDrag();
       hideMenu();
-      if (refocus) trigger.focus();
+      if (refocus) returnTo().focus();
       return;
     }
+    const focused = document.activeElement;
+    opener = focused instanceof HTMLElement && focused !== document.body && !pop.contains(focused) ? focused : null;
     draw(true);
     list.querySelector<HTMLElement>('.ap-handle')?.focus();
   };

@@ -12,6 +12,7 @@ import type {
   Flow,
   HistoryRow,
   MenuEntry,
+  MenuSection,
   PaletteItem,
   ParentEpic,
   RunRequest,
@@ -1202,6 +1203,7 @@ const drawHistory = () => {
   }
 };
 
+const phone = matchMedia('(max-width: 719px)');
 const covering = matchMedia('(max-width: 1099px), (max-height: 700px)');
 const PANEL_FOCUS = '.panel-actions .btn, .ask .btn, .icon-btn';
 const syncCover = () => {
@@ -1350,6 +1352,9 @@ const daemonItem = (daemon: DaemonView): { text: string; tone: string; title: st
   return { text: `auto ${daemon.auto}`, tone, title: `The daemon PID ${daemon.pid} runs. ${title}` };
 };
 
+const statusWords = (item: HTMLElement) =>
+  `${item.querySelector('.sb-name')?.textContent}: ${item.querySelector('.sb-text')?.textContent}`;
+
 const drawStatus = (source: Board['source'], isDown: boolean) => {
   const changed = isServerDown !== isDown;
   isServerDown = isDown;
@@ -1376,6 +1381,13 @@ const drawStatus = (source: Board['source'], isDown: boolean) => {
   terminalNode.title = terminal?.error ? `herdr: ${terminal.error}` : 'Run and Go use herdr';
   (terminalNode.querySelector('.sb-text') as HTMLElement).textContent =
     terminal?.ok === true ? 'up' : terminal?.ok === false ? 'down' : 'checking';
+  const more = $('board-more');
+  const moreName = [
+    'More board actions',
+    ...[fresh, terminalNode].filter((item) => item.dataset.tone === 'fail').map(statusWords),
+  ].join(', ');
+  more.setAttribute('aria-label', moreName);
+  more.title = moreName;
   const daemon = $('daemon');
   daemon.hidden = !data;
   if (data) {
@@ -1566,6 +1578,15 @@ const restoreFocus = (mark: FocusMark) => {
   target?.focus({ preventScroll: true });
 };
 
+let nowCount = 0;
+const drawNow = (count: number): void => {
+  nowCount = count;
+  $('now-badge').hidden = count === 0;
+  $('now-badge').textContent = count === 0 ? '' : String(count);
+  $('now').setAttribute('aria-label', phone.matches ? (count === 0 ? 'Now' : `Now, ${count} need you`) : 'Now view');
+};
+phone.addEventListener('change', () => drawNow(nowCount));
+
 const drawBoard = (next: Board) => {
   drawQueue(next);
   const mark = markFocus(document.activeElement);
@@ -1581,6 +1602,7 @@ const drawBoard = (next: Board) => {
   const banner = next.noRun ?? '';
   if ($('dirty').textContent !== banner) $('dirty').textContent = banner;
   $('summary').replaceChildren(...summary(next));
+  drawNow(needsYou(next, seenTurn).length);
   if (isHistoryOpen) drawHistory();
   const board = $('columns');
   board.dataset.view = view;
@@ -1959,28 +1981,83 @@ const move = (across: number, down: number) => {
   }
 };
 
-const boardActions = (isPhoneMenu: boolean) => [
+const readEntry = (): MenuEntry => ({
+  label: readAgain(),
+  icon: 'refresh',
+  key: 'r',
+  run: () => $('refresh').click(),
+});
+const historyEntry = (): MenuEntry => ({
+  label: isHistoryOpen ? 'Hide history' : 'Show history',
+  icon: 'clock',
+  key: 'd',
+  run: () => setHistory(!isHistoryOpen),
+});
+const notifyEntry = (): MenuEntry => ({
+  label: isNotifyOn ? 'Turn notifications off' : 'Turn notifications on',
+  icon: isNotifyOn ? 'bell-off' : 'bell',
+  key: '',
+  run: toggleNotify,
+});
+const keysEntry = (): MenuEntry => ({
+  label: 'Show the keyboard shortcuts',
+  icon: 'keyboard',
+  key: '?',
+  run: () => $('keys').showModal(),
+});
+
+const boardActions = (): MenuEntry[] => [
   { label: coordinator.label(), icon: 'message', key: '', run: coordinator.toggle },
-  ...(isPhoneMenu ? [] : [{ label: 'Show the issue queue', icon: 'stages', key: '', run: () => showQueue(true) }]),
-  { label: readAgain(), icon: 'refresh', key: 'r', run: () => $('refresh').click() },
-  ...(isPhoneMenu
-    ? []
-    : [
-        {
-          label: isHistoryOpen ? 'Hide history' : 'Show history',
-          icon: 'clock',
-          key: 'd',
-          run: () => setHistory(!isHistoryOpen),
-        },
-      ]),
-  {
-    label: isNotifyOn ? 'Turn notifications off' : 'Turn notifications on',
-    icon: isNotifyOn ? 'bell-off' : 'bell',
-    key: '',
-    run: toggleNotify,
-  },
-  { label: 'Show the keyboard shortcuts', icon: 'keyboard', key: '?', run: () => $('keys').showModal() },
+  { label: 'Show the issue queue', icon: 'stages', key: '', run: () => showQueue(true) },
+  readEntry(),
+  historyEntry(),
+  notifyEntry(),
+  keysEntry(),
 ];
+
+const statusEntry = (item: HTMLElement, iconName: string): MenuEntry => ({
+  label: statusWords(item),
+  icon: iconName,
+  title: item.title,
+  isInfo: true,
+  ...(item.dataset.tone === 'fail' ? { alert: 'caution' as const } : {}),
+  run: () => {},
+});
+
+const phoneMenu = (): (MenuEntry | MenuSection)[] => {
+  const trigger = $('agent-picker').querySelector<HTMLElement>('.ap-trigger');
+  const update = $('update-open');
+  return [
+    historyEntry(),
+    readEntry(),
+    notifyEntry(),
+    keysEntry(),
+    {
+      heading: 'Board status',
+      entries: [
+        statusEntry($('fresh'), 'board'),
+        statusEntry($('terminal'), 'terminal'),
+        ...($('agent-picker').hidden
+          ? []
+          : [
+              {
+                ...agentOrderEntry,
+                label: trigger?.getAttribute('aria-label') ?? agentOrderEntry.label,
+                title: trigger?.title ?? '',
+              },
+            ]),
+        {
+          label: `Celetis: ${update.querySelector('.label')?.textContent ?? ''}`,
+          icon: 'refresh',
+          title: update.title,
+          isDisabled: update.getAttribute('aria-disabled') === 'true',
+          ...(update.classList.contains('is-accent') ? { alert: 'beacon' as const } : {}),
+          run: () => update.click(),
+        },
+      ],
+    },
+  ];
+};
 
 const paletteItems = () => {
   if (!data) return [];
@@ -2106,7 +2183,7 @@ const paletteItems = () => {
       key: 'v',
       run: () => setView(view === 'now' ? 'pipeline' : 'now'),
     },
-    ...boardActions(false).map((action) => ({ group: 'Board', number: null, context: '', ...action })),
+    ...boardActions().map((action) => ({ group: 'Board', number: null, context: '', ...action })),
     {
       group: 'Board',
       number: null,
@@ -2326,15 +2403,16 @@ for (const button of document.querySelectorAll<HTMLElement>('.views button')) {
   button.setAttribute('aria-pressed', String(button.dataset.view === view));
   button.addEventListener('click', () => setView(button.dataset.view as string));
 }
+$('queue-open').prepend(icon('queue'));
 $('intake').prepend(icon('spark'));
 $('intake').addEventListener('click', () => void openIntake());
 drawIntake();
 $('history').prepend(icon('clock'));
 $('history').addEventListener('click', () => setHistory(!isHistoryOpen));
 $('notify').addEventListener('click', toggleNotify);
-$('board-more').append(icon('dots'));
+$('board-more').prepend(icon('dots'));
 $('board-more').addEventListener('click', () =>
-  openMenu($('board-more'), boardActions(matchMedia('(max-width: 719px)').matches), {
+  openMenu($('board-more'), phoneMenu(), {
     label: 'Board actions',
   }),
 );

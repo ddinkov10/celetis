@@ -2257,6 +2257,32 @@ body.is-covered .panel {
   opacity: 0.45;
   cursor: not-allowed;
 }
+.menu-row.menu-info {
+  opacity: 1;
+  cursor: default;
+}
+.menu-row.menu-info:hover {
+  background: transparent;
+}
+.menu-row.menu-info .menu-text {
+  color: var(--fg2);
+  overflow-wrap: anywhere;
+}
+.menu-row.menu-caution,
+.menu-row.menu-caution .icon,
+.menu-row.menu-caution .menu-text {
+  color: var(--amber);
+}
+.menu-row.menu-beacon,
+.menu-row.menu-beacon .icon,
+.menu-row.menu-beacon .menu-text {
+  color: var(--needs);
+}
+.menu-head {
+  padding: 8px 9px 4px;
+  color: var(--fg3);
+  font-size: 0.75rem;
+}
 .compact-btns {
   display: inline-flex;
   gap: 6px;
@@ -2678,7 +2704,6 @@ body.is-covered .panel {
     background: var(--bg);
   }
   .summary {
-    order: 3;
     flex-basis: 100%;
     flex-wrap: wrap;
     margin-right: 0;
@@ -2740,21 +2765,18 @@ body.is-covered .panel {
   .intake-control .btn {
     min-height: 44px;
   }
-  #queue-open,
-  #history {
-    height: 44px;
-    padding-inline: 8px;
-  }
   .find {
     min-width: 44px;
     flex-shrink: 0;
   }
   .top {
-    gap: 8px 6px;
-    padding: 12px 16px;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 8px 16px;
   }
   .brand {
     flex: 1;
+    min-width: 0;
   }
   .brand h1 {
     position: absolute;
@@ -2774,23 +2796,6 @@ body.is-covered .panel {
     font-weight: 600;
     color: var(--fg);
   }
-  .views button .icon {
-    display: none;
-  }
-  .views {
-    min-height: 52px;
-    padding: 3px;
-  }
-  .views button {
-    justify-content: center;
-    min-height: 44px;
-    padding: 0 12px;
-  }
-  .views button[aria-pressed="true"] {
-    box-shadow:
-      var(--raise),
-      inset 0 -2px 0 var(--fg);
-  }
   .find {
     justify-content: center;
     width: 44px;
@@ -2801,7 +2806,7 @@ body.is-covered .panel {
     padding-inline: 16px;
   }
   .work {
-    padding: 14px 12px;
+    padding: 14px 12px calc(14px + var(--dock));
   }
   .board,
   .board.is-calm[data-view="now"],
@@ -2842,53 +2847,8 @@ body.is-covered .panel {
   .ask-foot .btn {
     min-height: 44px;
   }
-  .statusbar {
-    gap: 0 4px;
-    min-height: 80px;
-    padding: 3px 12px 4px;
-  }
-  #fresh {
-    flex: 1 1 100%;
-    order: -1;
-    max-width: none;
-    min-height: 28px;
-  }
-  .sb-end {
-    flex: none;
-  }
-  .sb-btn {
-    min-height: 44px;
-  }
-  #board-more {
-    display: inline-flex;
-    justify-content: center;
-    width: 44px;
-    padding: 0;
-  }
-  #daemon,
-  #notify,
-  #keys-open,
+  #history,
   #refresh {
-    display: none;
-  }
-  .summary {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 4px;
-  }
-  .chip {
-    flex-direction: column;
-    justify-content: center;
-    gap: 2px;
-    min-height: 44px;
-    padding: 4px 2px;
-    font-size: 0.6875rem;
-  }
-  .chip b {
-    font-size: 0.875rem;
-    line-height: 1;
-  }
-  .chip .dot {
     display: none;
   }
   .card-head {
@@ -2928,9 +2888,6 @@ body.is-covered .panel {
   }
   .find kbd {
     display: none;
-  }
-  .brand {
-    min-width: 96px;
   }
   .human {
     margin-inline: 12px;
@@ -3384,16 +3341,6 @@ body.is-covered .panel {
   .update-actions .btn {
     min-height: 44px;
   }
-  .update-open {
-    flex: 1 1 0;
-    min-width: 0;
-    max-width: max-content;
-    min-height: 44px;
-  }
-  .update-open .label {
-    min-width: 0;
-    white-space: normal;
-  }
   .history-action {
     min-height: 44px;
     min-width: 44px;
@@ -3667,7 +3614,6 @@ body.is-covered .panel {
   font-size: 0.75rem;
 }
 @media (max-width: 719px) {
-  .ap-trigger,
   .ap-handle,
   .ap-retry {
     min-height: 44px;
@@ -4052,10 +3998,6 @@ body.has-coordinator .update-dialog {
     flex: none;
     min-height: 45px;
   }
-  #queue-open,
-  #history {
-    min-height: 44px;
-  }
 }
 
 .start-line,
@@ -4258,4 +4200,201 @@ body.has-coordinator .update-dialog {
 }
 .aside-chip.is-busy .aside-chip-label {
   max-width: 100px;
+}
+
+@media (max-width: 719px) {
+  :root {
+    --dock: 70px;
+  }
+  .top .co-open {
+    gap: 4px;
+    min-width: 44px;
+    padding: 0 10px;
+  }
+  .top .co-open .label,
+  .summary {
+    display: none;
+  }
+  .dock {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 7;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 1.2fr) repeat(2, minmax(0, 1fr));
+    height: var(--dock);
+    padding: 6px 8px;
+    border-top: 1px solid var(--line);
+    background: var(--bg);
+  }
+  .dock .views {
+    grid-column: span 2;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  .dock .views button,
+  .dock #queue-open,
+  .dock #board-more,
+  .dock #intake {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 56px;
+    height: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--fg3);
+    font: 500 0.6875rem / 1 var(--sans);
+  }
+  .dock .views button:hover,
+  .dock #queue-open:hover,
+  .dock #board-more:hover {
+    background: transparent;
+    color: var(--fg);
+  }
+  .dock button .icon {
+    box-sizing: content-box;
+    width: 18px;
+    height: 18px;
+    padding: 5px 15px;
+    border-radius: 14px;
+  }
+  .dock button[aria-pressed="true"],
+  .dock #board-more[aria-expanded="true"] {
+    color: var(--fg);
+  }
+  .dock button[aria-pressed="true"] .icon,
+  .dock #board-more[aria-expanded="true"] .icon {
+    background: var(--fill-strong);
+  }
+  .dock .intake-control {
+    position: relative;
+    justify-content: center;
+  }
+  .dock .intake-control #intake {
+    width: calc(100% - 8px);
+    min-height: 48px;
+    border: 1px solid var(--line-strong);
+    background: var(--fill-strong);
+    color: var(--fg);
+  }
+  .dock #intake .icon {
+    padding-block: 3px;
+  }
+  .dock #intake[aria-disabled="true"] {
+    border-color: var(--line);
+    background: transparent;
+    color: var(--fg3);
+  }
+  .dock .intake-reason {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    padding: 4px 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--card);
+    pointer-events: none;
+    transform: translateX(-50%);
+  }
+  .dock-badge {
+    position: absolute;
+    top: 2px;
+    left: calc(50% + 6px);
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 9px;
+    background: var(--needs);
+    color: var(--on-primary);
+    font: 600 0.65625rem / 17px var(--sans);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+  }
+  .dock {
+    anchor-name: --statusbar;
+  }
+  .statusbar {
+    display: contents;
+    anchor-name: none;
+  }
+  .statusbar > :not(.agent-picker),
+  .ap-trigger {
+    display: none;
+  }
+  .agent-picker {
+    display: contents;
+  }
+  #board-more::after {
+    content: none;
+    position: absolute;
+    top: 6px;
+    left: calc(50% + 8px);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--needs);
+  }
+  body:has(#update-open.is-accent) #board-more::after,
+  body:has(#fresh[data-tone="fail"], #terminal[data-tone="fail"]) #board-more::after {
+    content: "";
+  }
+  body:has(#fresh[data-tone="fail"], #terminal[data-tone="fail"]) #board-more::after {
+    background: var(--amber);
+  }
+  .toast {
+    bottom: calc(var(--dock) + 12px);
+  }
+}
+@media (min-width: 720px) {
+  .dock {
+    display: contents;
+  }
+  #board-more,
+  .dock-badge,
+  #queue-open .icon {
+    display: none;
+  }
+  .views {
+    order: 1;
+  }
+  .summary {
+    order: 2;
+  }
+  .intake-control {
+    order: 3;
+  }
+  .co-open {
+    order: 4;
+  }
+  .find {
+    order: 5;
+  }
+  #queue-open {
+    order: 6;
+  }
+  #history {
+    order: 7;
+  }
+  #refresh {
+    order: 8;
+  }
+}
+@media (min-width: 720px) and (max-width: 1099px) {
+  .summary {
+    order: 9;
+  }
 }

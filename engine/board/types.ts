@@ -192,8 +192,11 @@ export type MenuEntry = {
   key?: string;
   title?: string;
   isDisabled?: boolean;
+  isInfo?: boolean;
+  alert?: 'caution' | 'beacon';
   run: () => unknown;
 };
+export type MenuSection = { heading: string; entries: MenuEntry[] };
 export type PaletteItem = MenuEntry & {
   number: number | null;
   group: string;

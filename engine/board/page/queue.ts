@@ -184,7 +184,8 @@ function draw(): void {
   const state = stateOf();
   section().dataset.state = state;
   section().setAttribute('aria-busy', String(busy));
-  $('queue-open').textContent = `Queue${numbers.length ? ` ${numbers.length}` : ''}`;
+  ($('queue-open').querySelector('.label') as HTMLElement).textContent =
+    `Queue${numbers.length ? ` ${numbers.length}` : ''}`;
   const head = el('header', 'queue-head');
   const title = el('div', 'queue-heading');
   title.append(el('h2', '', 'Issue queue'), el('span', 'queue-count', `${numbers.length} remaining`));

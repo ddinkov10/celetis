@@ -1,5 +1,5 @@
 import type { Host } from '../../lib/config-core.ts';
-import type { MenuEntry, PaletteItem } from '../types.ts';
+import type { MenuEntry, MenuSection, PaletteItem } from '../types.ts';
 import { filterItems } from '../view.ts';
 import { $, AGENT_ICONS, el, icon } from './ui.ts';
 
@@ -136,9 +136,45 @@ const agentMark = (host: Host) => {
   return node;
 };
 
+const menuRow = (entry: MenuEntry) => {
+  const menu = $('menu');
+  const node = el('button', `menu-row${entry.isInfo ? ' menu-info' : ''}${entry.alert ? ` menu-${entry.alert}` : ''}`);
+  node.type = 'button';
+  node.setAttribute('role', 'menuitem');
+  if (entry.id) node.dataset.id = entry.id;
+  const text = el('div', 'menu-text');
+  text.append(el('span', '', entry.label));
+  if (entry.tag) text.append(el('em', 'menu-tag', entry.tag));
+  node.append(
+    entry.host ? agentMark(entry.host) : icon(entry.icon),
+    text,
+    entry.key ? el('kbd', '', entry.key) : el('span'),
+  );
+  if (entry.isDisabled || entry.isInfo) node.setAttribute('aria-disabled', 'true');
+  if (entry.title) node.title = entry.title;
+  node.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (entry.isInfo) return;
+    menu.hidePopover();
+    entry.run();
+  });
+  return node;
+};
+
+let sections = 0;
+const menuSection = ({ heading, entries }: MenuSection) => {
+  const group = el('div');
+  const head = el('div', 'menu-head', heading);
+  head.id = `menu-head-${sections++}`;
+  group.setAttribute('role', 'group');
+  group.setAttribute('aria-labelledby', head.id);
+  group.append(head, ...entries.map(menuRow));
+  return group;
+};
+
 export const openMenu = (
   from: HTMLElement,
-  entries: (MenuEntry | 'rule')[],
+  entries: (MenuEntry | MenuSection | 'rule')[],
   options: { label: string; focus?: 'first' | 'keep'; onClose?: () => void },
 ) => {
   const menu = $('menu');
@@ -158,26 +194,7 @@ export const openMenu = (
   menu.replaceChildren(
     ...entries.map((entry) => {
       if (entry === 'rule') return el('hr');
-      const node = el('button', 'menu-row');
-      node.type = 'button';
-      node.setAttribute('role', 'menuitem');
-      if (entry.id) node.dataset.id = entry.id;
-      const text = el('div', 'menu-text');
-      text.append(el('span', '', entry.label));
-      if (entry.tag) text.append(el('em', 'menu-tag', entry.tag));
-      node.append(
-        entry.host ? agentMark(entry.host) : icon(entry.icon),
-        text,
-        entry.key ? el('kbd', '', entry.key) : el('span'),
-      );
-      if (entry.isDisabled) node.setAttribute('aria-disabled', 'true');
-      if (entry.title) node.title = entry.title;
-      node.addEventListener('click', (event) => {
-        event.stopPropagation();
-        menu.hidePopover();
-        entry.run();
-      });
-      return node;
+      return 'heading' in entry ? menuSection(entry) : menuRow(entry);
     }),
   );
   if (isOpen) from.setAttribute('aria-expanded', 'true');
