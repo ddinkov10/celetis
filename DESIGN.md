@@ -218,7 +218,8 @@ redefines every color token. It loads nothing from the network and carries its o
 - Hairline borders and translucent fills instead of heavy shadows.
 - Geist for words and Geist Mono for numbers, paths, and identifiers.
 - Small, dense, keyboard-first controls with a visible focus ring.
-- Motion only for state: the beacon pulse, the working flow, and card moves. All of it stops for
+- Motion only for state: the beacon pulse, the working flow, and card moves. The one motion that
+  is not a state is the fan of the agent order icons on hover and focus. All of it stops for
   reduced motion.
 
 ## Colors
@@ -254,7 +255,8 @@ decoration.
 
 - **Tower Night** (`tower-night`): the page background. Light theme: **Tower Day** (`tower-day`).
 - **Console Grey** (`console-grey`): columns, the details panel, and sticky group labels.
-- **Card Slate** (`card-slate`): cards, the search palette, toasts, and the active view tab.
+- **Card Slate** (`card-slate`): cards, the search palette, menus, the agent order list, toasts,
+  and the active view tab.
   `card-slate-hover` is its hover step.
 - **Veil** (`veil`, `veil-strong`): translucent fills for ghost buttons, tags, the search field, and
   hover states.
@@ -270,8 +272,9 @@ decoration.
 ready or passed, red failed, amber is a dirty tree. Never use a signal color for decoration or
 emphasis. The selected Codex and Claude Code icons are the only vendor-color exception: retain
 their original colors and proportions at 18×18 px in both themes. Codex keeps its white background;
-Claude Code keeps its transparency. Add no tile background, border, or shadow. The icons identify
-the agent only; state indicators and card treatments keep their existing meanings.
+Claude Code keeps its transparency. Add no tile background, border, or shadow. The one exception
+is the agent order, where each icon sits on an 18px disc with a ring of the pill color. The icons
+identify the agent only; state indicators and card treatments keep their existing meanings.
 
 **The Ink Action Rule.** The primary button is filled with Ink, not with a signal color. A filled
 button means "the main action of this card", not a state.
@@ -372,11 +375,11 @@ modal dialog blurs the page, at 2px.
 
 ## Shapes
 
-Corners are gently rounded and nest: an inner shape is smaller than its container. Surfaces use
-16px (columns, the details panel, the queue), cards, toasts, and the update dialog 12px, the palette
-14px, controls 8px, the view
-switch 9px around 7px tabs, tags 6px, and small marks 5px. Dots are full circles. Borders are always
-1px hairlines. The start label draws each default value with a dashed outline.
+Corners are gently rounded and nest: an inner shape is smaller than its container. Surfaces use 16px
+(columns, the details panel, the queue, the keys dialog), cards, toasts, and the update dialog 12px,
+the palette 14px, controls 8px, the view switch 9px around 7px tabs, tags 6px, and small marks 5px.
+Dots are full circles. Borders are always 1px hairlines. The start label draws each default value
+with a dashed outline.
 
 **The Nesting Rule.** A child radius is never larger than its parent radius. A 7px tab sits in a 9px
 track; a 12px card sits in a 16px column.
@@ -419,6 +422,9 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
 - **Shadow Strategy:** Raise (see Elevation & Depth).
 - **Border:** a 1px hairline; the strong hairline on hover.
 - **Internal Padding:** 12px 14px, with an 8px gap between rows.
+- **More below:** the button at the foot of Needs you. It is full width and 34px high, with a Card
+  Slate fill, a 1px strong hairline, an 8px radius, Raise, and Ink Muted text at 500, 12.5px. Hover
+  moves to Ink text and a 60% Ink Faint border.
 - **Waiting card:** a 55% Beacon Orange border, a 6% orange tint, and a slow pulse of the tint
   (3s). This card is the beacon of the tower.
 - **Compact card:** a one-row variant for Idle, Pipeline, and the last two groups of Needs you. In
@@ -454,10 +460,10 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
 
 ### Navigation
 
-- **View switch:** a 30px Veil track with a 9px radius and 24px tabs. The active tab is Card Slate
-  with Raise and Ink text; an inactive tab is Ink Faint and turns Ink on hover. On a phone the
-  tabs are 44px high with text labels and no icons, and the active tab also has a 2px Ink bottom
-  edge.
+- **View switch:** a 30px Veil track with a 1px hairline, a 9px radius, and 24px tabs. The active
+  tab is Card Slate with Raise and Ink text; an inactive tab is Ink Faint and turns Ink on hover. On
+  a phone the tabs are 44px high with text labels and no icons, and the active tab also has a 2px
+  Ink bottom edge.
 - **Segmented control:** a group of buttons for one fixed choice, as the queue agent. The track is
   Veil with a 9px radius and 2px padding. A segment is 26px high (44px on a phone) with a 7px
   radius and 12.5px Ink Muted text; the pressed segment is Card Slate with Raise and Ink text and
@@ -468,14 +474,19 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
 - **Menu rows:** the run menu shows the icon of each agent in place of the run icon, and the agent
   that the card details name has a `Default` tag after its label: Ink Muted on Veil Strong, 11px,
   outside the label that can be cut. Level rows keep the run icon, and the current level the check.
+  Each agent icon is 16px.
 - **Menu:** on a phone it keeps 12px from each screen edge, wraps its labels, has rows of 44px or
   more, and shows no key hints. A coarse pointer shows no key hints at any width.
 - **Update control:** a 24px status bar button (44px on a phone) whose label names the update
   state. Only **Update available** and **Restart needed**, the states that need you, take the
   accent: Beacon Orange text on a 10% Beacon Tint fill (13% on hover). Each other state is Ink
   Faint, as the other status bar buttons.
-- **Agent order:** an excluded row keeps full opacity: a grayscale icon, the name in Ink Muted, and
-  a 12px Ink Faint detail. The `First` badge is a Veil Strong fill with Ink Muted text, not a color.
+- **Agent order:** the status bar pill is a capsule 24px high (44px on a phone) with `0 8px`
+  padding, a Veil fill, a 1px strong hairline, and Veil Strong on hover and while open. It stacks
+  18px icon discs with a ring of the pill color; hover and keyboard focus fan the icons out. The
+  list is Card Slate with Float and a 12px radius, and its rows show 18px discs. An excluded row
+  keeps full opacity: a grayscale icon, the name in Ink Muted, and a 12px Ink Faint detail. The
+  `First` badge is a Veil Strong fill with Ink Muted text, not a color.
 
 - **Coordinator control:** a ghost header button after New intake: the message icon, the label
   `Coordinator`, a 7px state mark, and the state words in Ink Muted. The mark changes its shape
@@ -550,7 +561,8 @@ rises in over 0.24s. It names the failed press above the server line.
 - **Do** define every new color for both themes: the dark base and the light variant.
 - **Do** use the existing ease `cubic-bezier(0.2, 0.8, 0.2, 1)` for entrances and 0.15s for color
   and border transitions.
-- **Do** stop all animation and transition under `prefers-reduced-motion: reduce`.
+- **Do** stop all animation and transition under `prefers-reduced-motion: reduce`. The fan of the
+  agent order, the one motion that is not a state, then moves with no transition.
 - **Do** check every change at desktop width and at 375×812 in Chromium.
 
 ### Don't:

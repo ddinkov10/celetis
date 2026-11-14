@@ -2,17 +2,35 @@
 {
   "schema": 1,
   "name": "retain-probe-sources-outside-compiler-globs",
-  "description": "TypeScript evidence copies in an ignored folder entered the project compiler five times, also with this rule in the brief",
+  "description": "TypeScript evidence copies in an ignored folder entered the project compiler six times, also with this rule in the brief",
   "tags": [
     "test",
     "build",
     "process",
     "recurring"
   ],
-  "date": "2026-11-07",
+  "date": "2026-11-14",
   "status": "active",
-  "source": "Task 1 of ddinkov10/celetis#250, implement step session (child report to the coordinator)\n\nImplementation of ddinkov10/celetis#245, temporary verification correction\n\nImplementation of ddinkov10/celetis#197, task gate attempt 1",
+  "source": "The implement session of #323 on Claude Code, first landing attempt, 2026-11-14\n\nTask 1 of ddinkov10/celetis#250, implement step session (child report to the coordinator)\n\nImplementation of ddinkov10/celetis#245, temporary verification correction\n\nImplementation of ddinkov10/celetis#197, task gate attempt 1",
   "incidents": [
+    {
+      "id": "0c8bd3ca-727a-4b43-9a2c-b6cef48008f9",
+      "date": "2026-11-14",
+      "action": "The Verify phase copied its temporary check programs (task-1.ts, v3.ts, fake-gh.ts, v4-board.ts, v4-drive.ts) into the evidence folder docs/superpowers/verification/323-20261114-run1/ of the lane, which git ignores, and then ran land.",
+      "expected": "No temporary program file stays in the lane checkout when the suite runs there, also in a folder that git ignores, because the type check of the gate reads the files of the tree and not only the tracked files.",
+      "observed": "land exited 5: `docs/superpowers/verification/323-20261114-run1/v3.ts(127,7): error TS18048: 'a' is possibly 'undefined'.` then `FAIL: tsc (exit 1)` and `land: checks: the suite scripts/verify.ts failed with status 1 at 90e8620`. After the folder moved out of the lane, the same commit landed with `verify: PASS`.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "docs/superpowers/verification/323-20261114-run1/v3.ts(127,7): error TS18048: 'a' is possibly 'undefined'.\nFAIL: tsc (exit 1)\nland: checks: the suite scripts/verify.ts failed with status 1 at 90e8620ec47c5e580ca468d6c9a9a6889777e1fa",
+        "reference": "https://github.com/ddinkov10/celetis/issues/323"
+      },
+      "inference": "Observed: tsc of the gate type-checked an ignored .ts file of the lane. Inferred: the plan named an ignored evidence folder in the lane, and the session treated ignored as invisible to the gate. Alternative: the gate could limit tsc to tracked files; not checked whether that is intended.",
+      "diagnosis": [
+        "unknown"
+      ],
+      "revision": "90e8620ec47c5e580ca468d6c9a9a6889777e1fa",
+      "brief": "Plan of #323, Verify: Record the evidence folder docs/superpowers/verification/323-<run-id>/ of the lane (ignored)."
+    },
     {
       "id": "0b0ad6a4-3d0e-4a8f-9a55-250e1a5c0a01",
       "date": "2026-11-07",
@@ -107,7 +125,7 @@
       "brief": "The implement session active lesson read was empty. The matching proposal remained pending."
     }
   ],
-  "recurrences": 4,
+  "recurrences": 5,
   "reviews": [
     {
       "id": "c4e0d504-ecea-4638-b3d9-6812457d8fbc",
@@ -153,6 +171,22 @@
         "detail": "Add docs/superpowers/ to the exclude of tsconfig.runtime.json, which already excludes .claude and .superpowers, and of each other compiler configuration with a broad include; or let scripts/verify.ts refuse to compile an untracked file under an ignored folder. Check: a .ts file placed in docs/superpowers/verification/x/ gives no compiler input and no gate error. It needs separate authorization; this review changes no compiler configuration, gate, or instruction.",
         "owner": "the maintainer"
       }
+    },
+    {
+      "id": "f6052f94-15f6-4e6c-b516-4c565f393744",
+      "requestDigest": "78fc166e225f330e75f52a92bf4468b4ee867540ac84a487f1473352b5dac23c",
+      "date": "2026-11-14",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #321; claude child opus/high\n\nMerge under the reviewer rules: the active lesson retain-probe-sources-outside-compiler-globs states the same rule (keep runnable probes outside the compiler inputs, also in an ignored folder, and check the compiler file list), and the proposal adds a distinct tool-output incident of #323 (land exit 5, tsc TS18048 on an ignored v3.ts of the lane). No live or historical lesson holds that incident ID. The tsconfig.runtime.json of the lane of #321 confirms the include **/*.ts and no exclude of docs/superpowers. The survivor keeps the active name and rule, every incident and review, and the cause of #323 labeled as inference. The rule of the proposal (all program files outside the lane) adds no prevention that the active rule lacks, so the active rule stays. The rule adds no permission and weakens no check.",
+      "related": [
+        "keep-temporary-programs-out-of-the-lane-also-in-ignored-folders",
+        "retain-probe-sources-outside-compiler-globs"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "Add docs/superpowers/ to the exclude of tsconfig.runtime.json, or let scripts/verify.ts refuse to compile an untracked file under an ignored folder. Check: a .ts file placed in docs/superpowers/verification/x/ gives no compiler input and no gate error. The lane of #321 still has the include **/*.ts with no exclude of docs/superpowers. It needs separate authorization; this review changes no compiler configuration, gate, or instruction.",
+        "owner": "the maintainer"
+      }
     }
   ]
 }
@@ -171,17 +205,21 @@ In #245, ignored check.ts and server.ts evidence copies also entered the same co
 
 In Task 1 of #250 on 2026-11-07, the implementer saved its probe evidence with one `cp` of a mixed file list into `docs/superpowers/verification/250-t1/`, so three TypeScript probe sources kept the `.ts` extension inside the checkout. The dispatch of the task quoted the complete rule of this lesson. The implementer renamed the files to `.ts.txt` in the next command, before any gate run; the gate passed, and `tsc --listFilesOnly -p tsconfig.runtime.json` listed no evidence path.
 
+In the Verify phase of #323 on 2026-11-14, the session copied its temporary check programs (`task-1.ts`, `v3.ts`, `fake-gh.ts`, `v4-board.ts`, `v4-drive.ts`) into the ignored evidence folder `docs/superpowers/verification/323-20261114-run1/` of the lane, which the plan of #323 named. The first `land` exited 5: the suite failed `tsc` with TS18048 on `v3.ts` of that folder. After the folder moved out of the lane, the same commit landed with `verify: PASS`.
+
 ## Root cause
 
 Observed: `tsconfig.runtime.json` includes `**/*.ts` and excludes `.claude` and `.superpowers`, but not `docs/superpowers`, so Git ignore status does not remove a file there from compilation. Inferred: the controller treated Git ignore status as isolation from the compiler and did not compare the evidence location with the compiler include and exclude patterns. Why the pending proposal did not prevent the #193 and #236 recurrences is unknown; active lesson retrieval does not deliver a pending proposal.
 
 In #250, reported by the child: the earlier copies of the same step used explicit `.txt` names, and the batch form of one `cp` dropped them. Inferred: a text rule that each session must apply at each copy keeps the mistake possible; this recurrence happened with the rule in the brief.
 
+In #323, inferred: the session treated the ignored folder that the plan named as invisible to the gate. Whether the session retrieved this lesson is not known, so the diagnosis stays `unknown`.
+
 ## Fix
 
 Proposed prevention: retain source as non-executable text or an archive when it sits inside a compiler scan. Check the project compiler scope before copying probe sources, and check the name of each file of a batch copy. This lesson changes no instruction or compiler configuration.
 
-Proposed structural follow-up, not implemented or authorized by this lesson: add the ignored scratch folder `docs/superpowers/` to the `exclude` of `tsconfig.runtime.json` and of each other project compiler configuration with a broad include, or let the project verify gate refuse to compile an untracked file under an ignored folder; an evidence-copy helper that requires non-compilable snapshot extensions is an alternative. The mistake has five incidents, and the exclude needs no judgment, so the encode-lessons-in-structure principle of the plugin celetis points to the structure. The maintainer owns that separate change. Its check: a `.ts` file placed in `docs/superpowers/verification/x/` gives no compiler input and no gate error. Current enforcement is not claimed; until the change exists, this text rule stays the prevention.
+Proposed structural follow-up, not implemented or authorized by this lesson: add the ignored scratch folder `docs/superpowers/` to the `exclude` of `tsconfig.runtime.json` and of each other project compiler configuration with a broad include, or let the project verify gate refuse to compile an untracked file under an ignored folder; an evidence-copy helper that requires non-compilable snapshot extensions is an alternative. The mistake has six incidents, and the exclude needs no judgment, so the encode-lessons-in-structure principle of the plugin celetis points to the structure. The maintainer owns that separate change. Its check: a `.ts` file placed in `docs/superpowers/verification/x/` gives no compiler input and no gate error. Current enforcement is not claimed; until the change exists, this text rule stays the prevention.
 
 ## Rule
 

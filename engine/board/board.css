@@ -196,9 +196,6 @@ kbd {
   gap: 10px;
   flex: none;
 }
-.intake-control .btn {
-  min-height: 36px;
-}
 .intake-reason {
   color: var(--fg2);
   font-size: 0.75rem;
@@ -771,8 +768,8 @@ a.num:hover {
   text-decoration-color: var(--line-strong);
 }
 .more {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   margin: -5px -6px -5px 0;
 }
 .unseen {
@@ -1332,11 +1329,6 @@ a.chip2:hover {
   flex-wrap: wrap;
   row-gap: 4px;
 }
-.compact .btn {
-  min-height: 26px;
-  padding: 0 9px;
-  font-size: 0.75rem;
-}
 .compact .gate {
   font-family: var(--sans);
 }
@@ -1406,7 +1398,7 @@ a.chip2:hover {
   align-items: center;
   gap: 12px;
   padding: 8px 10px 8px 16px;
-  border-radius: 14px;
+  border-radius: 16px;
 }
 .hold-label {
   flex: none;
@@ -1529,7 +1521,7 @@ a.chip2:hover {
   margin-right: 2px;
 }
 .stage .col-head {
-  min-height: 44px;
+  min-height: 46px;
 }
 .stage .col-body {
   gap: 8px;
@@ -1587,10 +1579,6 @@ body.is-covered .panel {
   font: 400 0.71875rem / 1 var(--mono);
   color: var(--fg3);
   white-space: nowrap;
-}
-.panel-head .icon-btn {
-  width: 28px;
-  height: 28px;
 }
 .panel-body {
   flex: 1;
@@ -2850,13 +2838,14 @@ body.is-covered .panel {
     align-items: center;
     min-height: 44px;
   }
-  .panel-actions .btn {
+  .panel-actions .btn,
+  .ask-foot .btn {
     min-height: 44px;
   }
   .statusbar {
     gap: 0 4px;
     min-height: 80px;
-    padding: 3px 12px;
+    padding: 3px 12px 4px;
   }
   #fresh {
     flex: 1 1 100%;
@@ -2911,13 +2900,19 @@ body.is-covered .panel {
     margin: -6px -8px -6px 0;
   }
   .card-foot .btn,
+  .card.compact > .btn,
   .compact-btns .btn,
   .compact-btns .icon-btn {
     height: 44px;
   }
+  .card.compact > .btn,
   .compact-btns .btn,
   .compact-btns .icon-btn {
     min-width: 44px;
+  }
+  .card .copy {
+    width: 44px;
+    height: 44px;
   }
   .menu {
     max-width: calc(100vw - 24px);
@@ -2947,11 +2942,11 @@ body.is-covered .panel {
     margin: 2px 0 2px 6px;
   }
   .human-pill {
-    min-height: 40px;
+    min-height: 46px;
   }
   .human-go {
-    width: 36px;
-    min-height: 36px;
+    width: 44px;
+    min-height: 44px;
   }
 }
 .queue {
@@ -3406,8 +3401,8 @@ body.is-covered .panel {
 }
 
 .agent-picker {
-  --icon: 22px;
-  --ring: var(--card);
+  --icon: 18px;
+  --ring: color-mix(in srgb, var(--fg) 5%, var(--bg));
   display: inline-flex;
   color: var(--fg);
   font: 0.8125rem / 1.4 var(--sans);
@@ -3417,28 +3412,25 @@ body.is-covered .panel {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 32px;
-  padding: 0 8px 0 4px;
+  min-height: 24px;
+  padding: 0 8px;
   border: 1px solid var(--line-strong);
   border-radius: 999px;
-  background: var(--card);
+  background: var(--fill);
   color: var(--fg2);
   font: inherit;
   cursor: pointer;
 }
 .ap-trigger:hover,
 .ap-trigger[aria-expanded="true"] {
-  --ring: var(--card-hover);
-  background: var(--card-hover);
+  --ring: color-mix(in srgb, var(--fg) 8%, var(--bg));
+  background: var(--fill-strong);
 }
 .ap-trigger:focus-visible,
 .ap-handle:focus-visible,
 .ap-retry:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
-}
-.ap-trigger:focus-visible {
-  outline-offset: -2px;
 }
 .ap-chev {
   width: 10px;
@@ -3464,8 +3456,8 @@ body.is-covered .panel {
 }
 .ap-icon img {
   display: block;
-  width: 15px;
-  height: 15px;
+  width: 12px;
+  height: 12px;
 }
 .ap-stack .ap-icon {
   margin-inline-start: calc(var(--icon) * -0.25);
@@ -3485,13 +3477,13 @@ body.is-covered .panel {
   transition-delay: 80ms;
 }
 .ap-trigger:is(:hover, :focus-visible) .ap-stack .ap-icon:first-child {
-  transform: translateY(-2px) rotate(-6deg);
+  transform: rotate(-6deg);
 }
 .ap-trigger:is(:hover, :focus-visible) .ap-stack .ap-icon:nth-child(2) {
-  transform: translate(calc(var(--icon) * 0.25 + 2px), -2px) rotate(6deg);
+  transform: translateX(calc(var(--icon) * 0.25 + 2px)) rotate(6deg);
 }
 .ap-trigger:is(:hover, :focus-visible) .ap-stack .ap-icon:nth-child(3) {
-  transform: translate(calc((var(--icon) * 0.25 + 2px) * 2), -2px) rotate(12deg);
+  transform: translateX(calc((var(--icon) * 0.25 + 2px) * 2)) rotate(12deg);
 }
 .ap-pop {
   position: fixed;
@@ -3502,7 +3494,7 @@ body.is-covered .panel {
   max-width: calc(100vw - 32px);
   padding: 6px;
   border-radius: 12px;
-  background: var(--panel);
+  background: var(--card);
   box-shadow: var(--float);
   opacity: 0;
   pointer-events: none;
@@ -3805,10 +3797,6 @@ body.is-covered .panel {
 .co-head .btn:hover {
   background: var(--fill-strong);
   color: var(--fg);
-}
-.co-head .icon-btn {
-  width: 28px;
-  height: 28px;
 }
 .co-banner {
   flex: none;
