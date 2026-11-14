@@ -230,7 +230,8 @@ decoration.
 
 - **Beacon Orange** (`beacon-orange`): the color of "needs you". It marks the Needs you column
   glyph, the `need you` count, a waiting card's border and pulse, the current lane segment of a
-  waiting or blocked card, and the orange dot of the tab icon. `beacon-tint` is the lighter
+  waiting or blocked card, the dot and the words of a human session at an unseen ended turn, and the
+  orange dot of the tab icon. `beacon-tint` is the lighter
   partner that tints the backgrounds of waiting cards and act lines. Light theme: `beacon-orange-light`
   for text and marks, `beacon-tint-light` for tints.
 
@@ -390,20 +391,23 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
 - **Primary:** an Ink fill with Ink On text. It is the main button of a card in Needs you. Hover
   lowers the opacity to 0.88.
 - **Ghost:** a Veil fill, a hairline border, and Ink text. Hover moves to Veil Strong and the strong
-  hairline.
+  hairline. Each header button, New intake included, is a ghost button: the header has no Ink-filled
+  button, because the Ink fill stays for the main button of a card.
 - **Icon:** a 26px square with a 7px radius, transparent, Ink Faint; hover adds Veil Strong and Ink.
 - **States:** press scales to 0.97 in 0.1s. Busy shows a spinning icon and 0.7 opacity. Disabled
   is 0.42 opacity with `cursor: not-allowed`, and keeps its accessible reason.
 
 ### Chips
 
-- **Count chip:** a 28px outlined chip in the header with a 6px state dot and a bold Ink count. The
-  `hot` variant, used while something needs you, tints its fill and border with Beacon Orange.
+- **Count chip:** a 28px chip in the header with a 6px state dot and a bold Ink count. Only the
+  `need you` chip has an outline; the chips `running`, `idle`, and `landed` have no outline and no
+  fill. The `hot` variant of `need you`, used while something needs you, is 32px high and tints its
+  fill and border with Beacon Orange.
 - **Tag:** a 22px chip with a Veil fill for PR, checks, and review state. Check and review tags take
   an 8% tint and a 28–30% border of their state color.
 - **Status pill:** a 24px minimum pill that wraps its text. The text is the state color mixed with
   Ink (30% Ink for blue and red, 20% for orange and amber) on the same tint, 4.5:1 in both themes.
-- **Gate:** an 18px label. `auto` is Go Green on a 13% green tint; `manual` shows no gate label.
+- **Gate:** an 18px label. `auto` is Go Green on a 13% green tint. While auto mode is off or stopping, it reads `auto off` in Ink Muted text with a 1px dashed strong hairline and no fill. `manual` shows no gate label. In a narrow Pipeline card the step, the start label, and the gate wrap to the next line instead of clipping.
 - **Start label:** an 18px Geist Mono capsule of two segments, the model and then the level. The
   model segment has the stronger fill. A pinned value has a pin icon, and a default value has a
   dashed outline in the text color, with no fill.
@@ -417,11 +421,26 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
 - **Internal Padding:** 12px 14px, with an 8px gap between rows.
 - **Waiting card:** a 55% Beacon Orange border, a 6% orange tint, and a slow pulse of the tint
   (3s). This card is the beacon of the tower.
-- **Compact card:** a one-row variant for Idle, Pipeline, and the last two groups of Needs you.
+- **Compact card:** a one-row variant for Idle, Pipeline, and the last two groups of Needs you. In
+  Pipeline, the main button keeps its label, and a card that needs you has a 3px Beacon Orange inside
+  left edge.
+- **Start line:** one 12px line at full width under the meta of a compact card, and after the title of
+  a full card. A slow start shows the progress line in Ink Muted after 5s; a failed start shows
+  `Last start failed:` and its cause in Fault Red.
+- **Human session item:** a 28px item in the Human sessions strip, a slim band of about 36px
+  (2px block padding, 6px gap, an 11px label). At an ended turn that you have not seen, the item
+  carries the quiet mark: the dot is Beacon Orange in place of Ink Muted, the state words
+  `your turn` are Beacon Orange, and the title takes weight 600, with no tint, no border change, and
+  no pulse. On a narrow width the state words shorten with an ellipsis before the title does. A seen ended turn keeps the Ink Muted dot and `turn ended`. A dialog item keeps its
+  55% Beacon Orange border and its tint.
 - **Epic group row:** a full-width button with a Veil fill, a 1px hairline, and a 12px radius; hover
   moves to Veil Strong and the strong hairline. It holds a 16px chevron (right closed, 90° down open,
   0.15s), the number in Geist Mono, the title that wraps in full, and the count. Open children sit
   beside a 1px strong left hairline, indented 12px. It uses no signal color.
+- **History row:** an issue number in Geist Mono and Ink Faint, the title, the short commit and its
+  time in Ink Faint, and one 28px icon control (44px on a phone) that holds the visual action in all
+  its states; it names itself by `aria-label` and `title`. The open `History` button keeps a Veil
+  Strong fill and a strong hairline.
 - **Column:** Console Grey, a hairline border, a 16px radius, and a 46px head with a state glyph and
   a count.
 
@@ -439,11 +458,15 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
   with Raise and Ink text; an inactive tab is Ink Faint and turns Ink on hover. On a phone the
   tabs are 44px high with text labels and no icons, and the active tab also has a 2px Ink bottom
   edge.
+- **Segmented control:** a group of buttons for one fixed choice, as the queue agent. The track is
+  Veil with a 9px radius and 2px padding. A segment is 26px high (44px on a phone) with a 7px
+  radius and 12.5px Ink Muted text; the pressed segment is Card Slate with Raise and Ink text and
+  has `aria-pressed="true"`. A disabled segment is dimmed and keeps `aria-disabled="true"`.
 - **Status bar:** 34px, 12px Ink Faint text, a top hairline. On a phone it has two rows: the read
   item (tracker name and state words) alone on the first row, and the other items, with the update
   control, on the second. Each item shows its words; only the daemon item hides.
-- **Menu rows:** the run menu shows the icon of each agent in place of the run icon, and the first
-  included agent of the order has a `Default` tag after its label: Ink Muted on Veil Strong, 11px,
+- **Menu rows:** the run menu shows the icon of each agent in place of the run icon, and the agent
+  that the card details name has a `Default` tag after its label: Ink Muted on Veil Strong, 11px,
   outside the label that can be cut. Level rows keep the run icon, and the current level the check.
 - **Menu:** on a phone it keeps 12px from each screen edge, wraps its labels, has rows of 44px or
   more, and shows no key hints. A coarse pointer shows no key hints at any width.

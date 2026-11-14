@@ -181,20 +181,37 @@ export const signature = (card: Card, column: string) => [column, card.state, ca
 
 export const pageTitle = (repo: string, needs: number) => `${needs > 0 ? `(${needs}) ` : ''}${repo} · Agent board`;
 
-// The chip, title, tab icon, and Notify count this list; the Needs you column counts only columns.needs (#142).
-export const needsYou = ({
-  columns,
-  coordinator,
-}: Pick<Board, 'columns' | 'coordinator'>): (Card | CoordinatorView)[] => [
+export const parseSeenTurn = (value: string | null): number | null =>
+  value !== null && /^(0|[1-9][0-9]*)$/.test(value) && Number.isSafeInteger(Number(value)) ? Number(value) : null;
+
+export type SeenTurn = (terminal: string) => number | null;
+
+export const isYourTurn = (card: Card, seen: SeenTurn) =>
+  card.number === null &&
+  card.state === 'waits' &&
+  card.waitFor === 'turn' &&
+  card.sessionId !== null &&
+  typeof card.turn === 'number' &&
+  seen(card.sessionId) !== card.turn;
+
+export const turnLine = (card: Card) =>
+  card.title ? `Human session "${card.title}": your turn` : 'A human session: your turn';
+
+// The chip, title, tab icon, and Notify count this list: a human session in a dialog or at an unseen ended turn too.
+// The Needs you column counts only columns.needs (#142).
+export const needsYou = (
+  { columns, coordinator }: Pick<Board, 'columns' | 'coordinator'>,
+  seen: SeenTurn,
+): (Card | CoordinatorView)[] => [
   ...(coordinator.state === 'dialog' ? [coordinator] : []),
-  ...columns.human.filter((card) => card.waitFor === 'dialog'),
+  ...columns.human.filter((card) => card.waitFor === 'dialog' || isYourTurn(card, seen)),
   ...columns.needs,
 ];
 
 export const isCard = (entry: Card | CoordinatorView): entry is Card => !('actions' in entry);
 
-export const tone = (board: Pick<Board, 'columns' | 'coordinator'>) => {
-  if (needsYou(board).length > 0) return 'needs';
+export const tone = (board: Pick<Board, 'columns' | 'coordinator'>, seen: SeenTurn) => {
+  if (needsYou(board, seen).length > 0) return 'needs';
   return board.columns.running.some((card) => card.state === 'works') ? 'works' : 'calm';
 };
 

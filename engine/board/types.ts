@@ -134,6 +134,7 @@ export type Card = {
   epic: ParentEpic | null;
   pr: Pull | null;
   waitFor?: string | null;
+  turn?: number;
   screen?: string[];
   cwd?: string | null;
   diff?: Diff | null;
@@ -152,6 +153,7 @@ export type Board = Placement & {
   registry: Registry;
   picker: AgentPickerView | null;
   next: AgentDecision | null;
+  starts: Record<string, AgentDecision> | null;
   queue: QueueView | null;
   terminal: { ok: boolean | null; error: string | null };
   coordinator: CoordinatorView;
@@ -170,6 +172,8 @@ export type Action = {
   isGhost?: boolean;
   isMain?: boolean;
   key?: string;
+  group?: string;
+  help?: string;
   run?: () => unknown;
 };
 

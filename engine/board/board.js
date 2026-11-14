@@ -143,17 +143,17 @@ var age = (iso, now, isFine = false) => {
 var keyOf = (card) => `k-${String(card.number ?? card.sessionId).replace(/[^\w-]/g, "-")}`;
 var signature = (card, column) => [column, card.state, card.step, card.waitFor].join("|");
 var pageTitle = (repo, needs) => `${needs > 0 ? `(${needs}) ` : ""}${repo} · Agent board`;
-var needsYou = ({
-  columns,
-  coordinator
-}) => [
+var parseSeenTurn = (value) => value !== null && /^(0|[1-9][0-9]*)$/.test(value) && Number.isSafeInteger(Number(value)) ? Number(value) : null;
+var isYourTurn = (card, seen) => card.number === null && card.state === "waits" && card.waitFor === "turn" && card.sessionId !== null && typeof card.turn === "number" && seen(card.sessionId) !== card.turn;
+var turnLine = (card) => card.title ? `Human session "${card.title}": your turn` : "A human session: your turn";
+var needsYou = ({ columns, coordinator }, seen) => [
   ...coordinator.state === "dialog" ? [coordinator] : [],
-  ...columns.human.filter((card) => card.waitFor === "dialog"),
+  ...columns.human.filter((card) => card.waitFor === "dialog" || isYourTurn(card, seen)),
   ...columns.needs
 ];
 var isCard = (entry) => !("actions" in entry);
-var tone = (board) => {
-  if (needsYou(board).length > 0)
+var tone = (board, seen) => {
+  if (needsYou(board, seen).length > 0)
     return "needs";
   return board.columns.running.some((card) => card.state === "works") ? "works" : "calm";
 };
@@ -456,6 +456,31 @@ var withCode = (text) => {
   return node;
 };
 var toastTimer;
+var toastOrigin = null;
+var hideToast = () => {
+  const node = $("toast");
+  const hadFocus = node.contains(document.activeElement);
+  clearTimeout(toastTimer);
+  node.hidden = true;
+  const origin = toastOrigin;
+  toastOrigin = null;
+  if (hadFocus && origin instanceof HTMLElement && origin.isConnected && !origin.closest("[hidden]"))
+    origin.focus({ preventScroll: true });
+};
+var setupToast = () => {
+  $("toast").addEventListener("focusin", (event) => {
+    if (event.relatedTarget instanceof Element && !$("toast").contains(event.relatedTarget))
+      toastOrigin = event.relatedTarget;
+  });
+  $("toast").addEventListener("keydown", (event) => {
+    if (event.key !== "Escape")
+      return;
+    event.preventDefault();
+    event.stopPropagation();
+    hideToast();
+  });
+  $("toast-close").addEventListener("click", hideToast);
+};
 var toast = (title, { detail = "", isError = false } = {}) => {
   $("toast").dataset.tone = isError ? "error" : "ok";
   $("toast-icon").replaceChildren(icon(isError ? "alert" : "check"));
@@ -464,39 +489,50 @@ var toast = (title, { detail = "", isError = false } = {}) => {
     $("toast-text").append(withCode(detail));
   $("toast").hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    $("toast").hidden = true;
-  }, 6000);
+  if (!isError)
+    toastTimer = setTimeout(hideToast, 6000);
 };
 var SERVER_DOWN = "The board server does not answer";
 var RESTART = "Start the daemon again in a terminal: celetis daemon start.";
+async function send(path, value, failure) {
+  try {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(value)
+    });
+    if (response.ok)
+      return null;
+    const body = await response.json().catch(() => null);
+    const error = typeof body?.error === "string" ? body.error : `the server answered ${response.status}`;
+    toast(failure, { detail: error, isError: true });
+    return error;
+  } catch {
+    toast(SERVER_DOWN, { detail: RESTART, isError: true });
+    return SERVER_DOWN;
+  }
+}
 async function post(path, value, failure, options) {
-  const controller = options ? new AbortController : undefined;
-  const timeout = options ? setTimeout(() => controller?.abort(), options.timeout) : undefined;
+  if (!options)
+    return await send(path, value, failure) === null;
+  const controller = new AbortController;
+  const timeout = setTimeout(() => controller.abort(), options.timeout);
   try {
     const response = await fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(value),
-      signal: controller?.signal
+      signal: controller.signal
     });
-    if (options) {
-      if (response.ok)
-        return { status: "accepted", body: await response.json().catch(() => null) };
-      const body = await response.json();
-      const error = typeof body?.error === "string" ? body.error : undefined;
-      if (response.status >= 400 && response.status < 500 && error !== undefined)
-        return { status: "rejected", error };
-      return { status: "unavailable", ...error !== undefined ? { error } : {} };
-    }
-    if (!response.ok)
-      toast(failure, { detail: (await response.json()).error, isError: true });
-    return response.ok;
+    if (response.ok)
+      return { status: "accepted", body: await response.json().catch(() => null) };
+    const body = await response.json();
+    const error = typeof body?.error === "string" ? body.error : undefined;
+    if (response.status >= 400 && response.status < 500 && error !== undefined)
+      return { status: "rejected", error };
+    return { status: "unavailable", ...error !== undefined ? { error } : {} };
   } catch {
-    if (options)
-      return { status: "unavailable" };
-    toast(SERVER_DOWN, { detail: RESTART, isError: true });
-    return false;
+    return { status: "unavailable" };
   } finally {
     clearTimeout(timeout);
   }
@@ -568,9 +604,41 @@ var store = {
     try {
       localStorage.setItem(store.key(key), value);
     } catch {}
+  },
+  keys: (prefix) => {
+    try {
+      const start = store.key("").length;
+      return Object.keys(localStorage).filter((name) => name.startsWith(store.key(prefix))).map((name) => name.slice(start));
+    } catch {
+      return [];
+    }
+  },
+  remove: (key) => {
+    try {
+      localStorage.removeItem(store.key(key));
+    } catch {}
   }
 };
+var announcing;
+var announce = (text) => {
+  const live = $("announce");
+  clearTimeout(announcing);
+  if (live.textContent !== text) {
+    live.textContent = text;
+    return;
+  }
+  live.textContent = "";
+  announcing = setTimeout(() => {
+    live.textContent = text;
+  }, 100);
+};
 var TYPES = { bug: "bug", feature: "spark", chore: "wrench", hotfix: "flame" };
+var gateLabel = (mode) => {
+  const on = mode === "on";
+  const node = el("span", on ? "gate gate-auto" : "gate gate-auto is-off", on ? "auto" : "auto off");
+  node.title = on ? "Auto mode of the daemon starts this step by itself" : "Auto mode is off: this step waits for Run.";
+  return node;
+};
 var mark = (card, registry, identifiedByText = false) => {
   const agent = agentOf(card, registry);
   if (agent) {
@@ -1378,9 +1446,6 @@ function setupUpdates() {
   let response = null;
   let offered = null;
   let pending = readPending();
-  let deferred = session.get("deferred");
-  let hidden = session.get("hidden");
-  let restartShown = session.get("restart-shown");
   let returning = null;
   let refusal = null;
   let checkFailure = null;
@@ -1406,29 +1471,15 @@ function setupUpdates() {
   };
   if (pending)
     beginReconnect();
-  const open = (isAutomatic = false) => {
-    if (isAutomatic) {
-      if (dialog.open)
-        return;
-      returning = opener;
-      dialog.setAttribute("open", "");
-    } else {
-      returning = document.activeElement;
-      if (!dialog.open)
-        dialog.show();
-      title.focus();
-    }
+  const open = () => {
+    returning = document.activeElement;
+    if (!dialog.open)
+      dialog.show();
+    title.focus();
     opener.setAttribute("aria-expanded", "true");
   };
   const close = () => {
     const focused = contains(document.activeElement);
-    if (response?.update.offer && !pending) {
-      deferred = response.update.offer.id;
-      session.set("deferred", deferred);
-    } else if (pending) {
-      hidden = `${pending.instance}:${pending.target}`;
-      session.set("hidden", hidden);
-    }
     dialog.close();
     draw();
     if (focused)
@@ -1473,13 +1524,10 @@ function setupUpdates() {
     opener.setAttribute("aria-expanded", String(dialog.open));
     const isRestart = kind === "restart" || phase === "restart-needed";
     const target = pending?.target ?? (isRestart ? null : offered?.target) ?? update?.target ?? null;
-    if (!phase || phase === "current") {
-      if (phase === "current")
-        announce(JSON.stringify([phase, target]), "Up to date");
-      if (dialog.open)
-        close();
+    if (phase === "current")
+      announce(JSON.stringify([phase, target]), "Up to date");
+    if (!phase || phase === "current" && !dialog.open)
       return;
-    }
     title.textContent = {
       available: "Update Celetis",
       "restart-needed": "Restart the daemon",
@@ -1490,7 +1538,8 @@ function setupUpdates() {
       "update-failed": "The update did not finish",
       "restart-refused": "The daemon did not restart",
       "check-failed": "Cannot check for updates",
-      timeout: "The daemon did not come back"
+      timeout: "The daemon did not come back",
+      current: "Celetis is up to date"
     }[phase];
     description.textContent = {
       available: "Sessions keep running.",
@@ -1502,7 +1551,8 @@ function setupUpdates() {
       "update-failed": "The daemon did not restart.",
       "restart-refused": "It still runs its old engine.",
       "check-failed": "The board still works.",
-      timeout: `The ${kind} may be done. The page got no answer in 60 seconds.`
+      timeout: `The ${kind} may be done. The page got no answer in 60 seconds.`,
+      current: target ? `Installed ${target.slice(0, 12)}.` : "No update is available."
     }[phase];
     let status = "";
     if (phase === "restarting")
@@ -1514,19 +1564,22 @@ function setupUpdates() {
       status = stage ? `${stage.state === "started" ? "Updating" : "Completed"} ${names[stage.part]}…` : "Preparing the update…";
     } else if (phase === "checking")
       status = "Checking for updates…";
+    else if (phase === "current")
+      status = "Up to date";
     else if (failed || phase === "updated")
       status = title.textContent ?? "";
     else
       status = "An update is available.";
     if (progress.textContent !== status)
       progress.textContent = status;
-    announce(JSON.stringify([phase, kind, target, status]), status);
+    if (phase !== "current")
+      announce(JSON.stringify([phase, kind, target, status]), status);
     progress.classList.toggle("is-busy", busy || phase === "checking");
     diagnostic.textContent = failed ? checkFailure ?? refusal?.line ?? update?.error ?? "" : "";
     diagnostic.hidden = !diagnostic.textContent;
     recovery.textContent = failed && phase !== "restart-refused" ? pending?.recovery ?? update?.recovery ?? "" : "";
     recovery.hidden = !recovery.textContent;
-    later.textContent = busy ? "Hide progress" : failed || phase === "updated" ? "Close" : "Later";
+    later.textContent = busy ? "Hide progress" : failed || phase === "updated" || phase === "current" ? "Close" : "Later";
     start.hidden = phase !== "available" && phase !== "restart-needed";
     start.textContent = phase === "restart-needed" ? "Restart" : "Update and restart";
     start.setAttribute("aria-disabled", String(submitting !== null || checking || phase === "available" && !update?.offer));
@@ -1543,7 +1596,6 @@ function setupUpdates() {
     clearTimeout(timer);
     active?.abort();
     draw();
-    open(true);
     return true;
   };
   const accept = (next) => {
@@ -1551,7 +1603,6 @@ function setupUpdates() {
       return;
     if (!pending && JSON.stringify(response) === JSON.stringify(next))
       return;
-    const previousPhase = response?.update.phase;
     response = next;
     const update = next.update;
     if (update.offer)
@@ -1608,18 +1659,6 @@ function setupUpdates() {
     if (expire())
       return;
     draw();
-    if (update.phase === "available" && !pending && !refusal && !checking && update.offer?.id !== deferred)
-      open(true);
-    else if (phaseOf() === "restart-needed" && update.target !== restartShown) {
-      restartShown = update.target;
-      session.set("restart-shown", restartShown);
-      open(true);
-    } else if (pending && hidden !== `${pending.instance}:${pending.target}`)
-      open(true);
-    else if (update.phase === "update-failed" && previousPhase !== "update-failed")
-      open(true);
-    else if (update.phase === "updated" && previousPhase !== undefined && previousPhase !== "updated")
-      open(true);
   };
   const schedule = () => {
     clearTimeout(timer);
@@ -1674,13 +1713,9 @@ function setupUpdates() {
     const phase = phaseOf();
     if (phase === "checking")
       return;
-    if (!phase || phase === "current") {
+    if (!phase || phase === "current" && !dialog.open) {
       requestCheck();
       return;
-    }
-    if (pending) {
-      hidden = null;
-      session.set("hidden", null);
     }
     open();
     draw();
@@ -1710,7 +1745,6 @@ function setupUpdates() {
       deadline: null,
       reloaded: false
     };
-    hidden = null;
     refusal = null;
     submitting = "update";
     save();
@@ -1732,7 +1766,6 @@ function setupUpdates() {
       return;
     const shown = response;
     stopPoll();
-    hidden = null;
     refusal = null;
     submitting = "restart";
     draw();
@@ -1901,9 +1934,6 @@ function setupCoordinator(hooks) {
   const setText = (node, value) => {
     if (node.textContent !== value)
       node.textContent = value;
-  };
-  const announce = (words) => {
-    $("announce").textContent = words;
   };
   const isSelecting = () => {
     const selection = getSelection();
@@ -2392,7 +2422,7 @@ var ask = (card, actions, registry) => {
   node.append(foot);
   return node;
 };
-var steps = (card, flow) => {
+var steps = (card, flow, auto) => {
   const track = laneTrack(card, flow);
   if (!track)
     return null;
@@ -2403,9 +2433,7 @@ var steps = (card, flow) => {
     node.append(icon(step.state === "done" ? "check" : step.state === "now" ? PILL_ICONS[card.state] ?? "pending" : "pending"));
     const note = step.state === "done" ? "done" : step.state === "now" ? card.state ? stateLabel(card) : "next" : "";
     item.append(node, el("span", "name", step.name), el("span", "note", note));
-    item.append(gateOf(flow, step.name) === "auto" ? Object.assign(el("span", "gate gate-auto", "auto"), {
-      title: "Auto mode of the daemon starts this step by itself"
-    }) : el("span"));
+    item.append(gateOf(flow, step.name) === "auto" ? gateLabel(auto) : el("span"));
     list.append(item);
   }
   return section("Lane", `${card.type} · step ${track.findIndex((step) => step.state === "now") + 1} of ${track.length}`, list);
@@ -2440,7 +2468,8 @@ var drawPanel = (card, {
   flow,
   registry,
   on,
-  close
+  close,
+  auto
 }) => {
   const { state } = card;
   const asks = state === "waits" && (card.number !== null || card.waitFor === "dialog");
@@ -2487,7 +2516,13 @@ var drawPanel = (card, {
     body.append(ask(card, actions, registry));
   else if (actions.length) {
     const row = el("div", "panel-actions");
-    row.append(...actions.map((action) => actionButton(action)));
+    actions.forEach((action, index) => {
+      if (action.group && action.group !== actions[index - 1]?.group)
+        row.append(el("span", "action-group", action.group));
+      row.append(actionButton(action));
+      if (action.help)
+        row.append(el("span", "action-help", action.help));
+    });
     body.append(row);
   }
   const isSession = Boolean(card.sessionId);
@@ -2511,7 +2546,7 @@ var drawPanel = (card, {
   const pane = isSession && !asks ? screen(card) : null;
   body.append(...[
     pr(card),
-    steps(card, flow),
+    steps(card, flow, auto),
     section(isSession ? "Session" : "Issue", null, facts(details)),
     pane && section("Screen", "the last lines of its pane", pane)
   ].filter((node) => Boolean(node)));
@@ -2542,9 +2577,6 @@ var expected = () => ({
   current: submitted?.record?.numbers[0] ?? null
 });
 var authoritative = () => Boolean(submitted && !uncertain && !board?.source.error);
-var announce = (message) => {
-  $("announce").textContent = message;
-};
 function accept(view) {
   const old = submitted?.record;
   const next = view.record;
@@ -2695,31 +2727,32 @@ function draw2() {
     list.append(row(numbers[0], 0, numbers));
     current.append(list);
   } else
-    current.append(el("p", "queue-empty", "No issue is running. Add one below to start work."));
+    current.append(el("p", "queue-empty", "No issue is running."));
   status.append(current);
   const actions = el("div", "queue-actions");
-  const label = el("label", "queue-agent", "Agent ");
-  const select = el("select");
-  select.dataset.control = "agent";
-  select.setAttribute("aria-label", "Queue agent");
-  select.add(new Option("Default order", ""));
-  for (const host of Object.keys(board.registry)) {
-    const option = new Option(board.registry[host].short, host);
-    option.disabled = board.agents?.[host]?.available !== true;
-    select.add(option);
+  const label = el("div", "queue-agent");
+  const group = el("div", "queue-segments");
+  group.setAttribute("role", "group");
+  group.setAttribute("aria-label", "Queue agent");
+  const chosen = chosenHost(record) ?? "";
+  const choices = [["", "Default order", true]];
+  for (const host of Object.keys(board.registry))
+    choices.push([host, board.registry[host].short, board.agents?.[host]?.available === true]);
+  for (const [value, text, usable] of choices) {
+    const segment = el("button", "", text);
+    segment.type = "button";
+    segment.dataset.control = `agent-${value || "default"}`;
+    segment.setAttribute("aria-pressed", String(chosen === value));
+    segment.setAttribute("aria-disabled", String(!usable || numbers.length > 0 || busy || !authoritative()));
+    segment.addEventListener("click", () => {
+      if (segment.getAttribute("aria-disabled") === "true")
+        return;
+      agent = value;
+      draw2();
+    });
+    group.append(segment);
   }
-  select.value = chosenHost(record) ?? "";
-  const locked = numbers.length > 0 || busy || !authoritative();
-  select.setAttribute("aria-disabled", String(locked));
-  select.addEventListener("change", () => {
-    if (locked) {
-      select.value = chosenHost(record) ?? "";
-      return;
-    }
-    agent = select.value;
-    draw2();
-  });
-  label.append(select);
+  label.append(el("span", "", "Agent"), group);
   actions.append(label);
   const next = submitted?.next;
   if (submitted?.actions.continue && next?.kind === "run")
@@ -2735,14 +2768,14 @@ function draw2() {
   list.setAttribute("aria-label", "Waiting issues");
   list.start = 2;
   list.append(...numbers.slice(1).map((number, index) => row(number, index + 1, numbers)));
-  waiting.append(numbers.length > 1 ? list : el("p", "queue-empty", "No issues waiting. Add more at any time."));
+  waiting.append(numbers.length > 1 ? list : el("p", "queue-empty", "No issue waits."));
   const picker = el("section", "queue-picker");
-  picker.append(el("h3", "", "Add from the board"), el("p", "", "Add starts an empty queue. Otherwise, the issue joins the end."));
+  picker.append(el("h3", "", "Add from the board"), el("p", "", "Add puts the issue at the end of the queue, and starts the queue when it is empty."));
   for (const card of available()) {
     const number = card.number;
     const item = el("div", "queue-pick");
     const copy = el("div");
-    copy.append(el("span", "queue-number", `#${number}`), el("span", "queue-title", card.title));
+    copy.append(el("span", "queue-number", `#${number}`), el("span", "queue-title", card.title), el("span", "queue-step", `next ${card.step} · ${card.state ? stateLabel(card) : "ready"}`));
     const selected = numbers.includes(number);
     const add = button(selected ? "In queue" : "Add", `add-${number}`, () => request({ kind: "add", number, step: card.step, expected: expected() }), selected || busy || !authoritative() || !submitted?.actions.add || !hostAvailable(chosenHost(record)) || Boolean(board.noRun));
     add.setAttribute("aria-label", `Add #${number} to queue`);
@@ -2793,9 +2826,6 @@ var SUMMARY = [
 ];
 var COPY = { "no-progress": "command", "dirty-tree": "path" };
 var ON_ISSUE = new Set(["blocked"]);
-var GATES = {
-  auto: "Auto mode of the daemon starts this step by itself"
-};
 var AUTO = {
   on: { tone: "ok", title: "Auto mode starts each auto step." },
   off: { tone: "off", title: "Auto mode is off: auto steps wait." },
@@ -2829,11 +2859,25 @@ var startupWarnings = new Map;
 var byKey = new Map;
 var used = new Set;
 var coordinatorLine = null;
+var SEEN_TURN = "seen-turn:";
+var seenTurn = (terminal) => parseSeenTurn(store.get(`${SEEN_TURN}${terminal}`));
+var seeTurn = (card) => {
+  if (card.sessionId === null || card.waitFor !== "turn" || typeof card.turn !== "number")
+    return;
+  const name = `${SEEN_TURN}${card.sessionId}`;
+  if (store.get(name) === String(card.turn))
+    return;
+  store.set(name, String(card.turn));
+  render(false);
+};
 var who2 = (card) => card.number === null ? card.title ? `human session "${card.title}"` : "a human session" : `#${card.number}`;
 var canRunLater = (card) => card.sessionId === null && card.step && (card.state === null || card.state === "no-progress");
 var copyWhat = (card) => card.act ? COPY[card.state] : null;
 var onTracker = () => data.tracker ? ` on ${data.tracker}` : "";
 var readAgain = () => data?.tracker ? `Read ${data.tracker} again` : "Read the issues again";
+var refreshedUntil = 0;
+var refreshDone;
+var refreshTitle = () => Date.now() < refreshedUntil ? `${readAgain()}: done` : `${readAgain()} (r)`;
 var act = async (path, value, failure, onDone) => {
   if (isReconnecting())
     return false;
@@ -2873,18 +2917,18 @@ async function openIntake() {
     return;
   intakePending = true;
   drawIntake();
-  $("announce").textContent = "Opening an intake tab";
+  announce("Opening an intake tab");
   try {
     const outcome = await post("/api/intake", {}, "New intake failed", { timeout: 1e4 });
     if (outcome.status === "accepted")
-      $("announce").textContent = "Intake tab opened";
+      announce("Intake tab opened");
     else {
       const detail = outcome.status === "rejected" ? outcome.error : [
         outcome.error,
         "The launch outcome is unknown. Check Human sessions or herdr before pressing New intake again."
       ].filter(Boolean).join(" ");
       toast("New intake failed", { detail, isError: true });
-      $("announce").textContent = `New intake failed. ${detail}`;
+      announce(`New intake failed. ${detail}`);
     }
   } finally {
     intakePending = false;
@@ -2989,14 +3033,21 @@ var agentOrderEntry = {
       trigger?.click();
   }
 };
-var toMenuEntry = (action) => {
+var namedHost = (card) => {
+  const record = data?.queue?.record;
+  if (record?.state === "me-gate" && record.numbers[0] === card.number && record.choice?.kind === "explicit")
+    return record.choice.host;
+  const start = card.step ? data?.starts?.[card.step] : undefined;
+  return start?.kind === "start" ? start.host : null;
+};
+var toMenuEntry = (action, card) => {
   const host = action.id.startsWith("run:") ? action.id.slice(4) : null;
   if (host && data && knownAgent(data.registry, host))
     return {
       icon: action.icon,
       host,
       label: action.label,
-      tag: data.picker?.order.order[0] === host ? "Default" : undefined,
+      tag: host === namedHost(card) ? "Default" : undefined,
       isDisabled: action.isDisabled,
       title: action.title,
       run: action.run
@@ -3020,7 +3071,11 @@ var actionsOf = (card) => {
       busy: "Focusing",
       name: `Go to the pane of ${who2(card)}`,
       title: "Focus its pane in herdr (Enter)",
-      run: () => act("/api/go", { sessionId: card.sessionId }, "Go failed", () => toast(`Focused the pane of ${who2(card)} in herdr`, { detail: "Switch to your terminal to see it." }))
+      run: () => {
+        if (card.number === null)
+          seeTurn(card);
+        return act("/api/go", { sessionId: card.sessionId }, "Go failed", () => toast(`Focused the pane of ${who2(card)} in herdr`, { detail: "Switch to your terminal to see it." }));
+      }
     });
   }
   if (card.state === "quota-wait")
@@ -3136,7 +3191,7 @@ var actionsOf = (card) => {
   return list;
 };
 var menuOf = (card, key) => [
-  ...actionsOf(card).map(toMenuEntry),
+  ...actionsOf(card).map((action) => toMenuEntry(action, card)),
   ...levelEntries(card),
   "rule",
   { icon: "panel", label: "Show the details", key: "Space", run: () => openPanel(key) },
@@ -3169,7 +3224,6 @@ var track = (card) => {
   node.append(...steps.map((step) => el("i", `seg ${step.state}`)));
   return node;
 };
-var gate = (value) => value === "auto" ? Object.assign(el("span", "gate gate-auto", "auto"), { title: GATES.auto }) : null;
 var startLabel = (pair) => {
   const node = el("span", "start");
   node.title = startName(pair);
@@ -3209,9 +3263,8 @@ var status = (card, hasGlyph = true, isShort = false) => {
     node.append(el("span", "lead", "next"), el("span", "mono step", card.step));
     if (card.effort)
       node.append(startLabel(card.effort));
-    const auto = gate(card.gate);
-    if (auto)
-      node.append(auto);
+    if (card.gate === "auto")
+      node.append(gateLabel(data.daemon.auto));
   }
   return node;
 };
@@ -3279,7 +3332,7 @@ var runWithButton = (card) => {
   const actions = actionsOf(card);
   if (!["run", "blocked"].includes(actions[0]?.id))
     return null;
-  const entries = actions.filter((action) => action.id.startsWith("run:")).map(toMenuEntry);
+  const entries = actions.filter((action) => action.id.startsWith("run:")).map((action) => toMenuEntry(action, card));
   if (entries.length === 0)
     return null;
   const levelled = levelEntries(card);
@@ -3291,6 +3344,8 @@ var runWithButton = (card) => {
 };
 var drawCard = (card, column, { isCompact = false, level } = {}) => {
   const { key, node, title, id } = shell(card, column, isCompact, level);
+  if (column === "needs")
+    node.classList.add("is-needs");
   const actions = actionsOf(card);
   const isQuiet = column !== "needs";
   if (isCompact) {
@@ -3304,6 +3359,9 @@ var drawCard = (card, column, { isCompact = false, level } = {}) => {
     meta.append(el("span", "sep", "·"), status(card, card.state === "starts", true));
     const main = el("div", "main");
     main.append(title, meta);
+    const note = startNote(card);
+    if (note)
+      main.append(note);
     if (card.warning)
       main.append(el("p", "warning", card.warning));
     node.append(mark(card, registry()), main);
@@ -3335,6 +3393,7 @@ var drawCard = (card, column, { isCompact = false, level } = {}) => {
   head.append(more);
   node.append(head, title);
   for (const part of [
+    startNote(card),
     card.state === "works" ? liveLine(card) : null,
     prChips(card.pr),
     card.act ? actLine(card) : null,
@@ -3470,7 +3529,7 @@ var measureTail = () => {
   const bottom = body.getBoundingClientRect().bottom - (wrap.hidden ? 0 : wrap.offsetHeight);
   const counts = new Map;
   for (const node of body.querySelectorAll(".card[data-key]")) {
-    const isHidden = node.getBoundingClientRect().top > bottom - 24;
+    const isHidden = node.getBoundingClientRect().bottom > bottom + 1;
     node.dataset.hidden = String(isHidden);
     if (!isHidden)
       continue;
@@ -3538,15 +3597,20 @@ var syncStops = () => {
       node.tabIndex = node === stop ? 0 : -1;
   }
 };
-var focusFirst = (selector) => {
+var focusFirst = (selectors) => {
   if (isQueueOpen)
     showQueue(false);
-  const target = [...document.querySelectorAll(selector)].find(isStop);
-  target?.focus();
-  target?.scrollIntoView({ block: "nearest", behavior: isCalm.matches ? "auto" : "smooth" });
+  for (const selector of selectors) {
+    const target = [...document.querySelectorAll(selector)].find(isStop);
+    if (!target)
+      continue;
+    target.focus();
+    target.scrollIntoView({ block: "nearest", behavior: isCalm.matches ? "auto" : "smooth" });
+    return;
+  }
 };
 var summary = (board) => SUMMARY.map(([key, label]) => {
-  const count = key === "history" ? data?.history?.entries.length ?? 0 : key === "needs" ? needsYou(board).length : board.columns[key].length;
+  const count = key === "history" ? data?.history?.entries.length ?? 0 : key === "needs" ? needsYou(board, seenTurn).length : board.columns[key].length;
   const chip = el("button", `chip chip-${key}`);
   chip.type = "button";
   chip.classList.toggle("hot", key === "needs" && count > 0);
@@ -3558,7 +3622,10 @@ var summary = (board) => SUMMARY.map(([key, label]) => {
       return coordinator.focus();
     if (view !== "now")
       setView("now");
-    focusFirst(`${key === "needs" ? '.human-pill[data-wait="dialog"] .human-open, ' : ""}#col-${key} .card, #col-${key} .epic-row, #col-${key} .empty`);
+    focusFirst([
+      ...key === "needs" ? ['.human-pill[data-wait="dialog"] .human-open', ".human-pill[data-your-turn] .human-open"] : [],
+      `#col-${key} .card, #col-${key} .epic-row, #col-${key} .empty`
+    ]);
   });
   return chip;
 });
@@ -3568,11 +3635,14 @@ var humanPill = (card) => {
   const pill = el("div", "human-pill");
   pill.dataset.state = card.state ?? "";
   pill.dataset.wait = card.waitFor ?? "";
+  const isTurn = isYourTurn(card, seenTurn);
+  if (isTurn)
+    pill.dataset.yourTurn = "";
   const open = el("button", `human-open${key === selected ? " is-selected" : ""}`);
   open.type = "button";
   open.dataset.key = key;
   open.title = "Show the details and the screen of this session";
-  open.append(mark(card, registry()), el("span", "human-name", card.title || "A session"), el("i", "human-dot"), el("span", "human-state", stateLabel(card)));
+  open.append(mark(card, registry()), el("span", "human-name", card.title || "A session"), el("i", "human-dot"), el("span", "human-state", isTurn ? "your turn" : stateLabel(card)));
   open.addEventListener("click", () => selected === key ? closePanel() : openPanel(key));
   const [go] = actionsOf(card);
   pill.append(open, timed(card.since, LIVE.has(card.state)), iconButton("go", go.name, () => go.run?.(), "human-go"));
@@ -3599,30 +3669,33 @@ var visualControl = (entry) => {
   const { number } = entry;
   const state = visualPresses.has(number) && entry.visual === "none" ? "starting" : entry.visual;
   let node;
+  let name;
   if (state === "ready") {
+    name = `Open the visual of #${number}`;
     node = Object.assign(el("a", "btn ghost history-action"), {
       href: `/visual/${entry.sha}`,
       target: "_blank",
       rel: "noreferrer"
     });
-    node.append(icon("open"), el("span", "label", "Open visual"));
-    node.setAttribute("aria-label", `Open visual, #${number}`);
+    node.append(icon("open"));
   } else if (state === "making") {
+    name = `The visual of #${number} is in the making`;
     node = el("span", "history-action history-making");
     node.setAttribute("role", "status");
     node.tabIndex = -1;
-    node.title = `The tab #${number} visual makes the page`;
-    node.append(icon("pending"), el("span", "", "Making…"));
+    node.append(icon("pending"));
   } else {
+    name = state === "starting" ? `Starting the visual of #${number}` : `Make the visual of #${number}`;
     node = el("button", "btn ghost history-action");
     node.type = "button";
-    node.append(icon("diff"), el("span", "label", state === "starting" ? "Starting…" : "Make visual"));
-    node.setAttribute("aria-label", `Make visual, #${number}`);
+    node.append(icon("diff"));
     if (state === "starting")
       node.setAttribute("aria-busy", "true");
     else
       node.addEventListener("click", () => void makeVisual(number));
   }
+  node.setAttribute("aria-label", name);
+  node.title = name;
   node.dataset.visual = String(number);
   return node;
 };
@@ -3648,7 +3721,7 @@ var drawHistory = () => {
       warning.setAttribute("role", "status");
       body.append(warning);
     }
-    body.append(el("p", "history-note", "Latest 20 issues. A landing can later be reverted."));
+    body.append(el("p", "history-note", "Latest 20 issues."));
     const list = el("ol", "history-list");
     for (const entry of history.entries) {
       const row = el("li", "history-row");
@@ -3760,7 +3833,7 @@ var notify = (cards) => {
     });
   }
   needsKeys = keys;
-  return fresh.map((card) => notice(card).title);
+  return fresh.map((card) => isYourTurn(card, seenTurn) ? turnLine(card) : notice(card).title);
 };
 var startNotices = (columns) => {
   const cards = [...columns.needs, ...columns.running, ...columns.idle];
@@ -3860,12 +3933,36 @@ var drawNotify = () => {
   button.setAttribute("aria-pressed", String(isOn));
   button.title = isBlocked ? "The browser blocks notifications for this page" : isOn ? "A system notification shows when a card needs you" : "Show a system notification when a card needs you";
 };
+var detailActions = (card) => {
+  const list = actionsOf(card);
+  const isAgain = card.state === "no-progress";
+  const host = namedHost(card);
+  const mainId = list.find((action) => action.id === "run" || action.id === "blocked")?.id;
+  const matching = host ? list.find((action) => action.id === `run:${host}`) : undefined;
+  if (!mainId || !matching)
+    return list;
+  return list.filter((action) => action !== matching).map((action) => {
+    if (action.id === mainId)
+      return {
+        ...action,
+        label: matching.label,
+        name: matching.name,
+        ...isAgain ? { help: "Starts a new session of the step." } : {}
+      };
+    if (action.id.startsWith("run:"))
+      return { ...action, isGhost: true, group: "Other agents" };
+    if (action.id === "resume")
+      return { ...action, help: "Opens the same session again." };
+    return action;
+  });
+};
 var panelContext = (card) => ({
-  actions: actionsOf(card),
+  actions: detailActions(card),
   flow: data.flow,
   registry: registry(),
   on: onTracker(),
-  close: closePanel
+  close: closePanel,
+  auto: data.daemon.auto
 });
 var drawPanelFor = () => {
   const entry = byKey.get(selected);
@@ -3904,6 +4001,9 @@ var openPanel = (key) => {
   $("panel").hidden = false;
   drawPanelFor();
   markSeen(key);
+  const entry = byKey.get(key);
+  if (entry?.column === "human")
+    seeTurn(entry.card);
   syncCover();
   $("panel").querySelector(PANEL_FOCUS)?.focus({ preventScroll: true });
   updateTail();
@@ -3979,17 +4079,16 @@ var drawBoard = (next) => {
   used = new Set;
   byKey = new Map;
   const needs = next.columns.needs.length;
-  document.title = pageTitle(next.repo, needsYou(next).length);
-  $("favicon").href = favicon(tone(next), faviconColors());
+  document.title = pageTitle(next.repo, needsYou(next, seenTurn).length);
+  $("favicon").href = favicon(tone(next, seenTurn), faviconColors());
   $("repo").textContent = next.repo;
   $("repo").title = next.repo;
-  $("refresh").title = `${readAgain()} (r)`;
+  $("refresh").title = refreshTitle();
   $("dirty").hidden = !next.noRun;
   const banner = next.noRun ?? "";
   if ($("dirty").textContent !== banner)
     $("dirty").textContent = banner;
   $("summary").replaceChildren(...summary(next));
-  $("history-total").textContent = String(next.history?.entries.length ?? 0);
   if (isHistoryOpen)
     drawHistory();
   const board = $("columns");
@@ -4011,13 +4110,13 @@ var drawBoard = (next) => {
     markAllSeen();
   }
   const lines = [
-    ...notify(needsYou(next).filter(isCard)),
+    ...notify(needsYou(next, seenTurn).filter(isCard)),
     ...startNotices(next.columns),
     ...coordinatorLine ? [coordinatorLine] : []
   ];
   coordinatorLine = null;
   if (lines.length)
-    $("announce").textContent = lines.join(". ");
+    announce(lines.join(". "));
   if (selected) {
     if (byKey.has(selected))
       drawPanelFor();
@@ -4068,6 +4167,8 @@ var tick = () => {
     if (node.textContent !== text)
       node.textContent = text;
   }
+  for (const node of document.querySelectorAll(".start-line"))
+    drawStartLine(node, now);
 };
 var isCalm = matchMedia("(prefers-reduced-motion: reduce)");
 var layoutOf = (next) => JSON.stringify([
@@ -4083,6 +4184,33 @@ var reads = 0;
 var accepted = 0;
 var settled = 0;
 var launches = new Map;
+var startFailures = new Map;
+var SLOW_START = 5000;
+var SLOW_START_TEXT = "The daemon still checks the start";
+var drawStartLine = (node, now) => {
+  const number = Number(node.dataset.number);
+  const entry = launches.get(number);
+  const isSlow = entry?.phase === "pending" && now - entry.at >= SLOW_START;
+  node.hidden = !isSlow;
+  if (!entry || !isSlow)
+    return;
+  node.textContent = `${SLOW_START_TEXT} · ${age(new Date(entry.at).toISOString(), now, true)}`;
+  if (!entry.isAnnounced) {
+    entry.isAnnounced = true;
+    announce(`#${number}: ${SLOW_START_TEXT}`);
+  }
+};
+var startNote = (card) => {
+  const failure = card.sessionId === null && card.number !== null ? startFailures.get(card.number) : undefined;
+  if (failure !== undefined)
+    return el("p", "start-failed", `Last start failed: ${failure}`);
+  if (card.state !== "starts" || card.number === null || launches.get(card.number)?.phase !== "pending")
+    return null;
+  const node = el("p", "start-line");
+  node.dataset.number = String(card.number);
+  drawStartLine(node, Date.now());
+  return node;
+};
 var project = (board) => {
   if (launches.size === 0)
     return board;
@@ -4117,13 +4245,18 @@ var render = (canMove = true) => {
     next.noRun,
     next.agents,
     next.next,
+    next.starts,
     next.flow,
     next.tracker,
     next.columns,
     next.history,
     next.source.error,
     next.queue,
-    next.coordinator.state
+    next.coordinator.state,
+    next.daemon.auto,
+    next.columns.human.map((card) => [card.sessionId, card.turn, isYourTurn(card, seenTurn)]),
+    [...startFailures],
+    [...launches].filter(([, entry]) => entry.phase === "pending").map(([number, entry]) => [number, entry.step])
   ]);
   if (cards === last) {
     drawQueue(next);
@@ -4145,26 +4278,30 @@ var launch = async (card, path, agent, effort) => {
   const current = data && Object.values(project(data).columns).flat().find((other) => other.sessionId === null && other.number === number);
   if (!current?.[path === "/api/run" ? "run" : path === "/api/assist" ? "assist" : "resume"])
     return false;
+  if (startFailures.delete(number))
+    render(false);
   const reason = path === "/api/resume" ? data?.noRun : path === "/api/assist" ? data?.noRun || defaultReason() : runReason(agent ?? null, number);
   if (reason) {
     toast(reason, { isError: true });
     return false;
   }
-  const entry = { step: current.step, phase: "pending" };
+  const entry = { step: current.step, phase: "pending", at: Date.now(), isAnnounced: false };
   launches.set(number, entry);
   render(false);
   if (document.activeElement === document.body)
     document.querySelector(`[data-key="${CSS.escape(keyOf(card))}"]`)?.focus({ preventScroll: true });
-  const isOk = await post(path, {
+  const failure = await send(path, {
     number,
     ...path === "/api/run" && agent ? { agent } : {},
     ...path === "/api/run" && effort ? { effort } : {}
   }, path === "/api/run" ? "Run failed" : path === "/api/assist" ? "Open agent failed" : "Resume failed");
-  entry.phase = isOk ? "done" : "failed";
+  entry.phase = failure === null ? "done" : "failed";
+  if (failure !== null)
+    startFailures.set(number, failure);
   settled = reads;
   render();
   load();
-  return isOk;
+  return failure === null;
 };
 var loadRequest;
 document.addEventListener("board-reconnect", () => {
@@ -4197,7 +4334,16 @@ async function load() {
       for (const [number, launch] of launches)
         if (launch.phase !== "pending")
           launches.delete(number);
+      for (const card of Object.values(next.columns).flat())
+        if (card.sessionId !== null && card.number !== null)
+          startFailures.delete(card.number);
       coordinatorLine = coordinator.update(next.coordinator);
+      if (next.terminal.ok === true) {
+        const running = new Set(next.columns.human.map((card) => card.sessionId));
+        for (const name of store.keys(SEEN_TURN))
+          if (!running.has(name.slice(SEEN_TURN.length)))
+            store.remove(name);
+      }
       data = { ...next, coordinator: coordinator.view() };
       render();
       source = data.source;
@@ -4560,6 +4706,8 @@ columns.addEventListener("pointerover", (event) => {
 columns.addEventListener("scroll", updateTail, true);
 addEventListener("resize", updateTail);
 addEventListener("storage", (event) => {
+  if (data && (event.key === null || event.key.startsWith(store.key(SEEN_TURN))))
+    render(false);
   if (event.key !== null && event.key !== store.key("open-epics"))
     return;
   const active = document.activeElement;
@@ -4581,8 +4729,19 @@ $("refresh").addEventListener("click", async () => {
   if ($("refresh").getAttribute("aria-busy") === "true")
     return;
   $("refresh").setAttribute("aria-busy", "true");
-  await act("/api/refresh", {}, "Refresh failed");
+  const isOk = await act("/api/refresh", {}, "Refresh failed");
   $("refresh").removeAttribute("aria-busy");
+  if (!isOk)
+    return;
+  refreshedUntil = Date.now() + 2000;
+  $("refresh").classList.add("is-done");
+  $("refresh").title = refreshTitle();
+  announce(data?.tracker ? `${data.tracker} read again` : "Issues read again");
+  clearTimeout(refreshDone);
+  refreshDone = setTimeout(() => {
+    $("refresh").classList.remove("is-done");
+    $("refresh").title = refreshTitle();
+  }, 2000);
 });
 $("find").prepend(icon("search"));
 $("find").querySelector("kbd").textContent = FIND_KEY;
@@ -4598,8 +4757,6 @@ $("intake").addEventListener("click", () => void openIntake());
 drawIntake();
 $("history").prepend(icon("clock"));
 $("history").addEventListener("click", () => setHistory(!isHistoryOpen));
-$("history-count").prepend(icon("clock"));
-$("history-count").addEventListener("click", () => setHistory(true));
 $("notify").addEventListener("click", toggleNotify);
 $("board-more").append(icon("dots"));
 $("board-more").addEventListener("click", () => openMenu($("board-more"), boardActions(matchMedia("(max-width: 719px)").matches), {
@@ -4619,9 +4776,7 @@ $("keys-on").addEventListener("change", () => {
   store.set("keys", isKeysOn ? "on" : "off");
 });
 $("toast-close").append(icon("close"));
-$("toast-close").addEventListener("click", () => {
-  $("toast").hidden = true;
-});
+setupToast();
 setupQueue({
   back: () => showQueue(false),
   refresh: async () => {

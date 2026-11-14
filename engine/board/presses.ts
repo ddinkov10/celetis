@@ -222,7 +222,7 @@ export const createPresses = ({
       available(choice);
       return { kind: 'explicit', host: choice };
     }
-    const { next } = await readAgentState(main, now()).catch((cause: Error) => {
+    const { next } = await readAgentState(main, now(), {}).catch((cause: Error) => {
       throw new Refusal(409, agentCause(cause));
     });
     if (next.kind === 'start') available(next.host);

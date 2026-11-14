@@ -1,7 +1,7 @@
 import type { CoordinatorKey, CoordinatorState } from '../../lib/coordinator-types.ts';
 import type { CoordinatorText, CoordinatorView } from '../types.ts';
 import { clock } from '../view.ts';
-import { $, el, icon, post, SERVER_DOWN, store, timed } from './ui.ts';
+import { $, announce, el, icon, post, SERVER_DOWN, store, timed } from './ui.ts';
 import { isReconnecting } from './update-dialog.ts';
 
 type Shown = CoordinatorState | 'ended';
@@ -120,9 +120,6 @@ export function setupCoordinator(hooks: CoordinatorHooks) {
   const can = (action: CoordinatorView['actions'][number]) => view.actions.includes(action) && !ended;
   const setText = (node: HTMLElement, value: string) => {
     if (node.textContent !== value) node.textContent = value;
-  };
-  const announce = (words: string) => {
-    $('announce').textContent = words;
   };
   const isSelecting = () => {
     const selection = getSelection();

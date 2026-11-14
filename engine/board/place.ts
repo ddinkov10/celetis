@@ -183,6 +183,7 @@ const placeSession = (session: Session, issue: IssueRow | undefined): [Column, C
       epic: issue?.epic ?? null,
       pr: issue?.pr ?? null,
       waitFor,
+      turn: session.turn,
       screen: session.screen ?? [],
       cwd: session.cwd ?? null,
     },
@@ -461,7 +462,7 @@ export const createPlacement = ({
     presses.follow(daemon, read, busy);
     const launches = presses.launches(reads.document?.issues, busy, reads.checkedFrom);
     try {
-      agentState = await readAgentState(main, now());
+      agentState = await readAgentState(main, now(), reads.document?.flow.steps ?? {});
       agentError = null;
     } catch (cause) {
       agentError = agentCause(cause);
@@ -500,6 +501,7 @@ export const createPlacement = ({
         error: agentError,
       },
       next: agentState?.next ?? null,
+      starts: agentState?.starts ?? null,
       queue,
       terminal: health,
       coordinator: coordinatorView,

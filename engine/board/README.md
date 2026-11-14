@@ -13,7 +13,7 @@ moves by hand.
 - **Stage:** one column of Pipeline, the view of the page that shows each issue at its step. A stage
   holds steps of the lanes.
 - **Gate:** the rule of a step that says who starts it. `manual` is your press of Run, and `auto` is auto
-  mode of the daemon. The board shows `auto` on such a step, and it starts no step by itself.
+  mode of the daemon. The board shows `auto` on such a step while auto mode is on, and `auto off` while auto mode is off or stopping. The board starts no step by itself.
 - **Daemon:** `engine/daemon.ts` of the engine. Its runs start the sessions of the steps and know how
   each one ended. Auto mode of the daemon starts each step with the gate `auto` by itself, in the
   lanes that `autoLanes` of the main `.celetis.yaml` names, where `triage` stands for an issue with
@@ -141,10 +141,13 @@ the offer ID; the controller keeps its complete identity. A stale offer, conflic
 a new check and decision. The native update locks and validation also apply to this path.
 
 The nonmodal update dialog sits at the bottom right and keeps the board usable. It shows a title,
-one line, and its actions. **Later** or Escape defers that exact offer in this
-tab; **Update available** opens it again. A different offer opens a new dialog.
-**Hide progress** hides the dialog without cancelling the update. **Update in progress** opens
-it again. These choices survive a page reload in tab storage when the browser permits storage.
+one line, and its actions. The control and the polite status region carry each state; no change
+of state opens the dialog. Only a press of the control opens it, and an open dialog stays open
+across changes of state until Escape, **Later**, **Close**, or **Hide progress**. At **Up to date**
+an open dialog shows `Celetis is up to date`, the line `Installed <the first 12 characters of the
+revision>.` when the answer names a target, else `No update is available.`, and **Close**.
+**Hide progress** hides the dialog without cancelling the update; **Update in progress** opens it
+again.
 A background check failure shows a quiet **Update check failed** control. Open it for the error
 and **Check again**. A failed update shows its error line and its recovery line, and requires
 **Check again** before another attempt. After an approved update of a daemon that runs from a
@@ -191,13 +194,12 @@ installed engine at most once each 5 seconds. When the installed revision differ
 revision of the daemon, and the last check result is **Up to date** or a failed check, the control
 shows **Restart needed** within 10 seconds. A failed read keeps the last state. An update offer takes precedence,
 because its update restarts the daemon too. A failed update keeps its state until **Check again**.
-The dialog opens by itself one time for each installed revision in the tab, with no focus move.
-**Later** or Escape closes the dialog
+The dialog opens only on a press of the control. **Later** or Escape closes the dialog
 and keeps **Restart needed** on the control; nothing restarts the daemon before a click. A click on
 **Restart** shows **Restarting…** at once and sends one restart request. The daemon validates the
 installed engine as for an approved update. It answers with the revision that the new daemon
 runs, then it restarts as above. The page waits for that revision of the answer, not for the
-revision that it showed. It reloads once when that revision answers from a new runtime instance
+installed revision that it read. It reloads once when that revision answers from a new runtime instance
 at the same URL. After 60 seconds it shows **Restart needs attention**, a line that says the
 daemon did not come back, and the recovery line. A refused restart shows **Restart needs attention**, a
 line that says the daemon did not restart, and the line of the refusal; the daemon keeps running, and **Check again** comes
@@ -237,12 +239,13 @@ which the daemon also uses). It builds one typed document (`Document` of
 `tracker`, `agents`, `flow`, `history`, and `queue`. Each `GET /api/board` also reads the local
 agent order, the usage records, and the usage-limit recovery records again (`readAgentState` of
 `engine/lib/board-read.ts`), and its reply adds `picker` (the order, the usage blocks, the hosts of
-live sessions, the live usage-limit waits, and a read error) and `next` (the decision of a new
-default start). The reply also adds `registry`: the agent registry of `engine/lib/host-names.ts`,
+live sessions, the live usage-limit waits, and a read error), `next` (the decision of a new
+default start), and `starts` (the same decision for each step of `flow.steps`, with the preferred
+agent of the step). The reply also adds `registry`: the agent registry of `engine/lib/host-names.ts`,
 with the long name and the menu label of each agent, in the registry order (`claude`, `codex`,
 `opencode`). The order with no record is `claude`, `codex` (`readAgentOrder` of
 `engine/lib/agent-order.ts`), so OpenCode starts excluded from default work. The page builds the agent
-picker, the queue agent menu, and the agent marks of the cards from it, and keeps no list of agents
+picker, the queue agent control, and the agent marks of the cards from it, and keeps no list of agents
 of its own. Each placement also reads the status object of the daemon once through the adapter,
 in the process, and the reply adds `daemon`: `{pid, auto}`, with the PID of the daemon and its auto
 mode (`on`, `off`, or `stopping`). These reads do not wait for GitHub.
@@ -311,6 +314,7 @@ The board puts these values in the fields of its document (`Document` of
 | `flow.lanes` | The four lanes: `feature` (triage, specify, plan, implement), `bug` (triage, bug, plan, implement), `chore` (triage, chore), and `hotfix` (triage, hotfix). |
 | `flow.stages` | Triage, Define (specify, bug, chore, hotfix), Plan, and Implement. |
 | `flow.steps.<step>.gate` | The gate of each of the seven steps, by the rule of "Gates". |
+| `flow.steps.<step>.agent` | The preferred agent of the step (`agents.<step>` of `.celetis.yaml`), or `null`. |
 | `flow.steps.<step>.hint` | A hint that says the step lands the change when the build is done, for `implement`, `chore`, and `hotfix`. No other step has a hint. |
 | `noRun` | A text that names the dirty path and tells to commit or stash first, while the main checkout is dirty, else `null`. |
 | `daemon` | Read at each response, not in the refresh: `{pid, auto}` of the status object of the daemon that serves the board, with `auto` `on`, `off`, or `stopping`. |
@@ -333,7 +337,13 @@ A row gets its `state` by the first rule that matches:
 block of each host with its reason and reset time, and it is `null` once the reset time has
 passed. Its `waits` holds `{number, waitId, nextResetAt}` for each issue whose live run waits
 because every included agent is limited. `next` is `start` with its host, or `wait` with the blocks
-and the earliest future reset, from the local order and with no step preference.
+and the earliest future reset, from the local order and with no step preference. `starts.<step>` has
+the same shape. It is the choice of the daemon for a fresh default start of that step: the preferred
+agent of the step goes first when the local order includes it, only the agents that can run the step
+stay, and the first of them with no active usage limit starts (`selectAgent` of
+`engine/lib/agent-usage.ts` with `effectiveOrder` and `capableOrder`). The `starts` of the reply is
+`null` while the agent state cannot be read. A press (`readAgentState` of `presses.ts`) needs only `next`
+and passes no steps.
 
 Each row also has `number`, `title`, `url`, `updatedAt` and these fields:
 
@@ -367,8 +377,10 @@ Each row also has `number`, `title`, `url`, `updatedAt` and these fields:
 
 History sits between Search and Refresh. It opens the existing panel, nonmodal beside the board
 and modal when it covers the page (see "The cards"), and closes card details. Card details close History. The default is closed on each page load; refresh keeps its
-open state, scroll, and matching focused link. Escape or Close returns focus to History. The
-landed count and the `d` shortcut open the same panel. Search finds landed issue numbers and titles.
+open state, scroll, and matching focused link. Escape or Close returns focus to History. While it
+is open, `History` has `aria-expanded="true"`, a Veil Strong fill, and a strong hairline. The
+`landed` chip of the header and the `d` shortcut open the same panel; the landed count shows
+nowhere else. Search finds landed issue numbers and titles.
 History stays visible on a phone. Below 1100 px width or 701 px height the panel is a drawer;
 below 720 px width it fills the viewport. Closing it restores the board width.
 
@@ -395,14 +407,15 @@ time with its full accessible timestamp. The time is neither issue-close nor pus
 the first result, History shows loading; an initial failure shows an error. Successful empty
 history shows `No landed issues found on <trunk>.` A failed refresh retains the rows and shows
 the read error; recovery clears it. History has no Run or Resume action.
-Each row has one control on its right side. A row with no page has Make visual
-(`Make visual, #<n>`); a press sends only the issue number, and the button reads `Starting…`
-(with `aria-busy`) while the press runs. While its `#<n> visual` tab is open, the row shows
-`Making…` (a status with a turning icon, in Current Blue). A row with a page has the link
-`Open visual` to `/visual/<sha>`, in a new browser tab. A refused press gives the toast
-`Make visual failed` with the line of the server, and the row then shows its server state. The
-focus stays on the control of its row through these states. Below 720 px the control is 44 px
-high.
+Each row has one icon control on its right side, 28 px wide (44 px below 720 px). Its accessible
+name and its `title` are one text. The issue number is Ink Faint in Geist Mono. A row with no page
+has Make visual (`Make the visual of #<n>`); a press sends only the issue number, and the control
+reads `Starting the visual of #<n>` (with `aria-busy`) while the press runs. While its `#<n> visual`
+tab is open, the row shows a turning icon in Current Blue (`The visual of #<n> is in the making`).
+A row with a page has the link `Open the visual of #<n>` to `/visual/<sha>`, in a new browser tab. A
+refused press gives the toast `Make visual failed` with the line of the server, and the row then
+shows its server state. The focus stays on the control of its row through these states. The note
+above the rows is `Latest 20 issues.`
 
 The list covers recent landings through both `merge` and `pr`. A closure alone proves no landing;
 an open issue can appear in both active work and history. Absence from 20 entries proves nothing
@@ -524,7 +537,7 @@ in the group `Paused by usage limits`, with the state `waits for a usage limit`.
 Agent order, opens the agent order, which has its Retry. A recovery record whose run no longer runs adds a warning
 to the card of its row, and Run starts the step again.
 
-- A `ready` card shows `auto` when the `gate` of its step is `auto`.
+- A `ready` card shows `auto` when the `gate` of its step is `auto` and auto mode is on, and `auto off` when auto mode is off or stopping. The label follows the mode at the next read, also when no card changed.
 - A `ready` card shows the start pair of its step, the `effort` of its row, in one label after
   `next <step>` and before `auto`. The label has two segments, the model and then the level. The
   model segment has the stronger fill. A segment of a pinned value starts with a pin icon, a
@@ -540,6 +553,8 @@ to the card of its row, and Run starts the step again.
   and search. Open issue remains secondary, and `o` opens the issue. When the first eligible agent
   of the local order is not available, or every included agent is limited, Open agent is disabled
   with its cause.
+- In Pipeline, the main button of a card shows its label, and a card in Needs you has a 3px Beacon
+  Orange inside left edge.
 - With a `noRun` text, the page shows that text above the columns and permits no Run, Resume, or Assist.
   A card that would have Run or Open agent shows it disabled with that text.
 - The lane track of a card is the list of `flow.lanes` for its `type`. A card whose step is not in
@@ -1159,6 +1174,12 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   and of landed issues, New intake, Coordinator, Search, Queue, History, and Refresh. The title of the browser tab is
   `(<n>) <folder> · Agent board` while `<n>` cards or sessions need you, and the tab icon has an orange dot
   then; it has a blue dot while an agent of an issue works and nothing needs you.
+- New intake is a ghost button (a Veil fill, a hairline, and Ink text), not an Ink-filled one. Only
+  the chip `need you` keeps its outline, and it grows to 32 px while it needs you; the chips
+  `running`, `idle`, and `landed` have no outline and no fill. After a good Refresh the Refresh
+  icon is Go Green and its title reads `Read <tracker> again: done` for 2 seconds, also across a
+  redraw, and the page announces `<tracker> read again` (`Issues read again` before the first good
+  read) at each good Refresh, also twice in a row. A failed Refresh keeps the toast `Refresh failed`.
 - New intake stays in the header in Now, Pipeline, and Queue, with its label visible on phones.
   Search becomes compact below 1700 px, and Refresh shows only its icon (its name stays), so the row
   holds the widest state words of Coordinator; the folder name stops at 12 characters with an
@@ -1205,9 +1226,9 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   720 px the button is 44 px high.
   The footer can wrap; its controls remain below the dialog. While the coordinator panel is open,
   the dialog sits above the foot of the panel, so it does not cover the message field. Checks
-  keep the cards and other controls usable. A dialog that opens by itself does not move the focus:
-  the focused element keeps it, and the polite status region gives the state. A press of the
-  control opens the dialog and moves the focus to its title. Escape closes the open dialog also
+  keep the cards and other controls usable. The dialog opens only on a press of the control, which
+  moves the focus to its title; a change of state moves no focus, and the polite status region
+  gives the state. Escape closes the open dialog also
   when the focus is outside it, but not in a form field. An open menu, Search, or the keyboard
   shortcuts close before the dialog, and the dialog closes before the card details or History.
   Escape, **Later**, **Close**, or **Hide progress** returns the focus to the control when the
@@ -1216,12 +1237,23 @@ SIL Open Font License 1.1), so it loads nothing from the network.
 - Human sessions is a strip between the header and the columns, in Now and in Pipeline. Each human
   session is one item: the agent mark, the title, the state with its age, and
   Go. A session with an empty title shows `A session` on its item and as the title of its details.
-  A press on an item opens its details. The strip is hidden while no human session runs. A human
-  session needs you only while its host reports `blocked`: then its item is orange, and
-  the `need you` count in the header, the title of the browser tab, the dot of the tab icon, and
-  Notify count it. A press on the `need you` count focuses that item first. The column Needs you
+  A press on an item opens its details. The strip is hidden while no human session runs. The strip
+  is one slim band, about 36 px high at 1440 px. A human session needs you in two cases. In the
+  first, its host reports `blocked`: its item is orange. In the second, its host reports `idle`,
+  `done`, or `error` and you have not seen that ended turn: its item shows `your turn`, an
+  orange dot, and its title at weight 600, with no tint and no pulse. A new tab at its first prompt
+  is such a turn. The `need you` count in the header, the title of the browser tab, the dot of the
+  tab icon, and Notify count each of the two cases. A press on the `need you` count focuses, in this
+  order, the coordinator control in a dialog, the first human session in a dialog, the first human
+  session at an unseen ended turn, and then the first card of Needs you. The column Needs you
   and its count hold only issue work, so the header can count more than the column, and an empty
-  Needs you reads `No issue needs you`. `turn ended` and `works` need nothing from you.
+  Needs you reads `No issue needs you`. `works` needs nothing from you.
+  You see a turn when you open the details of the session (a press on its item, `Space`, the press
+  on a notification, or `#<n>` of the search) or press its Go. The item then keeps the grey dot and
+  `turn ended`, and the counts drop. A new ended turn of the same terminal (a new hc `turn`, which
+  each card of a human session carries) is unseen again. A screen reader hears
+  `Human session "<label>": your turn` once when the turn ends; the first good read after a load
+  counts and marks, but announces and notifies nothing.
 - The control Coordinator follows New intake in the header in Now, Pipeline, and Queue. It shows the
   state of the coordinator session in words and with a mark: `no session` (an empty ring), `starts`
   (a blue ring), `works` (a blue dot), `turn ended` (a grey dot), and `waits for your answer` (an
@@ -1302,6 +1334,7 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   as Idle does. The label of a group stays in view while the column scrolls. When cards are below
   the fold, a line at the foot of the column names them, for example
   `3 more below: 1 need your input on the issue, 2 ready to run`; a press scrolls to the first of them.
+  A card that is partly below the line counts as below.
   Each column of Now and each stage of Pipeline keeps its current vertical position during a data
   refresh; the browser clamps it when the content shrinks, and a switch of the view starts each
   column at the top.
@@ -1310,10 +1343,18 @@ SIL Open Font License 1.1), so it loads nothing from the network.
 - Queue preserves the saved Now/Pipeline choice. Current work appears above Up next. The picker
   sits beside waiting work on desktop and below it on a phone. Add persists immediately and starts
   an empty queue. Only waiting rows expose Up, Down, and Remove, including during runs and stops.
+  The picker sentence is `Add puts the issue at the end of the queue, and starts the queue when it
+  is empty.` Each picker row shows `next <step> · <state>` under its title, with `ready` for an
+  issue that is not stuck. On desktop, the heads Up next and Add from the board sit on one line. An empty
+  queue shows `No issue is running.` for the current issue, `No issue waits.` for Up next, and
+  `Add issues at any time. Finished issues leave automatically.` once. The heading uses 16.5px.
 - The count includes current and waiting work only. Finished rows leave with the same update.
-  Continue authorizes one displayed step; Try again recovers a permitted stop. The agent choice
-  stays fixed while nonempty. A default choice uses the effective order of each new step: the
-  preferred agent of the step in `agents` when the local order includes it, then the local order.
+  Continue authorizes one displayed step; Try again recovers a permitted stop. The agent choice is
+  a segmented control (Default order, then each agent of the registry; the pressed segment has
+  `aria-pressed="true"`, and an unavailable agent is disabled). It stays fixed while the queue is
+  nonempty: every segment keeps `aria-disabled="true"` and is dimmed. A default choice uses the effective
+  order of each new step: the preferred agent of the step in `agents` when the local order includes it, then
+  the local order.
   Accepted order survives reload and a restart of the daemon, without a batch reset.
 - Queue keeps pending admission, saved/starting, and verified running distinct. A stale press
   reads authoritative state and requires another press. Status uses the polite announcement region.
@@ -1330,11 +1371,13 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   keys `bug`, `feature`, `chore`, and `hotfix` have an icon of their own, and a lane with another
   key gets the neutral icon. The main button of a card in Needs you is filled.
 - A card in one row (Idle, the last two groups of Needs you, and Pipeline) has its title beside its
-  buttons, and under both the number, the type, and the state. The title shows at most two lines,
-  and a narrow card hides the type. The step name, the start label, and `auto` of a `ready` card stay
-  whole; a card with no room for them in one line wraps them to a second line.
+  buttons, or under the title in a card narrower than 282 px, and under both the number, the type,
+  and the state. The title shows at most two lines,
+  and a narrow card hides the type. The step name, the start label, and the gate of a `ready` card stay
+  whole; a card with no room for them in one line moves them together to a second line.
 - The chevron beside Run opens the run menu: Run with each agent. Each agent row shows the icon of
-  its agent, and the first included agent of the agent order has the tag `Default` after its label.
+  its agent, and the agent that the details name for the card has the tag `Default` after its label.
+  No other row has the tag, and a card with no named agent has none.
   On a `ready` card, a rule and
   `Run at low`, `Run at medium`, `Run at high`, `Run at xhigh`, and `Run at max` follow. The current
   level has a check mark and the suffix `(decided by <by>)`, `(pinned by the config)`, or `(default)`
@@ -1350,13 +1393,23 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   the colour of the state, and it moves while an agent works.
 - A press on a card, or `Space`, opens its details in place of Idle: for a session, the last 16
   lines of its terminal screen (with no empty line, rule, or box border), so you can read the dialog or the end
-  of the answer; the lane steps, with `auto` on a step whose gate is `auto`; the pull request, the
+  of the answer; the lane steps, with `auto` on a step whose gate is `auto` while auto mode is on, and
+  `auto off` while it is off or stopping; the pull request, the
   folder, and the lines changed; for a `ready` card, `Model` and `Effort` (`<value> · decided by <by>`,
   `<value> · pinned by the config`, or `<value> · default`) and `Why` before `Updated`. `Why` is the
   reason of the decision when a value of the pair is decided, wrapped, or `No reason given.` for a
   decision with no reason; then `The config pins the model of this step.`, `The config pins the level of this step.`,
   or `The config pins the model and the level of this step.` when the config pins a value; or
-  `No decision on the issue; the default applies.` with no decided and no pinned value. A waiting session shows its
+  `No decision on the issue; the default applies.` with no decided and no pinned value. The main Run of
+  the details of a `ready` card names the agent that a default start picks (`starts.<step>`: the
+  preferred agent of the step, then the agents that can run it, then the first with no limit), as
+  `Run with <agent>`. The other agents follow as quiet `Run with <agent>` buttons under `Other agents`.
+  When the queue stops at its manual gate on the card with a recorded agent, the main button names
+  that agent, because the press continues the queue with it.
+  When `starts.<step>` is `wait` or absent, the main button stays `Run`. A `stuck` card shows
+  `Resume` with `Opens the same session again.` and `Run again with <agent>` with
+  `Starts a new session of the step.`, then the other agents under `Other agents`. The card and its
+  menu keep `Run` and `Run again`. A waiting session shows its
   lines at the top, beside Go, except a human session whose turn ended. `Esc` closes the details.
   Below 1100 px the details cover the right side of the page, and below 720 px the whole page.
   While the details or History cover the page (below 1100 px wide, or 700 px high or less), the
@@ -1374,8 +1427,8 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   title), and the items `herdr` and the others share the second row with their words. Only the
   item `Daemon` hides there. The board menu on a phone leaves out the rows for the queue and
   History, because the header keeps their buttons; Search keeps both commands at each width. The
-  status bar also shows the keys of the focused card, the landed-issue count (a press opens
-  History), the Notify switch, and the list of keys. The item `Daemon` shows `daemon` of each placement ("The data"):
+  status bar also shows the keys of the focused card, the Notify switch, and the list of keys. The
+  item `Daemon` shows `daemon` of each placement ("The data"):
 
   | Auto mode | Text | Tone | Title |
   |---|---|---|---|
@@ -1390,7 +1443,9 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   `#<n> ended its turn`, `#<n> made no progress`, `#<n> has a dirty worktree`, `#<n> <reason>` for a
   `blocked` card, and `#<n> is ready to run <step>`, with the title of the issue. A human session
   that starts to wait for your answer shows `Human session "<label>" waits for your answer`, or
-  `A human session waits for your answer` when its title is empty. A press on the
+  `A human session waits for your answer` when its title is empty. A human session that ends a
+  turn that you have not seen shows `Human session "<label>" ended its turn`, or
+  `A human session ended its turn` when its title is empty. A press on the
   notification opens the details of the card. A change of the coordinator session to
   `waits for your answer` or to `turn ended` shows `The coordinator waits for your answer` or
   `The coordinator ended its turn`, and a press on it opens the panel. A screen reader hears each card that enters Needs you,
@@ -1408,8 +1463,11 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   720 px the columns stack.
 - The page keeps four choices in the storage of the browser: the view, the Notify switch, the
   switch of the single-key shortcuts, and the open epic groups. It also keeps the last ended turn
-  of the coordinator session that the panel showed. The open epic groups follow a change
-  in another tab of the same board. A board on another port has its own choices.
+  of the coordinator session that the panel showed, and the last ended turn of each human session
+  that you saw, by terminal and hc `turn`; an entry leaves the storage at the next good read that
+  lists no such session, and a failed read removes none. The open epic groups and the seen turns
+  of human sessions follow a change in another tab of the same board. A board on another port has
+  its own choices.
 
 **The clock.** Each time of day on the page is a 24-hour local time, `14:05` (`00:05` after
 midnight), in the facts, the tooltip of `#fresh` (`<tracker> was read at 14:05`), the reset time of
@@ -1450,9 +1508,15 @@ the texts are `Open the issue` and `Read the issues again`.
 **The errors.**
 
 - When a press fails, a toast names the press (`Go failed`, `Run failed`, `Resume failed`, `Open agent failed`,
-  `Open shell failed`, `Refresh failed`, `Queue action failed`, `Make visual failed`) above the line of the server. After Go, Open shell, or
+  `Open shell failed`, `Refresh failed`, `Queue action failed`, `Make visual failed`) above the line of the server. An error toast
+  stays until Close, Escape on the toast, or a newer toast; a success toast hides after 6 s. After
+  Close or Escape, the focus returns to the element that had it before it last went into the toast. After Go, Open shell, or
   Refresh, the card keeps its button. A failed Run, Resume, or Open agent ends its `Starting` card
-  and permits a retry after the next read. This covers a herdr-core server or a Herdr app that does
+  and permits a retry after the next read. It also leaves `Last start failed: <line>` on its card,
+  with the line of the toast, until the next such press of the issue or a session of the issue
+  shows; a reload clears it. A press waits for the answer of the daemon with no limit of the
+  page, and after 5 s the card shows `The daemon still checks the start` with the age of the
+  press. This covers a herdr-core server or a Herdr app that does
   not run, an `hc` or a `herdr-app` that is not on `PATH`, and a press that the server or the
   master daemon refuses. For Run and Resume, the daemon checks `hc` and the Herdr app, and the
   toast shows the line of its refusal.
@@ -1544,7 +1608,7 @@ Of the sessions, herdr-core, and the Herdr app:
   against a live GitHub: a commit status list that is not empty, and a review list that is not
   empty.
 - A `#<n> visual` tab whose command fails keeps its message and a shell, and its History row shows
-  **Making…** until you close the tab.
+  the turning icon (`The visual of #<n> is in the making`) until you close the tab.
 - A `#<n> visual` session of an issue that is still open takes the place of the card of that issue
   while it runs, because the state of a session wins ("The cards").
 

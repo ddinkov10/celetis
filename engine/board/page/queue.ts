@@ -2,8 +2,8 @@ import type { Host } from '../../lib/host-names.ts';
 import type { QueueAction, QueueRecord, QueueView } from '../../lib/queue-types.ts';
 import type { Step } from '../../lib/workflow.ts';
 import type { Board } from '../types.ts';
-import { knownAgent } from '../view.ts';
-import { $, el, iconButton, toast } from './ui.ts';
+import { knownAgent, stateLabel } from '../view.ts';
+import { $, announce, el, iconButton, toast } from './ui.ts';
 
 const recordedHost = (record: QueueRecord | null | undefined) =>
   record?.choice?.kind === 'explicit' ? record.choice.host : null;
@@ -28,9 +28,6 @@ const expected = () => ({
   current: submitted?.record?.numbers[0] ?? null,
 });
 const authoritative = () => Boolean(submitted && !uncertain && !board?.source.error);
-const announce = (message: string) => {
-  $('announce').textContent = message;
-};
 
 function accept(view: QueueView): void {
   const old = submitted?.record;
@@ -237,31 +234,31 @@ function draw(): void {
     const list = el('ol', 'queue-list');
     list.append(row(numbers[0], 0, numbers));
     current.append(list);
-  } else current.append(el('p', 'queue-empty', 'No issue is running. Add one below to start work.'));
+  } else current.append(el('p', 'queue-empty', 'No issue is running.'));
   status.append(current);
   const actions = el('div', 'queue-actions');
-  const label = el('label', 'queue-agent', 'Agent ');
-  const select = el('select');
-  select.dataset.control = 'agent';
-  select.setAttribute('aria-label', 'Queue agent');
-  select.add(new Option('Default order', ''));
-  for (const host of Object.keys(board.registry) as Host[]) {
-    const option = new Option(board.registry[host].short, host);
-    option.disabled = board.agents?.[host]?.available !== true;
-    select.add(option);
+  const label = el('div', 'queue-agent');
+  const group = el('div', 'queue-segments');
+  group.setAttribute('role', 'group');
+  group.setAttribute('aria-label', 'Queue agent');
+  const chosen = chosenHost(record) ?? '';
+  const choices: [string, string, boolean][] = [['', 'Default order', true]];
+  for (const host of Object.keys(board.registry) as Host[])
+    choices.push([host, board.registry[host].short, board.agents?.[host]?.available === true]);
+  for (const [value, text, usable] of choices) {
+    const segment = el('button', '', text);
+    segment.type = 'button';
+    segment.dataset.control = `agent-${value || 'default'}`;
+    segment.setAttribute('aria-pressed', String(chosen === value));
+    segment.setAttribute('aria-disabled', String(!usable || numbers.length > 0 || busy || !authoritative()));
+    segment.addEventListener('click', () => {
+      if (segment.getAttribute('aria-disabled') === 'true') return;
+      agent = value;
+      draw();
+    });
+    group.append(segment);
   }
-  select.value = chosenHost(record) ?? '';
-  const locked = numbers.length > 0 || busy || !authoritative();
-  select.setAttribute('aria-disabled', String(locked));
-  select.addEventListener('change', () => {
-    if (locked) {
-      select.value = chosenHost(record) ?? '';
-      return;
-    }
-    agent = select.value;
-    draw();
-  });
-  label.append(select);
+  label.append(el('span', '', 'Agent'), group);
   actions.append(label);
   const next = submitted?.next;
   if (submitted?.actions.continue && next?.kind === 'run')
@@ -290,17 +287,21 @@ function draw(): void {
   list.setAttribute('aria-label', 'Waiting issues');
   list.start = 2;
   list.append(...numbers.slice(1).map((number, index) => row(number, index + 1, numbers)));
-  waiting.append(numbers.length > 1 ? list : el('p', 'queue-empty', 'No issues waiting. Add more at any time.'));
+  waiting.append(numbers.length > 1 ? list : el('p', 'queue-empty', 'No issue waits.'));
   const picker = el('section', 'queue-picker');
   picker.append(
     el('h3', '', 'Add from the board'),
-    el('p', '', 'Add starts an empty queue. Otherwise, the issue joins the end.'),
+    el('p', '', 'Add puts the issue at the end of the queue, and starts the queue when it is empty.'),
   );
   for (const card of available()) {
     const number = card.number as number;
     const item = el('div', 'queue-pick');
     const copy = el('div');
-    copy.append(el('span', 'queue-number', `#${number}`), el('span', 'queue-title', card.title));
+    copy.append(
+      el('span', 'queue-number', `#${number}`),
+      el('span', 'queue-title', card.title),
+      el('span', 'queue-step', `next ${card.step} · ${card.state ? stateLabel(card) : 'ready'}`),
+    );
     const selected = numbers.includes(number);
     const add = button(
       selected ? 'In queue' : 'Add',

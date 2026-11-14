@@ -74,9 +74,6 @@ export function setupUpdates(): Controls {
   let response: UpdateResponse | null = null;
   let offered: BoardOffer | null = null;
   let pending = readPending();
-  let deferred = session.get('deferred');
-  let hidden = session.get('hidden');
-  let restartShown = session.get('restart-shown');
   let returning: HTMLElement | null = null;
   let refusal: { kind: Kind; line: string } | null = null;
   let checkFailure: string | null = null;
@@ -100,28 +97,14 @@ export function setupUpdates(): Controls {
     document.dispatchEvent(new Event('board-reconnect'));
   };
   if (pending) beginReconnect();
-  const open = (isAutomatic = false) => {
-    if (isAutomatic) {
-      if (dialog.open) return;
-      returning = opener;
-      // show() runs the dialog focusing steps; the open attribute shows the dialog with no focus move.
-      dialog.setAttribute('open', '');
-    } else {
-      returning = document.activeElement as HTMLElement | null;
-      if (!dialog.open) dialog.show();
-      title.focus();
-    }
+  const open = () => {
+    returning = document.activeElement as HTMLElement | null;
+    if (!dialog.open) dialog.show();
+    title.focus();
     opener.setAttribute('aria-expanded', 'true');
   };
   const close = () => {
     const focused = contains(document.activeElement);
-    if (response?.update.offer && !pending) {
-      deferred = response.update.offer.id;
-      session.set('deferred', deferred);
-    } else if (pending) {
-      hidden = `${pending.instance}:${pending.target}`;
-      session.set('hidden', hidden);
-    }
     dialog.close();
     draw();
     if (focused) (returning?.isConnected && !returning.hidden ? returning : opener).focus();
@@ -200,11 +183,8 @@ export function setupUpdates(): Controls {
     opener.setAttribute('aria-expanded', String(dialog.open));
     const isRestart = kind === 'restart' || phase === 'restart-needed';
     const target = pending?.target ?? (isRestart ? null : offered?.target) ?? update?.target ?? null;
-    if (!phase || phase === 'current') {
-      if (phase === 'current') announce(JSON.stringify([phase, target]), 'Up to date');
-      if (dialog.open) close();
-      return;
-    }
+    if (phase === 'current') announce(JSON.stringify([phase, target]), 'Up to date');
+    if (!phase || (phase === 'current' && !dialog.open)) return;
     title.textContent = {
       available: 'Update Celetis',
       'restart-needed': 'Restart the daemon',
@@ -216,6 +196,7 @@ export function setupUpdates(): Controls {
       'restart-refused': 'The daemon did not restart',
       'check-failed': 'Cannot check for updates',
       timeout: 'The daemon did not come back',
+      current: 'Celetis is up to date',
     }[phase];
     description.textContent = {
       available: 'Sessions keep running.',
@@ -228,6 +209,7 @@ export function setupUpdates(): Controls {
       'restart-refused': 'It still runs its old engine.',
       'check-failed': 'The board still works.',
       timeout: `The ${kind} may be done. The page got no answer in 60 seconds.`,
+      current: target ? `Installed ${target.slice(0, 12)}.` : 'No update is available.',
     }[phase];
     let status = '';
     if (phase === 'restarting') status = 'Reconnecting to the new daemon…';
@@ -238,16 +220,21 @@ export function setupUpdates(): Controls {
         ? `${stage.state === 'started' ? 'Updating' : 'Completed'} ${names[stage.part]}…`
         : 'Preparing the update…';
     } else if (phase === 'checking') status = 'Checking for updates…';
+    else if (phase === 'current') status = 'Up to date';
     else if (failed || phase === 'updated') status = title.textContent ?? '';
     else status = 'An update is available.';
     if (progress.textContent !== status) progress.textContent = status;
-    announce(JSON.stringify([phase, kind, target, status]), status);
+    if (phase !== 'current') announce(JSON.stringify([phase, kind, target, status]), status);
     progress.classList.toggle('is-busy', busy || phase === 'checking');
     diagnostic.textContent = failed ? (checkFailure ?? refusal?.line ?? update?.error ?? '') : '';
     diagnostic.hidden = !diagnostic.textContent;
     recovery.textContent = failed && phase !== 'restart-refused' ? (pending?.recovery ?? update?.recovery ?? '') : '';
     recovery.hidden = !recovery.textContent;
-    later.textContent = busy ? 'Hide progress' : failed || phase === 'updated' ? 'Close' : 'Later';
+    later.textContent = busy
+      ? 'Hide progress'
+      : failed || phase === 'updated' || phase === 'current'
+        ? 'Close'
+        : 'Later';
     start.hidden = phase !== 'available' && phase !== 'restart-needed';
     start.textContent = phase === 'restart-needed' ? 'Restart' : 'Update and restart';
     start.setAttribute(
@@ -266,13 +253,11 @@ export function setupUpdates(): Controls {
     clearTimeout(timer);
     active?.abort();
     draw();
-    open(true);
     return true;
   };
   const accept = (next: UpdateResponse) => {
     if (expire()) return;
     if (!pending && JSON.stringify(response) === JSON.stringify(next)) return;
-    const previousPhase = response?.update.phase;
     response = next;
     const update = next.update;
     if (update.offer) offered = update.offer;
@@ -333,14 +318,6 @@ export function setupUpdates(): Controls {
     }
     if (expire()) return;
     draw();
-    if (update.phase === 'available' && !pending && !refusal && !checking && update.offer?.id !== deferred) open(true);
-    else if (phaseOf() === 'restart-needed' && update.target !== restartShown) {
-      restartShown = update.target;
-      session.set('restart-shown', restartShown);
-      open(true);
-    } else if (pending && hidden !== `${pending.instance}:${pending.target}`) open(true);
-    else if (update.phase === 'update-failed' && previousPhase !== 'update-failed') open(true);
-    else if (update.phase === 'updated' && previousPhase !== undefined && previousPhase !== 'updated') open(true);
   };
   const schedule = () => {
     clearTimeout(timer);
@@ -391,13 +368,9 @@ export function setupUpdates(): Controls {
   opener.addEventListener('click', () => {
     const phase = phaseOf();
     if (phase === 'checking') return;
-    if (!phase || phase === 'current') {
+    if (!phase || (phase === 'current' && !dialog.open)) {
       void requestCheck();
       return;
-    }
-    if (pending) {
-      hidden = null;
-      session.set('hidden', null);
     }
     open();
     draw();
@@ -425,7 +398,6 @@ export function setupUpdates(): Controls {
       deadline: null,
       reloaded: false,
     };
-    hidden = null;
     refusal = null;
     submitting = 'update';
     save();
@@ -445,7 +417,6 @@ export function setupUpdates(): Controls {
     if (submitting || checking || pending || phaseOf() !== 'restart-needed' || !response) return;
     const shown = response;
     stopPoll();
-    hidden = null;
     refusal = null;
     submitting = 'restart';
     draw();

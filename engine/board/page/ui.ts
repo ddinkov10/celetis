@@ -1,6 +1,6 @@
 import type { Host, Registry } from '../../lib/host-names.ts';
 import type { Pull } from '../../lib/resolver-types.ts';
-import type { Action, Card } from '../types.ts';
+import type { Action, Card, DaemonView } from '../types.ts';
 import { age, agentOf, clock, knownAgent, prFacts } from '../view.ts';
 
 const CODEX_ICON =
@@ -268,6 +268,30 @@ const withCode = (text: string) => {
 };
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
+let toastOrigin: Element | null = null;
+export const hideToast = () => {
+  const node = $('toast');
+  const hadFocus = node.contains(document.activeElement);
+  clearTimeout(toastTimer);
+  node.hidden = true;
+  const origin = toastOrigin;
+  toastOrigin = null;
+  if (hadFocus && origin instanceof HTMLElement && origin.isConnected && !origin.closest('[hidden]'))
+    origin.focus({ preventScroll: true });
+};
+export const setupToast = () => {
+  $('toast').addEventListener('focusin', (event) => {
+    if (event.relatedTarget instanceof Element && !$('toast').contains(event.relatedTarget))
+      toastOrigin = event.relatedTarget;
+  });
+  $('toast').addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    hideToast();
+  });
+  $('toast-close').addEventListener('click', hideToast);
+};
 export const toast = (title: string, { detail = '', isError = false } = {}) => {
   $('toast').dataset.tone = isError ? 'error' : 'ok';
   $('toast-icon').replaceChildren(icon(isError ? 'alert' : 'check'));
@@ -275,9 +299,7 @@ export const toast = (title: string, { detail = '', isError = false } = {}) => {
   if (detail) $('toast-text').append(withCode(detail));
   $('toast').hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    $('toast').hidden = true;
-  }, 6000);
+  if (!isError) toastTimer = setTimeout(hideToast, 6000);
 };
 
 export const SERVER_DOWN = 'The board server does not answer';
@@ -287,6 +309,23 @@ export type PostOutcome =
   | { status: 'accepted'; body: unknown }
   | { status: 'rejected'; error: string }
   | { status: 'unavailable'; error?: string };
+export async function send(path: string, value: unknown, failure: string): Promise<string | null> {
+  try {
+    const response = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(value),
+    });
+    if (response.ok) return null;
+    const body = (await response.json().catch(() => null)) as { error?: unknown } | null;
+    const error = typeof body?.error === 'string' ? body.error : `the server answered ${response.status}`;
+    toast(failure, { detail: error, isError: true });
+    return error;
+  } catch {
+    toast(SERVER_DOWN, { detail: RESTART, isError: true });
+    return SERVER_DOWN;
+  }
+}
 export function post(path: string, value: unknown, failure: string): Promise<boolean>;
 export function post(path: string, value: unknown, failure: string, options: { timeout: number }): Promise<PostOutcome>;
 export async function post(
@@ -295,28 +334,23 @@ export async function post(
   failure: string,
   options?: { timeout: number },
 ): Promise<boolean | PostOutcome> {
-  const controller = options ? new AbortController() : undefined;
-  const timeout = options ? setTimeout(() => controller?.abort(), options.timeout) : undefined;
+  if (!options) return (await send(path, value, failure)) === null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), options.timeout);
   try {
     const response = await fetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(value),
-      signal: controller?.signal,
+      signal: controller.signal,
     });
-    if (options) {
-      if (response.ok) return { status: 'accepted', body: await response.json().catch(() => null) };
-      const body = (await response.json()) as { error?: unknown } | null;
-      const error = typeof body?.error === 'string' ? body.error : undefined;
-      if (response.status >= 400 && response.status < 500 && error !== undefined) return { status: 'rejected', error };
-      return { status: 'unavailable', ...(error !== undefined ? { error } : {}) };
-    }
-    if (!response.ok) toast(failure, { detail: ((await response.json()) as { error: string }).error, isError: true });
-    return response.ok;
+    if (response.ok) return { status: 'accepted', body: await response.json().catch(() => null) };
+    const body = (await response.json()) as { error?: unknown } | null;
+    const error = typeof body?.error === 'string' ? body.error : undefined;
+    if (response.status >= 400 && response.status < 500 && error !== undefined) return { status: 'rejected', error };
+    return { status: 'unavailable', ...(error !== undefined ? { error } : {}) };
   } catch {
-    if (options) return { status: 'unavailable' };
-    toast(SERVER_DOWN, { detail: RESTART, isError: true });
-    return false;
+    return { status: 'unavailable' };
   } finally {
     clearTimeout(timeout);
   }
@@ -388,9 +422,45 @@ export const store = {
       localStorage.setItem(store.key(key), value);
     } catch {}
   },
+  keys: (prefix: string) => {
+    try {
+      const start = store.key('').length;
+      return Object.keys(localStorage)
+        .filter((name) => name.startsWith(store.key(prefix)))
+        .map((name) => name.slice(start));
+    } catch {
+      return [];
+    }
+  },
+  remove: (key: string) => {
+    try {
+      localStorage.removeItem(store.key(key));
+    } catch {}
+  },
+};
+
+let announcing: ReturnType<typeof setTimeout> | undefined;
+export const announce = (text: string) => {
+  const live = $('announce');
+  clearTimeout(announcing);
+  if (live.textContent !== text) {
+    live.textContent = text;
+    return;
+  }
+  live.textContent = '';
+  announcing = setTimeout(() => {
+    live.textContent = text;
+  }, 100);
 };
 
 const TYPES: Record<string, string> = { bug: 'bug', feature: 'spark', chore: 'wrench', hotfix: 'flame' };
+
+export const gateLabel = (mode: DaemonView['auto']) => {
+  const on = mode === 'on';
+  const node = el('span', on ? 'gate gate-auto' : 'gate gate-auto is-off', on ? 'auto' : 'auto off');
+  node.title = on ? 'Auto mode of the daemon starts this step by itself' : 'Auto mode is off: this step waits for Run.';
+  return node;
+};
 
 export const mark = (card: Card, registry: Registry, identifiedByText = false) => {
   const agent = agentOf(card, registry);

@@ -2,17 +2,40 @@
 {
   "schema": 1,
   "name": "plan-condition-must-not-narrow-a-spec-rule",
-  "description": "A plan, a repair ruling, or a fix brief changed a spec rule or its scope with no maintainer decision, and the build dropped a required case",
+  "description": "A plan, a repair ruling, a fix brief, or a design-review refine fix changed a spec rule or its scope with no maintainer decision, and the build dropped a required case",
   "tags": [
     "process",
     "ui",
     "recurring",
     "false-negative"
   ],
-  "date": "2026-11-09",
+  "date": "2026-11-14",
   "status": "active",
-  "source": "Task 4 of ddinkov10/celetis#269 (implement step, subagent flow), controller Ruling 6 and its correction Ruling 7\n\nFinal fix wave of ddinkov10/celetis#263\n\nFinal review of ddinkov10/celetis#250, implement step session (coordinator incident)\n\nTask 3 review of #182 (ddinkov10/celetis), controller-confirmed reproduction",
+  "source": "The implement session of #311 on Claude Code, task review of Task 11 (the design review), 2026-11-14\n\nTask 4 of ddinkov10/celetis#269 (implement step, subagent flow), controller Ruling 6 and its correction Ruling 7\n\nFinal fix wave of ddinkov10/celetis#263\n\nFinal review of ddinkov10/celetis#250, implement step session (coordinator incident)\n\nTask 3 review of #182 (ddinkov10/celetis), controller-confirmed reproduction",
   "incidents": [
+    {
+      "id": "73e2a03a-42f0-4b61-9d2c-e15913e93006",
+      "date": "2026-11-14",
+      "action": "Task 11 of #311 (the design review) changed engine/board/page/panel.ts so that a done lane step shows no gate label (`step.state !== 'done' && gateOf(flow, step.name) === 'auto' ? gateLabel(auto) : el('span')`), as a refine fix for a repeated `auto off`.",
+      "expected": "Spec of #311, B3, G3 A: the gate label of each ready card and of the lane steps in the details reads `auto off` while auto mode is off or stops, and stays the green `auto` while it is on; no maintainer decision narrows it.",
+      "observed": "The task reviewer's probe: base 522d414 with auto on shows `auto` on done steps; head 74d44b7 shows none in either mode. The fix bbcc54e restored the Task 3 line.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "Base, auto on: the done steps show `auto`. Lane head, auto on: the done steps show nothing. Auto off: only `now` and `next` steps show `auto off`.",
+        "reference": "https://github.com/ddinkov10/celetis/issues/311 (commits 74d44b7 and bbcc54e)"
+      },
+      "inference": "The plan's lesson rules for Task 11 named preserve-the-requested-ui-container-during-design, check-visible-surfaces-before-composing-browser-probes, and give-browser-tool-output-files-a-path-outside-the-lane, not plan-condition-must-not-narrow-a-spec-rule, although a refine fix can narrow a spec rule like a plan condition. Alternative: the design-review procedure's rule 'keep the direction' was read as permission for any change that keeps the look.",
+      "diagnosis": [
+        "not-retrieved"
+      ],
+      "revision": "74d44b7",
+      "brief": "Plan of #311, Task 11 'Lesson rules': preserve-the-requested-ui-container-during-design, check-visible-surfaces-before-composing-browser-probes, give-browser-tool-output-files-a-path-outside-the-lane (https://github.com/ddinkov10/celetis/issues/311, the ## Plan comment 6861255296)",
+      "lesson": {
+        "name": "plan-condition-must-not-narrow-a-spec-rule",
+        "revision": "522d414",
+        "digest": "4ae38f3cabfddef721d74bcfb78b066f1c319f1ee2ffde03e17e30c5f2565811"
+      }
+    },
     {
       "id": "9e4a15f4-71c6-45c5-ab17-6f5a62d266ce",
       "date": "2026-11-09",
@@ -117,7 +140,7 @@
       "revision": "44d1e65"
     }
   ],
-  "recurrences": 4,
+  "recurrences": 5,
   "reviews": [
     {
       "id": "8385ab4c-cffb-479f-9c23-69fddfe2c2e9",
@@ -177,15 +200,30 @@
         "state": "not-needed",
         "detail": "This merge adds no structural follow-up. The proposed follow-up in the Fix of the survivor stays proposed and needs separate authorization."
       }
+    },
+    {
+      "id": "9b22976b-b5af-4cb4-8064-e64e35e1c9d4",
+      "requestDigest": "e004f754276b0588551b5ae16dcf5af6133e6f4891d06148952fd6fb8c862b5e",
+      "date": "2026-11-14",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #311; claude child opus/high\n\nMerge under the reviewer rules: the active lesson plan-condition-must-not-narrow-a-spec-rule states the same rule (a change that narrows a spec rule quotes it, probes each mode, and needs a maintainer decision), and the proposal names it as the lesson that its incident did not retrieve. The incident is observed: commit bbcc54e of the lane restores the gate label of done lane steps that the design-review fix of Task 11 hid, against spec rule B3 of #311. A refine fix of a design review that hides a spec-named label narrows a spec rule like a plan condition, so the survivor keeps the active name and every incident and review, widens the applicability to a refine fix, adds the base-and-head probe check of the proposal, and keeps the cause labeled as inference. Keeping a separate design-review lesson would leave two active lessons with one rule. The rule adds a check, weakens none, and agrees with the design review of the plugin celetis, which keeps the direction and reports each finding that needs a new look.",
+      "related": [
+        "carry-the-spec-narrowing-rule-into-a-design-review",
+        "plan-condition-must-not-narrow-a-spec-rule"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "The earlier proposed follow-up stays open. A second one is added: the plan skill carries plan-condition-must-not-narrow-a-spec-rule into the lesson rules of each design-review task, and its check is a plan whose design-review task lacks it (owner: the plugin celetis). Both need separate authorization; this review changes no skill or procedure."
+      }
     }
   ]
 }
 ---
-# A plan, a repair ruling, or a fix brief must not change a spec rule or its scope without a maintainer decision
+# A plan, a repair ruling, a fix brief, or a refine fix must not change a spec rule or its scope without a maintainer decision
 
 ## What happened
 
-Five incidents. In #182, the plan added a link-label condition to the spec's session rule for a
+Six incidents. In #182, the plan added a link-label condition to the spec's session rule for a
 runner foreground. The build followed the plan. A hand-run `celetis-flow --resume <n>` sets no
 link label, so its terminal got no board card. The Task 3 review reproduced it at the
 `sessionsOf` boundary (`hand-run resume, no link label: []`), and fix 6506cd7 also accepts a
@@ -226,6 +264,13 @@ passes and loads the module at run time, while maintainer decision Q2 refuses ea
 The controller corrected the ruling (Ruling 7), and round 2 (2b98533) refuses the expression forms
 by what `Bun.Transpiler` `scanImports` keeps.
 
+In #311, the design review (Task 11) fixed a refine finding about a repeated `auto off` by hiding
+the gate label of done lane steps in `engine/board/page/panel.ts`. Spec rule B3 of #311 requires
+the gate label on the lane steps in the details in both auto modes, and no maintainer decision
+narrowed it. The task reviewer compared the base and the head in a browser: on the base with auto
+on, the done steps show `auto`; on the head, they show nothing in either mode. Fix bbcc54e restored
+the earlier line. The lesson rules of Task 11 in the plan did not name this lesson.
+
 ## Root cause
 
 Inferred, not established: in #182 the condition was added to hold out a stale status between two
@@ -252,6 +297,12 @@ pattern matches; the same tokens also occur in an expression position. The brief
 lesson, so this is a further recurrence of a rule that was not followed. Uncertain: the expression
 form looked too rare to matter, and the ruling was written inside a review loop.
 
+In #311, observed: the plan's lesson rules for the design-review task named three other lessons and
+not this one. Inferred: a refine fix of a design review can narrow a spec rule like a plan
+condition, but the earlier applicability named only plans, briefs, and rulings, so the lesson was
+not retrieved for the refine work. Uncertain alternative: "refinement preserves" of the design
+review was read as "keeps the look", not "keeps every spec rule".
+
 ## Fix
 
 Proposed prevention (text, not enforced): when a plan states a rule that the spec states, quote
@@ -274,10 +325,18 @@ check pass a pattern, the brief lists each mode that the pattern matches (for ex
 syntactic position of the same tokens), not only the mode of the failing input. A form that the
 spec refuses is never an accepted limit of the fix without a recorded maintainer decision.
 
+A refine fix of a design review, or of another refine pass, that removes, hides, or limits an
+element, a label, or a state that the approved spec names, quotes the spec rule of that element
+before the fix. It keeps the fix only when the spec allows the narrower form or a maintainer
+decision records it; else it reports the finding as one that needs a new look.
+
 This depends on judgment about which modes and rules exist and which wording is a change, so it
 stays a text rule; a structural check would need a machine-readable spec rule, which the project
 does not have. A proposed follow-up, which needs separate authorization: the acceptance coverage
-review of the plan step compares each plan rule that quotes the spec with its source text.
+review of the plan step compares each plan rule that quotes the spec with its source text. A second
+proposed follow-up, which also needs separate authorization (owner: the plugin `celetis`): the plan
+skill carries this lesson into the lesson rules of each design-review task; its check is a plan
+whose design-review task lacks it.
 
 ## Detection signature
 
@@ -288,11 +347,14 @@ how an element opens, takes the focus, or stops, and restates another rule of th
 new condition ("with the focus inside the dialog"). A fix brief that widens a pattern of a check
 ("add `/` to the lookbehind so that a path segment passes") with no quote of the spec rule of
 that check. A ruling or a fix brief that states a new pass condition and records a form that the
-spec refuses as an accepted limit.
+spec refuses as an accepted limit. A refine fix whose diff adds a condition that hides or drops a
+spec-named label or element (for example `step.state !== 'done' && ...`), and a base-and-head
+probe in which that element shows on the base and not on the head.
 
 ## Rule
 
-Applies when a plan, a task brief, a repair brief, a fix brief, or a review ruling changes a rule
+Applies when a plan, a task brief, a repair brief, a fix brief, a review ruling, or a refine fix of
+a design review or of another refine pass changes a rule
 that the approved spec states (an added condition, a removed case, a narrower scope, or a change of
 what a check refuses or passes), or changes a mode of an element or an operation that other spec
 rules of that element cover (for example how a dialog opens, or when a process stops). Action: quote each affected spec rule, including each
@@ -303,4 +365,6 @@ excluded mode is one that the spec excludes too, or the plan or the ruling recor
 decision for it; a repair brief names each sibling rule with its case, and the repair's probe runs
 each case; each probe case that a fix moves from refused to passed, or the reverse, gets the same
 result from the quoted spec rule; no form that the spec refuses passes as an accepted limit
-without a recorded maintainer decision.
+without a recorded maintainer decision; after a refine fix, a probe of the reviewed state shows
+each spec-named element in each mode of its spec rule, on the base and on the head, or the finding
+goes to the report as one that needs a new look.

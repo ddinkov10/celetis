@@ -1,6 +1,6 @@
 import type { RowSource, StartPair } from '../../lib/effort.ts';
 import type { Registry } from '../../lib/host-names.ts';
-import type { Action, Card, Flow } from '../types.ts';
+import type { Action, Card, DaemonView, Flow } from '../types.ts';
 import {
   agentOf,
   clock,
@@ -13,7 +13,7 @@ import {
   shortPath,
   stateLabel,
 } from '../view.ts';
-import { $, actionButton, copy, el, icon, iconButton, link, mark, prChips, timed } from './ui.ts';
+import { $, actionButton, copy, el, gateLabel, icon, iconButton, link, mark, prChips, timed } from './ui.ts';
 
 const TONES: Record<string, string> = {
   waits: 'needs',
@@ -71,7 +71,7 @@ const ask = (card: Card, actions: Action[], registry: Registry) => {
   return node;
 };
 
-const steps = (card: Card, flow: Flow | null) => {
+const steps = (card: Card, flow: Flow | null, auto: DaemonView['auto']) => {
   const track = laneTrack(card, flow);
   if (!track) return null;
   const list = el('ol', 'steps');
@@ -89,13 +89,7 @@ const steps = (card: Card, flow: Flow | null) => {
     );
     const note = step.state === 'done' ? 'done' : step.state === 'now' ? (card.state ? stateLabel(card) : 'next') : '';
     item.append(node, el('span', 'name', step.name), el('span', 'note', note));
-    item.append(
-      gateOf(flow, step.name) === 'auto'
-        ? Object.assign(el('span', 'gate gate-auto', 'auto'), {
-            title: 'Auto mode of the daemon starts this step by itself',
-          })
-        : el('span'),
-    );
+    item.append(gateOf(flow, step.name) === 'auto' ? gateLabel(auto) : el('span'));
     list.append(item);
   }
   return section(
@@ -154,7 +148,15 @@ export const drawPanel = (
     registry,
     on,
     close,
-  }: { actions: Action[]; flow: Flow | null; registry: Registry; on: string; close: () => void },
+    auto,
+  }: {
+    actions: Action[];
+    flow: Flow | null;
+    registry: Registry;
+    on: string;
+    close: () => void;
+    auto: DaemonView['auto'];
+  },
 ) => {
   const { state } = card;
   const asks = state === 'waits' && (card.number !== null || card.waitFor === 'dialog');
@@ -203,7 +205,12 @@ export const drawPanel = (
   if (asks) body.append(ask(card, actions, registry));
   else if (actions.length) {
     const row = el('div', 'panel-actions');
-    row.append(...actions.map((action) => actionButton(action)));
+    actions.forEach((action, index) => {
+      if (action.group && action.group !== actions[index - 1]?.group)
+        row.append(el('span', 'action-group', action.group));
+      row.append(actionButton(action));
+      if (action.help) row.append(el('span', 'action-help', action.help));
+    });
     body.append(row);
   }
   const isSession = Boolean(card.sessionId);
@@ -231,7 +238,7 @@ export const drawPanel = (
   body.append(
     ...[
       pr(card),
-      steps(card, flow),
+      steps(card, flow, auto),
       section(isSession ? 'Session' : 'Issue', null, facts(details)),
       pane && section('Screen', 'the last lines of its pane', pane),
     ].filter((node): node is HTMLElement => Boolean(node)),

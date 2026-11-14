@@ -1,6 +1,6 @@
 import { readdir, readFile, realpath } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
-import { readAgentOrder } from './agent-order.ts';
+import { effectiveOrder, readAgentOrder } from './agent-order.ts';
 import { activeBlock, readUsage, selectAgent } from './agent-usage.ts';
 import type { Diff, Document, Flow, History, LandedIssue, QuotaState } from './board-read-types.ts';
 import type { AgentDecision, AgentOrder, Host, UsageBlock } from './config-core.ts';
@@ -9,6 +9,7 @@ import { commit, isCommit } from './fields.ts';
 import { commonDir } from './git.ts';
 import { hostAvailability } from './host.ts';
 import { hosts } from './host-names.ts';
+import { capableOrder } from './hosts.ts';
 import { createOperation, locateCheckouts } from './operation.ts';
 import { queueOwner, queueView, readQueue, readQueueView } from './queue.ts';
 import type { QueueRecord, QueueView } from './queue-types.ts';
@@ -72,6 +73,7 @@ async function readDocument(
         step,
         {
           gate: operation.mainConfig?.gates?.[step] ?? defaultGate,
+          agent: operation.mainConfig?.agents?.[step] ?? null,
           ...(lands(step) ? { hint: 'It lands the change when the build is done.' } : {}),
         },
       ]),
@@ -241,10 +243,15 @@ export type AgentState = Readonly<{
   order: AgentOrder;
   usage: Record<Host, UsageBlock | null>;
   next: AgentDecision;
+  starts: Readonly<Record<string, AgentDecision>>;
   quota: ReadonlyMap<number, QuotaState>;
 }>;
 
-export async function readAgentState(main: string, now: number): Promise<AgentState> {
+export async function readAgentState(
+  main: string,
+  now: number,
+  flow: Readonly<Record<string, { agent: Host | null }>>,
+): Promise<AgentState> {
   const common = await realpath(await commonDir(main));
   const order = await readAgentOrder(common);
   const records = await readUsage(common);
@@ -261,6 +268,15 @@ export async function readAgentState(main: string, now: number): Promise<AgentSt
     order,
     usage: Object.fromEntries(hosts.map((host) => [host, activeBlock(records, host, now)])) as AgentState['usage'],
     next: selectAgent({ kind: 'default' }, order.order, records, now, new Set(), false),
+    starts: Object.fromEntries(
+      steps.flatMap((step) => {
+        const entry = flow[step];
+        if (!entry) return [];
+        const preferred = entry.agent ?? undefined;
+        const capable = capableOrder(effectiveOrder(order.order, preferred), { kind: 'step', step }, preferred);
+        return [[step, selectAgent({ kind: 'default' }, capable, records, now, new Set(), false)]];
+      }),
+    ),
     quota,
   };
 }

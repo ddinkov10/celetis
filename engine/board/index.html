@@ -15,7 +15,7 @@
   <div class="brand"><span class="logo" id="logo"></span><h1>Agent board</h1><span class="slash" aria-hidden="true">/</span><span class="repo" id="repo"></span></div>
   <div class="views" role="group" aria-label="View"><button type="button" data-view="now"><span class="label">Now</span></button><button type="button" data-view="pipeline"><span class="label">Pipeline</span></button></div>
   <div class="summary" id="summary" role="group" aria-label="Counts"></div>
-  <div class="intake-control"><button type="button" class="btn primary" id="intake" aria-describedby="intake-reason"><span class="label">New intake</span></button><span id="intake-reason" class="intake-reason" hidden></span></div>
+  <div class="intake-control"><button type="button" class="btn ghost" id="intake" aria-describedby="intake-reason"><span class="label">New intake</span></button><span id="intake-reason" class="intake-reason" hidden></span></div>
   <button type="button" class="btn ghost co-open" id="coordinator-open" aria-controls="coordinator" aria-expanded="false" data-state="none"><span class="label">Coordinator</span><i class="co-mark" aria-hidden="true"></i><span class="co-open-state">no session</span><i class="co-new" aria-hidden="true" hidden></i></button>
   <button type="button" class="find" id="find" aria-label="Search or run a step: the cards, history, and commands" aria-keyshortcuts="Control+K Meta+K /"><span class="find-text">Search or run a step</span><kbd>⌘K</kbd></button>
   <button type="button" class="btn ghost" id="queue-open" aria-controls="queue" aria-pressed="false">Queue</button>
@@ -67,7 +67,6 @@
   <button type="button" class="sb-btn update-open" id="update-open" aria-controls="update-dialog" aria-expanded="false" aria-label="Check for updates, Celetis" title="Check for updates, Celetis"><span class="label">Check for updates</span></button>
   <span class="sb-end">
     <span class="hints" id="hints" aria-hidden="true"></span>
-    <button type="button" class="sb-btn" id="history-count" aria-controls="panel" title="Open landed history"><span class="sb-name">Landed</span><b id="history-total">0</b></button>
     <button type="button" class="sb-btn" id="notify" aria-pressed="false"></button>
     <button type="button" class="sb-btn" id="keys-open" title="Keyboard shortcuts (?)"><span class="sb-name">Keys</span></button>
     <button type="button" class="sb-btn" id="board-more" aria-label="More board actions" aria-haspopup="menu" aria-expanded="false" title="More board actions"></button>
