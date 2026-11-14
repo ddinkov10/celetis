@@ -71,10 +71,15 @@ completion criterion of a skill.
   The installed engine `celetis` runs the command; `<plugin>` locates only the documents that the
   skills cite. When `celetis` is not on `PATH`, stop before the workflow command, and tell the
   person to install the engine (`<plugin>/README.md`, "First install") and to start a fresh session.
-- **GitHub.** Run each write that an act of `celetis --agent <host> issue <n> <act>` makes through
-  that act: the engine reads these writes. Use `gh` for reads and for each other write, for example
-  the `## Intent` and `## External facts` comments and the sub-issue link of an epic child
-  (`<plugin>/docs/issue-tracker.md`, "Conventions", lists the acts and the `gh` forms).
+- **GitHub.** Run each issue write in the repository of the checkout through an act of the
+  command `issue`: `celetis --agent <host> issue <n> <act>`,
+  `celetis --agent <host> issue create <file>` for a new issue, and
+  `celetis --agent <host> issue <n> comment <file>` for each other comment. `issue create` prints
+  the URL of the new issue first. With a URL on stdout, the issue exists, also on a nonzero exit:
+  continue with its number, and never create it again. With no URL on stdout, the exit line says
+  whether the issue can exist: when it can, read the open issues before a new create. Use `gh`
+  for reads, for the sub-issue link of an epic child, and for writes to another
+  repository (`<plugin>/docs/issue-tracker.md`, "Conventions", lists the acts and the `gh` forms).
 - **Skills.** Invoke a skill as the part of the host says. Each invocation is a new entry, with its
   own checkout and its own custom text: a same-session handoff and an invocation in a child agent
   too. Keep the invocation input across a handoff. A missing required Superpowers skill stops the

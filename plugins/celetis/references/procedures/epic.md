@@ -35,12 +35,15 @@ start a parent run or replace explicit acceptance.
 
 ## The children
 
-The sub-issues API takes the child's database ID, not its issue number:
+Make each child from a one-line intent file whose first line is `# Intent: <title>`. `<child>`
+is the number of the URL that `issue create` prints. The sub-issues API takes the child's
+database ID, not its issue number. The route sets the lane label of the child:
 
 ```bash
-url=$(gh issue create --label enhancement --title "..." --body "...")
-cid=$(gh api "repos/{owner}/{repo}/issues/${url##*/}" --jq .id)
+celetis --agent <host> issue create <child intent>
+cid=$(gh api "repos/{owner}/{repo}/issues/<child>" --jq .id)
 gh api --method POST "repos/{owner}/{repo}/issues/<epic>/sub_issues" -F sub_issue_id="$cid"
+celetis --agent <host> issue <child> route feature
 ```
 
 - **List all children**: `gh api --paginate repos/{owner}/{repo}/issues/<epic>/sub_issues --jq '.[] | "\(.html_url) \(.state) \(.title)"'`.

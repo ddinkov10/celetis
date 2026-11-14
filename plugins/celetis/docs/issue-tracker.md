@@ -12,20 +12,23 @@ In this document, these names are files of the repository `celetis`, also when a
 
 ## Conventions
 
-The skills use these `gh` forms:
+The skills use these forms:
 
-- **Create an issue**: `gh issue create --title "..." --body-file <file>` (or `--body "..."` with a heredoc).
+- **Create an issue**: `celetis --agent <host> issue create <file>`. The first line of the file
+  is `# Intent: <title>`; the act takes the title from it, posts the whole file as the body, and
+  sets `needs-triage`.
 - **Read an issue**: `gh issue view <n> --comments`; for structured output `--json number,title,body,labels,comments`.
 - **List issues**: `gh issue list --state open --json number,title,labels --jq '.[] | "#\(.number)\t\([.labels[].name] | join(","))\t\(.title)"'`, filtered with `--label` and `--state`.
-- **Comment**: `gh issue comment <n> --body-file <file>` / `--body "..."`.
-- **Replace the body**: `gh issue edit <n> --body-file <file>`.
-- **Labels**: `gh issue edit <n> --add-label "..."` / `--remove-label "..."`.
-- **Close**: `gh issue close <n> --comment "..."`.
+- **Comment**: `celetis --agent <host> issue <n> comment <file>`, with one
+  `--attach '<file>#<alt text>'` for each image or video.
 
-The forms above serve the reads and the writes that no act makes; each write that an act makes
-goes through the act ([the entry](../references/procedures/entry.md#the-contract), **GitHub.**).
-In this document, `issue <n> <act>` stands for `celetis --agent <host> issue <n> <act>`. The command reads the issue once,
-checks the prerequisite of the act with the rules of the resolver, and then writes. Epic acts
+Each issue write in the repository of the checkout goes through an act
+([the entry](../references/procedures/entry.md#the-contract), **GitHub.**), so each write leaves
+the refresh hint that a running board reads. `gh` serves the reads, the sub-issue link of an epic
+child, and the writes to another repository. In this document, `issue <n> <act>` stands for
+`celetis --agent <host> issue <n> <act>`, and `issue create <file>` for
+`celetis --agent <host> issue create <file>`, which takes no number. The command reads the issue
+once, checks the prerequisite of the act with the rules of the resolver, and then writes. Epic acts
 also use the protected current-state reads in "Epic completion and repair":
 
 <!-- scripts/build.ts writes the act table from engine/lib/contract.ts. Edit that file, then run scripts/build.ts. -->
@@ -33,6 +36,8 @@ also use the protected current-state reads in "Epic completion and repair":
 |---|---|---|
 | `route feature\|bug\|chore\|hotfix` | open; not an epic | the label of the lane; it removes the other lane labels and `needs-triage` |
 | `effort <step> <model> <level> <file>` | open | an `Effort: <step> <model> <level>` comment ("What lives on the issue", "Effort"); no label change |
+| `create <file>` | none; it takes no issue number | a new issue with the title from the first line `# Intent: <title>`, the whole file as its body, and `needs-triage`; it prints the URL of the new issue first |
+| `comment <file> [--attach <file>#<alt>]` | an issue, open or closed; not a pull request | the file as a comment, with each `--attach` file uploaded (the flag repeats, at most 50 times); it refuses a first line that is a lifecycle heading or the effort marker |
 | `epic <file>` | open feature or epic; valid declaration and current child references | the complete parent body, then adds `epic` and removes `enhancement` as needed; clears no hold |
 | `epic-state` | readable parent and complete children | nothing; the JSON snapshot of "Epic acceptance submission" |
 | `complete-epic [file]` | "Epic completion and repair" | an accepted record, then closes as completed; an already closed parent has no write |
@@ -52,7 +57,12 @@ also use the protected current-state reads in "Epic completion and repair":
 
 - The command writes the heading of each lifecycle comment. Its `<file>` holds text with no heading: the
   command refuses a file whose first line that is not blank starts with `## `, and, for `spec`,
-  one that starts with `Spec:`. For `effort`, it also refuses a file with no text. `assisted`
+  one that starts with `Spec:`. For `effort`, it also refuses a file with no text. `comment`
+  instead refuses an empty file, and a file whose text, after leading white space, starts with a
+  lifecycle heading or with `Effort:`; the refusal names the act for that record. Other headings,
+  for example `## Intent`, `## Captured`, and `## External facts`, pass. `issue create` prints the
+  URL of the new issue before any other write: a URL on stdout means that the issue exists, also
+  when GitHub dropped `needs-triage` and the act exits 6. `assisted`
   inserts `Reported by the assistance agent (` followed by the selected host in backticks and
   `).` before the supplied report text. The epic definition file instead holds the complete parent
   body, and a completion file holds strict JSON.

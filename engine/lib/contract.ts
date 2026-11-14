@@ -169,6 +169,7 @@ type ActDeclaration = Readonly<{
   words: readonly string[];
   flags: readonly Flag[];
   argument: IssueArgument;
+  numbered?: false;
   prerequisite: string;
   writes: string;
 }>;
@@ -187,6 +188,23 @@ export const issueActs = {
     argument: 'effort',
     prerequisite: 'open',
     writes: 'an `Effort: <step> <model> <level>` comment ("What lives on the issue", "Effort"); no label change',
+  },
+  create: {
+    words: ['create', '<file>'],
+    flags: [],
+    argument: 'file',
+    numbered: false,
+    prerequisite: 'none; it takes no issue number',
+    writes:
+      'a new issue with the title from the first line `# Intent: <title>`, the whole file as its body, and `needs-triage`; it prints the URL of the new issue first',
+  },
+  comment: {
+    words: ['comment', '<file>'],
+    flags: [optional('--attach', '<file>#<alt>')],
+    argument: 'file',
+    prerequisite: 'an issue, open or closed; not a pull request',
+    writes:
+      'the file as a comment, with each `--attach` file uploaded (the flag repeats, at most 50 times); it refuses a first line that is a lifecycle heading or the effort marker',
   },
   epic: {
     words: ['epic', '<file>'],
@@ -519,8 +537,10 @@ export const commands: readonly Entry[] = [
   entry(
     'issue',
     true,
-    Object.values(issueActs).map((act) => form(['issue', '<n>', ...act.words], act.flags)),
-    `Makes each workflow write that the engine reads: ${issueActList}. The assistance act records an attributed \`## Human steps done\` report before removing present blocking labels; it adds no label and preserves build state. Lifecycle acts write the comment heading before label changes. Each act refuses unmet prerequisites. \`state\` writes nothing and prints lifecycle facts. \`epic-state\` writes nothing and prints the current declaration, child snapshot, history, and holds. Epic definition writes preserve the complete parent body; guarded completion publishes its accepted record before closing and leaves readiness labels unchanged. \`docs/issue-tracker.md\`, "Conventions", gives each act`,
+    Object.values(issueActs).map((act) =>
+      form('numbered' in act ? ['issue', ...act.words] : ['issue', '<n>', ...act.words], act.flags),
+    ),
+    `Makes each issue write of a session in the repository of the checkout: ${issueActList}. The acts other than \`create\` and \`comment\` are the workflow writes that the engine reads. \`create\` prints the URL of the new issue before any other write: a URL on stdout means that the issue exists, also on a nonzero exit. \`comment\` refuses a file whose first line is a lifecycle heading or the effort marker, and names the act for that write. The assistance act records an attributed \`## Human steps done\` report before removing present blocking labels; it adds no label and preserves build state. Lifecycle acts write the comment heading before label changes. Each act refuses unmet prerequisites. \`state\` writes nothing and prints lifecycle facts. \`epic-state\` writes nothing and prints the current declaration, child snapshot, history, and holds. Epic definition writes preserve the complete parent body; guarded completion publishes its accepted record before closing and leaves readiness labels unchanged. \`docs/issue-tracker.md\`, "Conventions", gives each act`,
   ),
   entry(
     'next-step',

@@ -252,12 +252,12 @@ and such a comment ends a current landing refusal (`<plugin>/docs/issue-tracker.
 issue's state"). Post with one `--attach` for each capture:
 
 ```sh
-gh issue comment <n> --attach '<file>#<alt text>' --body-file <body file>
+celetis --agent <host> issue <n> comment <body file> --attach '<file>#<alt text>'
 ```
 
 One comment holds at most 50 files, and each image is at most 10 MB. More captures go into more
 comments, each with its own first line: 5 variants × 6 states × 2 sizes are 60 captures, so two
-comments. `gh` prints the URL of each comment. Keep it for the hand-over and the record.
+comments. The act prints the URL of each comment. Keep it for the hand-over and the record.
 
 ## A direct run
 

@@ -2,6 +2,7 @@ import { exits } from './contract.ts';
 import { completionIdentity, parseAcceptedEpic, parseEpicAcceptance } from './epic-acceptance.ts';
 import { HostError } from './errors.ts';
 import { isIssueNumber } from './fields.ts';
+import { writeRefreshHint } from './refresh-hints.ts';
 import { repositoryLayout, withLock } from './state.ts';
 import { type GitHub, github } from './tracker.ts';
 import {
@@ -107,6 +108,7 @@ export async function writeEpicDefinition(main: string, common: string, n: strin
         exits.blocked,
       );
     }
+    for (const child of children) await writeRefreshHint(main, child.number);
   });
 }
 

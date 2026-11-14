@@ -24,7 +24,7 @@ own completion and continuation rules.
    assistance session. Attribute agent actions to the agent. Invent no public comment link,
    human contribution, approval, or observed result.
 5. While any current contribution remains missing, record completed work in an ordinary issue
-   comment with `gh issue comment <n> --body-file <file>`. Keep every affected hold and publish
+   comment with `celetis --agent <host> issue <n> comment <file>`. Keep every affected hold and publish
    no lifecycle completion report for a mixed block.
 6. For conflicting lane labels, use `celetis --agent <host> issue <n> route <lane>` once the
    intended lane is established. Ask when it is unknown. Routing does not complete a separate

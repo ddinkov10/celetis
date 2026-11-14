@@ -22,7 +22,8 @@ import { isIssueNumber } from './lib/fields.ts';
 import { hostAdapter } from './lib/hosts.ts';
 import { lineOf } from './lib/lines.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
-import { type Edit, github } from './lib/tracker.ts';
+import { writeRefreshHint } from './lib/refresh-hints.ts';
+import { type Edit, GitHubError, github } from './lib/tracker.ts';
 import {
   type Decision,
   decide,
@@ -50,7 +51,7 @@ type Context = Readonly<{
 }>;
 type Writes = Readonly<{ comment?: string; add?: readonly Label[]; remove?: readonly Label[] }> & Edit;
 type Write = Readonly<{ send(): Promise<void>; flags: readonly string[]; close?: boolean }>;
-type EngineAct = Exclude<IssueAct, 'epic' | 'epic-state' | 'complete-epic'>;
+type EngineAct = Exclude<IssueAct, 'epic' | 'epic-state' | 'complete-epic' | 'create' | 'comment'>;
 type Act = Readonly<{
   ready(context: Context): boolean;
   writes(context: Context): Writes;
@@ -135,6 +136,21 @@ const acts: Readonly<Record<EngineAct, Act>> = {
   state: { ready: () => true, writes: () => ({}) },
 };
 
+const lifecycleActs: Readonly<Record<keyof typeof headings, IssueAct>> = {
+  plan: 'plan',
+  built: 'built',
+  rootCause: 'root-cause',
+  beforeLanding: 'before-landing',
+  landingRefused: 'landing-refused',
+  humanStepsDone: 'assisted',
+  stopped: 'stopped',
+};
+const recorded: readonly (readonly [string, IssueAct])[] = [
+  ...Object.entries(lifecycleActs).map(([key, act]) => [headings[key as keyof typeof headings], act] as const),
+  ['Effort:', 'effort'],
+];
+const maxAttachments = 50;
+
 function die(outcome: ExitClass, message: string, ...details: string[]): never {
   throw new HostError(
     [`issue: ${outcome}: ${message}`, ...details.map((detail) => detail.trimEnd()).filter(Boolean)].join('\n'),
@@ -147,7 +163,100 @@ function today(): string {
   return [now.getFullYear(), now.getMonth() + 1, now.getDate()].map((part) => String(part).padStart(2, '0')).join('-');
 }
 
+async function readText(file: string): Promise<string> {
+  return readFile(file, 'utf8').catch((error: Error) => die('usage', `cannot read ${file}: ${error.message}`));
+}
+
+async function enter(explicit: string | undefined) {
+  const operation = await createOperation(
+    await locateCheckouts(process.cwd()),
+    { explicit, environment: process.env.CELETIS_AGENT },
+    'host',
+  );
+  const main = operation.checkout.main ?? die('usage', 'run the command inside a Git checkout');
+  await hostAdapter(operation.host).checkHome();
+  return { operation, main };
+}
+
+async function createIssue(argv: string[], explicit: string | undefined): Promise<ExitCode> {
+  const [, file = ''] = argv;
+  if (argv.length !== 2 || !file) die('usage', usageText('issue'));
+  const body = await readText(file);
+  const first =
+    body
+      .replace(/^\uFEFF/, '')
+      .replace(/^(?:[ \t]*\r?\n)+/, '')
+      .split('\n')[0]
+      ?.trimEnd() ?? '';
+  const intent = /^# Intent: (.*)$/.exec(first)?.[1]?.trim();
+  if (!intent) die('usage', `${file}: the first line must be # Intent: <title>, with a title`);
+  const title = `Intent: ${intent}`;
+  const { main } = await enter(explicit);
+  const gh = github(main);
+  const issue = await gh.createIssue({ title, body, labels: ['needs-triage'] }).catch((error: unknown) => {
+    const details = [gh.stderr(), error instanceof Error ? error.message : String(error)];
+    if (error instanceof GitHubError && error.stderr !== null && /\bHTTP 4\d\d\b/.test(error.stderr))
+      die('blocked', 'GitHub refused the create; no issue was written', ...details);
+    die(
+      'blocked',
+      'the create has no readable answer; the issue can exist, so read the open issues before you create it again',
+      ...details,
+    );
+  });
+  console.log(issue.url);
+  await writeRefreshHint(main, issue.number);
+  if (!issue.labels.includes('needs-triage'))
+    die(
+      'blocked',
+      `${issue.url} exists, but GitHub did not set needs-triage; add the label with an account that has push access, and do not create the issue again`,
+      gh.stderr(),
+    );
+  process.stderr.write(gh.stderr());
+  return exits.done;
+}
+
+async function commentIssue(argv: string[], explicit: string | undefined): Promise<ExitCode> {
+  const [number = '', , file = '', ...pairs] = argv;
+  const n = number.replace(/^#/, '');
+  const attachments: string[] = [];
+  for (let index = 0; index < pairs.length; index += 2) {
+    const value = pairs[index + 1];
+    if (pairs[index] !== '--attach' || !value) die('usage', usageText('issue'));
+    attachments.push(value);
+  }
+  if (!isIssueNumber(n) || !file || attachments.length > maxAttachments) die('usage', usageText('issue'));
+  const text = await readText(file);
+  if (!text.trim()) die('usage', `${file} is empty; give the text of the comment`);
+  const start = text.replace(/^\uFEFF/, '').trimStart();
+  const owner = recorded.find(([prefix]) => start.startsWith(prefix));
+  if (owner)
+    die(
+      'usage',
+      `${file} starts with ${owner[0]}; write that record with celetis --agent <host> issue <n> ${owner[1]}`,
+    );
+  await enter(explicit);
+  const gh = github(process.cwd());
+  const issue = await gh.issue(n).catch(() => null);
+  if (!issue) die('blocked', `cannot read #${n} from GitHub`, gh.stderr());
+  if (issue.pull) die('prerequisite', `#${n} is a pull request; comment takes an issue`);
+  const url = await gh
+    .commentIssue(n, file, attachments)
+    .catch((error: unknown) =>
+      die(
+        'blocked',
+        `#${n}: the comment write failed`,
+        gh.stderr(),
+        error instanceof Error ? error.message : String(error),
+      ),
+    );
+  process.stdout.write(url);
+  process.stderr.write(gh.stderr());
+  return exits.done;
+}
+
 async function execute(argv: string[], explicit: string | undefined): Promise<ExitCode> {
+  if (argv[0] === 'create') return createIssue(argv, explicit);
+  if (argv[1] === 'comment') return commentIssue(argv, explicit);
   const [number = '', name = '', argument = '', flag] = argv;
   const n = number.replace(/^#/, '');
   const known = Object.hasOwn(acts, name) ? (name as EngineAct) : undefined;
@@ -173,7 +282,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
     die('usage', usageText('issue'));
   let text = '';
   if (kind === 'file' || kind === 'effort' || name === 'epic' || (name === 'complete-epic' && argv.length === 3)) {
-    text = await readFile(file, 'utf8').catch((error: Error) => die('usage', `cannot read ${file}: ${error.message}`));
+    text = await readText(file);
     const first = text.trimStart().split(/\r?\n/)[0] ?? '';
     if (!epic && first.startsWith('## ')) die('usage', `${file} starts with a ## line; give the text with no heading`);
     if (name === 'spec' && first.startsWith('Spec:'))
@@ -192,13 +301,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
     const declaration = parseEpicAcceptance(text);
     if (declaration.kind === 'unresolved') die('usage', declaration.reason);
   }
-  const operation = await createOperation(
-    await locateCheckouts(process.cwd()),
-    { explicit, environment: process.env.CELETIS_AGENT },
-    'host',
-  );
-  const main = operation.checkout.main ?? die('usage', 'run the command inside a Git checkout');
-  await hostAdapter(operation.host).checkHome();
+  const { operation, main } = await enter(explicit);
   if (epic) {
     const common = operation.checkout.common ?? die('usage', 'run the command inside a Git checkout');
     if (name === 'epic-state') {

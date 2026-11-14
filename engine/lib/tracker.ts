@@ -1,6 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { Label } from './contract.ts';
 import { parseEpicAcceptance, parseEpicChildren, parseEpicRepository } from './epic-acceptance.ts';
 import { isIssueNumber } from './fields.ts';
 import { run } from './process.ts';
@@ -64,6 +65,7 @@ export type Bucket = 'pass' | 'skipping' | 'fail' | 'cancel' | 'pending';
 export type PullFilter = Readonly<{ state: 'open' }> | Readonly<{ head: string; state: 'closed' | 'all' }>;
 export type NewPull = Readonly<{ base: string; head: string; title: string; body: string }>;
 export type NewLabel = Readonly<{ name: string; description: string; color: string }>;
+export type NewIssue = Readonly<{ title: string; body: string; labels: readonly Label[] }>;
 
 export type GitHub = Readonly<{
   api(endpoint: string): Promise<unknown>;
@@ -87,7 +89,9 @@ export type GitHub = Readonly<{
   parent(n: string): Promise<Parent>;
   labels(): Promise<readonly string[]>;
   createLabel(fields: NewLabel): Promise<void>;
+  createIssue(fields: NewIssue): Promise<Issue>;
   comment(n: string, text: string): Promise<void>;
+  commentIssue(n: string, file: string, attachments: readonly string[]): Promise<string>;
   addLabels(n: string, names: readonly string[]): Promise<void>;
   removeLabel(n: string, name: string): Promise<void>;
   edit(n: string, fields: Edit): Promise<void>;
@@ -523,8 +527,27 @@ export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
     async createLabel(fields: NewLabel) {
       await send('POST', 'labels', { fields });
     },
+    async createIssue(fields: NewIssue) {
+      const raw = await send('POST', 'issues', { fields, silent: false });
+      return parsed('issues', () => parseIssue(json(raw)));
+    },
     async comment(n: string, text: string) {
       await send('POST', `issues/${n}/comments`, { fields: { body: text } });
+    },
+    async commentIssue(n: string, file: string, attachments: readonly string[]) {
+      signal?.throwIfAborted();
+      const result = await run(
+        'gh',
+        ['issue', 'comment', n, `--body-file=${file}`, ...attachments.map((value) => `--attach=${value}`)],
+        { cwd, signal, env },
+      );
+      if (result.code !== 0) {
+        const failure = `${result.stdout}${result.stderr}`.trimEnd();
+        throw new GitHubError(`issues/${n}/comments`, failure, result.stderr, failure);
+      }
+      stderr += result.stderr;
+      await writeRefreshHint(cwd, Number(n));
+      return result.stdout;
     },
     async addLabels(n: string, names: readonly string[]) {
       await send('POST', `issues/${n}/labels`, { fields: { labels: names } });

@@ -40,8 +40,8 @@ comes first; after an entry stop, this check does not run.
 
 Create the issue first, and continue with its number: fill the template of
 `<plugin>/references/procedures/intent.md` into a file, then run
-`gh issue create --label needs-triage --title "<one line>" --body-file <intent>`. Then continue
-as "Any other issue" with the new number.
+`celetis --agent <host> issue create <intent>`. Then continue as "Any other issue" with the
+number of the URL that it prints.
 
 ### An epic
 

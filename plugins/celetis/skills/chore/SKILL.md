@@ -48,7 +48,7 @@ observable changes, mid-lane or not, the work belongs in `/celetis:bug` or `/cel
      `<plugin>/references/principles/test-behavior-not-implementation.md`.
    - A dependency bump: read the changelog or release notes between the old and the new version per
      `<plugin>/references/procedures/docs-lookup.md`, and post an issue comment whose first line is
-     `## External facts` (`gh issue comment <n> --body-file <file>`) that names each breaking change
+     `## External facts` (`celetis --agent <host> issue <n> comment <file>`) that names each breaking change
      that touches an API the repo uses, or states that none does.
 4. **Gates.** Run the verify gate of the project. The full suite runs once, on the tree that lands:
    the CI of the lane PR with the landing `pr`, or `land` at step 3 of the landing, which step 6

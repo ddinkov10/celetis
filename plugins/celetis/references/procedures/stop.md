@@ -69,7 +69,7 @@ A hold comment names only the acts of class 3. The step records each answer of c
 source (the maintainer's message in this session, or the message of the coordinator session with
 the authority of its header, with the date) on the issue: in the next comment
 that it posts (the plan, the runtime report), or in a short comment with no `## ` first line
-(`gh issue comment <n> --body-file <file>`) before the act that moves the line.
+(`celetis --agent <host> issue <n> comment <file>`) before the act that moves the line.
 
 At a repair limit, ask a live question with the options and the failure trail only when an option
 lets this session go on. The count of the limit stays. When each option needs a new plan or a fresh

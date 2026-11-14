@@ -136,7 +136,7 @@ GitHub access is required. An explicit issue-bound request uses the issue branch
 For lane work and explicit issue-bound requests, publish the report on the issue, or link an
 existing durable report,
 before recording build completion with `## Built` or `## Before landing`.
-Use `gh issue comment <n> --body-file <report>`. Its first line is ordinary text, for example
+Use `celetis --agent <host> issue <n> comment <report>`. Its first line is ordinary text, for example
 `Runtime verification for #<n>`, and does not start with `## `. This report changes no resolver
 state, clears no refusal, and never replaces a completion report. Use the existing
 `celetis --agent <host> issue <n> <act>` acts for workflow writes.

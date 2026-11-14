@@ -833,7 +833,11 @@ fresh read even when the last good document still has the blocked issue.
 
 The five-minute timer is measured from full-read starts. Selected reads do not postpone it.
 A due or manual full read waits for an active selected read, then runs before later target
-batches. This full read recovers direct GitHub edits that have no local hint. Requests can serve
+batches. This full read recovers each GitHub edit that has no local hint. A hint comes from each
+issue write of the engine: each `celetis issue` act that writes, `issue create` and
+`issue <n> comment` included, the `epic` act for each child, and a landing. An edit on the GitHub
+website or from a shell outside a session, and a `feedback` write to another repository, leave no
+hint. Requests can serve
 the last good document while a selected read runs. The last-read timestamp changes only after
 a successful full read. The stop of the board stops both timers and the active read.
 The server also starts these read-only commands, with no shell:

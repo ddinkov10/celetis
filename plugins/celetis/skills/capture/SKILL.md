@@ -54,19 +54,19 @@ change. Input: `#<n>`, or the request in free text.
 4. **Get the issue.**
    - Free text: do the intake job. Fill `<plugin>/references/procedures/intent.md` from the request in
      the person's words, save it as `docs/superpowers/intents/YYYY-MM-DD-<slug>-intent.md`, and
-     create the issue with `gh issue create --label needs-triage --title "<Intent title>"
-     --body-file <intent>`. Tell the person the issue number at once: a retry after an
-     interruption uses that `#<n>` and creates no second issue.
+     create the issue with `celetis --agent <host> issue create <intent>`. Tell the person the
+     number of the URL that it prints at once: a retry after an interruption uses that `#<n>` and
+     creates no second issue.
    - `#<n>` on the `run /celetis:triage` row with no intent (no `## Intent` comment, and a body
      that does not start with `# Intent:`): fill the intent as above, and post it first with
-     `gh issue comment <n> --body-file <intent>`, with `## Intent` as its first line.
+     `celetis --agent <host> issue <n> comment <intent>`, with `## Intent` as its first line.
    - Run no `setup status`: the lane that the capture hands on to runs it before its first issue
      write.
 5. **Post the record.** When the input is `#<n>`, run `celetis --agent <host> issue <n> state`
    again just before the post. When its `line:` or `refusal:` line differs from step 1, post nothing, show
    both, and start again at step 1. Save the record as
    `docs/superpowers/captures/YYYY-MM-DD-<n>-record.md`, with `## Captured` as its first line, and
-   post it with `gh issue comment <n> --body-file <record>`.
+   post it with `celetis --agent <host> issue <n> comment <record>`.
 6. **Hand on** by the states table. For free text, first read the intent back and ask
    "proceed?"; on no, stop, and the issue keeps its intent and its record. Invoke a lane skill as
    the entry contract says, with `#<n>`.
