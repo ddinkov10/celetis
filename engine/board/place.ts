@@ -10,7 +10,14 @@ import {
   readStepEnds,
 } from '../lib/board-read.ts';
 import type { CoordinatorFacts } from '../lib/coordinator-types.ts';
-import type { DaemonStatus } from '../lib/daemon-types.ts';
+import {
+  codexStopLine,
+  type DaemonStatus,
+  type LandingRow,
+  type RunRow,
+  stopKeptLine,
+  unprovedStopAct,
+} from '../lib/daemon-types.ts';
 import { isHost, registry } from '../lib/host-names.ts';
 import { bunArgs } from '../lib/process.ts';
 import { daemonScript } from '../lib/process-identity.ts';
@@ -63,6 +70,8 @@ export type LaunchFeedback = { step: string | null } & (
 const time = (iso: string) => Date.parse(iso);
 const QUOTA_WAIT =
   'Every included agent reached a usage limit. The run waits; the agent order shows the resets and Retry.';
+const STOPPING = 'The daemon ends the session. The card moves to Idle when the session has ended.';
+const STOPPABLE: ReadonlySet<RunRow['state']> = new Set(['running', 'waiting', 'checking', 'stopping']);
 const QUOTA_ORPHAN = 'The run of this step stopped during a usage-limit recovery. Run starts the step again.';
 
 export const stepsOf = (flow: Flow | null | undefined): Set<string> => new Set(Object.values(flow?.lanes ?? {}).flat());
@@ -101,6 +110,7 @@ export const launchMatches = (issue: IssueRow | undefined, step: string | null) 
   (issue.state === 'ready' ||
     issue.state === 'starting' ||
     issue.state === 'stuck' ||
+    issue.state === 'aside' ||
     (issue.state === 'blocked' && step === null));
 
 const issueCard = (issue: IssueRow, extra: Partial<Card>): Card => ({
@@ -121,6 +131,7 @@ const issueCard = (issue: IssueRow, extra: Partial<Card>): Card => ({
   run: false,
   resume: false,
   go: false,
+  aside: false,
   epic: issue.epic,
   pr: issue.pr,
   ...extra,
@@ -131,10 +142,31 @@ const PLACERS: Record<
   (issue: IssueRow, context: { flow: Flow; isOpen: boolean }) => [Column, Card]
 > = {
   starting: (issue) => ['running', issueCard(issue, { step: issue.step, state: 'starts' })],
-  dirty: (issue) => ['needs', issueCard(issue, { step: issue.step, state: 'dirty-tree', act: issue.path })],
+  aside: (issue, { isOpen }) => [
+    'idle',
+    issueCard(issue, {
+      step: issue.step,
+      state: 'set-aside',
+      act: issue.act,
+      path: issue.path,
+      run: isOpen,
+      resume: isOpen,
+    }),
+  ],
+  dirty: (issue, { isOpen }) => [
+    'needs',
+    issueCard(issue, { step: issue.step, state: 'dirty-tree', act: issue.path, aside: isOpen }),
+  ],
   stuck: (issue, { isOpen }) => [
     'needs',
-    issueCard(issue, { step: issue.step, state: 'no-progress', act: issue.act, run: isOpen, resume: isOpen }),
+    issueCard(issue, {
+      step: issue.step,
+      state: 'no-progress',
+      act: issue.act,
+      run: isOpen,
+      resume: isOpen,
+      aside: isOpen,
+    }),
   ],
   blocked: (issue, { isOpen }) => [
     'needs',
@@ -154,12 +186,24 @@ const STATUSES: Record<TerminalStatus, [Column, string, string | null]> = {
   error: ['needs', 'waits', 'turn'],
 };
 
-const placeSession = (session: Session, issue: IssueRow | undefined): [Column, Card] => {
+const placeSession = (
+  session: Session,
+  issue: IssueRow | undefined,
+  runs: readonly RunRow[],
+  landings: readonly LandingRow[],
+): [Column, Card] => {
   const status = STATUSES[session.status];
+  const row = runs.find((each) => each.issue === session.issue && each.terminal === session.sessionId);
+  const stoppable = row && STOPPABLE.has(row.state) && !landings.some((each) => each.issue === session.issue);
+  const kept = row?.line?.endsWith(stopKeptLine(session.issue as number))
+    ? stopKeptLine(session.issue as number)
+    : null;
   const [column, state, waitFor] =
-    status[2] === 'turn' && (session.stepEnd === 'checking' || session.stepEnd === 'exiting')
-      ? (['running', 'checks-step', null] as const)
-      : status;
+    row?.state === 'stopping'
+      ? (['running', 'stopping', null] as const)
+      : status[2] === 'turn' && (session.stepEnd === 'checking' || session.stepEnd === 'exiting')
+        ? (['running', 'checks-step', null] as const)
+        : status;
   return [
     session.issue === null ? 'human' : column,
     {
@@ -180,6 +224,11 @@ const placeSession = (session: Session, issue: IssueRow | undefined): [Column, C
       run: false,
       resume: false,
       go: true,
+      aside: false,
+      ...(stoppable && {
+        stop: { reason: row.host === 'codex' ? codexStopLine : row.state === 'stopping' ? STOPPING : null },
+      }),
+      ...(kept && { warning: kept }),
       epic: issue?.epic ?? null,
       pr: issue?.pr ?? null,
       waitFor,
@@ -206,11 +255,15 @@ export const place = ({
   board,
   launches,
   quota = new Map(),
+  runs = [],
+  landings = [],
 }: {
   sessions: Session[];
   board: Pick<Document, 'flow' | 'noRun' | 'issues'> | null;
   launches: Record<string, LaunchFeedback>;
   quota?: ReadonlyMap<number, QuotaState>;
+  runs?: readonly RunRow[];
+  landings?: readonly LandingRow[];
 }): Placement => {
   const columns: Columns = { needs: [], running: [], idle: [], human: [] };
   const issues = board?.issues ?? [];
@@ -218,7 +271,7 @@ export const place = ({
   const byNumber = new Map(issues.map((issue) => [issue.number, issue]));
   const busy = new Set(sessions.map((session) => session.issue));
   const placed = [
-    ...sessions.map((session) => placeSession(session, byNumber.get(session.issue as number))),
+    ...sessions.map((session) => placeSession(session, byNumber.get(session.issue as number), runs, landings)),
     ...issues
       .filter((issue) => !busy.has(issue.number))
       .map((issue): [Column, Card] => {
@@ -235,6 +288,16 @@ export const place = ({
         });
         const orphan = recovery?.kind === 'orphaned' ? QUOTA_ORPHAN : null;
         if (orphan) card.warning = orphan;
+        const unproved =
+          issue.state === 'starting'
+            ? runs.findLast(
+                (row) =>
+                  row.issue === issue.number &&
+                  row.outcome?.kind === 'stopped' &&
+                  row.outcome.reason.endsWith(unprovedStopAct),
+              )?.outcome?.reason
+            : undefined;
+        if (unproved) card.warning = unproved;
         if (!feedback) return [column, card];
         if (feedback.kind === 'failed') {
           card.warning = orphan ?? feedback.warning;
@@ -246,7 +309,17 @@ export const place = ({
         }
         return [
           'running',
-          { ...card, state: 'starts', act: null, assist: false, run: false, resume: false, go: false, effort: null },
+          {
+            ...card,
+            state: 'starts',
+            act: null,
+            assist: false,
+            run: false,
+            resume: false,
+            go: false,
+            aside: false,
+            effort: null,
+          },
         ];
       }),
   ];
@@ -467,7 +540,14 @@ export const createPlacement = ({
     } catch (cause) {
       agentError = agentCause(cause);
     }
-    const placed = place({ sessions, board: reads.document, launches, quota: agentState?.quota });
+    const placed = place({
+      sessions,
+      board: reads.document,
+      launches,
+      quota: agentState?.quota,
+      runs: daemon.runs,
+      landings: daemon.landings,
+    });
     const cards = Object.values(placed.columns).flat();
     const ids = new Map(cards.flatMap((card) => (card.sessionId ? [[card.sessionId, card.number] as const] : [])));
     const ended = [...shown].filter(([id]) => !ids.has(id)).map(([, number]) => number);

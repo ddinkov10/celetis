@@ -53,6 +53,7 @@ import { setupCoordinator } from './coordinator.ts';
 import { openMenu, openPalette, setupMenu, setupPalette } from './palette.ts';
 import { drawPanel } from './panel.ts';
 import { drawQueue, setQueueOpen, setupQueue } from './queue.ts';
+import { dialogOpen, openStopDialog } from './stop-dialog.ts';
 import {
   $,
   actionButton,
@@ -81,7 +82,8 @@ const SUMMARY: [Column | 'history', string][] = [
   ['idle', 'idle'],
   ['history', 'landed'],
 ];
-const COPY: Record<string, string> = { 'no-progress': 'command', 'dirty-tree': 'path' };
+const COPY: Record<string, string> = { 'no-progress': 'command', 'set-aside': 'command', 'dirty-tree': 'path' };
+const STOPPING = 'The daemon ends the session. The card moves to Idle when the session has ended.';
 const ON_ISSUE = new Set(['blocked']);
 const AUTO: Record<DaemonView['auto'], { tone: string; title: string }> = {
   on: { tone: 'ok', title: 'Auto mode starts each auto step.' },
@@ -93,6 +95,7 @@ const STATUS_ICONS: Record<string, string> = {
   starts: 'works',
   waits: 'target',
   'no-progress': 'alert',
+  stopping: 'stop',
   'dirty-tree': 'diff',
   blocked: 'person',
   'quota-wait': 'clock',
@@ -117,6 +120,10 @@ let startupWarnings = new Map<number, string>();
 let byKey = new Map<string, { card: Card; column: Column }>();
 let used = new Set<string>();
 let coordinatorLine: string | null = null;
+type Pressed = Map<number, 'pending' | 'done'>;
+const asides: Pressed = new Map();
+const stops: Pressed = new Map();
+const refusals = new Map<number, { sessionId: string | null; state: string | null; line: string }>();
 
 const SEEN_TURN = 'seen-turn:';
 const seenTurn = (terminal: string) => parseSeenTurn(store.get(`${SEEN_TURN}${terminal}`));
@@ -131,7 +138,9 @@ const seeTurn = (card: Card) => {
 const who = (card: Card) =>
   card.number === null ? (card.title ? `human session "${card.title}"` : 'a human session') : `#${card.number}`;
 const canRunLater = (card: Card) =>
-  card.sessionId === null && card.step && (card.state === null || card.state === 'no-progress');
+  card.sessionId === null &&
+  card.step &&
+  (card.state === null || card.state === 'no-progress' || card.state === 'set-aside');
 const copyWhat = (card: Card) => (card.act ? COPY[card.state as string] : null);
 const onTracker = () => ((data as Board).tracker ? ` on ${(data as Board).tracker}` : '');
 const readAgain = () => (data?.tracker ? `Read ${(data as Board).tracker} again` : 'Read the issues again');
@@ -329,11 +338,16 @@ const toMenuEntry = (action: Action, card: Card): MenuEntry => {
   return {
     icon: action.icon,
     label: action.name,
-    key: action.isMain ? 'Enter' : '',
+    key: action.isMain ? 'Enter' : (action.key ?? ''),
     isDisabled: action.isDisabled,
     title: action.title,
     run: action.href ? () => window.open(action.href, '_blank', 'noopener,noreferrer') : (action.run as () => unknown),
   };
+};
+
+const refusedRun = (isError: boolean, reason: string) => async () => {
+  toast(reason, { isError });
+  announce(reason);
 };
 
 const actionsOf = (card: Card): Action[] => {
@@ -381,7 +395,7 @@ const actionsOf = (card: Card): Action[] => {
       },
     });
   }
-  if (card.state === 'no-progress') {
+  if (card.state === 'no-progress' || card.state === 'set-aside') {
     if (card.resume) {
       list.push({
         id: 'resume',
@@ -405,7 +419,11 @@ const actionsOf = (card: Card): Action[] => {
         label: 'Run again',
         name: `Run again, #${card.number}`,
         isGhost: true,
-        title: base.isDisabled ? base.title : `Start the ${card.step} step again. It made no progress last time.`,
+        title: base.isDisabled
+          ? base.title
+          : card.state === 'no-progress'
+            ? `Start the ${card.step} step again. It made no progress last time.`
+            : `Start the ${card.step} step again`,
       });
       list.push(...overrideActionsOf(card, true));
     }
@@ -413,18 +431,21 @@ const actionsOf = (card: Card): Action[] => {
     list.push(runAction(card));
     list.push(...overrideActionsOf(card, false));
   }
-  if (card.state === 'dirty-tree') {
+  if (card.state === 'dirty-tree' || (card.state === 'set-aside' && card.path)) {
     list.push({
       id: 'shell',
       label: 'Open shell',
       icon: 'terminal',
       busy: 'Opening',
       name: `Open shell, #${card.number}`,
-      title: 'Open a shell in the worktree in a new herdr tab (Enter)',
+      title: `Open a shell in the worktree in a new herdr tab${card.state === 'dirty-tree' ? ' (Enter)' : ''}`,
       run: () =>
         act('/api/shell', { number: card.number }, 'Open shell failed', () =>
           toast(`Opened a shell in the worktree of #${card.number}`, {
-            detail: 'Commit or stash the changes there; then the card moves on.',
+            detail:
+              card.state === 'dirty-tree'
+                ? 'Commit or stash the changes there; then the card moves on.'
+                : 'Commit or stash the changes there.',
           }),
         ),
     });
@@ -463,6 +484,39 @@ const actionsOf = (card: Card): Action[] => {
           run: async () => toast(noRun, { isError: true }),
         });
       }
+  }
+  if (card.aside) {
+    const isBusy = asides.has(card.number as number);
+    list.push({
+      id: 'aside',
+      label: isBusy ? 'Setting aside' : 'Set aside',
+      icon: 'aside',
+      name: `Set aside #${card.number}`,
+      key: 's',
+      isGhost: true,
+      isBusy,
+      isDisabled: isBusy,
+      title: isBusy
+        ? 'The daemon sets this issue aside.'
+        : 'Move this issue to Idle. Auto mode skips it until you press Run or Resume (s)',
+      run: () => pressAct(asides, card, '/api/aside', { number: card.number }, asideText(card)),
+    });
+  }
+  if (card.stop) {
+    const isBusy = card.state === 'stopping' || stops.has(card.number as number);
+    const reason = isBusy ? STOPPING : card.stop.reason;
+    list.push({
+      id: 'stop',
+      label: isBusy ? 'Stopping' : 'Stop',
+      icon: 'stop',
+      name: `Stop the ${card.step} session of #${card.number}`,
+      key: 's',
+      isGhost: true,
+      isBusy,
+      isDisabled: Boolean(reason),
+      title: reason ?? 'End this session and set the issue aside (s)',
+      run: card.stop.reason ? refusedRun(card.state !== 'stopping', card.stop.reason) : () => openStop(card),
+    });
   }
   list.forEach((action, index) => {
     action.isMain = index === 0;
@@ -535,6 +589,12 @@ const startLabel = (pair: StartPair<RowSource>) => {
 
 const status = (card: Card, hasGlyph = true, isShort = false) => {
   const node = el('span', 'status');
+  if (card.state === 'set-aside') {
+    node.classList.add('aside-pill');
+    node.append(icon('aside'), el('span', 'status-label', stateLabel(card)));
+    if (card.step) node.append(el('span', 'detail mono', card.step));
+    return node;
+  }
   if (card.state) {
     if (hasGlyph) node.append(icon(STATUS_ICONS[card.state as string] ?? 'pending'));
     node.append(el('span', 'status-label', stateLabel(card)));
@@ -640,6 +700,24 @@ const runWithButton = (card: Card) => {
   return button;
 };
 
+const asideChip = (action: Action) => {
+  const node = el('button', `aside-chip${action.isBusy ? ' is-busy' : ''}`);
+  node.type = 'button';
+  node.title = action.title;
+  node.setAttribute('aria-label', action.name);
+  if (action.isDisabled) node.setAttribute('aria-disabled', 'true');
+  if (action.isBusy) node.setAttribute('aria-busy', 'true');
+  node.append(icon(action.icon), el('span', 'aside-chip-label', action.label));
+  node.addEventListener('click', (event) => {
+    event.stopPropagation();
+    action.run?.();
+  });
+  return node;
+};
+
+const asideLine = (card: Card) =>
+  card.state === 'set-aside' && card.path ? `The lane worktree has uncommitted changes: ${shortPath(card.path)}` : null;
+
 const drawCard = (
   card: Card,
   column: Column,
@@ -663,6 +741,8 @@ const drawCard = (
     const note = startNote(card);
     if (note) main.append(note);
     if (card.warning) main.append(el('p', 'warning', card.warning));
+    const line = asideLine(card);
+    if (line) main.append(el('p', 'warning', line));
     node.append(mark(card, registry()), main);
     if (actions[0]) {
       const withButton = runWithButton(card);
@@ -690,14 +770,18 @@ const drawCard = (
     'more',
   );
   more.setAttribute('aria-haspopup', 'menu');
+  const headAct = actions.find((action) => action.id === 'aside' || action.id === 'stop');
+  if (headAct) head.append(asideChip(headAct));
   head.append(more);
   node.append(head, title);
+  const refusal = card.number === null ? undefined : refusals.get(card.number);
   for (const part of [
     startNote(card),
     card.state === 'works' ? liveLine(card) : null,
     prChips(card.pr),
-    card.act ? actLine(card) : null,
+    card.act && card.state !== 'no-progress' ? actLine(card) : null,
     card.warning ? el('p', 'warning', card.warning) : null,
+    refusal ? el('p', 'warning', refusal.line) : null,
   ])
     if (part) node.append(part);
   const end = el('div', 'foot-end');
@@ -1221,7 +1305,8 @@ const startNotices = (columns: Columns) => {
   );
   if (before === null) return lines;
   for (const [number, warning] of startupWarnings)
-    if (previousWarnings.get(number) !== warning) lines.push(`#${number}: ${warning}`);
+    if (previousWarnings.get(number) !== warning)
+      lines.push(warning.startsWith(`#${number}: `) ? warning : `#${number}: ${warning}`);
   for (const [number, step] of now)
     if (!before.has(number))
       lines.push(step ? `#${number} is starting the ${step} step` : `#${number} is starting a session`);
@@ -1242,6 +1327,7 @@ const drawHints = (card: HTMLElement | null) => {
         ['Space', 'Details'],
         ['o', entry.card.url ? 'Open' : null],
         ['c', copyWhat(entry.card) ? 'Copy' : null],
+        ['s', entry.card.aside ? 'Set aside' : entry.card.stop ? 'Stop' : null],
         ['m', 'Menu'],
       ]
     : [
@@ -1323,7 +1409,7 @@ const drawNotify = () => {
 
 const detailActions = (card: Card): Action[] => {
   const list = actionsOf(card);
-  const isAgain = card.state === 'no-progress';
+  const isAgain = card.state === 'no-progress' || card.state === 'set-aside';
   const host = namedHost(card);
   const mainId = list.find((action) => action.id === 'run' || action.id === 'blocked')?.id;
   const matching = host ? list.find((action) => action.id === `run:${host}`) : undefined;
@@ -1632,7 +1718,10 @@ const project = (board: Board): Board => {
       else if (
         launch.phase !== 'failed' &&
         card.step === launch.step &&
-        (card.state === null || card.state === 'no-progress' || (card.state === 'blocked' && launch.step === null))
+        (card.state === null ||
+          card.state === 'no-progress' ||
+          card.state === 'set-aside' ||
+          (card.state === 'blocked' && launch.step === null))
       )
         columns.running.unshift({
           ...card,
@@ -1642,10 +1731,11 @@ const project = (board: Board): Board => {
           run: false,
           resume: false,
           go: false,
+          aside: false,
           warning: null,
           effort: null,
         });
-      else columns[key].push({ ...card, assist: false, run: false, resume: false });
+      else columns[key].push({ ...card, assist: false, run: false, resume: false, aside: false });
     }
   return { ...board, columns };
 };
@@ -1669,6 +1759,9 @@ const render = (canMove = true) => {
     next.daemon.auto,
     next.columns.human.map((card) => [card.sessionId, card.turn, isYourTurn(card, seenTurn)]),
     [...startFailures],
+    [...asides.keys()],
+    [...stops.keys()],
+    [...refusals],
     [...launches].filter(([, entry]) => entry.phase === 'pending').map(([number, entry]) => [number, entry.step]),
   ]);
   if (cards === last) {
@@ -1726,6 +1819,61 @@ const launch = async (card: Card, path: '/api/run' | '/api/resume' | '/api/assis
   return failure === null;
 };
 
+type ActText = { busy: string; failure: string; done: string; detail: string };
+const asideText = (card: Card): ActText => ({
+  busy: `Setting aside #${card.number}`,
+  failure: 'Set aside failed',
+  done: `Set #${card.number} aside`,
+  detail: 'It shows in Idle. Run or Resume starts it again.',
+});
+const stopText = (card: Card): ActText => ({
+  busy: `Stopping the ${card.step} session of #${card.number}`,
+  failure: 'Stop failed',
+  done: `Stopping the ${card.step} session of #${card.number}`,
+  detail: 'The card moves to Idle when the session has ended.',
+});
+
+const pressAct = async (
+  pressed: Pressed,
+  card: Card,
+  path: '/api/aside' | '/api/stop',
+  value: unknown,
+  text: ActText,
+) => {
+  const number = card.number as number;
+  if (isReconnecting() || pressed.has(number)) return;
+  pressed.set(number, 'pending');
+  refusals.delete(number);
+  announce(text.busy);
+  render(false);
+  const error = await send(path, value, text.failure);
+  if (error === null) {
+    pressed.set(number, 'done');
+    toast(text.done, { detail: text.detail });
+    announce(text.done);
+    settled = reads;
+    render(false);
+    load();
+    return;
+  }
+  pressed.delete(number);
+  refusals.set(number, { sessionId: card.sessionId, state: card.state, line: error });
+  announce(`${text.failure}. ${error}`);
+  render(false);
+};
+
+const openStop = (card: Card) => {
+  if (stops.has(card.number as number)) return;
+  openStopDialog({
+    title: `Stop the ${card.step} session of #${card.number}?`,
+    stop: () => pressAct(stops, card, '/api/stop', { number: card.number, sessionId: card.sessionId }, stopText(card)),
+    done: () =>
+      document
+        .querySelector<HTMLElement>(`.card[data-key="${CSS.escape(keyOf(card))}"]`)
+        ?.focus({ preventScroll: true }),
+  });
+};
+
 let loadRequest: AbortController | undefined;
 document.addEventListener('board-reconnect', () => {
   drawIntake();
@@ -1754,6 +1902,17 @@ async function load() {
       accepted = read;
       hasRead = true;
       for (const [number, launch] of launches) if (launch.phase !== 'pending') launches.delete(number);
+      for (const pressed of [asides, stops])
+        for (const [number, phase] of pressed) if (phase === 'done') pressed.delete(number);
+      for (const [number, refusal] of refusals)
+        if (
+          !Object.values(next.columns)
+            .flat()
+            .some(
+              (card) => card.number === number && card.sessionId === refusal.sessionId && card.state === refusal.state,
+            )
+        )
+          refusals.delete(number);
       for (const card of Object.values(next.columns).flat())
         if (card.sessionId !== null && card.number !== null) startFailures.delete(card.number);
       coordinatorLine = coordinator.update(next.coordinator);
@@ -2025,6 +2184,7 @@ const CARD_KEYS: Record<string, (card: HTMLElement) => void> = {
     const entry = byKey.get(card.dataset.key as string);
     if (entry && copyWhat(entry.card)) copy(entry.card.act as string, copyWhat(entry.card) as string);
   },
+  s: (card: HTMLElement) => card.querySelector<HTMLElement>('.aside-chip')?.click(),
   m: (card: HTMLElement) => {
     const entry = byKey.get(card.dataset.key as string);
     if (entry)
@@ -2062,7 +2222,7 @@ document.addEventListener('keydown', (event) => {
     if (!$('palette').open) openPalette(paletteItems());
     return;
   }
-  if (event.metaKey || event.ctrlKey || event.altKey || $('keys').open || $('palette').open) return;
+  if (event.metaKey || event.ctrlKey || event.altKey || $('keys').open || $('palette').open || dialogOpen()) return;
   if ((event.target as Element).closest?.<HTMLElement>('input, textarea, select, [contenteditable]')) return;
   if (event.key === 'Escape' && $('menu').matches(':popover-open')) return;
   if (event.key === 'Escape' && updates.dismiss()) {

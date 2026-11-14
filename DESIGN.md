@@ -397,6 +397,11 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
   hairline. Each header button, New intake included, is a ghost button: the header has no Ink-filled
   button, because the Ink fill stays for the main button of a card.
 - **Icon:** a 26px square with a 7px radius, transparent, Ink Faint; hover adds Veil Strong and Ink.
+- **Head act:** the act button in a card head before More (Set aside, Stop). It is a 26px icon button
+  with a 7px radius, Ink Faint, and a 13px icon. On hover and on keyboard focus it takes a Veil
+  Strong fill, a hairline, and Ink, and its label (12px, 500) slides open in 0.2s. With no hover the
+  label always shows, and with reduced motion it does not move. While the act waits, the button
+  shows its busy label (`Setting aside`, `Stopping`) at 0.7 opacity with `cursor: not-allowed`.
 - **States:** press scales to 0.97 in 0.1s. Busy shows a spinning icon and 0.7 opacity. Disabled
   is 0.42 opacity with `cursor: not-allowed`, and keeps its accessible reason.
 
@@ -410,6 +415,9 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
   an 8% tint and a 28–30% border of their state color.
 - **Status pill:** a 24px minimum pill that wraps its text. The text is the state color mixed with
   Ink (30% Ink for blue and red, 20% for orange and amber) on the same tint, 4.5:1 in both themes.
+- **Set-aside pill:** the status of a set-aside card. It has a 1px dashed strong hairline, a 999px
+  radius, no fill, and 1px 7px 1px 5px padding. It holds a 12px pause icon, the text `set aside` in
+  Ink at 600, and the step in Geist Mono.
 - **Gate:** an 18px label. `auto` is Go Green on a 13% green tint. While auto mode is off or stopping, it reads `auto off` in Ink Muted text with a 1px dashed strong hairline and no fill. `manual` shows no gate label. In a narrow Pipeline card the step, the start label, and the gate wrap to the next line instead of clipping.
 - **Start label:** an 18px Geist Mono capsule of two segments, the model and then the level. The
   model segment has the stronger fill. A pinned value has a pin icon, and a default value has a

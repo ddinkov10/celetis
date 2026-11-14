@@ -18,7 +18,8 @@ moves by hand.
   each one ended. Auto mode of the daemon starts each step with the gate `auto` by itself, in the
   lanes that `autoLanes` of the main `.celetis.yaml` names, where `triage` stands for an issue with
   no lane (with no `autoLanes`: each lane and each issue with no lane). The states
-  `starting` and `stuck` come from the locks and the record of the daemon. The daemon serves the
+  `starting`, `aside`, and `stuck` come from the locks, the set-aside record, and the no-progress
+  record of the daemon. The daemon serves the
   board in its own process, and the field `daemon` comes from its status (the item `Daemon`).
 - **Trunk:** the default branch of the repository. The count of the changed lines of a session is
   against it (`origin/HEAD`). The board takes the main checkout as the checkout of the trunk: its
@@ -232,9 +233,10 @@ The board reads its issue data in the process of the daemon (`engine/lib/board-r
 creates a fresh operation of the main checkout with no host selection, so the `CELETIS_AGENT` of the
 daemon selects no host. So each read validates the main `.celetis.yaml` again, and it takes `gates`
 from it. The read then gets the typed rows of the resolver (`nextBoard` of
-`engine/lib/resolver.ts`). The resolver gives each row its whole state, `starting` and `stuck`
-included, and reads for it the issue locks and the record of the daemon (`engine/lib/locks.ts`,
-which the daemon also uses). It builds one typed document (`Document` of
+`engine/lib/resolver.ts`). The resolver gives each row its whole state, `starting`, `aside`, and
+`stuck` included, and reads for it the issue locks and the no-progress record of the daemon
+(`engine/lib/locks.ts`, which the daemon also uses), and the set-aside record
+(`engine/lib/set-aside.ts`). It builds one typed document (`Document` of
 `engine/lib/board-read-types.ts`) with the rows as `issues` and `noRun` of the resolver, and it adds
 `tracker`, `agents`, `flow`, `history`, and `queue`. Each `GET /api/board` also reads the local
 agent order, the usage records, and the usage-limit recovery records again (`readAgentState` of
@@ -328,10 +330,11 @@ A row gets its `state` by the first rule that matches:
 | # | The issue | `state` | Fields of that state |
 |---|---|---|---|
 | 2 | has a lock that a live script holds | `starting` | |
-| 3 | has a dirty lane worktree | `dirty` | `path`: the lane worktree |
-| 4 | has a row in the record for its `run` line: no progress, or a refused skip | `stuck` | `act`: `celetis --agent <host> run resume <n>` |
-| 5 | has `needs-info` or `ready-for-human`, two or more lane labels, an open human step, or a hotfix to land by hand | `blocked` | `reason`, from the first match in the order of the resolver (`docs/issue-tracker.md`, "Resolving an issue's state"): `needs info` for `needs-info`; for `ready-for-human`, `landing refused` while a landing refusal is current, else `ready for your step`; `several lane labels` for two or more lane labels; `human step open` for a `## Before landing` comment with no completion evidence; `land by hand` for a hotfix whose stop is cleared. `act`: the act that the `stop` line of the issue names |
-| 6 | has a `run` line | `ready` | |
+| 3 | is in the set-aside record | `aside` | `path`: the lane worktree, when it is dirty. `act`: `celetis --agent <host> run resume <n>` |
+| 4 | has a dirty lane worktree | `dirty` | `path`: the lane worktree |
+| 5 | has a row in the record for its `run` line: no progress, or a refused skip | `stuck` | `act`: `celetis --agent <host> run resume <n>` |
+| 6 | has `needs-info` or `ready-for-human`, two or more lane labels, an open human step, or a hotfix to land by hand | `blocked` | `reason`, from the first match in the order of the resolver (`docs/issue-tracker.md`, "Resolving an issue's state"): `needs info` for `needs-info`; for `ready-for-human`, `landing refused` while a landing refusal is current, else `ready for your step`; `several lane labels` for two or more lane labels; `human step open` for a `## Before landing` comment with no completion evidence; `land by hand` for a hotfix whose stop is cleared. `act`: the act that the `stop` line of the issue names |
+| 7 | has a `run` line | `ready` | |
 
 `picker` holds the version of the local order beside `order`. Its `usage` is the confirmed usage
 block of each host with its reason and reset time, and it is `null` once the reset time has
@@ -468,10 +471,11 @@ is the time when the server first saw that state; `idle`, `done`, and `error` co
 A session makes one card, from the status that its host reports. The main button of a session
 card is Go. A session with no issue is a human session: a tab that you started yourself. It has no
 card in a column: the strip Human sessions shows it with the same state ("The layout"). The table
-gives the column of a session of an issue.
+gives the column of a session of an issue. The first row that matches gives the column.
 
 | Status | Column | State on the card |
 |---|---|---|
+| Any status: the run row of the session has the state `stopping` | Running | `stopping` |
 | `working` | Running | `works` |
 | `blocked`: the host waits for an approval or an answer | Needs you | `waits for your answer` |
 | `idle`, `done`, or `error`: a live daemon checks or closes this turn | Running | `checks step` |
@@ -527,8 +531,9 @@ no row, show the link label, else the tab name, as the title, with no link and n
 | `state` | Column | State on the card | Act line | Main button |
 |---|---|---|---|---|
 | `starting` | Running | `Starting` | none | none |
-| `dirty` | Needs you | `dirty tree` | `path` | Open shell |
-| `stuck` | Needs you | `no progress` | `act` | Resume, and a quiet Run again |
+| `aside` | Idle | `set-aside` | none: the details show `act` | Resume, and Run; Open shell when `path` is set |
+| `dirty` | Needs you | `dirty tree` | `path` | Open shell, and Set aside |
+| `stuck` | Needs you | `no progress` | none: the details show `act` | Resume, and a quiet Run again, and Set aside |
 | `blocked` | Needs you | `reason` | `act` | Open agent |
 | `ready` | Needs you when `started` or `urgent`, else Idle | none: the card shows `next <step>` | none | Run |
 
@@ -537,6 +542,18 @@ in the group `Paused by usage limits`, with the state `waits for a usage limit`.
 Agent order, opens the agent order, which has its Retry. A recovery record whose run no longer runs adds a warning
 to the card of its row, and Run starts the step again.
 
+- Each card has `aside`. It is true on a `no progress` or `dirty tree` card while its issue press
+  is open, and it gives the Set aside button. A session card has `stop` (`{reason}`) only while the
+  run row of its issue has that card's terminal, the row state is `running`, `waiting`, `checking`,
+  or `stopping`, and no landing row of the issue exists. It gives the Stop button. `reason` is the
+  Codex line of the daemon for a `codex` run, `The daemon ends the session. The card moves to Idle
+  when the session has ended.` while the row state is `stopping`, else `null`; a non-null `reason`
+  disables Stop. A session card whose row state is `stopping` has the state `stopping`, in Running.
+  A session card whose row `line` ends with the line of a Stop that did not close the tab shows
+  that line as its warning.
+- A `starting` card shows a warning when a run row of its issue has the `outcome` `stopped`, and
+  the reason ends with the act of a Stop that the daemon cannot prove. The warning is that reason,
+  from the last such row. The issue lock stays after that Stop, so the card stays in Running.
 - A `ready` card shows `auto` when the `gate` of its step is `auto` and auto mode is on, and `auto off` when auto mode is off or stopping. The label follows the mode at the next read, also when no card changed.
 - A `ready` card shows the start pair of its step, the `effort` of its row, in one label after
   `next <step>` and before `auto`. The label has two segments, the model and then the level. The
@@ -615,6 +632,8 @@ A press that fails ends the `Starting` card at once, and the next read gives the
 | Resume | One request `POST /resume` of the master daemon. The daemon checks the saved session and opens the session tab `#<n> <step>` in the background. |
 | A queue action | One request `POST /queue/action` of the master daemon ("The presses"), for every action. The answer is the persisted QueueView. For a new wake, the daemon starts the queue run in the same request; for each step it opens the session tab `#<n> <step>` with that link label in the background, so the session cards and Go stay. |
 | Retry | One request `POST /retry` of the master daemon, with the issue number and the wait ID. It starts no run. |
+| Set aside | One request `POST /aside` of the master daemon, with the issue number. It opens no tab. |
+| Stop | One request `POST /halt` of the master daemon, with the issue number and the terminal of the session. The daemon ends the session and sets the issue aside. |
 | New intake | A focused `Intake` tab in the main checkout. The current default host asks for the request, then enters `celetis:intake` with the answer. The button creates no issue and starts no run. |
 | Assist | A focused tab `#<n> assist` in the main checkout, with the Assist argv. |
 | Make visual | A focused tab `#<n> visual` in the main checkout, with the Make visual argv, for a History row with no page. The command in the tab makes the page `docs/superpowers/visuals/<sha>.html` of the main checkout. |
@@ -892,7 +911,8 @@ with the `readAt` `null` and the `error`; the page then keeps the text that it s
 coordinator record, `view` is `none` and the text is empty.
 
 **The presses.** The page sends a press as a POST with a JSON body: `{"number": <n>}` to
-`/api/run`, `/api/resume`, `/api/assist`, `/api/visual`, and `/api/shell`, `{"sessionId": "<id>"}` to `/api/go`, and `{}` to
+`/api/run`, `/api/resume`, `/api/assist`, `/api/visual`, `/api/shell`, and `/api/aside`, `{"sessionId": "<id>"}` to `/api/go`,
+`{"number": <n>, "sessionId": "<id>"}` to `/api/stop`, and `{}` to
 `/api/refresh`, `{}` to `/api/coordinator/open`, `/api/coordinator/interrupt`, and
 `/api/coordinator/end`, `{"text": "<text>"}` to `/api/coordinator/say`, and `{"key": "<key>"}` to
 `/api/coordinator/key`. A Run body can also have `"agent": "<name>"` and `"effort": "<level>"`, and no other
@@ -905,11 +925,13 @@ sends no request, and starts no terminal, unless each condition holds:
 
 | Press | Conditions | Cause of the refusal |
 |---|---|---|
-| `POST /api/run` | A fresh issue and queue read succeeds. The issue has a card of its own, with no session. Its row is `ready` or `stuck`. `noRun` is `null`. No press on that issue is active. A current paused queue issue has no `effort` in the body and also meets the Continue conditions below. | The read or queue cause; for an `effort` on a current paused queue issue, that the queue starts this step at the start pair, with no override; otherwise that the issue has no step to start now. |
-| `POST /api/resume` | The issue has a card of its own, with no session. Its row is `stuck`. `noRun` is `null`. No press on that issue is active. | The issue has no session to resume now. |
+| `POST /api/run` | A fresh issue and queue read succeeds. The issue has a card of its own, with no session. Its row is `ready`, `stuck`, or `aside`. `noRun` is `null`. No press on that issue is active. A current paused queue issue has no `effort` in the body and also meets the Continue conditions below. | The read or queue cause; for an `effort` on a current paused queue issue, that the queue starts this step at the start pair, with no override; otherwise that the issue has no step to start now. |
+| `POST /api/resume` | The issue has a card of its own, with no session. Its row is `stuck` or `aside`. `noRun` is `null`. No press on that issue is active. | The issue has no session to resume now. |
 | `POST /api/assist` | A fresh issue read succeeds. The issue has a card of its own, with no session. Its row is `blocked`, with `assist` true and `noRun` null. A current `hc` terminal list succeeds. A fresh read of the local order and the usage records gives a first eligible agent, and it is on `PATH`. No Run, Resume, or Assist press on that issue is active. | The current read, `noRun`, agent, session, or state cause; otherwise that the issue has no blocked state to assist now. |
 | `POST /api/visual` | The issue has a History row in the last good read. The page of its commit does not exist. No live terminal with the link label `#<n> visual` is in the main checkout or a lane worktree. No Make visual press of that number is in flight. A fresh read of the local order and the usage records gives a first eligible agent, and it is on `PATH`. | The issue has no row in History; its visual exists already (use Open visual); its `visual` tab is still open; a Make visual press of the issue is in flight; otherwise the agent cause. |
-| `POST /api/shell` | The issue has a card of its own, with no session. Its row is `dirty`. Its `path` is a lane worktree of the main checkout. | The issue has no dirty worktree. |
+| `POST /api/shell` | The issue has a card of its own, with no session. Its row is `dirty`, or `aside` with a `path`. Its `path` is a lane worktree of the main checkout. | The issue has no dirty worktree. |
+| `POST /api/aside` | The issue has a card of its own, with no session. Its row is `stuck` or `dirty`, with `aside` true. No press on that issue is active. The daemon accepts the request. | A press of the issue is in flight; the issue is not stuck; otherwise the line of the daemon. |
+| `POST /api/stop` | `sessionId` is a session of the repository with that issue. No press on that issue is active. The daemon accepts the request. | A press of the issue is in flight, or the line of the daemon (404 when the session is no session of that issue). |
 
 `POST /api/queue` accepts exactly `{"action": <QueueAction>}`, or for Add with one host
 `{"action": <QueueAction>, "agent": <a registry agent>}`. An Add with no agent records the default
@@ -987,10 +1009,10 @@ The answer to a press that the server did is 200 with `{"ok": true}`. Each other
 
 | Status | Case |
 |---|---|
-| 400 | The body is not JSON, the body has more than 1024 bytes (32 768 for `/api/coordinator/say`), the body of a coordinator act is not its exact object, the issue number is not a positive safe integer in digits, the `effort` of Run is not one of the five levels, a Run or Retry body has another field, the queue request is invalid, the order request has another shape, or the body of Assist or Make visual is not an object or has an unexpected field. |
+| 400 | The body is not JSON, the body has more than 1024 bytes (32 768 for `/api/coordinator/say`), the body of a coordinator act is not its exact object, the issue number is not a positive safe integer in digits, the `effort` of Run is not one of the five levels, a Run or Retry body has another field, the body of Set aside or Stop is not its exact object or its session ID is not a terminal ID, the queue request is invalid, the order request has another shape, or the body of Assist or Make visual is not an object or has an unexpected field. |
 | 403 | The `Host`, the `Origin`, or the content type is not good, or the `Origin` is `null` ("The trust boundary"). |
-| 404 | The path is not a path of the board, a `/visual/` path names no page, or Go names an id that is no session of the repository and not the terminal of the coordinator record. |
-| 409 | A condition of the table does not hold, the queue request is stale or unavailable, the read of the engine fails, the fresh issue read of Assist fails, the daemon refuses Run or Resume (for example a Resume with no valid saved session), the agent of Run, Assist, or Make visual is not good, the commit of Make visual is not 40 lowercase hex digits, the order replacement is stale or fails, a Retry names no live wait, the daemon refuses an act of the coordinator or gives it no valid answer, another act of the coordinator is in flight, or a restart request finds no restart to do or an installed engine that fails its validation. |
+| 404 | The path is not a path of the board, a `/visual/` path names no page, Go names an id that is no session of the repository and not the terminal of the coordinator record, or Stop names an id that is no session of that issue. |
+| 409 | A condition of the table does not hold, the queue request is stale or unavailable, the read of the engine fails, the fresh issue read of Assist fails, the daemon refuses Run, Resume, Set aside, or Stop (for example a Resume with no valid saved session), the agent of Run, Assist, or Make visual is not good, the commit of Make visual is not 40 lowercase hex digits, the order replacement is stale or fails, a Retry names no live wait, the daemon refuses an act of the coordinator or gives it no valid answer, another act of the coordinator is in flight, or a restart request finds no restart to do or an installed engine that fails its validation. |
 | 503 | A restart request arrives during a stop or a restart of the daemon, with a line that tells the sender to start the daemon again, then send the request. |
 | 502 | An `hc` or `herdr-app` call failed, also the terminal list of Make visual: the first line of its error. An answer with no list of terminals, no list of spaces, or no safe terminal id also gives 502. |
 | 500 | The server failed for another cause: the first line of the error, or a line that says the server failed. |
@@ -1047,11 +1069,11 @@ process. Twelve rules hold for the server and the page:
    the daemon as the id of a session, and only `low`,
    `medium`, `high`, `xhigh`, or `max` as the effort level of a Run.
 6. The page sends an issue number, a session id, a selected Run agent, a selected Run effort level, a strict queue action, an
-   agent order with the version that it read, a usage-limit wait ID, or an opaque update offer
+   agent order with the version that it read, a usage-limit wait ID, the issue number and the session ID of a Stop, or an opaque update offer
    ID, never a command, an installation path, or a usage observation. For the coordinator session
    it sends what the rules of the coordinator session below permit.
    New intake and **Restart** send only an empty object; the daemon reads the installed engine
-   itself. Resume, Assist, and Make visual take only the issue number.
+   itself. Resume, Assist, Make visual, and Set aside take only the issue number.
 7. An id of an answer of `hc` or `herdr-app` (a terminal, a space, a tab) goes into a command only
    when it has letters, digits, `_`, `:`, `.`, and `-`, and does not start with `-` (`isSafeId` of
    `engine/lib/terminal.ts`). An id that is absent goes into no command.
@@ -1087,7 +1109,7 @@ Five rules hold for the start, the argvs, and the data:
    its version folder, and the command path holds no control character. The page, the data, and a
    lane cannot supply a command path.
 2. **A press starts a fixed argv or sends a fixed request.** Run and Resume send the fixed fields
-   of "The requests of Run and Resume", Retry sends `{number, waitId}`, and a queue action sends
+   of "The requests of Run and Resume", Retry sends `{number, waitId}`, Set aside sends `{number}`, Stop sends `{number, terminal}`, and a queue action sends
    `{action, selection}`. New intake, Assist, and Make visual start their interactive commands ("The
    argv of a press"). On macOS and Linux, the login shell of the new terminal gets the argv as
    `"$@"`, so it reads no item as shell text. That engine starts the first `bun` on the `PATH` of
@@ -1146,7 +1168,7 @@ These files enforce the rules. They are the trust files of the board:
 | --- | --- |
 | 1 (listen on `127.0.0.1`) | `engine/board/start.ts` |
 | 2, 3, 4 (the `Host`, the POST `Origin` and content type, `Origin: null` first) | `engine/board/perimeter.ts` |
-| 5 (digits, a session of the repository, five levels) | `engine/board/requests.ts`, `engine/lib/fields.ts`, `engine/board/presses.ts` (Go), `engine/lib/effort.ts` (`isLevel`) |
+| 5 (digits, a session of the repository, five levels) | `engine/board/requests.ts`, `engine/lib/fields.ts`, `engine/board/presses.ts` (Go, Stop), `engine/lib/effort.ts` (`isLevel`) |
 | 6 (what the page sends) | `engine/board/requests.ts`, the page modules of `engine/board/page/` |
 | 7 (`isSafeId`) | `engine/lib/terminal.ts` |
 | 8 (no shell) | `engine/board/perimeter.ts` (`run`), `engine/lib/process.ts` (`run` of the issue and status reads) |
@@ -1395,6 +1417,43 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   have no level entries.
 - The lane track at the right of a card shows where the issue is in its lane. The current step has
   the colour of the state, and it moves while an agent works.
+- The head of a card has one act button before More, with a Veil Strong fill and a hairline on hover
+  and on keyboard focus. Its label slides open then, and it always shows on a device with no hover.
+  On a `no progress` or `dirty tree` card with `aside` true it is Set aside (a pause icon, the
+  name `Set aside #<n>`). On a session card with `stop` it is Stop (a square icon, the name `Stop the
+  <step> session of #<n>`). With a `reason` in `stop`, the button is `aria-disabled` and the reason
+  is its title; in the state `stopping` its label is `Stopping`, with a steady open label. The More
+  menu and the details list the same act, and `s` on a focused card presses it. A card with
+  neither has no such button. A card with no `stop` (a session that a person started in a terminal)
+  has no Stop. A label that stays open can leave no room for the lane type in the head: the
+  `Setting aside` and `Stopping` labels on each device, and each label on a device with no hover.
+  Then the head hides the separator and the type, so that the open label never cuts the type to a
+  fragment. It hides them only when the card content is at or under this width, in px, which is
+  the width at which the word `feature` (the longest lane word) does not fit: `Set aside` 340 (324),
+  `Setting aside` 369 (353), `Stop` 304 (288), `Stopping` 333 (317). The first number is for a
+  viewport up to 719px wide, the number in brackets for a wider one. A shorter lane word hides in
+  the same range. The 0.2s slide of a label on hover or focus can still cut the type for that time.
+- A Set aside press sends `POST /api/aside` with the issue number. While it waits, the label reads
+  `Setting aside`, a second press does nothing, and the page announces `Setting aside #<n>`.
+  An accepted press shows the toast `Set #<n> aside` with `It shows in Idle. Run or Resume starts it
+  again.`, announces `Set #<n> aside`, and reads the board again.
+- A Stop press opens the modal dialog `Stop the <step> session of #<n>?`. Its text is `The agent
+  ends and its tab closes. The issue moves to Idle as set aside, and auto mode skips it. Resume
+  opens the saved session again.` The focus starts on Cancel. Escape and Cancel close it and send
+  nothing. `Stop session` closes it, sends `POST /api/stop` with the issue number and the
+  session ID, and puts the focus on the card. The press waits like Set aside: `Stopping`, no second
+  press, the toast `Stopping the <step> session of #<n>` with `The card moves to Idle when the
+  session has ended.`, and an announcement. While the dialog is open, the single-key shortcuts of
+  the board do nothing.
+- The line of a refused Set aside or Stop shows in an error toast, in the status region, and as a
+  warning line on the card. The line stays until a read shows the card with another session or
+  another state. A refused press changes nothing else.
+- A `no progress` card shows no command line; the details keep the command and its copy.
+  A `set-aside` card is a compact card in Idle. Its meta line holds a dashed pill with the pause icon,
+  `set aside` in bold, and the step in mono. Resume is its main button; Run again and, with `path`,
+  Open shell are in the `m` menu and the details. A `set-aside` card with a `path` shows the line
+  `The lane worktree has uncommitted changes: <short path>`. The tab count, the notices, and the
+  `need you` chip do not count it.
 - A press on a card, or `Space`, opens its details in place of Idle: for a session, the last 16
   lines of its terminal screen (with no empty line, rule, or box border), so you can read the dialog or the end
   of the answer; the lane steps, with `auto` on a step whose gate is `auto` while auto mode is on, and
@@ -1492,8 +1551,9 @@ when they cover the page or hide the row. An empty search lists no `Go to` row.
 `<n>` alone also finds a human session whose title is `<n>`. `j` and `k` (and `↓` and `↑`) move to the next or the previous card,
 `h` and `l` (and `←` and `→`) to the column on the left or the right; `Enter` presses the main
 button of the card (Go, Run, Resume, Open agent, Open shell, or Open issue),
-`Space` opens its details, `m` opens all its actions, `o` opens the issue, and `c` copies the
-command or the path of the card. `v` changes between Now and Pipeline, `d` shows or hides History, `r`
+`Space` opens its details, `m` opens all its actions, `o` opens the issue, `c` copies the
+command or the path of the card, and `s` sets a stuck card aside or opens the Stop dialog of a
+session card. `v` changes between Now and Pipeline, `d` shows or hides History, `r`
 reads the issues again, and `?` shows the list. `j`, `k`, `h`, `l`, and the arrows stop at the row of an
 epic group and skip the issues of a closed group; `Enter` and `Space` on a row show or hide its
 issues. The search has `Expand all epic groups` and `Collapse all epic groups`. `#<n>` in the
@@ -1512,7 +1572,7 @@ the texts are `Open the issue` and `Read the issues again`.
 **The errors.**
 
 - When a press fails, a toast names the press (`Go failed`, `Run failed`, `Resume failed`, `Open agent failed`,
-  `Open shell failed`, `Refresh failed`, `Queue action failed`, `Make visual failed`) above the line of the server. An error toast
+  `Open shell failed`, `Set aside failed`, `Stop failed`, `Refresh failed`, `Queue action failed`, `Make visual failed`) above the line of the server. An error toast
   stays until Close, Escape on the toast, or a newer toast; a success toast hides after 6 s. After
   Close or Escape, the focus returns to the element that had it before it last went into the toast. After Go, Open shell, or
   Refresh, the card keeps its button. A failed Run, Resume, or Open agent ends its `Starting` card

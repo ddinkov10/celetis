@@ -92,6 +92,7 @@
     <div><dt><kbd>m</kbd></dt><dd>All the actions of the card</dd></div>
     <div><dt><kbd>o</kbd></dt><dd>Open the issue</dd></div>
     <div><dt><kbd>c</kbd></dt><dd>Copy the command or the path of the card</dd></div>
+    <div><dt><kbd>s</kbd></dt><dd>Set the card aside, or stop its session</dd></div>
     <div><dt><kbd>v</kbd></dt><dd>Change between Now and Pipeline</dd></div>
     <div><dt><kbd>d</kbd></dt><dd>Show or hide history</dd></div>
     <div><dt><kbd>r</kbd></dt><dd>Read the issues again</dd></div>
@@ -110,6 +111,14 @@
     <button type="button" class="btn primary" id="update-start">Update and restart</button>
     <button type="button" class="btn primary" id="update-check" hidden>Check again</button>
     <button type="button" class="btn ghost" id="update-later">Later</button>
+  </div>
+</dialog>
+<dialog class="stop-dialog" id="stop-dialog" aria-labelledby="stop-title" aria-describedby="stop-description">
+  <h2 id="stop-title"></h2>
+  <p class="stop-description" id="stop-description">The agent ends and its tab closes. The issue moves to Idle as set aside, and auto mode skips it. Resume opens the saved session again.</p>
+  <div class="stop-actions">
+    <button type="button" class="btn ghost" id="stop-cancel" autofocus>Cancel</button>
+    <button type="button" class="btn primary" id="stop-confirm">Stop session</button>
   </div>
 </dialog>
 <script type="module" src="/board.js"></script>

@@ -9,6 +9,7 @@ import { childEnv } from './process.ts';
 import { activities, createIo, detachRun, die, failedOf, type Io, type Options, perform } from './run-activities.ts';
 import { type Effect, type Event, initial, on, type RunFacts, type State, type Working } from './run-machine.ts';
 import type { RunRecord } from './run-record.ts';
+import { readSetAside } from './set-aside.ts';
 import type { RepositoryLayout } from './state.ts';
 import { closeTerminal, requireTerminals, TerminalError } from './terminal.ts';
 import { versionFolderGone } from './version-folder.ts';
@@ -27,6 +28,7 @@ export type RunState =
   | 'waiting'
   | 'exiting'
   | 'quota-wait'
+  | 'stopping'
   | 'ending'
   | 'taken-over'
   | 'finished';
@@ -51,6 +53,7 @@ export interface RunHandle {
   readonly admitted: Promise<Admission>;
   readonly done: Promise<RunEnd>;
   view(): RunView;
+  halt(terminal: string): Promise<void>;
   detach(): void;
 }
 
@@ -146,6 +149,7 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
     admitted,
     done: handled(ended.then((each) => each.end)),
     view: () => Object.freeze({ ...io.shown }),
+    halt: (terminal) => io.requestStop(terminal),
     detach() {
       detachRun(io);
     },
@@ -217,12 +221,21 @@ export function autoLoop(
         process.stderr.write(stderr);
         if (signal.aborted) break;
         let started = false;
-        if (rows) {
+        const aside =
+          rows &&
+          (await readSetAside(common).catch((error: unknown) =>
+            error instanceof Error ? error : new Error(String(error)),
+          ));
+        if (aside instanceof Error) {
+          const cause = aside.cause instanceof Error ? aside.cause.message : aside.message;
+          say(`stop cannot read the set-aside record: ${cause}; auto mode asks again each 60 seconds`);
+        } else if (rows && aside) {
           let pick = 0;
           for (const { number, next } of rows) {
             const n = String(number);
             if (next.kind !== 'run' || (config.gates?.[next.step] ?? defaultGate) !== 'auto') continue;
             if (!autoTakes(config.autoLanes, next)) continue;
+            if (aside.has(number)) continue;
             if ((await lockHolder(main, `issue-${n}`)) || (await isRecorded(common, n, lineOf(n, next)))) continue;
             pick = number;
             break;

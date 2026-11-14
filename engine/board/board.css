@@ -4033,10 +4033,10 @@ body.has-coordinator .update-dialog {
     min-width: 44px;
     min-height: 44px;
   }
-  :is(.btn, .icon-btn, .toast-close, a.chip2) {
+  :is(.btn, .icon-btn, .toast-close, a.chip2, .aside-chip) {
     position: relative;
   }
-  :is(.btn, .icon-btn, .toast-close, a.chip2)::before {
+  :is(.btn, .icon-btn, .toast-close, a.chip2, .aside-chip)::before {
     content: "";
     position: absolute;
     top: 50%;
@@ -4074,4 +4074,188 @@ body.has-coordinator .update-dialog {
 .compact .start-line,
 .compact .start-failed {
   grid-column: 2 / -1;
+}
+
+.stop-dialog {
+  width: min(340px, calc(100vw - 24px));
+  margin: auto;
+  padding: 18px 18px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--fg);
+  box-shadow: var(--float);
+  font: inherit;
+}
+.stop-dialog::backdrop {
+  background: rgb(0 0 0 / 0.32);
+}
+.stop-dialog h2 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.stop-description {
+  margin: 6px 0 0;
+  font-size: 0.78125rem;
+  line-height: 1.5;
+  color: var(--fg3);
+}
+.stop-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 18px;
+}
+
+.aside-chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  height: 26px;
+  min-width: 26px;
+  padding: 0 6px;
+  margin-left: 4px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--fg3);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s,
+    gap 0.15s;
+}
+.aside-chip .icon {
+  width: 13px;
+  height: 13px;
+}
+.aside-chip-label {
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: max-width 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.card:hover .aside-chip,
+.card:focus-within .aside-chip {
+  color: var(--fg2);
+}
+.aside-chip:not([aria-disabled="true"]):hover,
+.aside-chip:focus-visible {
+  gap: 5px;
+  border-color: var(--line);
+  background: var(--fill-strong);
+  color: var(--fg);
+}
+.aside-chip:not([aria-disabled="true"]):hover .aside-chip-label,
+.aside-chip:focus-visible .aside-chip-label {
+  max-width: 80px;
+}
+.aside-chip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .aside-chip,
+  .aside-chip-label {
+    transition: none;
+  }
+}
+@media (hover: none) {
+  .aside-chip {
+    gap: 5px;
+  }
+  .aside-chip-label {
+    max-width: 80px;
+  }
+}
+.card-head .type {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (min-width: 720px) {
+  @container (max-width: 317px) {
+    .card-head:has(.aside-chip.is-busy .i-stop) > :is(.sep, .type) {
+      display: none;
+    }
+  }
+  @container (max-width: 353px) {
+    .card-head:has(.aside-chip.is-busy .i-aside) > :is(.sep, .type) {
+      display: none;
+    }
+  }
+  @media (hover: none) {
+    @container (max-width: 288px) {
+      .card-head:has(.aside-chip .i-stop) > :is(.sep, .type) {
+        display: none;
+      }
+    }
+    @container (max-width: 324px) {
+      .card-head:has(.aside-chip .i-aside) > :is(.sep, .type) {
+        display: none;
+      }
+    }
+  }
+}
+@media (max-width: 719px) {
+  @container (max-width: 333px) {
+    .card-head:has(.aside-chip.is-busy .i-stop) > :is(.sep, .type) {
+      display: none;
+    }
+  }
+  @container (max-width: 369px) {
+    .card-head:has(.aside-chip.is-busy .i-aside) > :is(.sep, .type) {
+      display: none;
+    }
+  }
+  @media (hover: none) {
+    @container (max-width: 304px) {
+      .card-head:has(.aside-chip .i-stop) > :is(.sep, .type) {
+        display: none;
+      }
+    }
+    @container (max-width: 340px) {
+      .card-head:has(.aside-chip .i-aside) > :is(.sep, .type) {
+        display: none;
+      }
+    }
+  }
+}
+
+.status.aside-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px 1px 5px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 999px;
+  color: var(--fg2);
+}
+.status.aside-pill .icon {
+  width: 12px;
+  height: 12px;
+}
+.status.aside-pill .status-label {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.aside-chip[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+.aside-chip.is-busy {
+  gap: 5px;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.aside-chip.is-busy .aside-chip-label {
+  max-width: 100px;
 }

@@ -29,6 +29,8 @@ const PILL_ICONS: Record<string, string> = {
   starts: 'works',
   waits: 'target',
   'no-progress': 'alert',
+  'set-aside': 'aside',
+  stopping: 'stop',
   'dirty-tree': 'diff',
   blocked: 'person',
   'quota-wait': 'clock',
@@ -37,7 +39,7 @@ const ASKS: Record<string, [string, string]> = {
   dialog: ['question', 'waits for your answer'],
   turn: ['message', 'ended its turn'],
 };
-const COPIES: Record<string, string> = { 'no-progress': 'command', 'dirty-tree': 'path' };
+const COPIES: Record<string, string> = { 'no-progress': 'command', 'set-aside': 'command', 'dirty-tree': 'path' };
 
 const section = (title: string, aside: string | null, ...children: HTMLElement[]) => {
   const node = el('section', 'sec');

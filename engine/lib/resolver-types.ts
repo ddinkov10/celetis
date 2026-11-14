@@ -14,7 +14,7 @@ export type IssueRow = {
   title: string;
   url: string;
   type: Lane | null;
-  state: 'ready' | 'starting' | 'stuck' | 'dirty' | 'blocked';
+  state: 'ready' | 'starting' | 'aside' | 'stuck' | 'dirty' | 'blocked';
   step: Step | null;
   started: boolean;
   urgent: boolean;

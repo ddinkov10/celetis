@@ -44,6 +44,8 @@ export const STATES: Record<string, string> = {
   'dirty-tree': 'dirty tree',
   'no-progress': 'no progress',
   'quota-wait': 'waits for a usage limit',
+  'set-aside': 'set aside',
+  stopping: 'stopping',
 };
 
 const WAITS: Record<string, string> = { dialog: 'waits for your answer', turn: 'turn ended' };

@@ -11,6 +11,7 @@ import type { RunInput, RunState } from './run-engine.ts';
 import { type SessionRecord, validateSession } from './session.ts';
 import { writeAtomic } from './state.ts';
 import { commitMigration, type LocalRecord, readLocalRecord } from './state-migration.ts';
+import { isSafeId } from './terminal.ts';
 import { usageAttempt } from './usage-types.ts';
 import { lanes, type Run, type Step, steps } from './workflow.ts';
 
@@ -59,6 +60,7 @@ export type RunRecord = {
   } | null;
   state: RunState;
   changedMs: number;
+  stop?: { terminal: string; at: number };
 };
 type NumberInput = Extract<RunInput, { kind: 'number' }>;
 type HistoricalInput = Exclude<RunInput, NumberInput> | Omit<NumberInput, 'model'>;
@@ -73,6 +75,7 @@ const runStates: Record<RunState, true> = {
   waiting: true,
   exiting: true,
   'quota-wait': true,
+  stopping: true,
   ending: true,
   'taken-over': true,
   finished: true,
@@ -244,8 +247,8 @@ function session(value: unknown, issue: number | null, resume: boolean): value i
   } catch {
     return false;
   }
-  const facts = [value.next, value.authority, value.choice, value.ticket, value.capture, value.owned];
-  if (resume) return facts.every((each) => each === null);
+  const facts = [value.next, value.authority, value.choice, value.ticket, value.capture];
+  if (resume) return facts.every((each) => each === null) && attempt(value.owned);
   return (
     run(value.next) &&
     authority(value.authority) &&
@@ -256,9 +259,16 @@ function session(value: unknown, issue: number | null, resume: boolean): value i
   );
 }
 
+function stop(value: unknown): boolean {
+  return keys(value, 'at,terminal') && isSafeId(value.terminal) && natural(value.at);
+}
+
 function validFields(value: unknown, schema: 2 | 3): boolean {
+  if (!object(value)) return false;
+  const { stop: pending, ...fields } = value;
   return !(
-    !keys(value, 'changedMs,daemon,id,input,issue,lock,loop,queue,request,schema,session,state,wait') ||
+    (pending !== undefined && !stop(pending)) ||
+    !keys(fields, 'changedMs,daemon,id,input,issue,lock,loop,queue,request,schema,session,state,wait') ||
     value.schema !== schema ||
     !id(value.id) ||
     !identity(value.daemon) ||

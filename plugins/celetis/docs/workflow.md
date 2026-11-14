@@ -459,7 +459,10 @@ prints it again. A repository with no daemon has no board.
 The board has no config of its own. `board.port` of the main `.celetis.yaml` sets the first port
 that the daemon tries, and the default is 4403. `PORT` in the environment of the daemon requests an
 exact port. A person presses Run or Resume on the card of an issue to start its next step, Open
-agent on a blocked issue, and Go on a session.
+agent on a blocked issue, and Go on a session. A person presses Stop on the card of a session that
+the daemon runs, to end it on purpose, and Set aside on a stuck card, to leave the issue for later.
+Both acts move the issue to Idle as set aside. Auto mode never starts a set-aside issue; a Run or
+Resume press starts it again.
 [The board document](https://github.com/ddinkov10/celetis/blob/main/engine/board/README.md#start)
 gives the start, the port rules, the cards, the keys, and the errors.
 
@@ -479,7 +482,7 @@ gives the start, the port rules, the cards, the keys, and the errors.
 | The next step has a `manual` gate | a Run press on the card, or `celetis --agent <host> run <n>` | — |
 | A run of auto mode ends before a step whose lane `autoLanes` does not name (`autoLanes does not name <name>`, where `triage` is the name of an issue with no lane) | a Run press on the card, or `celetis --agent <host> run <n>`, starts the step; to let auto mode take the lane, add its name to `autoLanes` ("Gates") | — |
 | The session ended with no spec on the issue | open the session again, or read the comment of a spike | a Run press, or `celetis --agent <host> run <n>` |
-| The session ended with no progress, and the next command is not `/celetis:feature` | open the session again, or read the issue | a Run press, or `celetis --agent <host> run <n>` |
+| The session ended with no progress, and the next command is not `/celetis:feature` | open the session again, or read the issue; to leave the issue for later, press Set aside on its card on the board | a Run press, or `celetis --agent <host> run <n>` |
 | The next step skips a step of its lane (a refused skip) | read the issue ([The start of a step](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#the-start-of-a-step), "A refused skip"). When a label or a heading is wrong, fix the issue. When the skip is correct, start the refused step by hand | a Run press, or `celetis --agent <host> run <n>`, starts the next step; auto mode does not start a refused step |
 
 A Run press sends the request of `run <n>` to the daemon, which answers at its first decision. The

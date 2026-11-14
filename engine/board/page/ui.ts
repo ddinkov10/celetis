@@ -76,6 +76,8 @@ const ICONS: Record<string, [string, Record<string, string | number>][]> = {
     ['path', { d: 'M10.5 3.5V3A1.5 1.5 0 0 0 9 1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5' }],
   ],
   check: [['path', { d: 'm3.5 8.5 3 3 6-7' }]],
+  stop: [['rect', { x: 4.25, y: 4.25, width: 7.5, height: 7.5, rx: 1.5 }]],
+  aside: [['path', { d: 'M6 4v8M10 4v8' }]],
   'move-first': [['path', { d: 'M3.5 2.75h9M8 13.25v-7.5M4.75 9 8 5.75 11.25 9' }]],
   'move-up': [['path', { d: 'M8 12.75v-9.5M4.5 6.75 8 3.25l3.5 3.5' }]],
   'move-down': [['path', { d: 'M8 3.25v9.5M4.5 9.25 8 12.75l3.5-3.5' }]],

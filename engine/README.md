@@ -104,16 +104,16 @@ starts T.
 **Auto mode** of the daemon reads the decision of each open issue from the same resolver (`nextOpen`)
 and takes the lowest open issue whose decision is a Run,
 whose step has the gate `auto`, whose lane is in `autoLanes` of the main `.celetis.yaml`,
-whose step has no row in the record, and
+whose step has no row in the record, whose number is not in the `set-aside` file, and
 whose lock is free. A Run with no lane, the `triage` step of an issue with no lane label, counts as
 the name `triage` of the list. With no `autoLanes`, each lane and each issue with no lane passes
 this lane test. It does the same work on that issue, but it starts no `manual` step, and then it
 asks again. It does not take a step that the script refused as a skip, because that step has a row
-in the record. When no issue can start, when the issue started no session, or when the resolver cannot
-read GitHub, it waits 60 seconds. It prints one line for the whole wait. While it waits,
+in the record. When no issue can start, when the issue started no session, when the resolver cannot
+read GitHub, or when it cannot read the `set-aside` file, it waits 60 seconds. It prints one line for the whole wait. While it waits,
 `celetis --agent <host> next-step --open` shows the line of each open issue: a `stop` line gives the
 cause, and a `run` line that does not start has a `manual` gate, a lane outside `autoLanes`, a row
-in the record, or the lock of another run. It reads open issues only.
+in the record, a number in the `set-aside` file, or the lock of another run. It reads open issues only.
 [The master daemon](#the-master-daemon), "The requests", gives auto off.
 
 **The lanes of auto mode.** A run that auto mode started tests the lane again before each step that
@@ -153,6 +153,21 @@ session ([A landing](../plugins/celetis/docs/workflow.md#a-landing)). The `no-pr
 each step that the script refused as a skip. Auto mode and the board read it. An
 explicit issue start can start that step. `engine/lib/locks.ts` of the engine owns the lock refs,
 the owner records, the liveness check of an owner, and the record; the daemon and the board use it.
+The `set-aside` file in the same folder holds one issue number per line, for each issue that the
+maintainer set aside. It is keyed by the issue only, so it holds across a step change. Auto mode
+starts no issue of the file, and the board shows the issue as set aside in Idle. That state comes
+after a held issue lock and before a dirty lane worktree and a no-progress row. A run of the issue
+with an input other than auto mode (`celetis run <n>`, `celetis run resume <n>`, the board Run and
+Resume, and each issue that a queue run takes) removes the number when it takes the issue lock, so
+a refused start keeps it. Only the master daemon writes the file, one write at a time (the request `POST /aside` adds a number, under the issue lock, and a Stop adds the number of its
+run after the proven end of the session, [A stop of a run](#a-stop-of-a-run)), and each
+write replaces the whole file. A missing file holds no issue, and a line that is not a positive
+number has no effect. Each other read failure is an error of the board read, and auto mode starts
+no issue in that pass. An explicit start also fails then: its removal at the admission cannot read
+the file, so the run ends with that error before a session starts. A run of auto mode reads the file
+again after it takes the issue lock. When the issue is in the file, or the read fails, the run
+prints the cause, ends with the outcome `stopped` (no failure), releases the lock, and starts
+nothing. `engine/lib/set-aside.ts` owns the file.
 
 **The arguments of a session.** `stepArguments` of the adapter of each host builds the arguments
 of a step session from the start pair: [Claude Code](../docs/hosts/claude-code.md#the-daemon) and
@@ -384,6 +399,8 @@ dispatcher throws is the 500 answer below. A body is JSON of at most 16 KiB, wit
 | `POST /queue` | `{id, token, selection}` | The claim and the run of a queue wake that a `queue action` issued |
 | `POST /resume` | `{number, selection}` | `run resume <number>` |
 | `POST /retry` | `{number, waitId}` | The wake of the live quota wait, as `run retry <number> <waitId>` |
+| `POST /aside` | `{number}` | The Set aside of an issue: the daemon takes the issue lock, then adds the number to the `set-aside` file. It refuses with 409 and `daemon: #<n> runs now; use Stop` when another owner holds the lock or an entry of the daemon has the issue in a state other than `finished`; it releases the lock at the end of the request |
+| `POST /halt` | `{number, terminal}` | The Stop of a run ([A stop of a run](#a-stop-of-a-run)); `terminal` is a safe terminal ID |
 | `POST /stop` | `{}` | The stop of the daemon |
 | `POST /queue/action` | `{action, selection}` | A queue action, as `queue action '<QueueAction JSON>'`; `action` is that JSON |
 | `POST /queue/reconcile` | `{}` | The queue reconcile of a board read |
@@ -412,7 +429,7 @@ writes one `out` record first ([A landing](../plugins/celetis/docs/workflow.md#a
 unchanged. A refused `/land` gets the refusal answers below, with no stream.
 
 An answer is `{accepted: true, run}` or `{accepted: false, line, code}`. `run` is the run ID, or
-`null` for `/auto`, `/retry`, and `/stop`. A queue action and a reconcile answer
+`null` for `/auto`, `/retry`, `/aside`, `/halt`, and `/stop`. A queue action and a reconcile answer
 `{accepted: true, run, view}`, where `view` is the queue view of `queue status` after the change, and
 `run` is the run ID of the queue wake of the change, or `null` when the change has no wake. A queue
 wake of either request starts as `POST /queue` does. When the daemon refuses that wake with 409, it
@@ -430,7 +447,7 @@ code of its cause:
 | 404, 405 | Another path, or another method for a path; code 2 |
 | 409 | A refused admission or an end before the first session, with its line and code: for example a busy issue lock with code 3, a failed GitHub read of the issue with code 6, and a finished issue with code 0. A refused queue action or reconcile, with the line and code of `queue action`: for example a stale `expected` with code 3 |
 | 413 | A body of more than 16 KiB; code 2 |
-| 503 | A request that arrives during a stop (except `POST /stop` during a restart, "The restart"), and the answer of a run, queue, resume, or auto on request, or of a queue action or reconcile with a wake, that comes after a stop began, code 3. A status read that began before the stop answers 200. A run, resume, retry, queue action, or reconcile request of the board before the end of the takeover, code 3 |
+| 503 | A request that arrives during a stop (except `POST /stop` during a restart, "The restart"), and the answer of a run, queue, resume, or auto on request, or of a queue action or reconcile with a wake, that comes after a stop began, code 3. A status read that began before the stop answers 200. A run, resume, retry, aside, halt, queue action, or reconcile request of the board before the end of the takeover, code 3 |
 | 500 | An unexpected error of the daemon while it answers: its message, code 1 |
 
 A run, queue, or resume request answers after every check before the first session of its run:
@@ -492,8 +509,8 @@ run, not the machine state. The machine has 17 states. Each state except `finish
 | `quota-wait` | A reset, a renewed agent that can run the step, or Retry |
 | `preparing` | The preflight of the host and the session arguments; a resume run selects its saved session here |
 | `opening` | The session tab and its start barrier |
-| `live` | The release of the barrier of a new session, then the end of the session, with the step-end watch and the usage watch for a step session |
-| `closing` | The end of an issue: the watch stops, the step-end record goes, the unreleased tab closes, and the lock of the issue is released |
+| `live` | The release of the barrier of a new session, then the end of the session, with the step-end watch and the usage watch for a step session; after a Stop, the proof of the end ([A stop of a run](#a-stop-of-a-run)) |
+| `closing` | The end of an issue: the watch stops, the step-end record goes, the unreleased tab closes, and the lock of the issue is released, except after an unproved Stop |
 | `advancing` | The removal of a closed issue from the queue |
 | `reporting` | A queue run after a failure: the tabs close and the error state goes into the queue record |
 | `adopting` | A takeover: the locks of the run record |
@@ -520,7 +537,8 @@ state ([ADR-0103](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0103-a
 | `kind` | `number`, `auto`, `queue`, or `resume` |
 | `issue`, `numbers` | The current issue; the issue numbers of a queue run, else `null` |
 | `step`, `host`, `tab` | The step, the host, and the tab name of the current session, else `null` |
-| `state` | `starting`, `running`, `checking`, `waiting`, `exiting`, `quota-wait`, `ending`, `taken-over`, or `finished` |
+| `terminal` | The terminal ID of the current session, else `null` |
+| `state` | `starting`, `running`, `checking`, `waiting`, `exiting`, `quota-wait`, `stopping`, `ending`, `taken-over`, or `finished` |
 | `line` | The last daemon line of the run, else `null` |
 | `changedMs` | The time of the last change of `state`, in milliseconds since 1970 UTC |
 | `session` | `runs`, `gone`, or `unknown`: a process read of the start barrier of the current session at this status read, else `null` |
@@ -583,7 +601,8 @@ has not answered its request yet: that request gets 503, and the record goes ("T
 that a new daemon needs: the daemon PID and start, the request input, the issue and its lock, the
 queue ID and the request of a queue authorization, the loop facts (the last Run and its host, the
 status of the last session, the gate rule of the next step, the hosts of a quota recovery, and the
-finished tab that waits for its close), a quota wait, and the current session. The session facts
+finished tab that waits for its close), a quota wait, the current session, and the key `stop`
+(`{terminal, at}`) while a Stop is pending ([A stop of a run](#a-stop-of-a-run)). The session facts
 are its step, host, Run, session record, usage attempt, start folder, terminal, and tab, the start
 barrier (PID, start, the PID of its parent shell, and its terminal name), and the start time of the
 step. The daemon writes the record at the admission, before and after it opens a session tab,
@@ -813,7 +832,7 @@ for example after a person closed the tab, is an unknown status, and it counts a
 before issue progress, the daemon stops with the recovery line and `status unknown`.
 
 The session gets the login environment of its tab, not the environment of the daemon. The barrier
-sets `CELETIS_SESSION_AGENT` to the host and `CELETIS_ATTEMPT` to the attempt ID of a step, removes `CLAUDE_CODE_EFFORT_LEVEL` for Claude, and sets
+sets `CELETIS_SESSION_AGENT` to the host and `CELETIS_ATTEMPT` to the attempt ID of a step or a resume session, removes `CLAUDE_CODE_EFFORT_LEVEL` for Claude, and sets
 `CODEX_HOME` to the resolved native home for Codex. For OpenCode it removes `OPENCODE_CONFIG_CONTENT`,
 `OPENCODE_CONFIG`, and `OPENCODE_CONFIG_DIR`. It sets the values of `env` last, so they replace a
 value of the tab. hc gives the terminal of the tab its own
@@ -914,7 +933,7 @@ the same user can copy the value: it is a guard against a confused agent, not a 
 **The attention state.** The daemon derives the field `attention` of each run row with one loop,
 each 2 seconds, and keeps the row of a run unchanged when a pass cannot decide. A run view holds
 the hc terminal of its released session (`terminal`) and the hc turn of its last step-end state
-(`turn`). A state other than `running`, `checking`, `waiting`, and `exiting` clears both; a
+(`turn`). A state other than `running`, `checking`, `waiting`, `exiting`, and `stopping` clears both; a
 taken-over run with a live session holds the terminal. Each pass reads `hc get` of each run with a
 terminal, and the first row that matches decides:
 
@@ -1114,6 +1133,48 @@ its step-end record. A session whose barrier the run released stays open in its 
 issue lock until it exits, so leave it with `/exit`. Before the release, the run closes the tab. A
 stopped queue run does not write the queue record.
 
+**The Stop of a run.** The request `POST /halt {number, terminal}` (the board Stop) ends the session
+of one run of the daemon. The daemon refuses with 409, code 3, and one line, in this order:
+
+1. No run of the daemon holds the issue in a state other than `ending` or `finished`:
+   `daemon: #<n> has no live run of the daemon; close its tab, then use Set aside`.
+2. A landing of the issue runs (`status.landings`):
+   `daemon: a landing of #<n> runs. Wait for the landing to end, then stop again.`
+3. The terminal of the run is another one: `daemon: the card of #<n> is stale: its run has another
+   session now; read the board again`.
+4. The state of the run is not `running`, `waiting`, `checking`, or `stopping`, or its session has
+   already ended: `daemon: #<n> has no session that runs now`.
+5. The host is Codex, which has no proved end:
+   `daemon: The daemon cannot prove the end of a Codex session. Close its tab, then use Set aside.`
+
+A refused Stop changes nothing. An accepted Stop sets the stop flag of the run (the key `stop` of
+the run record, with the terminal and the time), writes the record, marks the run `stopping`, and
+closes the tab (`hc kill`, then `hc rm`). A second Stop while the flag is set changes nothing. While
+the flag is set, the state stays `stopping` until `ending`. The flag wins over each session end:
+when the session ends (any exit code) or the usage watch reports a block, the run proves the end of
+the session and its delegated work with `endOwnedAttempt` (step 2 of
+[Usage-limit recovery](#usage-limit-recovery)), and writes no recovery record. A proven end
+removes the start folder, adds the issue to the `set-aside` file, records no no-progress row,
+starts no next step, and ends the run with the outcome `stopped` and the line
+`#<n>: stopped by the maintainer; set aside`. A queue run ends as a stopped step: the queue record
+gets the state `error` with that reason. An unproved end adds no set-aside row and prints the line
+of an unverified recovery, with the reason `stopped by the maintainer.`, the cause, the running
+PIDs, and the native resume, and the act `End those processes, then restart the daemon: celetis
+daemon stop, then celetis daemon start.` The run then ends with the outcome `stopped`, and keeps the
+issue lock until the daemon stops, so no run of the issue starts while that work can still run.
+While the run is `stopping`, `POST /land` of the issue refuses with 409, code 3, and
+`daemon: #<n> is stopping; the landing does not start`, so the close of the tab cannot abort a
+landing.
+
+When the session has not ended 60 seconds after the Stop request, the daemon clears the flag,
+writes the record, restores the state of the run, and prints
+`daemon: #<n>: the tab did not close; the run goes on`. A successor daemon that adopts a record
+with the flag keeps the flag, does not close the tab again, and clears the flag at the rest of the
+60 seconds. A session that ended while no daemon ran ends as a Stop, and so does a record with the
+flag and no session or a session that did not start: the run adds the issue to the `set-aside`
+file and starts no step. A usage block that arrives while the flag is set waits for the session
+end; when the flag clears first, the run handles the block as a usage-limit recovery.
+
 ## The agent of each start
 
 At each start, the daemon reads the local order, the main config, and
@@ -1142,7 +1203,9 @@ agent starts. After a confirmed refusal of the default host, the daemon:
 1. Saves the block, writes `<git common dir>/celetis/recovery/<n>.json` (schema 2, with the key `daemon`) with the state
    `recovering`, and stops the job of the step end.
 2. Ends only its own attempt (`endOwnedAttempt` of `engine/lib/quota-recovery.ts`). The barrier
-   gives the host `CELETIS_ATTEMPT=<attempt id>`, and each child inherits it. Codex has no proved
+   gives the host `CELETIS_ATTEMPT=<attempt id>`, and each child inherits it. A resume session
+   also gets an attempt ID, which its run record keeps, so a Stop proves its end the same way.
+   Codex has no proved
    termination path on either platform, so its result is always `unverified`. On macOS and Linux,
    for Claude, the daemon records three groups: the process tree under the barrier, each process
    with that entry in its environment (not in its arguments), and each process on the tab's controlling terminal

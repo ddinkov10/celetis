@@ -9,6 +9,7 @@ import type { Operation } from './operation.ts';
 import { run as runProcess } from './process.ts';
 import type { RecoveryAuthority } from './quota-recovery.ts';
 import type { IssueRow, ParentEpic, Pull } from './resolver-types.ts';
+import { readSetAside } from './set-aside.ts';
 import { laneFolder } from './state.ts';
 import {
   type Bucket,
@@ -238,12 +239,13 @@ function shownRow(
   };
 }
 
-async function boardRow(operation: Operation, { row, line }: Shown): Promise<IssueRow> {
-  const locked = !!(await lockHolder(operation.checkout.main as string, `issue-${row.number}`));
-  const stuck = await isRecorded(operation.checkout.common as string, String(row.number), line);
-  if (locked) return { ...row, state: 'starting' };
-  if (row.state === 'dirty' || !stuck) return row;
-  return { ...row, state: 'stuck', act: `celetis --agent <host> run resume ${row.number}` };
+async function boardRow(operation: Operation, { row, line }: Shown, aside: ReadonlySet<number>): Promise<IssueRow> {
+  if (await lockHolder(operation.checkout.main as string, `issue-${row.number}`)) return { ...row, state: 'starting' };
+  const act = `celetis --agent <host> run resume ${row.number}`;
+  if (aside.has(row.number)) return { ...row, state: 'aside', act };
+  if (row.state === 'dirty' || !(await isRecorded(operation.checkout.common as string, String(row.number), line)))
+    return row;
+  return { ...row, state: 'stuck', act };
 }
 
 export async function nextBoard(
@@ -309,7 +311,8 @@ export async function nextBoard(
     }
   });
   if (value === null) return { data: null, stderr };
+  const aside = await readSetAside(operation.checkout.common as string);
   const rows: IssueRow[] = [];
-  for (const shown of value.rows) rows.push(await boardRow(operation, shown));
+  for (const shown of value.rows) rows.push(await boardRow(operation, shown, aside));
   return { data: { ...value, rows }, stderr };
 }

@@ -40,6 +40,8 @@ export type Presses = {
   resume(number: number): Promise<void>;
   shell(number: number): Promise<void>;
   go(sessionId: string): Promise<void>;
+  aside(number: number): Promise<void>;
+  stop(number: number, sessionId: string): Promise<void>;
   queue(action: QueueAction, choice: AgentChoice): Promise<QueueView>;
   replaceOrder(order: readonly Host[], expectedVersion: string): Promise<AgentOrder>;
   openCoordinator(): Promise<void>;
@@ -398,10 +400,44 @@ export const createPresses = ({
 
   const shell = async (number: number) => {
     const card = await issueCardOf(number);
-    if (card?.state !== 'dirty-tree' || !isInside(main, card.act) || resolve(card.act) === main)
+    const folder = card?.state === 'dirty-tree' ? card.act : card?.state === 'set-aside' ? card.path : null;
+    if (!folder || !isInside(main, folder) || resolve(folder) === main)
       throw new Refusal(409, `#${number} has no dirty worktree`);
-    await openTab({ folder: resolve(card.act), name: `#${number} shell`, argv: null, focus: true });
+    await openTab({ folder: resolve(folder), name: `#${number} shell`, argv: null, focus: true });
   };
+
+  const daemonAct = async (number: number, check: () => Promise<void>, act: () => Promise<void>) => {
+    if (number in operations || pressRuns.has(number)) throw new Refusal(409, `a press of #${number} is in flight`);
+    operations[number] = { step: undefined, observed: false };
+    try {
+      await check();
+      await act().catch((cause: Error) => {
+        throw new Refusal(409, cleanCause(cause.message));
+      });
+    } finally {
+      delete operations[number];
+    }
+    await refresh();
+  };
+
+  const aside = (number: number) =>
+    daemonAct(
+      number,
+      async () => {
+        if (!(await issueCardOf(number))?.aside) throw new Refusal(409, `#${number} is not stuck`);
+      },
+      () => adapter.aside(number),
+    );
+
+  const stop = (number: number, sessionId: string) =>
+    daemonAct(
+      number,
+      async () => {
+        if (!(await readSessions()).some((session) => session.sessionId === sessionId && session.issue === number))
+          throw new Refusal(404, `no session of #${number} has that id`);
+      },
+      () => adapter.halt(number, sessionId),
+    );
 
   const go = async (sessionId: string) => {
     if (
@@ -433,6 +469,8 @@ export const createPresses = ({
     resume,
     shell,
     go,
+    aside,
+    stop,
     queue,
     replaceOrder,
     openCoordinator: () => coordinatorPress(() => adapter.openCoordinator()),

@@ -73,6 +73,8 @@ export type BoardRequest =
   | { path: '/api/run'; number: number; waitId: string }
   | { path: '/api/queue'; action: QueueAction; choice: AgentChoice }
   | { path: '/api/go'; sessionId: string }
+  | { path: '/api/aside'; number: number }
+  | { path: '/api/stop'; number: number; sessionId: string }
   | { path: '/api/agent'; order: Host[]; expectedVersion: string }
   | { path: '/api/refresh' }
   | { path: '/api/update/check' }
@@ -131,12 +133,15 @@ export type Card = {
   run: boolean;
   resume: boolean;
   go: boolean;
+  aside: boolean;
+  stop?: { reason: string | null };
   epic: ParentEpic | null;
   pr: Pull | null;
   waitFor?: string | null;
   turn?: number;
   screen?: string[];
   cwd?: string | null;
+  path?: string;
   diff?: Diff | null;
   warning?: string | null;
   effort?: StartPair<RowSource> | null;
@@ -168,6 +173,7 @@ export type Action = {
   title: string;
   busy?: string;
   href?: string;
+  isBusy?: boolean;
   isDisabled?: boolean;
   isGhost?: boolean;
   isMain?: boolean;

@@ -130,6 +130,7 @@ export function repositoryLayout(common: string) {
     epicLock: (issue: string) => lockAt('epic', join(root.path, `epic-${issue}.lock`), [root]),
     spaceLock: lockAt('space', join(root.path, 'space.lock'), [root]),
     noProgress: join(root.path, 'no-progress'),
+    setAside: join(root.path, 'set-aside'),
     refresh: shared(join(root.path, 'refresh')),
     usageCaptures,
     usageCapture: (attemptId: string) => owned(join(usageCaptures.path, attemptId)),

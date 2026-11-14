@@ -13,6 +13,7 @@ import { createLandings, type Sink } from './daemon-landing.ts';
 import { daemonArgv, startDetached } from './daemon-start.ts';
 import {
   type CoordinatorAnswer,
+  codexStopLine,
   type DaemonAnswer,
   type DaemonIdentity,
   type DaemonRequest,
@@ -49,9 +50,12 @@ import {
   type RunHandle,
   type RunHooks,
   type RunInput,
+  type RunState,
+  type RunView,
   requireSetup,
 } from './run-engine.ts';
 import { type RunRecord, readRunRecords, removeRunRecord, writeRunRecord } from './run-record.ts';
+import { setAside } from './set-aside.ts';
 import { daemonSockets, ensureFolder, privateState, writeAtomic } from './state.ts';
 import { versionFolderGone } from './version-folder.ts';
 import { holdFolder, makePrivateFolder, privateFolderProblem } from './windows.ts';
@@ -80,10 +84,36 @@ const boardRequests: ReadonlySet<DaemonRequest['kind']> = new Set([
   'run',
   'resume',
   'retry',
+  'aside',
+  'halt',
   'queue-action',
   'queue-reconcile',
 ]);
 const bodyLimit = 16 * 1024;
+const stoppable: ReadonlySet<RunState> = new Set(['running', 'waiting', 'checking', 'stopping']);
+
+export function stopRefusal(
+  number: number,
+  view: RunView | null,
+  kind: RunInput['kind'] | null,
+  landing: boolean,
+  terminal: string,
+): string | null {
+  if (view === null || kind === null)
+    return `#${number} has no live run of the daemon; close its tab, then use Set aside`;
+  if (landing) return `a landing of #${number} runs. Wait for the landing to end, then stop again.`;
+  if (view.terminal !== terminal)
+    return `the card of #${number} is stale: its run has another session now; read the board again`;
+  if (!stoppable.has(view.state)) return `#${number} has no session that runs now`;
+  if (view.host === 'codex') return codexStopLine;
+  return null;
+}
+
+export function landingStopRefusal(number: number, views: readonly Pick<RunView, 'issue' | 'state'>[]): string | null {
+  return views.some((view) => view.issue === number && view.state === 'stopping')
+    ? `#${number} is stopping; the landing does not start`
+    : null;
+}
 const root = resolve(import.meta.dir, '../..');
 
 const clip = (line: string) => line.slice(0, textLimit);
@@ -442,6 +472,7 @@ async function serve(
       step: view.step,
       host: view.host,
       tab: view.tab,
+      terminal: view.terminal,
       state: view.state,
       line: frame.last === null ? null : clip(frame.last),
       changedMs: view.changedMs,
@@ -561,8 +592,14 @@ async function serve(
       }
       case 'queue-reconcile':
         return changeQueue('read', {}, (operation) => reconcileQueue(operation));
-      case 'land':
+      case 'land': {
+        const line = landingStopRefusal(
+          parsed.number,
+          [...entries.values()].map(({ handle }) => handle.view()),
+        );
+        if (line !== null) return refusal(409, `daemon: ${line}`, exits.prerequisite);
         return landings.answer(parsed, request.signal);
+      }
       case 'coordinator-open': {
         const { status, answer } = await coordinator.open(parsed.selection);
         return reply(status, answer);
@@ -581,6 +618,52 @@ async function serve(
       }
       case 'resume':
         return answerRun(begin({ kind: 'resume', number: parsed.number, selection: parsed.selection }, false));
+      case 'aside': {
+        const { number } = parsed;
+        const asideOwner = createLockOwner(main, start);
+        const holder = await asideOwner.take(`issue-${number}`);
+        try {
+          if (
+            holder !== null ||
+            [...entries.values()].some(({ handle }) => {
+              const view = handle.view();
+              return view.issue === number && view.state !== 'finished';
+            })
+          )
+            return refusal(409, `daemon: #${number} runs now; use Stop`, exits.prerequisite);
+          await setAside(common, number);
+        } finally {
+          const name = `issue-${number}`;
+          const cause = (await asideOwner.release(name)) === null ? null : await asideOwner.release(name);
+          if (cause !== null)
+            console.error(
+              `daemon: cannot release the lock ${name}: ${cause}; restart the daemon: celetis daemon stop, then celetis daemon start`,
+            );
+        }
+        return reply(200, { accepted: true, run: null });
+      }
+      case 'halt': {
+        const { number, terminal } = parsed;
+        const entry = [...entries.values()].find(({ handle }) => {
+          const view = handle.view();
+          return view.issue === number && view.state !== 'ending' && view.state !== 'finished';
+        });
+        const line = stopRefusal(
+          number,
+          entry?.handle.view() ?? null,
+          entry?.handle.input.kind ?? null,
+          landings.rows().some(({ issue }) => issue === number),
+          terminal,
+        );
+        if (line !== null) return refusal(409, `daemon: ${line}`, exits.prerequisite);
+        try {
+          await entry?.handle.halt(terminal);
+        } catch (error) {
+          if (!(error instanceof HostError)) throw error;
+          return refusal(409, error.message, error.code);
+        }
+        return reply(200, { accepted: true, run: null });
+      }
       case 'retry': {
         const { number, waitId } = parsed;
         const waiting = async (record: QuotaRecovery) =>

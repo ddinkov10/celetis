@@ -2,6 +2,7 @@ import { effectiveOrder } from './agent-order.ts';
 import { selectAgent, type UsageState, type UsageTicket } from './agent-usage.ts';
 import type { AgentChoice, Config, Host } from './config-core.ts';
 import { type ExitCode, exits } from './contract.ts';
+import { unprovedStopAct } from './daemon-types.ts';
 import { type EffortDecision, noOverride, type Override } from './effort.ts';
 import { HostError } from './errors.ts';
 import type { SessionStart } from './host-types.ts';
@@ -172,6 +173,7 @@ export type Event =
   | Readonly<{ kind: 'started'; issue: number | null; request: Request | null; basis: Basis }>
   | Readonly<{ kind: 'admitted' }>
   | Readonly<{ kind: 'lock-held'; holder: string; flags: Flags }>
+  | Readonly<{ kind: 'aside'; reason: string }>
   | Readonly<{ kind: 'bound' }>
   | Readonly<{
       kind: 'resolved';
@@ -205,6 +207,7 @@ export type Event =
       resume: string;
       ended: Readonly<{ code: number | null }> | null;
     }>
+  | Readonly<{ kind: 'halted'; ownership: AttemptEnd; host: Host; tab: string; resume: string }>
   | Readonly<{ kind: 'closed'; flags: Flags }>
   | Readonly<{ kind: 'advanced'; next: Readonly<{ issue: number; basis: Basis }> | null }>
   | Readonly<{ kind: 'reported'; issue: number | null }>
@@ -222,6 +225,9 @@ export type Effect =
   | Readonly<{ kind: 'note-loop'; loop: Loop; change: Partial<RunRecord> }>
   | Readonly<{ kind: 'mark'; label: RunState }>
   | Readonly<{ kind: 'no-progress'; issue: number; line: string }>
+  | Readonly<{ kind: 'set-aside'; issue: number }>
+  | Readonly<{ kind: 'clear-aside'; issue: number }>
+  | Readonly<{ kind: 'keep-lock' }>
   | Readonly<{ kind: 'end-recovery'; issue: number }>
   | Readonly<{
       kind: 'archive';
@@ -248,20 +254,20 @@ export type EventOf<K extends Event['kind']> = Extract<Event, { kind: K }>;
 
 export type Own = {
   starting: 'started';
-  admitting: 'admitted' | 'lock-held';
+  admitting: 'admitted' | 'lock-held' | 'aside';
   binding: 'bound';
   resolving: 'resolved';
   selecting: 'selected';
   'quota-wait': 'woke';
   preparing: 'prepared';
   opening: 'barrier-reported';
-  live: 'session-ended' | 'usage-blocked';
+  live: 'session-ended' | 'usage-blocked' | 'halted';
   closing: 'closed';
   advancing: 'advanced';
   reporting: 'reported' | 'unsaved';
   adopting: 'adopted' | 'lock-held';
   observing: 'observed';
-  ended: 'session-ended' | 'usage-blocked';
+  ended: 'session-ended' | 'usage-blocked' | 'halted';
   ending: 'cleaned';
 };
 export type Accepts = { [S in Working]: Own[S] | 'failed' };
@@ -544,6 +550,17 @@ function sessionDone(
   ]);
 }
 
+function unproved(
+  number: number,
+  reason: string,
+  host: Host,
+  ownership: Extract<AttemptEnd, { kind: 'unverified' }>,
+): string {
+  const running = ownership.running.length ? ` (running PIDs: ${ownership.running.join(', ')})` : '';
+  return `#${number}: ${reason} The daemon cannot prove that the ${host} session and its delegated work stopped: ${ownership.reason}${running}. No other agent starts.`;
+}
+const unprovedAct = 'Stop the session and its tasks in its tab, then use Try again.';
+
 function settle(
   state: IssueSession,
   fresh: boolean,
@@ -554,9 +571,8 @@ function settle(
   const { number } = issue;
   if (event.detached) return fail(number, new HostError('', exits.prerequisite));
   if (ownership.kind === 'unverified') {
-    const running = ownership.running.length ? ` (running PIDs: ${ownership.running.join(', ')})` : '';
-    const line = `#${number}: ${reason} The daemon cannot prove that the ${session.host} session and its delegated work stopped: ${ownership.reason}${running}. No other agent starts. The session stays in the tab ${state.tab}; its native resume from the main checkout: ${resume}`;
-    return close(issue, 'stopped', line, 'Stop the session and its tasks in its tab, then use Try again.', [
+    const line = `${unproved(number, reason, session.host, ownership)} The session stays in the tab ${state.tab}; its native resume from the main checkout: ${resume}`;
+    return close(issue, 'stopped', line, unprovedAct, [
       say(line),
       logged('quota-unverified', `daemon: ${line}`, number),
     ]);
@@ -584,6 +600,29 @@ function settle(
   ]);
 }
 
+const stoppedLine = (number: number) => `#${number}: stopped by the maintainer; set aside`;
+
+function halt(state: IssueSession | ResumeSession, event: EventOf<'halted'>): Step<'closing' | 'ending'> {
+  const { ownership, host, resume } = event;
+  const number = state.scope === 'issue' ? state.issue.number : state.number;
+  if (ownership.kind === 'unverified') {
+    const line = `${unproved(number, 'stopped by the maintainer.', host, ownership)} Its native resume from the main checkout: ${resume}. ${unprovedStopAct}`;
+    const effects = [{ kind: 'keep-lock' } as const, say(line), logged('stop-unverified', `daemon: ${line}`, number)];
+    return state.scope === 'issue'
+      ? close(state.issue, 'stopped', line, unprovedStopAct, effects)
+      : stopped(exits.done, line, effects);
+  }
+  const reason = stoppedLine(number);
+  const effects: Effect[] = [{ kind: 'set-aside', issue: number }, say(reason)];
+  if (state.scope === 'resume') return stopped(exits.done, reason, effects);
+  return close(state.issue, 'stopped', reason, null, [
+    ...effects,
+    noteLoop(state.issue.loop, { session: null }),
+    { kind: 'remove-start' },
+    endRecovery(number),
+  ]);
+}
+
 function observe(record: RunRecord, event: EventOf<'observed'>, run: RunFacts): Step<Targets['observing']> {
   const { seen } = event;
   const number = record.issue ?? 0;
@@ -591,6 +630,23 @@ function observe(record: RunRecord, event: EventOf<'observed'>, run: RunFacts): 
     return stopped(exits.done, 'queue: the queue changed while no daemon ran; this run ends', [
       say('queue: the queue changed while no daemon ran; this run ends'),
     ]);
+  if (record.stop && (seen.kind === 'no-session' || seen.kind === 'not-started')) {
+    const reason = stoppedLine(number);
+    const outcome: Outcome = {
+      kind: 'stopped',
+      started: record.loop.started,
+      next: seen.kind === 'not-started' ? seen.session.next : null,
+      last: record.loop.last,
+      exitCode: record.loop.exitCode,
+      reason,
+      act: null,
+    };
+    return endIssue(outcome, number, run, [
+      ...(seen.kind === 'not-started' ? [{ kind: 'close-tab', terminal: seen.session.terminal ?? '' } as const] : []),
+      { kind: 'set-aside', issue: number },
+      say(reason),
+    ]);
+  }
   if (seen.kind === 'not-started') {
     const { session } = seen;
     const reason = `#${number}: the daemon stopped before the step ${session.step} started; no step was started`;
@@ -673,23 +729,23 @@ export const on: Table = {
     failed: outside,
   },
   admitting: {
-    admitted: (state) =>
-      state.scope === 'resume'
+    admitted: (state, _event, run) => {
+      const issue = state.scope === 'resume' ? state.number : state.issue.number;
+      const clear: Effect[] = run.input.kind === 'auto' ? [] : [{ kind: 'clear-aside', issue }];
+      return state.scope === 'resume'
         ? {
             state: { kind: 'preparing', scope: 'resume', number: state.number, ready: true },
-            effects: [{ kind: 'note', change: { issue: state.number, lock: `issue-${state.number}` } }],
+            effects: [{ kind: 'note', change: { issue, lock: `issue-${issue}` } }, ...clear],
           }
         : {
             state: { kind: 'binding', issue: state.issue, adopt: false, keepRow: false, session: null, wait: null },
             effects: [
-              noteLoop(state.issue.loop, {
-                issue: state.issue.number,
-                lock: `issue-${state.issue.number}`,
-                request: state.issue.request,
-              }),
+              noteLoop(state.issue.loop, { issue, lock: `issue-${issue}`, request: state.issue.request }),
+              ...clear,
               { kind: 'daemon' },
             ],
-          },
+          };
+    },
     'lock-held': (state, event, run) => {
       if (state.scope === 'resume')
         return failure(
@@ -710,6 +766,10 @@ export const on: Table = {
         [say(reason), { kind: 'admit', admission: { ok: false, line: `daemon: ${reason}`, code: exits.prerequisite } }],
       );
     },
+    aside: (state, event, run) =>
+      state.scope === 'resume'
+        ? ending({ ok: false, error: new Error('run machine: a resume run cannot take the aside of an auto run') })
+        : endIssue(outcomeOf(state.issue, 'stopped', event.reason, null), state.issue.number, run, [say(event.reason)]),
     failed: outside,
   },
   binding: {
@@ -836,6 +896,7 @@ export const on: Table = {
     },
     'usage-blocked': (state, event) =>
       state.scope === 'resume' ? astray(state, event.kind) : settle(state, state.fresh, event),
+    halted: halt,
     failed: scoped,
   },
   closing: {
@@ -908,6 +969,7 @@ export const on: Table = {
     },
     'usage-blocked': (state, event) =>
       state.scope === 'resume' ? astray(state, event.kind) : settle(state, false, event),
+    halted: halt,
     failed: scoped,
   },
   ending: {

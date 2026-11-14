@@ -10,6 +10,7 @@ import { parseQueueAction, parseQueueView } from './queue.ts';
 import type { QueueAction, QueueView } from './queue-types.ts';
 import type { RunInput, RunState } from './run-engine.ts';
 import { daemonSocketPath, type RepositoryLayout, repositoryLayout } from './state.ts';
+import { isSafeId } from './terminal.ts';
 import type { DialogKind } from './terminal-types.ts';
 import { type Step, steps } from './workflow.ts';
 
@@ -21,6 +22,8 @@ export type DaemonRequest =
   | { kind: 'queue'; id: string; token: string; selection: Selection }
   | { kind: 'resume'; number: number; selection: Selection }
   | { kind: 'retry'; number: number; waitId: string }
+  | { kind: 'aside'; number: number }
+  | { kind: 'halt'; number: number; terminal: string }
   | { kind: 'queue-action'; action: QueueAction; selection: Selection }
   | { kind: 'queue-reconcile' }
   | { kind: 'land'; number: number; subject: string; selection: Selection; from: string }
@@ -56,6 +59,7 @@ export type RunRow = {
   step: Step | null;
   host: Host | null;
   tab: string | null;
+  terminal: string | null;
   state: RunState;
   line: string | null;
   changedMs: number;
@@ -76,8 +80,12 @@ export type DaemonStatus = {
 
 export const textLimit = 4096;
 export const stopLine = 'daemon: the daemon stops; start it again, then send the request';
+export const stopKeptLine = (n: number) => `#${n}: the tab did not close; the run goes on`;
+export const unprovedStopAct =
+  'End those processes, then restart the daemon: celetis daemon stop, then celetis daemon start.';
+export const codexStopLine = 'The daemon cannot prove the end of a Codex session. Close its tab, then use Set aside.';
 export const requestUsage =
-  'usage: GET /status | POST /run {"number":<issue>,"selection":<selection>,"effort":<level>|null,"model":<model>|null} | POST /auto {"on":<boolean>,"selection":<selection>} | POST /queue {"id":<uuid>,"token":<uuid>,"selection":<selection>} | POST /resume {"number":<issue>,"selection":<selection>} | POST /stop {} | POST /retry {"number":<issue>,"waitId":<text>} | POST /queue/action {"action":<action>,"selection":<selection>} | POST /queue/reconcile {} | POST /land {"number":<issue>,"subject":<subject>,"selection":<selection>,"from":<path>} | POST /coordinator/open {"selection":<selection>} | POST /coordinator/read {"number":<issue>} | POST /coordinator/send {"number":<issue>,"authority":"maintainer"|"coordinator","text":<text>,"token":<uuid>}; <selection> is {"explicit"?:"claude"|"codex"|"opencode","environment"?:<text>}; <level> is low|medium|high|xhigh|max; <model> is haiku|sonnet|opus|fable; <action> is a queue action of celetis queue action';
+  'usage: GET /status | POST /run {"number":<issue>,"selection":<selection>,"effort":<level>|null,"model":<model>|null} | POST /auto {"on":<boolean>,"selection":<selection>} | POST /queue {"id":<uuid>,"token":<uuid>,"selection":<selection>} | POST /resume {"number":<issue>,"selection":<selection>} | POST /stop {} | POST /retry {"number":<issue>,"waitId":<text>} | POST /aside {"number":<issue>} | POST /halt {"number":<issue>,"terminal":<id>} | POST /queue/action {"action":<action>,"selection":<selection>} | POST /queue/reconcile {} | POST /land {"number":<issue>,"subject":<subject>,"selection":<selection>,"from":<path>} | POST /coordinator/open {"selection":<selection>} | POST /coordinator/read {"number":<issue>} | POST /coordinator/send {"number":<issue>,"authority":"maintainer"|"coordinator","text":<text>,"token":<uuid>}; <selection> is {"explicit"?:"claude"|"codex"|"opencode","environment"?:<text>}; <level> is low|medium|high|xhigh|max; <model> is haiku|sonnet|opus|fable; <action> is a queue action of celetis queue action';
 
 export const requestPaths: Readonly<Record<Exclude<DaemonRequest['kind'], 'status'>, string>> = {
   run: '/run',
@@ -85,6 +93,8 @@ export const requestPaths: Readonly<Record<Exclude<DaemonRequest['kind'], 'statu
   queue: '/queue',
   resume: '/resume',
   retry: '/retry',
+  aside: '/aside',
+  halt: '/halt',
   stop: '/stop',
   'queue-action': '/queue/action',
   'queue-reconcile': '/queue/reconcile',
@@ -105,6 +115,7 @@ const states: Record<RunState, true> = {
   waiting: true,
   exiting: true,
   'quota-wait': true,
+  stopping: true,
   ending: true,
   'taken-over': true,
   finished: true,
@@ -196,6 +207,12 @@ export function parseRequest(
       typeof body.text === 'string' &&
       id(body.token)
       ? { kind: 'coordinator-send', number: body.number, authority: body.authority, text: body.text, token: body.token }
+      : refused;
+  if (path === '/aside')
+    return exact(body, ['number']) && count(body.number) ? { kind: 'aside', number: body.number } : refused;
+  if (path === '/halt')
+    return exact(body, ['number', 'terminal']) && count(body.number) && isSafeId(body.terminal)
+      ? { kind: 'halt', number: body.number, terminal: body.terminal }
       : refused;
   if (path === '/retry')
     return exact(body, ['number', 'waitId']) && count(body.number) && filled(body.waitId)
@@ -382,6 +399,7 @@ function rowOf(value: unknown): RunRow {
       'step',
       'host',
       'tab',
+      'terminal',
       'state',
       'line',
       'changedMs',
@@ -395,6 +413,7 @@ function rowOf(value: unknown): RunRow {
     nullable(isStep)(value.step) &&
     nullable(isHost)(value.host) &&
     nullable(text)(value.tab) &&
+    nullable(text)(value.terminal) &&
     member(states, value.state) &&
     nullable(text)(value.line) &&
     code(value.changedMs) &&
@@ -408,6 +427,7 @@ function rowOf(value: unknown): RunRow {
       step: value.step,
       host: value.host,
       tab: value.tab,
+      terminal: value.terminal,
       state: value.state,
       line: value.line,
       changedMs: value.changedMs,

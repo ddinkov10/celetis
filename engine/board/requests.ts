@@ -5,7 +5,7 @@ import { isIssueField, orderVersion, uuid } from '../lib/fields.ts';
 import { hostChoices, isHost } from '../lib/host-names.ts';
 import { parseQueueAction } from '../lib/queue.ts';
 import type { QueueAction } from '../lib/queue-types.ts';
-import { TerminalError } from '../lib/terminal.ts';
+import { isSafeId, TerminalError } from '../lib/terminal.ts';
 import type { BoardRequest } from './types.ts';
 
 export const POSTS: ReadonlySet<string> = new Set([
@@ -17,6 +17,8 @@ export const POSTS: ReadonlySet<string> = new Set([
   '/api/queue',
   '/api/shell',
   '/api/go',
+  '/api/aside',
+  '/api/stop',
   '/api/refresh',
   '/api/agent',
   '/api/update/check',
@@ -87,6 +89,17 @@ export const parseRequest = (path: string, body: unknown): BoardRequest => {
     throw new Refusal(400, 'assistance takes only the issue number');
   if (path === '/api/visual' && (Object.keys(input).length !== 1 || !Object.hasOwn(input, 'number')))
     throw new Refusal(400, 'making a visual takes only the issue number');
+  if (path === '/api/aside' || path === '/api/stop') {
+    const stops = path === '/api/stop';
+    if (fieldsOf(input) !== (stops ? 'number,sessionId' : 'number') || !isIssueField(input.number))
+      throw new Refusal(
+        400,
+        stops ? 'Stop takes only the issue number and a session ID' : 'Set aside takes only the issue number',
+      );
+    if (!stops) return { path, number: Number(input.number) };
+    if (!isSafeId(input.sessionId)) throw new Refusal(400, 'the session ID is not a terminal ID');
+    return { path, number: Number(input.number), sessionId: input.sessionId };
+  }
   if (path === '/api/coordinator/open' || path === '/api/coordinator/interrupt' || path === '/api/coordinator/end') {
     if (Object.keys(input).length) throw new Refusal(400, 'this act of the coordinator takes an empty object');
     return { path };

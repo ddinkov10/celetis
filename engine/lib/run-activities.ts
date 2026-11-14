@@ -1,3 +1,4 @@
+import { AsyncResource } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { constants } from 'node:os';
@@ -8,6 +9,7 @@ import type { AgentChoice, Config, Host } from './config-core.ts';
 import { type ExitCode, exits, signalExit } from './contract.ts';
 import { requireContract } from './contract-check.ts';
 import { daemonArgv } from './daemon-start.ts';
+import { stopKeptLine } from './daemon-types.ts';
 import { startPair } from './effort.ts';
 import { HostError } from './errors.ts';
 import { markDefect, passOn, recordEvent } from './events.ts';
@@ -71,6 +73,7 @@ import {
   stepText,
   writeSession,
 } from './session.ts';
+import { clearAside, readSetAside, setAside } from './set-aside.ts';
 import { startFiles } from './state.ts';
 import {
   removeStepEnd,
@@ -98,7 +101,7 @@ import { type Run, type Step, sameResult } from './workflow.ts';
 
 export const removed = 'the engine version of this daemon was removed after an update; start the daemon again';
 
-const attentive: ReadonlySet<RunState> = new Set(['running', 'checking', 'waiting', 'exiting']);
+const attentive: ReadonlySet<RunState> = new Set(['running', 'checking', 'waiting', 'exiting', 'stopping']);
 const idle: Record<TerminalStatus, boolean> = { idle: true, done: true, error: true, working: false, blocked: false };
 export const die = (message: string, code: ExitCode): never => {
   throw new HostError(`daemon: ${message}`, code);
@@ -214,12 +217,22 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     terminal: null,
     turn: null,
   };
+  let stop: NonNullable<RunRecord['stop']> | null = from?.stop ?? null;
+  let held: RunState = shown.state;
+  let open = false;
+  let claimed = false;
+  let keepsLock = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const frame = new AsyncResource('run-io');
+  let kept = Promise.withResolvers<void>();
   const mark = (next: RunState) => {
+    if (stop) held = next;
+    const label = stop && next !== 'ending' && next !== 'finished' ? 'stopping' : next;
     shown = {
       ...shown,
-      state: next,
+      state: label,
       changedMs: Date.now(),
-      ...(attentive.has(next) ? {} : { terminal: null, turn: null }),
+      ...(attentive.has(label) ? {} : { terminal: null, turn: null }),
     };
   };
   let told: string | null = null;
@@ -239,7 +252,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
   let self: Identity | undefined;
   const note = async (change: Partial<RunRecord> = {}) => {
     if (!self?.start) self = { pid: process.pid, start: await processStart(process.pid) };
-    fact = {
+    const { stop: _stop, ...next }: RunRecord = {
       ...(fact ?? {
         schema: 3,
         id,
@@ -268,8 +281,57 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
       state: shown.state,
       changedMs: shown.changedMs,
     };
+    fact = stop ? { ...next, stop } : next;
     await options.journal(fact);
   };
+  const expire = () => {
+    if (!stop || claimed || detach.signal.aborted) return;
+    if (!open) {
+      timer = setTimeout(expire, 250);
+      return;
+    }
+    stop = null;
+    kept.resolve();
+    kept = Promise.withResolvers<void>();
+    mark(held);
+    say(stopKeptLine(shown.issue ?? 0));
+    note().catch((error: unknown) => console.error((error as Error).message));
+  };
+  const arm = () => {
+    clearTimeout(timer);
+    if (stop) timer = setTimeout(frame.bind(expire), Math.max(0, stop.at + 60_000 - Date.now()));
+  };
+  const openStop = () => {
+    open = true;
+  };
+  const claimStop = () => {
+    open = false;
+    if (stop) {
+      claimed = true;
+      clearTimeout(timer);
+    }
+    return stop;
+  };
+  // An open session window and the flag change together, so a Stop is either refused or ends the run as a Stop.
+  const requestStop = async (id: string) => {
+    if (stop) return;
+    if (!open) die(`#${shown.issue} has no session that runs now`, exits.prerequisite);
+    stop = { terminal: id, at: Date.now() };
+    claimed = false;
+    mark(shown.state);
+    try {
+      await note();
+    } catch (error) {
+      if (!claimed) {
+        stop = null;
+        mark(held);
+      }
+      throw error;
+    }
+    arm();
+    await closeTerminal(id);
+  };
+  arm();
   const noteBarrier = async (barrier: Identity, startedMs: number, change: Partial<RunRecord> = {}) => {
     if (!fact?.session) return;
     const row = (await processTable())?.find((each) => each.pid === barrier.pid);
@@ -987,6 +1049,19 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     set told(value: string | null) {
       told = value;
     },
+    get stopping() {
+      return stop !== null;
+    },
+    flagCleared: () => kept.promise,
+    get keepsLock() {
+      return keepsLock;
+    },
+    set keepsLock(value: boolean) {
+      keepsLock = value;
+    },
+    get recorded() {
+      return fact;
+    },
     ledger: {
       get watchDir() {
         return watchDir;
@@ -1032,6 +1107,10 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     issueHooks,
     issueOf,
     mark,
+    openStop,
+    claimStop,
+    requestStop,
+    ownedOf,
     say,
     stopped,
     handOff,
@@ -1103,10 +1182,30 @@ function blocked(
   const detached = io.detach.signal.aborted;
   // The next daemon proves this session end again from the start folder and the run record.
   if (detached) io.ledger.watchDir = '';
+  return { kind: 'usage-blocked', session: s, reason, ownership, detached, resume: resumeOf(s), ended };
+}
+
+function resumeOf(s: Steered): string {
   const sessionId = s.ticket.attempt.sessionId ?? '';
   const args = hostAdapter(s.record.host).resumeArguments({ ...s.record, session_id: sessionId });
-  const resume = `${s.host} ${args.join(' ')}`;
-  return { kind: 'usage-blocked', session: s, reason, ownership, detached, resume, ended };
+  return `${s.host} ${args.join(' ')}`;
+}
+
+async function halting(io: Io, s: Steered, barrier: Identity, tab: string): Promise<EventOf<'halted'>> {
+  const ownership = await endOwnedAttempt(s.ticket.attempt, io.ownedOf(barrier));
+  return { kind: 'halted', ownership, host: s.host, tab, resume: resumeOf(s) };
+}
+
+async function haltingResume(io: Io, barrier: Identity): Promise<EventOf<'halted'>> {
+  const session = io.recorded?.session;
+  if (!session) throw new Error('run record: a resume run has no session');
+  const { host, record, owned, tab } = session;
+  const args = hostAdapter(host).resumeArguments({ ...record, session_id: record.session_id ?? '' });
+  const resume = `${host} ${args.join(' ')}`;
+  const ownership: AttemptEnd = owned
+    ? await endOwnedAttempt({ ...owned, main: io.place.main }, io.ownedOf(barrier))
+    : { kind: 'unverified', reason: 'the session has no attempt marker', running: [] };
+  return { kind: 'halted', ownership, host, tab, resume };
 }
 
 async function starting(_at: StateOf<'starting'>, io: Io): Promise<EventOf<Own['starting']>> {
@@ -1160,7 +1259,19 @@ async function admitting(at: StateOf<'admitting'>, io: Io): Promise<EventOf<Own[
   if (at.scope === 'issue') io.shown = { ...io.shown, issue, step: null, host: null, tab: null };
   const holder = await io.locks.take(`issue-${issue}`);
   if (holder !== null) return { kind: 'lock-held', holder, flags: flagsOf(io) };
-  return { kind: 'admitted' };
+  if (io.input.kind !== 'auto') return { kind: 'admitted' };
+  // The read comes after the lock take, so a Set aside that writes under the issue lock cannot race this start.
+  const aside = await readSetAside(io.place.common).catch((error: unknown) =>
+    error instanceof Error && error.cause instanceof Error ? error.cause : new Error(String(error)),
+  );
+  if (aside instanceof Error)
+    return {
+      kind: 'aside',
+      reason: `stop cannot read the set-aside record: ${aside.message}; auto mode asks again each 60 seconds`,
+    };
+  return aside.has(issue)
+    ? { kind: 'aside', reason: `#${issue} is set aside; auto mode skips it` }
+    : { kind: 'admitted' };
 }
 
 async function binding(at: StateOf<'binding'>, io: Io): Promise<EventOf<Own['binding']>> {
@@ -1360,6 +1471,7 @@ async function openResume(
   const { startSession } = io;
   const n = at.number;
   const { saved, host, args, session } = at.start;
+  const id = randomUUID();
   const { ended, barrier } = await startSession(
     String(n),
     saved.step,
@@ -1375,9 +1487,10 @@ async function openResume(
       announced: '',
       ticket: null,
       capture: null,
-      owned: null,
+      owned: { id, host, startedAt: Date.now(), sessionId: saved.session_id },
     },
     session,
+    id,
   );
   return { kind: 'barrier-reported', terminal: io.terminal, tab: io.tab, barrier, exit: ended, ticket: null };
 }
@@ -1444,29 +1557,37 @@ async function adoptedLive(at: Extract<StateOf<'live'>, { scope: 'issue'; fresh:
   return { ...s, ended: sessionExit(session.folder, s.barrier) };
 }
 
+async function resumeEnd(io: Io, ended: Promise<number | null>, barrier: Identity): Promise<EventOf<Own['live']>> {
+  io.openStop();
+  try {
+    const code = await io.sessionEnd(ended);
+    return io.claimStop() ? await haltingResume(io, barrier) : resumeEnded(code);
+  } finally {
+    io.claimStop();
+  }
+}
+
 async function liveResume(
   at: Extract<StateOf<'live'>, { scope: 'resume'; fresh: true }>,
   io: Io,
-): Promise<EventOf<'session-ended'>> {
-  const { noteBarrier, releaseBarrier, sessionEnd } = io;
+): Promise<EventOf<Own['live']>> {
+  const { noteBarrier, releaseBarrier } = io;
   const { barrier, exit: ended } = at;
   await noteBarrier(barrier, Date.now());
   await releaseBarrier();
-  const code = await sessionEnd(ended);
-  return resumeEnded(code);
+  return resumeEnd(io, ended, barrier);
 }
 
 async function adoptedResume(
   at: Extract<StateOf<'live'>, { scope: 'resume'; fresh: false }>,
   io: Io,
-): Promise<EventOf<'session-ended'>> {
-  const { sessionExit, mark, ledger, sessionEnd } = io;
+): Promise<EventOf<Own['live']>> {
+  const { sessionExit, mark, ledger } = io;
   const { session } = at;
   const exit = sessionExit(session.folder, session.barrier);
   mark('running');
   ledger.watchDir = session.folder;
-  const code = await sessionEnd(exit);
-  return resumeEnded(code);
+  return resumeEnd(io, exit, session.barrier);
 }
 
 async function live(at: StateOf<'live'>, io: Io): Promise<EventOf<Own['live']>> {
@@ -1497,43 +1618,60 @@ async function live(at: StateOf<'live'>, io: Io): Promise<EventOf<Own['live']>> 
     await noteBarrier(s.barrier, s.startedMs, { request: null });
     await releaseBarrier();
   }
-  const ending = sessionEnd(s.ended);
-  ending.catch(() => {});
-  let refused = await Promise.race([ending.then(() => null), refusal]);
-  if (refused?.observation.kind === 'blocked' && s.choice.kind === 'explicit') {
-    say(
-      `#${n}: the explicit agent ${s.host} reports: ${refused.observation.reason} The session stays open; no other agent starts.`,
-    );
-    refused = null;
-  }
-  if (refused?.observation.kind !== 'blocked') {
-    const exitCode = await ending;
+  io.openStop();
+  try {
+    const ending = sessionEnd(s.ended);
+    ending.catch(() => {});
+    let refused = await Promise.race([ending.then(() => null), refusal]);
+    if (refused?.observation.kind === 'blocked' && s.choice.kind === 'explicit') {
+      say(
+        `#${n}: the explicit agent ${s.host} reports: ${refused.observation.reason} The session stays open; no other agent starts.`,
+      );
+      refused = null;
+    } else if (refused?.observation.kind === 'blocked' && io.stopping) {
+      const first = await Promise.race([
+        ending.then(() => 'ended' as const),
+        io.flagCleared().then(() => 'kept' as const),
+      ]);
+      if (first === 'ended') refused = null;
+    }
+    if (refused?.observation.kind !== 'blocked') {
+      const exitCode = await ending;
+      const stop = io.claimStop();
+      usageWatch.abort();
+      await refusal;
+      watch.watcher?.abort();
+      await watch.watching;
+      watch.watching = undefined;
+      watch.watcher = undefined;
+      await clearStepEnd();
+      stepEnd.issue = undefined;
+      if (watchError !== undefined) throw watchError;
+      return stop ? await halting(io, s, s.barrier, at.tab) : sessionEnded(io, issue, s, exitCode);
+    }
+    io.claimStop();
+    const reason = refused.observation.reason;
     usageWatch.abort();
-    await refusal;
     watch.watcher?.abort();
+    const ownership = await endAttempt(s, s.barrier);
     await watch.watching;
     watch.watching = undefined;
     watch.watcher = undefined;
     await clearStepEnd();
     stepEnd.issue = undefined;
     if (watchError !== undefined) throw watchError;
-    return sessionEnded(io, issue, s, exitCode);
+    return blocked(io, s, reason, ownership, null);
+  } finally {
+    io.claimStop();
   }
-  const reason = refused.observation.reason;
-  usageWatch.abort();
-  watch.watcher?.abort();
-  const ownership = await endAttempt(s, s.barrier);
-  await watch.watching;
-  watch.watching = undefined;
-  watch.watcher = undefined;
-  await clearStepEnd();
-  stepEnd.issue = undefined;
-  if (watchError !== undefined) throw watchError;
-  return blocked(io, s, reason, ownership, null);
 }
 
 async function ended(at: StateOf<'ended'>, io: Io): Promise<EventOf<Own['ended']>> {
-  if (at.scope === 'resume') return resumeEnded(await io.sessionExit(at.session.folder, at.session.barrier));
+  const stop = io.claimStop();
+  if (at.scope === 'resume') {
+    const code = await io.sessionExit(at.session.folder, at.session.barrier);
+    return stop ? haltingResume(io, at.session.barrier) : resumeEnded(code);
+  }
   const { sessionExit, observeUsage, usageWarning, locks } = io;
   const { main, common } = io.place;
   const { watchDir } = io.ledger;
@@ -1552,6 +1690,7 @@ async function ended(at: StateOf<'ended'>, io: Io): Promise<EventOf<Own['ended']
       await startupError(issue, s.host, 'no single session identity can be saved', terminal, tab);
     }
   }
+  if (stop) return halting(io, s, s.barrier, tab);
   const observed = await observeUsage(n, s.ticket, s.capture, usageWarning(n));
   if (observed?.observation.kind === 'blocked' && s.choice.kind === 'default')
     return blocked(io, s, observed.observation.reason, await endAttempt(s, s.barrier), { code: exitCode });
@@ -1567,7 +1706,7 @@ async function closing(at: StateOf<'closing'>, io: Io): Promise<EventOf<Own['clo
   await clearStepEnd();
   stepEnd.issue = undefined;
   await closeUnreleased();
-  await locks.release(`issue-${n}`, handOff());
+  if (!io.keepsLock) await locks.release(`issue-${n}`, handOff());
   return { kind: 'closed', flags: flagsOf(io) };
 }
 
@@ -1711,6 +1850,7 @@ async function observing(at: StateOf<'observing'>, io: Io): Promise<EventOf<Own[
 
 async function ending(_at: StateOf<'ending'>, io: Io): Promise<EventOf<Own['ending']>> {
   const { mark, ledger, shared, detach, closeUnreleased, closeTabs, clearStepEnd, locks, handOff } = io;
+  io.claimStop();
   mark('ending');
   ledger.watch.watcher?.abort();
   await ledger.watch.watching;
@@ -1720,7 +1860,8 @@ async function ending(_at: StateOf<'ending'>, io: Io): Promise<EventOf<Own['endi
   if (ledger.watchDir && !(await releasedLive(ledger.watchDir)))
     await rm(ledger.watchDir, { recursive: true, force: true });
   await clearStepEnd();
-  await locks.releaseAll(handOff());
+  if (io.keepsLock) await locks.release('queue', handOff());
+  else await locks.releaseAll(handOff());
   mark('finished');
   return { kind: 'cleaned' };
 }
@@ -1803,6 +1944,15 @@ export async function perform(effect: Effect, io: Io): Promise<void> {
       return;
     case 'no-progress':
       await addRecord(io.place.common, String(effect.issue), effect.line);
+      return;
+    case 'set-aside':
+      await setAside(io.place.common, effect.issue);
+      return;
+    case 'clear-aside':
+      await clearAside(io.place.common, effect.issue);
+      return;
+    case 'keep-lock':
+      io.keepsLock = true;
       return;
     case 'end-recovery':
       await io.issueOf(String(effect.issue)).endRecovery();

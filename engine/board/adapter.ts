@@ -41,6 +41,8 @@ export type Adapter = Readonly<{
   visual(number: number, sha: string, choice: AgentChoice): Promise<string[]>;
   run(number: number, choice: AgentChoice, effort?: Level): Promise<string>;
   resume(number: number): Promise<string>;
+  aside(number: number): Promise<void>;
+  halt(number: number, terminal: string): Promise<void>;
   queue(action: QueueAction, choice: AgentChoice): Promise<QueueView>;
   replaceAgentOrder(order: readonly Host[], expectedVersion: string): Promise<AgentOrder>;
   retryQuota(number: number, waitId: string): Promise<void>;
@@ -153,6 +155,14 @@ export async function celetisAdapter(
         throw (common !== null && fromChild(result.code, line, repositoryLayout(common).agentsLock)) || failure;
       }
       return parseOrder(value);
+    },
+    aside: async (number) => {
+      const answer = parseAnswer(await daemon.send({ kind: 'aside', number }));
+      if (!answer.accepted) throw new Error(answer.line);
+    },
+    halt: async (number, terminal) => {
+      const answer = parseAnswer(await daemon.send({ kind: 'halt', number, terminal }));
+      if (!answer.accepted) throw new Error(answer.line);
     },
     retryQuota: async (number, waitId) => {
       const answer = parseAnswer(await daemon.send({ kind: 'retry', number, waitId }));
