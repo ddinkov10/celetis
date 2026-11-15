@@ -207,7 +207,8 @@ hours of use, so it uses no decorative graphics. It is never a marketing dashboa
 gradients, no charts, no hero graphics. The board shows nothing of one product. Only the folder
 name of the checkout appears in the header, so the same look fits any repository.
 
-The board follows the light or dark theme of the OS. Dark is the base definition, and light
+The board follows the light or dark theme of the OS until the maintainer picks Light or Dark with
+the theme control; the choice stays in the browser. Dark is the base definition, and light
 redefines every color token. It loads nothing from the network and carries its own two fonts.
 
 **Key Characteristics:**
@@ -502,6 +503,9 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
   and `herdr`) keeps full Ink Muted text, shows no hover fill, and does nothing when pressed. A
   failed row is Caution Amber; the update row is Beacon Orange while it needs you. More shows an
   8px dot on its icon in the same color (Caution Amber over Beacon Orange) while a row needs you.
+- **Theme control:** a 24px icon-only status bar button before Notify, Ink Faint, Ink on hover,
+  with the 14px icon of the current choice: a half-filled circle for System, a sun for Light, and a
+  moon for Dark. On a phone it is the More row `Theme: <Choice>`.
 - **Update control:** a 24px status bar button whose label names the update
   state. Only **Update available** and **Restart needed**, the states that need you, take the
   accent: Beacon Orange text on a 10% Beacon Tint fill (13% on hover). Each other state is Ink

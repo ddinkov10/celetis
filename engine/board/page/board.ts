@@ -55,6 +55,7 @@ import { openMenu, openPalette, setupMenu, setupPalette } from './palette.ts';
 import { drawPanel } from './panel.ts';
 import { drawQueue, setQueueOpen, setupQueue } from './queue.ts';
 import { dialogOpen, openStopDialog } from './stop-dialog.ts';
+import { applyTheme, readTheme, THEME_KEY, THEMES, type Theme, writeTheme } from './theme-choice.ts';
 import {
   $,
   actionButton,
@@ -105,6 +106,7 @@ const FIND_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K';
 const QUEUE_LEVEL = 'The queue starts this step at the start pair, with no override';
 
 let data: Board | null = null;
+let theme: Theme = readTheme();
 let selected: string | null = null;
 let view = store.get('view') === 'pipeline' ? 'pipeline' : 'now';
 let isNotifyOn = store.get('notify') === 'on';
@@ -1263,6 +1265,25 @@ const faviconColors = () => {
   return { tile: token('--card'), bar: token('--fg'), needs: token('--needs'), works: token('--working') };
 };
 
+const drawFavicon = () => {
+  if (data) $('favicon').href = favicon(tone(project(data), seenTurn), faviconColors());
+};
+
+const THEME_WORDS: Record<Theme, string> = { system: 'System', light: 'Light', dark: 'Dark' };
+const drawTheme = () => {
+  const label = `Theme: ${THEME_WORDS[theme]}. Press to change`;
+  $('theme').setAttribute('aria-label', label);
+  $('theme').title = label;
+};
+const setTheme = (next: Theme) => {
+  theme = next;
+  writeTheme(next);
+  applyTheme(next);
+  drawTheme();
+  drawFavicon();
+};
+const cycleTheme = () => setTheme(THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length] ?? 'system');
+
 const systemNotice = (title: string, body: string, tag: string, open: () => void) => {
   const isAway = document.hidden || !document.hasFocus();
   if (!isNotifyOn || !isAway || !('Notification' in window) || Notification.permission !== 'granted') return;
@@ -1594,7 +1615,7 @@ const drawBoard = (next: Board) => {
   byKey = new Map();
   const needs = next.columns.needs.length;
   document.title = pageTitle(next.repo, needsYou(next, seenTurn).length);
-  $('favicon').href = favicon(tone(next, seenTurn), faviconColors());
+  drawFavicon();
   $('repo').textContent = next.repo;
   $('repo').title = next.repo;
   $('refresh').title = refreshTitle();
@@ -1999,6 +2020,12 @@ const notifyEntry = (): MenuEntry => ({
   key: '',
   run: toggleNotify,
 });
+const themeEntry = (): MenuEntry => ({
+  label: `Theme: ${THEME_WORDS[theme]}`,
+  icon: `theme-${theme}`,
+  key: '',
+  run: cycleTheme,
+});
 const keysEntry = (): MenuEntry => ({
   label: 'Show the keyboard shortcuts',
   icon: 'keyboard',
@@ -2012,6 +2039,7 @@ const boardActions = (): MenuEntry[] => [
   readEntry(),
   historyEntry(),
   notifyEntry(),
+  themeEntry(),
   keysEntry(),
 ];
 
@@ -2031,6 +2059,7 @@ const phoneMenu = (): (MenuEntry | MenuSection)[] => {
     historyEntry(),
     readEntry(),
     notifyEntry(),
+    themeEntry(),
     keysEntry(),
     {
       heading: 'Board status',
@@ -2362,7 +2391,18 @@ columns.addEventListener('pointerover', (event) => {
 });
 columns.addEventListener('scroll', updateTail, true);
 addEventListener('resize', updateTail);
+matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+  if (theme !== 'system') return;
+  applyTheme('system');
+  drawFavicon();
+});
 addEventListener('storage', (event) => {
+  if (event.key === null || event.key === THEME_KEY) {
+    theme = readTheme();
+    applyTheme(theme);
+    drawTheme();
+    drawFavicon();
+  }
   if (data && (event.key === null || event.key.startsWith(store.key(SEEN_TURN)))) render(false);
   if (event.key !== null && event.key !== store.key('open-epics')) return;
   const active = document.activeElement as HTMLElement | null;
@@ -2410,6 +2450,8 @@ drawIntake();
 $('history').prepend(icon('clock'));
 $('history').addEventListener('click', () => setHistory(!isHistoryOpen));
 $('notify').addEventListener('click', toggleNotify);
+$('theme').addEventListener('click', cycleTheme);
+drawTheme();
 $('board-more').prepend(icon('dots'));
 $('board-more').addEventListener('click', () =>
   openMenu($('board-more'), phoneMenu(), {

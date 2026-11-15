@@ -350,6 +350,20 @@ var ICONS = {
       }
     ]
   ],
+  "theme-system": [
+    ["circle", { cx: 8, cy: 8, r: 5.5 }],
+    ["path", { d: "M8 2.5a5.5 5.5 0 0 1 0 11Z", class: "fill" }]
+  ],
+  "theme-light": [
+    ["circle", { cx: 8, cy: 8, r: 3 }],
+    [
+      "path",
+      {
+        d: "M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"
+      }
+    ]
+  ],
+  "theme-dark": [["path", { d: "M13 9.6A5.5 5.5 0 1 1 6.4 3a4.4 4.4 0 0 0 6.6 6.6Z" }]],
   search: [
     ["circle", { cx: 7.25, cy: 7.25, r: 4.25 }],
     ["path", { d: "m10.5 10.5 3 3" }]
@@ -3102,6 +3116,31 @@ var openStopDialog = ({ title, stop, done }) => {
   dialog.showModal();
 };
 
+// engine/board/page/theme-choice.ts
+var THEMES = ["system", "light", "dark"];
+var THEME_KEY = "celetis:theme";
+var readTheme = () => {
+  try {
+    const value = localStorage.getItem(THEME_KEY);
+    return value === "light" || value === "dark" ? value : "system";
+  } catch {
+    return "system";
+  }
+};
+var writeTheme = (theme) => {
+  try {
+    if (theme === "system")
+      localStorage.removeItem(THEME_KEY);
+    else
+      localStorage.setItem(THEME_KEY, theme);
+  } catch {}
+};
+var applyTheme = (theme) => {
+  const root = document.documentElement.dataset;
+  root.themeChoice = theme;
+  root.theme = theme !== "system" ? theme : matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+};
+
 // engine/board/page/board.ts
 var SUMMARY = [
   ["needs", "need you"],
@@ -3130,6 +3169,7 @@ var STATUS_ICONS = {
 var FIND_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
 var QUEUE_LEVEL = "The queue starts this step at the start pair, with no override";
 var data = null;
+var theme = readTheme();
 var selected = null;
 var view = store.get("view") === "pipeline" ? "pipeline" : "now";
 var isNotifyOn = store.get("notify") === "on";
@@ -4169,6 +4209,24 @@ var faviconColors = () => {
   const token = (name) => style.getPropertyValue(name).trim();
   return { tile: token("--card"), bar: token("--fg"), needs: token("--needs"), works: token("--working") };
 };
+var drawFavicon = () => {
+  if (data)
+    $("favicon").href = favicon(tone(project(data), seenTurn), faviconColors());
+};
+var THEME_WORDS = { system: "System", light: "Light", dark: "Dark" };
+var drawTheme = () => {
+  const label = `Theme: ${THEME_WORDS[theme]}. Press to change`;
+  $("theme").setAttribute("aria-label", label);
+  $("theme").title = label;
+};
+var setTheme = (next) => {
+  theme = next;
+  writeTheme(next);
+  applyTheme(next);
+  drawTheme();
+  drawFavicon();
+};
+var cycleTheme = () => setTheme(THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length] ?? "system");
 var systemNotice = (title, body, tag, open) => {
   const isAway = document.hidden || !document.hasFocus();
   if (!isNotifyOn || !isAway || !("Notification" in window) || Notification.permission !== "granted")
@@ -4455,7 +4513,7 @@ var drawBoard = (next) => {
   byKey = new Map;
   const needs = next.columns.needs.length;
   document.title = pageTitle(next.repo, needsYou(next, seenTurn).length);
-  $("favicon").href = favicon(tone(next, seenTurn), faviconColors());
+  drawFavicon();
   $("repo").textContent = next.repo;
   $("repo").title = next.repo;
   $("refresh").title = refreshTitle();
@@ -4825,6 +4883,12 @@ var notifyEntry = () => ({
   key: "",
   run: toggleNotify
 });
+var themeEntry = () => ({
+  label: `Theme: ${THEME_WORDS[theme]}`,
+  icon: `theme-${theme}`,
+  key: "",
+  run: cycleTheme
+});
 var keysEntry = () => ({
   label: "Show the keyboard shortcuts",
   icon: "keyboard",
@@ -4837,6 +4901,7 @@ var boardActions = () => [
   readEntry(),
   historyEntry(),
   notifyEntry(),
+  themeEntry(),
   keysEntry()
 ];
 var statusEntry = (item, iconName) => ({
@@ -4854,6 +4919,7 @@ var phoneMenu = () => {
     historyEntry(),
     readEntry(),
     notifyEntry(),
+    themeEntry(),
     keysEntry(),
     {
       heading: "Board status",
@@ -5189,7 +5255,19 @@ columns.addEventListener("pointerover", (event) => {
 });
 columns.addEventListener("scroll", updateTail, true);
 addEventListener("resize", updateTail);
+matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => {
+  if (theme !== "system")
+    return;
+  applyTheme("system");
+  drawFavicon();
+});
 addEventListener("storage", (event) => {
+  if (event.key === null || event.key === THEME_KEY) {
+    theme = readTheme();
+    applyTheme(theme);
+    drawTheme();
+    drawFavicon();
+  }
   if (data && (event.key === null || event.key.startsWith(store.key(SEEN_TURN))))
     render(false);
   if (event.key !== null && event.key !== store.key("open-epics"))
@@ -5243,6 +5321,8 @@ drawIntake();
 $("history").prepend(icon("clock"));
 $("history").addEventListener("click", () => setHistory(!isHistoryOpen));
 $("notify").addEventListener("click", toggleNotify);
+$("theme").addEventListener("click", cycleTheme);
+drawTheme();
 $("board-more").prepend(icon("dots"));
 $("board-more").addEventListener("click", () => openMenu($("board-more"), phoneMenu(), {
   label: "Board actions"

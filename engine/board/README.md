@@ -1112,7 +1112,7 @@ process. Twelve rules hold for the server and the page:
 11. The server writes nothing in a product working tree. An approved update changes only the
     validated native plugin and engine installations.
 12. The page writes each text of the data, of a terminal screen, and of an error as text, never as HTML. Its
-    Content-Security-Policy allows its own files (the page, its one script `board.js`, its stylesheet, and
+    Content-Security-Policy allows its own files (the page, its two scripts, `theme.js` and `board.js`, its stylesheet, and
     its two fonts) and `data:` images (the tab icon) only. A visual page at `/visual/<sha>` is
     model-written HTML. The server sends it only when `<sha>` is 40 lowercase hex digits and
     `docs/superpowers/visuals/<sha>.html` of the main checkout is a regular file, not a symbolic
@@ -1219,9 +1219,10 @@ A Run press types a run form in the repository of the board, and the daemon run 
 ## The layout, the keys, and the errors
 
 **The layout.** The page holds nothing of one repository: it uses neutral colours, follows the light
-or dark theme of the OS, and shows the folder name of the main checkout in the header. It carries
-its two fonts, Geist and Geist Mono, in `engine/board/fonts/` with their licence (`OFL.txt`, the
-SIL Open Font License 1.1), so it loads nothing from the network.
+or dark theme of the OS until the maintainer picks Light or Dark with the theme control, and shows
+the folder name of the main checkout in the header. It carries its two fonts, Geist and Geist
+Mono, in `engine/board/fonts/` with their licence (`OFL.txt`, the SIL Open Font License 1.1), so it
+loads nothing from the network.
 
 - The header holds the folder name, the switch between Now and Pipeline, the count of each column
   and of landed issues, New intake, Coordinator, Search, Queue, History, and Refresh. The title of the browser tab is
@@ -1568,11 +1569,12 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   Orange for **Update available** or **Restart needed**. The name of More ends with
   `, <name>: <words>` for each failed item. The banner of a failed read still shows above the
   board. The board menu on a phone has the rows `Show history` or `Hide history`, the read again
-  row, the Notify switch, and the keyboard shortcuts, then `Board status`. It has no row for the
-  queue, because the bottom bar keeps its button, and no row for Coordinator, because the top bar
-  keeps its button. Search keeps the queue, History, and Coordinator commands at each width. The
-  status bar also shows the keys of the focused card, the Notify switch, and the list of keys. The
-  item `Daemon` shows `daemon` of each placement ("The data"):
+  row, the Notify switch, the theme row `Theme: <Choice>`, and the keyboard shortcuts, then
+  `Board status`. It has no row for the queue, because the bottom bar keeps its button, and no row
+  for Coordinator, because the top bar keeps its button. Search keeps the queue, History,
+  Coordinator, and theme commands at each width. The status bar also shows the keys of the focused
+  card, the theme control, the Notify switch, and the list of keys. The item `Daemon` shows
+  `daemon` of each placement ("The data"):
 
   | Auto mode | Text | Tone | Title |
   |---|---|---|---|
@@ -1582,6 +1584,12 @@ SIL Open Font License 1.1), so it loads nothing from the network.
 
   The board runs in its daemon, so the item has no state for a daemon that does not run, does not
   answer, or runs another program.
+- The theme control: an icon button of the status bar, before Notify, with the name and title
+  `Theme: <Choice>. Press to change`, where `<Choice>` is `System`, `Light`, or `Dark`. Its icon
+  shows the current choice. A press sets the next choice: System, then Light, then Dark, then
+  System, applies it at once, and keeps focus on the button. System follows the light or dark
+  theme of the OS, also when the OS changes it. The More row and the Search command
+  `Theme: <Choice>` do the same press.
 - Notify: the first press asks the browser for permission. Then each card that enters Needs you
   shows a system notification while the board is not in front: `#<n> waits for your answer`,
   `#<n> ended its turn`, `#<n> made no progress`, `#<n> has a dirty worktree`, `#<n> <reason>` for a
@@ -1605,13 +1613,13 @@ SIL Open Font License 1.1), so it loads nothing from the network.
 - Below 1100 px Needs you takes the left half and Running and Idle share the right half, and the
   page scrolls as one document; it also scrolls as one document at a height of 700 px or less. Below
   720 px the columns stack.
-- The page keeps four choices in the storage of the browser: the view, the Notify switch, the
-  switch of the single-key shortcuts, and the open epic groups. It also keeps the last ended turn
-  of the coordinator session that the panel showed, and the last ended turn of each human session
-  that you saw, by terminal and hc `turn`; an entry leaves the storage at the next good read that
-  lists no such session, and a failed read removes none. The open epic groups and the seen turns
-  of human sessions follow a change in another tab of the same board. A board on another port has
-  its own choices.
+- The page keeps five choices in the storage of the browser: the view, the Notify switch, the
+  switch of the single-key shortcuts, the open epic groups, and the theme (Light or Dark; System
+  stores nothing). It also keeps the last ended turn of the coordinator session that the panel
+  showed, and the last ended turn of each human session that you saw, by terminal and hc `turn`; an
+  entry leaves the storage at the next good read that lists no such session, and a failed read
+  removes none. The open epic groups, the theme, and the seen turns of human sessions follow a
+  change in another tab of the same board. A board on another port has its own choices.
 
 **The clock.** Each time of day on the page is a 24-hour local time, `14:05` (`00:05` after
 midnight), in the facts, the tooltip of `#fresh` (`<tracker> was read at 14:05`), the reset time of
@@ -1692,7 +1700,8 @@ the texts are `Open the issue` and `Read the issues again`.
 
 The browser sources are the files of `page/`. They also import `view.ts` and `types.ts`, which server code shares,
 so those two stay free of the DOM. The pinned Bun 1.4.4 build program, `scripts/build.ts`, bundles `page/board.ts`
-into `board.js`, and refuses a bundle input outside `engine/board/`.
+into `board.js` and `page/theme.ts` into the classic script `theme.js`, which `index.html` loads in
+`<head>` before the style sheet, and refuses a bundle input outside `engine/board/`.
 It compiles every target before it writes any output. Plugin users run no build.
 
 ## Limits

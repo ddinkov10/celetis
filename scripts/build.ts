@@ -9,8 +9,13 @@ import { commandInput, createOperation, locateCheckouts } from '../engine/lib/op
 import { engineEntry } from '../engine/lib/process.ts';
 
 const root = dirname(import.meta.dir);
-const nativeTargets = [{ entry: 'engine/hooks/entry.ts', output: 'plugins/celetis/hooks/entry.js', mode: 0o644 }];
-const browserTargets = [{ entry: 'engine/board/page/board.ts', output: 'engine/board/board.js', mode: 0o644 }];
+const nativeTargets = [
+  { entry: 'engine/hooks/entry.ts', output: 'plugins/celetis/hooks/entry.js', mode: 0o644, format: 'esm' },
+] as const;
+const browserTargets = [
+  { entry: 'engine/board/page/board.ts', output: 'engine/board/board.js', mode: 0o644, format: 'esm' },
+  { entry: 'engine/board/page/theme.ts', output: 'engine/board/theme.js', mode: 0o644, format: 'iife' },
+] as const;
 const marks = (name: string) => ({
   begin: `<!-- scripts/build.ts writes the ${name} from engine/lib/contract.ts. Edit that file, then run scripts/build.ts. -->`,
   end: `<!-- The end of the ${name} that scripts/build.ts writes. -->`,
@@ -277,7 +282,7 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
       entrypoints: [join(root, target.entry)],
       root,
       target: 'browser',
-      format: 'esm',
+      format: target.format,
       naming: target.output,
       minify: false,
       sourcemap: 'none',

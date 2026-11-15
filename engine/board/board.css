@@ -39,33 +39,31 @@
   --float: 0 16px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.08);
   --gutter: max(20px, calc((100% - 1640px) / 2));
 }
-@media (prefers-color-scheme: light) {
-  :root {
-    color-scheme: light;
-    --bg: #f7f7f8;
-    --panel: #efeff2;
-    --card: #ffffff;
-    --card-hover: #fcfcfd;
-    --fill: rgba(0, 0, 0, 0.04);
-    --fill-strong: rgba(0, 0, 0, 0.07);
-    --line: rgba(0, 0, 0, 0.08);
-    --line-strong: rgba(0, 0, 0, 0.15);
-    --fg: #17171a;
-    --fg2: #53535c;
-    --fg3: #62626b;
-    --primary: #17171a;
-    --on-primary: #ffffff;
-    --needs: #a93a09;
-    --needs-tint: #f08a3c;
-    --working: #1d64e0;
-    --ready: #106934;
-    --danger: #cf2637;
-    --amber: #8f5300;
-    --focus: #1d64e0;
-    --select: rgba(29, 100, 224, 0.16);
-    --raise: 0 1px 2px rgba(16, 16, 24, 0.05), 0 0 0 0.5px rgba(16, 16, 24, 0.02);
-    --float: 0 16px 40px rgba(16, 16, 24, 0.14), 0 0 0 1px rgba(16, 16, 24, 0.08);
-  }
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f7f7f8;
+  --panel: #efeff2;
+  --card: #ffffff;
+  --card-hover: #fcfcfd;
+  --fill: rgba(0, 0, 0, 0.04);
+  --fill-strong: rgba(0, 0, 0, 0.07);
+  --line: rgba(0, 0, 0, 0.08);
+  --line-strong: rgba(0, 0, 0, 0.15);
+  --fg: #17171a;
+  --fg2: #53535c;
+  --fg3: #62626b;
+  --primary: #17171a;
+  --on-primary: #ffffff;
+  --needs: #a93a09;
+  --needs-tint: #f08a3c;
+  --working: #1d64e0;
+  --ready: #106934;
+  --danger: #cf2637;
+  --amber: #8f5300;
+  --focus: #1d64e0;
+  --select: rgba(29, 100, 224, 0.16);
+  --raise: 0 1px 2px rgba(16, 16, 24, 0.05), 0 0 0 0.5px rgba(16, 16, 24, 0.02);
+  --float: 0 16px 40px rgba(16, 16, 24, 0.14), 0 0 0 1px rgba(16, 16, 24, 0.08);
 }
 * {
   box-sizing: border-box;
@@ -2084,6 +2082,22 @@ body.is-covered .panel {
 .sb-btn b {
   font-weight: 500;
   color: var(--fg2);
+}
+.theme-cycle {
+  justify-content: center;
+  width: 24px;
+  padding: 0;
+}
+.theme-cycle .icon {
+  display: none;
+  width: 14px;
+  height: 14px;
+}
+:root:not([data-theme-choice]) .theme-cycle .i-theme-system,
+:root[data-theme-choice="system"] .theme-cycle .i-theme-system,
+:root[data-theme-choice="light"] .theme-cycle .i-theme-light,
+:root[data-theme-choice="dark"] .theme-cycle .i-theme-dark {
+  display: block;
 }
 .compact-btns .i-chevron,
 .foot-end .i-chevron {

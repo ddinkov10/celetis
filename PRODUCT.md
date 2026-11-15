@@ -73,7 +73,7 @@ agent that waits.
   `engine/board/README.md`, "The trust boundary", maps each file to its rules. UI work must not
   widen them, including the Content-Security-Policy of the board page. ADR-0065 records the one
   sandboxed route.
-- Browser sources are TypeScript. `scripts/build.ts` generates the browser bundle `board.js`.
+- Browser sources are TypeScript. `scripts/build.ts` generates the browser bundles `theme.js` and `board.js`.
   Product repositories run no build.
 - `scripts/verify.ts` is the only check of this repository. The repository adds no test file.
 - Full keyboard use is part of the product: single-key shortcuts, `⌘K` search, and card focus
@@ -86,7 +86,7 @@ agent that waits.
   English. UI copy states facts and causes: for example `No issue needs you` and
   `The board read failed. The cards and history show the last good read.`
 - The board stays neutral so it fits any product repository. It follows the light or dark theme
-  of the OS.
+  of the OS until the maintainer picks Light or Dark with the theme control.
 
 ## Evidence on Hand
 
