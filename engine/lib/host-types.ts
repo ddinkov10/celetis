@@ -38,6 +38,7 @@ export type HostAdapter = Readonly<{
   stepPrompt: (step: Step, issue: number) => string;
   stepArguments: (start: StepStart) => Promise<StepArguments>;
   resumeArguments: (session: Readonly<{ session_id: string; effort: Level | null }>) => string[];
+  sessionArguments: (sessionId: string) => string[];
   interactiveArguments: (title: string, prompt: string, attempt: string) => string[];
   startId: () => string | null;
   claim: (checkout: string, prompt: string, announced: string, startedAt: number) => Promise<Claim>;

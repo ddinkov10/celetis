@@ -10,7 +10,7 @@ export type CoordinatorAct =
   | { kind: 'key'; key: CoordinatorKey }
   | { kind: 'interrupt' }
   | { kind: 'end' };
-export type CoordinatorFacts = Readonly<{ host: Host; terminal: string }>;
+export type CoordinatorFacts = Readonly<{ host: Host; terminal: string; session: string | null; prompt: string }>;
 export const permittedActions: Readonly<Record<CoordinatorState, readonly CoordinatorAction[]>> = {
   none: ['open'],
   starting: ['go'],

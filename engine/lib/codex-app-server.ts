@@ -1,3 +1,5 @@
+import { type ChildProcess, spawn } from 'node:child_process';
+import { createInterface } from 'node:readline';
 import { exitCodeOf, exits } from './contract.ts';
 import { HostError } from './errors.ts';
 import { codexHome } from './homes.ts';
@@ -186,4 +188,166 @@ export async function codexRequest(
       (object(error) ? exitCodeOf(error.code) : null) ?? exits.internal,
     );
   }
+}
+
+export type CodexClient = Readonly<{
+  request(method: string, params: unknown): Promise<Record<string, unknown>>;
+  close(): Promise<void>;
+}>;
+
+const requestTimeoutMs = 10_000;
+
+class Rejected extends HostError {}
+
+type Session = {
+  child: ChildProcess;
+  lines: AsyncIterator<string>;
+  ended: Promise<never>;
+  stderr: () => string;
+  nextId: number;
+};
+
+function blocked(message: string): HostError {
+  return new HostError(`celetis: ${message}`, exits.blocked);
+}
+
+async function call(session: Session, method: string, params: unknown): Promise<Record<string, unknown>> {
+  const id = session.nextId++;
+  session.child.stdin?.write(`${JSON.stringify({ id, method, params })}\n`);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(blocked(`Codex ${method} timed out after 10 seconds`)), requestTimeoutMs);
+  });
+  try {
+    for (;;) {
+      const next = await Promise.race([session.lines.next(), timeout, session.ended]);
+      if (next.done) throw blocked(`Codex app-server closed its output during ${method}`);
+      let value: unknown;
+      try {
+        value = JSON.parse(next.value);
+      } catch {
+        throw blocked('invalid Codex app-server response');
+      }
+      if (!object(value)) throw blocked('invalid Codex app-server response');
+      if (typeof value.method === 'string') continue;
+      if (!Object.hasOwn(value, 'id')) throw blocked('invalid Codex app-server response');
+      if (value.id !== id) continue;
+      if (value.error != null) {
+        const message = object(value.error) ? (value.error.message ?? 'unknown error') : 'unknown error';
+        throw new Rejected(`celetis: Codex ${method} failed: ${message}`, exits.blocked);
+      }
+      if (!object(value.result)) throw blocked('invalid Codex app-server response');
+      return value;
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function stop(session: Session): Promise<void> {
+  const { child } = session;
+  child.stdin?.destroy();
+  child.kill('SIGTERM');
+  if (child.pid !== undefined && child.exitCode === null && child.signalCode === null) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const exited = new Promise<void>((resolve) => {
+      child.once('exit', () => resolve());
+    });
+    await Promise.race([
+      exited,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, 500);
+      }),
+    ]);
+    clearTimeout(timer);
+    if (child.exitCode === null && child.signalCode === null) {
+      child.kill('SIGKILL');
+      await exited;
+    }
+  }
+  child.stdout?.destroy();
+  child.stderr?.destroy();
+}
+
+export function createCodexClient(cwd: string, nativeHome?: string): CodexClient {
+  let session: Session | undefined;
+  let closed = false;
+  let queue: Promise<unknown> = Promise.resolve();
+
+  async function start(): Promise<Session> {
+    const env = childEnv({ ...process.env, CODEX_HOME: await codexHome(nativeHome) });
+    if (closed) throw blocked('Codex client is closed');
+    if (!Bun.which('codex', { PATH: env.PATH }))
+      throw new HostError('celetis: codex is not on PATH', exits.prerequisite);
+    const child = spawn('codex', ['--disable', 'plugins', 'app-server', '--stdio'], {
+      cwd,
+      env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    if (!child.stdin || !child.stdout || !child.stderr) throw blocked('cannot open Codex app-server streams');
+    child.stdin.on('error', () => {});
+    let stderr = '';
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (data: string) => {
+      stderr += data;
+    });
+    const ended = new Promise<never>((_, reject) => {
+      child.once('error', (error) => reject(blocked(`Codex app-server failed: ${error.message}`)));
+      child.once('exit', () => reject(blocked('Codex app-server exited')));
+    });
+    ended.catch(() => {});
+    const started: Session = {
+      child,
+      lines: createInterface({ input: child.stdout, crlfDelay: Infinity })[Symbol.asyncIterator](),
+      ended,
+      stderr: () => stderr.trimEnd(),
+      nextId: 1,
+    };
+    session = started;
+    child.once('exit', () => {
+      if (session === started) session = undefined;
+    });
+    try {
+      await call(started, 'initialize', {
+        clientInfo: { name: 'celetis', version: '0.0.0' },
+        capabilities: { experimentalApi: true },
+      });
+      child.stdin.write(`${JSON.stringify({ method: 'initialized' })}\n`);
+    } catch (error) {
+      session = undefined;
+      await stop(started);
+      throw error;
+    }
+    return started;
+  }
+
+  async function exchange(method: string, params: unknown): Promise<Record<string, unknown>> {
+    if (closed) throw blocked('Codex client is closed');
+    let current = session;
+    try {
+      current ??= await start();
+      return await call(current, method, params);
+    } catch (error) {
+      if (error instanceof Rejected) throw error;
+      const failed = current ?? session;
+      session = undefined;
+      if (failed) await stop(failed);
+      if (!(error instanceof HostError) || !failed) throw error;
+      throw new HostError([error.message, failed.stderr()].filter(Boolean).join('\n'), error.code);
+    }
+  }
+
+  return {
+    request(method, params) {
+      const result = queue.then(() => exchange(method, params));
+      queue = result.catch(() => {});
+      return result;
+    },
+    async close() {
+      closed = true;
+      const current = session;
+      session = undefined;
+      if (current) await stop(current);
+    },
+  };
 }

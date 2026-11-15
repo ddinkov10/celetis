@@ -1419,6 +1419,257 @@ function createAgentPicker(root, actions) {
   };
 }
 
+// engine/board/page/chat.ts
+var KEYS = {
+  up: { cap: "↑", name: "Up" },
+  down: { cap: "↓", name: "Down" },
+  enter: { cap: "Enter", name: "Enter" },
+  esc: { cap: "Esc", name: "Esc" },
+  "1": { cap: "1", name: "1" },
+  "2": { cap: "2", name: "2" },
+  "3": { cap: "3", name: "3" }
+};
+var VERBS = { runs: "Running", done: "Used", failed: "Failed", waits: "Waiting" };
+var MARKS = { runs: "works", done: "check", failed: "xcircle", waits: "target" };
+var HEADINGS = ["h3", "h4", "h5", "h6"];
+var put = (node, children) => {
+  node.append(...children);
+  return node;
+};
+var inline = (parts) => parts.map((part) => {
+  if (typeof part === "string")
+    return part;
+  if (part.k === "link")
+    return put(link("co-link", "", part.href), inline(part.c));
+  return put(el(part.k), inline(part.c));
+});
+var block = (part) => {
+  switch (part.k) {
+    case "p":
+      return put(el("p"), inline(part.c));
+    case "h":
+      return put(el(HEADINGS[part.level - 1] ?? "h6", "co-h"), inline(part.c));
+    case "code":
+      return el("pre", "co-pre", part.text);
+    case "list": {
+      const list = part.ordered ? el("ol", "co-list") : el("ul", "co-list");
+      if (list instanceof HTMLOListElement && part.start !== null)
+        list.start = part.start;
+      return put(list, part.items.map((item) => put(el("li"), item.map(block))));
+    }
+    case "quote":
+      return put(el("blockquote", "co-quote"), part.c.map(block));
+    case "rule":
+      return el("hr", "co-rule");
+  }
+};
+var textOf = (value) => [
+  el("pre", "co-pre", value.text),
+  ...value.cut > 0 ? [el("p", "co-cut", `(${value.cut} characters left out)`)] : []
+];
+var seconds = (calls) => {
+  const starts = calls.map((call) => Date.parse(call.startedAt ?? ""));
+  const ends = calls.map((call) => Date.parse(call.endedAt ?? ""));
+  if ([...starts, ...ends].some(Number.isNaN))
+    return null;
+  return Math.round((Math.max(...ends) - Math.min(...starts)) / 1000);
+};
+var steps = (count) => `${count} step${count === 1 ? "" : "s"}`;
+function createChat(log, pressKey) {
+  const list = el("ol", "co-thread");
+  log.replaceChildren(list);
+  const open = new Map;
+  let nodes = new Map;
+  let answers = [];
+  let asking = null;
+  let last = null;
+  let drawnEntries = null;
+  let drawnKey = "";
+  const disclose = (row, initial, head, body) => {
+    const show = (value) => {
+      head.setAttribute("aria-expanded", String(value));
+      body.hidden = !value;
+    };
+    show(open.get(row) ?? initial);
+    head.addEventListener("click", () => {
+      const value = head.getAttribute("aria-expanded") !== "true";
+      open.set(row, value);
+      show(value);
+    });
+  };
+  const trigger = (row, mark, words) => {
+    const head = put(el("button", "co-trigger"), [icon(mark), ...words, icon("chevron")]);
+    head.type = "button";
+    head.dataset.row = row;
+    return head;
+  };
+  const callRow = (call) => {
+    const item = el("li", "co-call");
+    item.dataset.state = call.state;
+    const head = trigger(`c:${call.id}`, MARKS[call.state], [
+      el("span", "co-verb", VERBS[call.state]),
+      " ",
+      el("span", "co-tool", call.tool),
+      " ",
+      el("span", "co-sum", call.summary)
+    ]);
+    const body = put(el("div", "co-detail"), [
+      ...textOf(call.input),
+      ...call.result ? [el("p", "co-label", call.state === "failed" ? "Error:" : "Result:"), ...textOf(call.result)] : []
+    ]);
+    disclose(`c:${call.id}`, false, head, body);
+    return put(item, [head, body]);
+  };
+  const stepsRow = (entry) => {
+    const live = entry.calls.some((call) => call.state === "runs" || call.state === "waits");
+    const failed = entry.calls.filter((call) => call.state === "failed").length;
+    const time = live ? null : seconds(entry.calls);
+    const words = live ? `Running ${steps(entry.calls.length)}` : `Ran ${steps(entry.calls.length)}${failed ? `, ${failed} failed` : ""}${time === null ? "" : ` · ${time}s`}`;
+    const item = el("li", "co-run");
+    item.dataset.state = live ? "runs" : failed ? "failed" : "done";
+    const head = trigger(`s:${entry.id}`, live ? "works" : failed ? "alert" : "check", [el("span", "co-verb", words)]);
+    const calls = put(el("ol", "co-calls"), entry.calls.map(callRow));
+    disclose(`s:${entry.id}`, live, head, calls);
+    return put(item, [head, calls]);
+  };
+  const entryNode = (entry) => {
+    switch (entry.kind) {
+      case "you": {
+        const bubble = el("p", "co-bubble", entry.text);
+        if (entry.at)
+          bubble.title = clock(entry.at, true);
+        return put(el("li", "co-you"), [bubble]);
+      }
+      case "agent":
+        return put(el("li", "co-agent"), entry.blocks.map(block));
+      case "note":
+        return el("li", "co-note", `${entry.text.replace(/\.$/, "")}${entry.at ? ` · ${clock(entry.at)}` : ""}`);
+      case "steps":
+        return stepsRow(entry);
+    }
+  };
+  const press = (key) => {
+    const record = asking;
+    pressKey(key).then((sent) => {
+      if (!sent || !record)
+        return;
+      record.key = key;
+      if (last)
+        draw(last.entries, last.dialog, last.state);
+    });
+  };
+  const card = (call, dialog) => {
+    const name = el("span", "co-ask-name", call ? `Waiting on you: ${call.tool}` : "Waiting on you");
+    name.id = "coordinator-ask-name";
+    const group = el("div", "co-ask-group");
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-labelledby", name.id);
+    group.append(put(el("p", "co-ask-head"), [icon("target"), name, ...call ? [" ", el("span", "co-sum", call.summary)] : []]));
+    if (dialog.lines.length)
+      group.append(el("pre", "co-lines", dialog.lines.join(`
+`)));
+    if (dialog.keys.length)
+      group.append(put(el("div", "co-ask-keys"), dialog.keys.map((key) => {
+        const button = el("button", "co-key");
+        button.type = "button";
+        button.dataset.key = key;
+        const cap = el("kbd", "", KEYS[key].cap);
+        if (KEYS[key].cap !== KEYS[key].name) {
+          button.setAttribute("aria-label", KEYS[key].name);
+          cap.setAttribute("aria-hidden", "true");
+        }
+        button.append(cap);
+        button.addEventListener("click", () => press(key));
+        return button;
+      })));
+    return put(el("li", "co-ask"), [group]);
+  };
+  const answerItems = (after) => answers.flatMap((answer, index) => {
+    if (answer.after !== after)
+      return [];
+    const words = answer.key ? `Answered with ${KEYS[answer.key].name}` : "The dialog closed";
+    return [
+      {
+        id: `a:${index}`,
+        json: words,
+        build: () => put(el("li", "co-answered"), [icon(answer.key ? "check" : "target"), el("span", "", words)])
+      }
+    ];
+  });
+  function draw(entries, dialog, state) {
+    last = { entries, dialog, state };
+    if (state === "dialog") {
+      asking ??= { after: null, key: null };
+      asking.after = entries.at(-1)?.id ?? null;
+    } else if (asking) {
+      answers.push(asking);
+      asking = null;
+    }
+    const key = JSON.stringify([state, dialog, answers, asking]);
+    if (entries === drawnEntries && key === drawnKey)
+      return false;
+    drawnEntries = entries;
+    drawnKey = key;
+    const items = answerItems(null);
+    for (const entry of entries)
+      items.push({ id: `e:${entry.id}`, json: JSON.stringify(entry), build: () => entryNode(entry) }, ...answerItems(entry.id));
+    if (dialog) {
+      const call = entries.flatMap((entry) => entry.kind === "steps" ? entry.calls : []).filter((item) => item.state === "waits").at(-1);
+      items.push({
+        id: "ask",
+        json: JSON.stringify([call?.tool, call?.summary, dialog]),
+        build: () => card(call, dialog)
+      });
+    }
+    if (state === "works")
+      items.push({
+        id: "works",
+        json: "",
+        build: () => put(el("li", "co-working"), [icon("works"), el("span", "", "The coordinator works")])
+      });
+    if (entries.length === 0 && state !== "works" && state !== "dialog") {
+      const absent = state === "none" || state === "ended";
+      const title = absent ? "No coordinator session" : "The session starts";
+      items.push({
+        id: "empty",
+        json: title,
+        build: () => put(el("li", "co-empty"), [
+          el("p", "co-empty-title", title),
+          el("p", "co-empty-text", absent ? "Start a session to steer the runs from here." : "The conversation shows here when the session writes its first message.")
+        ])
+      });
+    }
+    const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focus = active && list.contains(active) ? active.dataset.row ?? active.dataset.key : undefined;
+    const next = new Map;
+    for (const item of items) {
+      const kept = nodes.get(item.id);
+      next.set(item.id, { json: item.json, node: kept?.json === item.json ? kept.node : item.build() });
+    }
+    for (const [id, { node }] of nodes)
+      if (next.get(id)?.node !== node)
+        node.remove();
+    [...next.values()].forEach(({ node }, index) => {
+      if (list.children[index] !== node)
+        list.insertBefore(node, list.children[index] ?? null);
+    });
+    nodes = next;
+    if (focus && !active?.isConnected)
+      list.querySelector(`[data-row="${CSS.escape(focus)}"], [data-key="${CSS.escape(focus)}"]`)?.focus({ preventScroll: true });
+    return true;
+  }
+  return {
+    draw,
+    reset() {
+      open.clear();
+      answers = [];
+      asking = null;
+      last = null;
+      drawnEntries = null;
+    }
+  };
+}
+
 // engine/board/page/update-dialog.ts
 var session = {
   get(key) {
@@ -1868,15 +2119,6 @@ var WORDS = {
   "turn-ended": "turn ended",
   ended: "ended"
 };
-var KEYS = {
-  up: { cap: "↑", name: "Up" },
-  down: { cap: "↓", name: "Down" },
-  enter: { cap: "Enter", name: "Enter" },
-  esc: { cap: "Esc", name: "Esc" },
-  "1": { cap: "1", name: "1" },
-  "2": { cap: "2", name: "2" },
-  "3": { cap: "3", name: "3" }
-};
 var IN_FLIGHT = {
   open: "The session starts.",
   say: "The message is in flight.",
@@ -1912,8 +2154,6 @@ function setupCoordinator(hooks) {
   const field = $("coordinator-field");
   const send = $("coordinator-send");
   const hint = $("coordinator-hint");
-  const keys = $("coordinator-keys");
-  const keyRow = keys.querySelector(".co-keys-row");
   const interrupt = $("coordinator-interrupt");
   const end = $("coordinator-end");
   const go = $("coordinator-go");
@@ -1930,18 +2170,21 @@ function setupCoordinator(hooks) {
   let opening = 0;
   let busy = null;
   let line = null;
-  let text = "";
-  let full = false;
-  let textAt = null;
-  let textError = null;
+  let entries = [];
+  let revision = null;
+  let chatAt = null;
+  let chatError = null;
+  let lines = [];
+  let linesAt = null;
+  let linesError = null;
   let isDown = false;
   let isOpen = false;
   let opener = null;
   let follow = true;
+  let behind = false;
   let lastTop = 0;
   let reading = false;
   let timer;
-  let keySet = "";
   let pillKey = "";
   let seen = store.get("coordinator-seen");
   const shown = () => {
@@ -1964,6 +2207,15 @@ function setupCoordinator(hooks) {
   const isSelecting = () => {
     const selection = getSelection();
     return Boolean(selection && !selection.isCollapsed && log.contains(selection.anchorNode));
+  };
+  const settle = () => {
+    if (behind && !isSelecting()) {
+      behind = false;
+      if (follow)
+        log.scrollTop = log.scrollHeight;
+      lastTop = log.scrollTop;
+    }
+    toEnd.hidden = atEnd();
   };
   const sendBlock = () => {
     if (busy)
@@ -1999,28 +2251,6 @@ function setupCoordinator(hooks) {
       return ["The session works. A message goes into its tab now.", "plain"];
     return ["Enter sends. Shift+Enter adds a line.", "plain"];
   };
-  const drawKeys = () => {
-    const next = can("key") ? view.keys.join(" ") : "";
-    if (next === keySet)
-      return;
-    const focused = keyRow.contains(document.activeElement) ? document.activeElement.dataset.key : undefined;
-    keySet = next;
-    keyRow.replaceChildren(...(next ? view.keys : []).map((key) => {
-      const button = el("button", "co-key");
-      button.type = "button";
-      button.dataset.key = key;
-      const cap = el("kbd", "", KEYS[key].cap);
-      if (KEYS[key].cap !== KEYS[key].name) {
-        button.setAttribute("aria-label", KEYS[key].name);
-        cap.setAttribute("aria-hidden", "true");
-      }
-      button.append(cap);
-      button.addEventListener("click", () => void pressKey(key));
-      return button;
-    }));
-    if (focused)
-      keyRow.querySelector(`[data-key="${CSS.escape(focused)}"]`)?.focus();
-  };
   const disable = (node, reason, title) => {
     node.setAttribute("aria-disabled", String(reason !== null));
     node.title = reason ?? title;
@@ -2041,11 +2271,13 @@ function setupCoordinator(hooks) {
     control.querySelector(".co-new").hidden = !unseen;
     aside.dataset.state = state;
     const banner = $("coordinator-banner");
-    const textCause = isOpen ? textError ?? cause : null;
+    const chatCause = isOpen ? chatError ?? cause : null;
+    const linesCause = isOpen && state === "dialog" ? linesError : null;
     const aged = view.state === "starting" && view.sessionId !== null && view.sessionId === liveId;
-    aside.toggleAttribute("data-stale", ended || textCause !== null || aged);
-    const bannerText = ended ? "The coordinator session ended. This is its last text." : textCause ? `${textCause}. The text can be out of date: it is from ${timeOf(textAt)}.` : null;
+    aside.toggleAttribute("data-stale", ended || chatCause !== null || linesCause !== null || aged);
+    const bannerText = ended ? "The coordinator session ended. This is its last conversation." : chatCause ? `${chatCause}. The conversation can be out of date: it is from ${timeOf(chatAt)}.` : linesCause ? `${linesCause}. The dialog lines can be out of date: they are from ${timeOf(linesAt)}.` : null;
     banner.hidden = bannerText === null;
+    banner.dataset.tone = ended ? "plain" : "error";
     setText(banner, bannerText ?? "");
     if (view.host)
       host = view.host;
@@ -2056,17 +2288,10 @@ function setupCoordinator(hooks) {
       pillKey = `${state}|${age}`;
       pill.replaceChildren(el("span", "", WORDS[state]), ...age ? [timed(age, state === "starting" || state === "works" || state === "dialog")] : []);
     }
-    const scope = $("coordinator-scope");
-    const scopeText = state === "starting" ? "The session starts in a tab of the Herdr app." : state === "none" || state === "ended" || full ? null : "Only the visible screen. The full text shows when the turn ends.";
-    scope.hidden = scopeText === null;
-    setText(scope, scopeText ?? "");
-    if (log.textContent !== text && !isSelecting()) {
-      log.textContent = text;
-      if (follow)
-        log.scrollTop = log.scrollHeight;
-      lastTop = log.scrollTop;
-    }
-    toEnd.hidden = atEnd();
+    const dialog = state === "dialog" ? { lines, keys: can("key") ? view.keys : [] } : null;
+    if (chat.draw(entries, dialog, state))
+      behind = true;
+    settle();
     const wait = busy ? `Wait: ${IN_FLIGHT[busy]}` : null;
     interrupt.hidden = !can("interrupt");
     end.hidden = !can("end");
@@ -2076,9 +2301,7 @@ function setupCoordinator(hooks) {
     interrupt.setAttribute("aria-busy", String(busy === "interrupt"));
     end.setAttribute("aria-busy", String(busy === "end"));
     form.hidden = state === "none" || state === "ended";
-    keys.hidden = !can("key");
-    drawKeys();
-    for (const key of keyRow.querySelectorAll("[data-key]")) {
+    for (const key of log.querySelectorAll("[data-key]")) {
       disable(key, busy && busy !== "key" ? wait : null, `Press ${key.getAttribute("aria-label") ?? key.textContent} in the session`);
       key.setAttribute("aria-busy", String(busy === "key"));
     }
@@ -2102,7 +2325,8 @@ function setupCoordinator(hooks) {
     setText(startText, startLine ?? "");
     if (startLine)
       startText.setAttribute("role", "alert");
-    if (active && wasInPanel && (!active.isConnected || !active.checkVisibility()))
+    const now = document.activeElement;
+    if (wasInPanel && !(now instanceof HTMLElement && aside.contains(now) && now.checkVisibility()))
       (field.checkVisibility() ? field : close).focus({ preventScroll: true });
   };
   const take = (read) => {
@@ -2124,12 +2348,8 @@ function setupCoordinator(hooks) {
       ended = false;
       opening = 0;
     }
-    if (view.sessionId !== next.sessionId && next.sessionId !== null) {
-      text = "";
-      full = false;
-      textAt = null;
-      textError = null;
-    }
+    if (view.sessionId !== next.sessionId && next.sessionId !== null)
+      resetChat();
     view = next;
     const state = shown();
     draw();
@@ -2147,27 +2367,34 @@ function setupCoordinator(hooks) {
   const schedule = (from) => {
     clearTimeout(timer);
     if (isOpen && !document.hidden)
-      timer = setTimeout(readText, Math.max(0, 2000 - (Date.now() - from)));
+      timer = setTimeout(readChat, Math.max(0, 2000 - (Date.now() - from)));
   };
-  async function readText() {
+  async function readChat() {
     clearTimeout(timer);
     if (!isOpen || document.hidden || reading)
       return;
     reading = true;
     const from = Date.now();
     try {
-      const response = await fetch("/api/coordinator", { cache: "no-store" });
+      const since = revision === null ? "" : `?since=${encodeURIComponent(revision)}`;
+      const response = await fetch(`/api/coordinator${since}`, { cache: "no-store" });
       const body = await response.json();
       if (!response.ok || !body?.view)
         throw new Error(SERVER_DOWN);
       const said = take(body.view);
       if (!ended && view.state !== "none") {
-        textError = body.error;
+        chatError = body.error;
         const exiting = body.view.state === "starting" && body.view.sessionId === liveId;
-        if ((body.error === null || body.readAt !== null) && !exiting) {
-          text = body.text;
-          full = body.full;
-          textAt = body.readAt;
+        if (!exiting) {
+          if (body.chat?.entries) {
+            entries = body.chat.entries;
+            revision = body.chat.revision;
+          }
+          if (body.error === null || body.readAt !== null)
+            chatAt = body.readAt;
+          lines = body.dialog?.lines ?? [];
+          linesAt = body.dialog?.readAt ?? null;
+          linesError = body.dialog?.error ?? null;
         }
         if (body.error === null && body.view.state === "turn-ended" && isOpen && !document.hidden) {
           seen = turnKey();
@@ -2179,7 +2406,7 @@ function setupCoordinator(hooks) {
         hooks.changed(view);
       }
     } catch {
-      textError = SERVER_DOWN;
+      chatError = SERVER_DOWN;
     } finally {
       reading = false;
       draw();
@@ -2214,15 +2441,28 @@ function setupCoordinator(hooks) {
     if (error)
       line = { act: kind, text: error, tone: "error" };
     draw();
-    readText();
+    readChat();
     return error === null;
   };
   const pressKey = async (key) => {
     if (busy || !can("key"))
-      return;
-    if (await act("key", "/api/coordinator/key", { key }))
+      return false;
+    const sent = await act("key", "/api/coordinator/key", { key });
+    if (sent)
       line = { act: "key", text: `The key ${KEYS[key].name} is in the session.`, tone: "status" };
     draw();
+    return sent;
+  };
+  const chat = createChat(log, pressKey);
+  const resetChat = () => {
+    entries = [];
+    revision = null;
+    chatAt = null;
+    chatError = null;
+    lines = [];
+    linesAt = null;
+    linesError = null;
+    chat.reset();
   };
   const sendText = async () => {
     if (sendBlock())
@@ -2249,10 +2489,7 @@ function setupCoordinator(hooks) {
     ended = false;
     liveId = null;
     opening = Date.now();
-    text = "";
-    full = false;
-    textAt = null;
-    textError = null;
+    resetChat();
     known = "starting";
     announce(`Coordinator: ${WORDS.starting}`);
     if (!isOpen)
@@ -2280,7 +2517,7 @@ function setupCoordinator(hooks) {
     log.scrollTop = log.scrollHeight;
     lastTop = log.scrollTop;
     (field.checkVisibility() ? field : close).focus({ preventScroll: true });
-    readText();
+    readChat();
   }
   const hide = (refocus) => {
     if (!isOpen)
@@ -2310,11 +2547,12 @@ function setupCoordinator(hooks) {
     toEnd.hidden = atEnd();
   });
   new ResizeObserver(() => {
-    if (follow)
-      log.scrollTop = log.scrollHeight;
-    lastTop = log.scrollTop;
-    toEnd.hidden = atEnd();
+    behind = true;
+    settle();
   }).observe(log);
+  new ResizeObserver(() => {
+    toEnd.hidden = atEnd();
+  }).observe(log.firstElementChild);
   toEnd.prepend(icon("chevron"));
   toEnd.addEventListener("click", () => {
     follow = true;
@@ -2380,7 +2618,7 @@ function setupCoordinator(hooks) {
     if (document.hidden)
       clearTimeout(timer);
     else
-      readText();
+      readChat();
   });
   draw();
   return {
@@ -2450,7 +2688,7 @@ var ask = (card, actions, registry) => {
   node.append(foot);
   return node;
 };
-var steps = (card, flow, auto) => {
+var steps2 = (card, flow, auto) => {
   const track = laneTrack(card, flow);
   if (!track)
     return null;
@@ -2574,7 +2812,7 @@ var drawPanel = (card, {
   const pane = isSession && !asks ? screen(card) : null;
   body.append(...[
     pr(card),
-    steps(card, flow, auto),
+    steps2(card, flow, auto),
     section(isSession ? "Session" : "Issue", null, facts(details)),
     pane && section("Screen", "the last lines of its pane", pane)
   ].filter((node) => Boolean(node)));

@@ -14,6 +14,7 @@ import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { AgentOrderConflict } from '../lib/agent-order.ts';
 import { queueReadView, readVisualPage } from '../lib/board-read.ts';
+import { createCodexClient } from '../lib/codex-app-server.ts';
 import { recordEvent } from '../lib/events.ts';
 import { childEnv } from '../lib/process.ts';
 import { createCoordinatorReads } from './coordinator.ts';
@@ -36,6 +37,7 @@ const CSP =
 const VISUAL_CSP = 'sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox';
 // A text of 4096 UTF-16 units, each written as a \u escape of 6 bytes, fits with its field name.
 const SAY_BYTES = 32_768;
+const SINCE = /^[A-Za-z0-9._:-]{1,80}$/;
 
 export const run: Execute = (file, args, options = {}) =>
   new Promise<Result>((done) => {
@@ -83,7 +85,7 @@ export const createBoard = ({
 }) => {
   const reads = createReads({ read, readTargets, hints, now });
   const book = createPressBook({ now, target: reads.target });
-  const coordinator = createCoordinatorReads({ adapter, exec, now });
+  const coordinator = createCoordinatorReads({ adapter, exec, now, codex: () => createCodexClient(main) });
   const placer = createPlacement({
     main,
     reads,
@@ -144,8 +146,10 @@ export const createBoard = ({
       return send(response, 200, type, await readFile(join(HERE, name)));
     }
     if (request.method === 'GET' && path === '/api/queue') return sendJson(response, 200, await queueReadView(main));
-    if (request.method === 'GET' && path === '/api/coordinator')
-      return sendJson(response, 200, await coordinator.text());
+    if (request.method === 'GET' && path === '/api/coordinator') {
+      const since = new URLSearchParams(url.split('?')[1] ?? '').get('since');
+      return sendJson(response, 200, await coordinator.chat(since !== null && SINCE.test(since) ? since : null));
+    }
     if (request.method === 'GET' && path === '/api/update')
       return sendJson(response, 200, { runtime, update: updates().snapshot() });
     if (request.method === 'GET' && path === '/api/board') {
@@ -249,5 +253,6 @@ export const createBoard = ({
   return Object.assign(server, {
     drainUpdateResponse: () => updateResponse,
     stopReads: reads.stop,
+    closeCoordinator: coordinator.close,
   });
 };

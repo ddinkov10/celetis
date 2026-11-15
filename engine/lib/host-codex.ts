@@ -141,6 +141,7 @@ export const codex: HostAdapter = {
       session.session_id,
     ];
   },
+  sessionArguments: () => [],
   interactiveArguments: (_title, prompt, attempt) => ['--no-daemon', `${prompt}\nLauncher attempt: ${attempt}.`],
   startId: () => null,
   claim: (checkout, prompt, _announced, startedAt) => codexClaim(checkout, prompt, startedAt),

@@ -643,7 +643,7 @@ A press that fails ends the `Starting` card at once, and the next read gives the
 | Go | `herdr-app do pane.focus --terminal <id>`; then change to the Herdr app window. Go also takes the terminal of the coordinator record, in each state of the session, also in `starting`, where the terminal is no session of the list. |
 | Coordinator, with the state `none` | `open` of the dispatcher of the master daemon ("The acts of the coordinator session"): the open of the coordinator session with the default agent order, in a quiet tab. |
 | A message, a key, Interrupt, End session | `act` of the dispatcher with one act for the terminal of the coordinator record. |
-| The text of the coordinator session | `GET /api/coordinator` ("The reads"). |
+| The chat of the coordinator session | `GET /api/coordinator` ("The reads"). |
 
 **The requests of Run and Resume.** The fixed adapter gives each press as one request to the
 dispatcher of the master daemon that serves the board, in the same process, with only these fixed
@@ -873,7 +873,12 @@ The server also starts these read-only commands, with no shell:
   the last view;
 - `git --no-optional-locks -C <folder> diff --shortstat --merge-base origin/HEAD`, at most once each
   15 seconds for each folder, for the lines that a session changed. The folder is the lane worktree
-  of the issue (`.claude/worktrees/<n>-<slug>`), else the folder of the session.
+  of the issue (`.claude/worktrees/<n>-<slug>`), else the folder of the session;
+- `codex --disable plugins app-server --stdio`, one long-lived process in the main checkout, at the
+  first read of a Codex coordinator record, until the board closes ("The chat of the coordinator
+  session"). It gets the environment of `childEnv`, its standard streams are pipes, and it gets no
+  other open file of the board. The server sends it only `initialize`, its `initialized` notification, and
+  `thread/items/list`.
 
 Each request, also a local one, gives each History row its `visual` state. It checks up to 20 page
 files `docs/superpowers/visuals/<sha>.html` of the main checkout with `lstat`, and it uses the
@@ -885,32 +890,49 @@ another folder give no state. When `hc ls` fails, the request has no tab fact, s
 page and no press is `none`. A row moves to `ready` at the first read after the host renames its
 page.
 
-**The text of the coordinator session.** `GET /api/coordinator` gives `{view, text, full, readAt,
-error}`. It is a read, and it types, presses, starts, and ends nothing. One read runs at a time; a
-second request waits for it and gets its answer. A read runs `hc get <id> --json` of the terminal of
-the coordinator record once, and the state of `view` comes from it as in "The cards". Then:
+**The chat of the coordinator session.** `GET /api/coordinator?since=<revision>` gives `{view, chat,
+dialog, readAt, error}`. It is a read, and it types, presses, starts, and ends nothing. It also
+never resumes, starts, or interrupts a session of the host, and it never writes to the record of the
+host. One read runs at a time; a second request waits for it and gets its answer, with its own
+`since`. A `since` that is not 1 to 80 characters of `[A-Za-z0-9._:-]` counts as no `since`. The
+page sends no path and no session ID. A read runs `hc get <id> --json` of the terminal of the
+coordinator record once, and the state of `view` comes from it as in "The cards". Then:
 
-- in `starting`, `works`, and `dialog`, `hc read <id> --lines 0 --json`: the visible screen, with
-  `full: false`;
-- in `turn-ended`, the visible screen with `full: false` at once, and `hc read <id> --lines 200
-  --json` once for each hc turn, in the background: the first history read after a turn can take
-  about 2.5 s, and the answer does not wait for it. A request while that read runs gets the screen
-  of the first answer and starts no read. When the read is `complete`, the next request gives the
-  history with `full: true`, and at the same turn the server gives that kept text and starts no
-  read, so a draft in the tab does not change the text. A history read that fails or is not
-  `complete` leaves the visible screen with `full: false`, and the server makes no second history
-  read in that turn.
+- the read of the session record. The session ID comes only from the field `session` of the
+  coordinator record of the daemon. While it is `null`, `chat` is `null`. An ID that fails
+  `isSessionId` of its host gives `chat: null` and an `error`, and the server builds no path and
+  sends no request. For Claude Code, the server finds `<id>.jsonl` with one scan of the folders of
+  `projects/` under the config home of the engine, keeps the found path, and reads only the bytes
+  after the end of its last read, up to the last full line. It follows no symbolic link and reads no
+  file outside `projects/`. For Codex, the server sends `thread/items/list` of the thread to one
+  `codex app-server` process in the main checkout, and each read starts at the last page of the
+  read before it. The server starts that process at the first Codex read and ends it with the board.
+- in `dialog`, also `hc read <id> --lines 0 --json`: the visible screen, as `dialog.lines`. In each
+  other state, `dialog` is `null`.
 
-The text is cleaned as the screen of a session card is: no control character, no rule line, and no
-box border. It differs in three points: it has no line limit, each run of empty lines is one empty
-line, and each line keeps its leading white space and its tabs, so the indentation of the terminal
-stays. A box border in the leading white space goes, and the white space at the end of a line
-goes. `readAt` is the
-time of the read of the text. A failed `hc get` or `hc read` gives the last good text of that
-terminal with its `readAt` and `full`, and `error` gives the cause; a failed `hc get` also keeps the
-last view with its `error`. A server that has no good text of the terminal yet gives an empty text
-with the `readAt` `null` and the `error`; the page then keeps the text that it shows. With no
-coordinator record, `view` is `none` and the text is empty.
+`chat` holds the `session`, a `revision`, and the `entries` of the conversation
+(`engine/board/chat.ts`). The server keeps each event of the record by its kind and ID, for one
+session ID; an event with the same kind and ID replaces the kept one. A read that adds or changes
+an event, or a change into or out of `dialog`, gives a new `revision`: a random prefix of the start
+of the server, a dot, and a counter. A request whose `since` is the current revision gets
+`entries: null`, so the page draws nothing again. In `dialog`, the last call with no result has the
+state `waits`; that state comes from hc, never from the record. A new session ID starts a new
+conversation with no entry of the old one. A read that finds rows of an unknown form adds their
+count to a total for the session and prints `board: coordinator chat: skipped <n> unknown rows of
+the record`.
+
+The dialog lines are cleaned as the screen of a session card is: no control character, no rule line,
+and no box border. They differ in three points: they have no line limit, each run of empty lines is
+one empty line, and each line keeps its leading white space and its tabs, so the indentation of the
+terminal stays. A box border in the leading white space goes, and the white space at the end of a
+line goes.
+
+`readAt` is the time of the last good read of the record. A failed read of the record keeps the
+last entries and that `readAt`, and `error` gives the cause; it is no end of the session. A failed
+screen read keeps the last dialog lines of that terminal with their `dialog.readAt`, and
+`dialog.error` gives the cause; the read of the record goes on. A failed `hc get` keeps the last
+view with its `error`. With no coordinator record, `view` is `none`, and `chat` and `dialog` are
+`null`.
 
 **The presses.** The page sends a press as a POST with a JSON body: `{"number": <n>}` to
 `/api/run`, `/api/resume`, `/api/assist`, `/api/visual`, `/api/shell`, and `/api/aside`, `{"sessionId": "<id>"}` to `/api/go`,
@@ -1079,7 +1101,8 @@ process. Twelve rules hold for the server and the page:
 7. An id of an answer of `hc` or `herdr-app` (a terminal, a space, a tab) goes into a command only
    when it has letters, digits, `_`, `:`, `.`, and `-`, and does not start with `-` (`isSafeId` of
    `engine/lib/terminal.ts`). An id that is absent goes into no command.
-8. The server starts `hc`, `herdr-app`, and `git` with no shell. The issue read starts `gh`,
+8. The server starts `hc`, `herdr-app`, `git`, and the `codex` app-server of the coordinator read
+   with no shell. The issue read starts `gh`,
    `git`, and, on macOS and Linux, `ps`, and the status read of a placement starts `ps`, each with
    no shell.
 9. For issue and session data, it runs `git` only in the main checkout or in a lane worktree.
@@ -1118,7 +1141,8 @@ Five rules hold for the start, the argvs, and the data:
    that login shell, through its `env -S` shebang. On Windows, the board starts its own Bun with
    the engine entry, so no shim and no `PATH` lookup of `bun` apply. New intake,
    Assist, and Make visual start the selected native host. The server starts `hc`, `herdr-app`,
-   and `git`, and the issue read starts `gh`, `git`, and, on macOS and Linux, `ps`. Update workers have the separate fixed update
+   `git`, and the fixed argv `codex --disable plugins app-server --stdio` of the coordinator read
+   in the main checkout, and the issue read starts `gh`, `git`, and, on macOS and Linux, `ps`. Update workers have the separate fixed update
    protocol above.
 3. **Only validated values go into an argv.** The number is the digits of the issue. The agent of
    an explicit Run is a registry agent. Default Run, New intake, Assist, and Make visual retain
@@ -1138,8 +1162,8 @@ Five rules hold for the start, the argvs, and the data:
    a `javascript:` URL in the page.
 5. **The board runs in the main checkout only, with a clean `PATH`.** `daemon start` starts the
    daemon in the main checkout from each checkout of the repository, and it removes each
-   `node_modules/.bin` item from the `PATH` of the daemon, so a planted `git`, `gh`, `hc`, or
-   `herdr-app` in such a folder does not run. "Start" gives the reason.
+   `node_modules/.bin` item from the `PATH` of the daemon, so a planted `git`, `gh`, `hc`,
+   `herdr-app`, or `codex` in such a folder does not run. "Start" gives the reason.
 
 Eight rules hold for the coordinator session. They are a guard against a confused agent, not a
 security boundary: a program of the same user can send the requests of the page, and it can run
@@ -1159,8 +1183,9 @@ security boundary: a program of the same user can send the requests of the page,
    states ("The cards").
 6. The socket of the daemon serves none of the four write requests: only the board in the daemon
    process calls them.
-7. The text of the session is data. The page writes it as text, and no part of it goes into a
-   command.
+7. The text of the session is data, also each text of its session record. The server reads only
+   the record of the session ID of the coordinator record, after `isSessionId`. The page writes
+   each text as text, and no part of it goes into a command.
 8. No GET types, presses, starts, or ends something. `GET /api/coordinator` and `GET /api/board`
    only read, and a GET of a path of a coordinator act gives 404.
 
@@ -1173,20 +1198,20 @@ These files enforce the rules. They are the trust files of the board:
 | 5 (digits, a session of the repository, five levels) | `engine/board/requests.ts`, `engine/lib/fields.ts`, `engine/board/presses.ts` (Go, Stop), `engine/lib/effort.ts` (`isLevel`) |
 | 6 (what the page sends) | `engine/board/requests.ts`, the page modules of `engine/board/page/` |
 | 7 (`isSafeId`) | `engine/lib/terminal.ts` |
-| 8 (no shell) | `engine/board/perimeter.ts` (`run`), `engine/lib/process.ts` (`run` of the issue and status reads) |
+| 8 (no shell) | `engine/board/perimeter.ts` (`run`), `engine/lib/process.ts` (`run` of the issue and status reads), `engine/lib/codex-app-server.ts` (`createCodexClient`) |
 | 9 (`git` only in the repository, `--no-optional-locks`; update workers validate the installations) | `engine/lib/board-read.ts` (`isInside`, `readDiff`), `engine/board/update-worker.ts`, `engine/lib/updater.ts` |
 | 10 (Open shell under `.claude/worktrees/`) | `engine/board/presses.ts`, `engine/lib/board-read.ts` (`isInside`) |
 | 11 (no write in a product working tree) | No one file: each module of the board; the read model only reads |
 | 12 (text as text, the Content-Security-Policies, the visual page) | `engine/board/perimeter.ts`, `engine/lib/fields.ts` (`isCommit`), `engine/lib/board-read.ts` (`readVisualPage`), `engine/lib/visual.ts` (`hasPage`), the page modules |
 | Start rule 1 (the engine read) | `engine/board/adapter.ts`, `engine/lib/installation.ts` (`readEngine`) |
-| Start rule 2 (fixed argvs and requests) | `engine/board/adapter.ts`, `engine/lib/terminal.ts` (`openTab`) |
+| Start rule 2 (fixed argvs and requests) | `engine/board/adapter.ts`, `engine/lib/terminal.ts` (`openTab`), `engine/lib/codex-app-server.ts` (`createCodexClient`) |
 | Start rule 3 (only validated values) | `engine/board/requests.ts`, `engine/lib/fields.ts`, `engine/lib/host-names.ts` (`isHost`), `engine/board/adapter.ts`, `engine/lib/queue.ts` (`parseQueueAction`) |
 | Start rule 4 (the data comes from the engine) | `engine/lib/board-read.ts`, `engine/board/adapter.ts`, `engine/lib/daemon-types.ts` (`parseAnswer`, `parseQueueAnswer`) |
 | Start rule 5 (a clean `PATH`) | `engine/lib/process.ts` (`childEnv`) |
 | Coordinator rules 1, 2 (what the page sends, the exact shapes) | `engine/board/requests.ts`, `engine/board/perimeter.ts` (the body limit), `engine/lib/coordinator-types.ts` (`coordinatorKeys`), `engine/lib/coordinator.ts` (the check of an act), the page modules |
 | Coordinator rules 3, 4, 5 (the one target, the argvs, the state first) | `engine/lib/coordinator.ts`, `engine/lib/terminal.ts` (`isSafeId`, `sendText`, `pressKeys`) |
 | Coordinator rule 6 (no socket path) | `engine/lib/daemon-server.ts`, `engine/board/adapter.ts` |
-| Coordinator rules 7, 8 (text as data, no GET acts) | `engine/board/perimeter.ts`, `engine/board/coordinator.ts`, the page modules |
+| Coordinator rules 7, 8 (text as data, the one record, no GET acts) | `engine/board/perimeter.ts`, `engine/board/coordinator.ts`, `engine/board/chat.ts`, `engine/board/chat-claude.ts`, `engine/board/chat-codex.ts`, `engine/lib/fields.ts` (`isSessionId`), the page modules |
 
 A Run press types a run form in the repository of the board, and the daemon run follows the
 `.celetis.yaml` of its main checkout. Do not start the daemon in a repository that you do not trust.
@@ -1307,7 +1332,7 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   storage of the browser. After a failed read the mark and the words dim, the name ends with
   `, not current`, and the title gives the cause and the time of the last good read. A view with an
   error and no time of a good read (a board server with no good read yet) changes no state of the
-  page: the control, the panel, the counts, and the text stay as the page shows them, not current,
+  page: the control, the panel, the counts, and the conversation stay as the page shows them, not current,
   until the next good read. Below 1100 px the control shows its name and its mark, and the words
   only for `waits for your answer`. A press with the state `none` sends the open, opens the panel,
   and shows `starts` at once. Each other press, Enter, or Space opens or closes the panel. The
@@ -1328,18 +1353,39 @@ SIL Open Font License 1.1), so it loads nothing from the network.
 - The head of the panel holds `Coordinator`, the host, the state with its age, Interrupt (only in
   `works`), End session (only at an ended turn), Go (it shows the tab of the session in the Herdr
   app), and Close. The page shows and enables each act only from `actions` of the view. A line
-  under the head says when the text can be out of date: the cause and the time of the text. The
-  log is a column of at most 104 characters of Geist Mono at 12.5px, with the white space of the
-  terminal; long lines wrap, and the log has no horizontal scroll. Its name is
-  `Text of the coordinator session`, it is in the tab order, and it is no live region. A line
-  above the log says `The session starts in a tab of the Herdr app.` in `starts` and
-  `Only the visible screen. The full text shows when the turn ends.` while the text is only the
-  screen. The log starts at the end and follows new text while the view is at the end. An upward
-  scroll stops the follow, and a scroll back to the end or `Go to the end`, which shows only away
-  from the end, starts it again. A change of the size of the log keeps the follow. While the person
-  holds a text selection in the log, the text waits. While the panel is open and the page is in
-  view, the page reads `GET /api/coordinator` each 2 seconds, and at no other time.
-- One raised shell at the foot holds the key controls, the message field, the hint, and Send.
+  under the head says when the conversation can be out of date: the cause and the time of the last
+  good read of the record; in `waits for your answer`, a failed read of the dialog lines gives the
+  same line for the lines. The log is the chat: a column of at most 72 characters of Geist at
+  13px; long words wrap, and the log has no horizontal scroll. It has `role="log"` and the name
+  `Conversation with the coordinator`, it is in the tab order, and a screen reader hears each new
+  entry politely. A message of the maintainer is a bubble at the right, at most 80% wide (90% below
+  720 px), with its line breaks. A message of the coordinator takes the full width with its
+  Markdown parts (paragraphs, headings, lists, quotes, code, and links; a link has an address only
+  for `http:` and `https:`). Lists and quotes nest at most 8 levels, and so do the bold, italic,
+  code, and link parts; the server gives deeper content at level 8 and drops no text. A note of
+  the daemon is a small centred line with its time, for example
+  `Interrupted · 14:02`. A run of calls is one button, `Ran 3 steps, 1 failed · 5s` (the failed
+  count and the time show when there are), or `Running 2 steps` with a spinning mark. Its press
+  opens the list of calls. Each call is a button with a state icon and a word: `Used <tool>
+  <summary>`, `Failed …`, `Running …`, or `Waiting …`; its press shows the input, then `Result:` or
+  `Error:` and the result, with `(<n> characters left out)` when the read cut it. A run that runs
+  or waits is open, and a finished run is closed, until the person presses it; then the choice of
+  the person stays for that run and that call. Each of these buttons has `aria-expanded`, Enter and
+  Space press it, and the scroll position stays when it opens or closes. `The coordinator works`
+  with a spinning mark ends the chat in `works`. With no entry the chat shows `The session starts`
+  and `The conversation shows here when the session writes its first message.` while the session
+  starts, or `No coordinator session` and `Start a session to steer the runs from here.` with no
+  session. Under reduced motion the chevrons and the spinning marks do not move. The chat writes
+  each text of the record as text, never as markup. A read replaces only the entries that changed;
+  an open run or call that a read replaces keeps its focus. The log starts at the end and follows
+  new entries while the view is at the end. An upward scroll stops the follow, and a scroll back to
+  the end or `Go to the end`, which shows only away from the end, starts it again. A change of the
+  size of the log keeps the follow. While the person holds a text selection in the log, the chat
+  shows each change, and the follow waits until the selection ends. The selection stays while its
+  entries do not change. While the panel is open and the page is in view, the page reads
+  `GET /api/coordinator?since=<revision>` each 2 seconds, and at no other time; the page draws a
+  new list only when the answer has entries.
+- One raised shell at the foot holds the message field, the hint, and Send.
   Enter sends and Shift+Enter adds a line; Enter does nothing during IME composition or while Send
   is disabled, and Enter and Send use the same form submit. The field grows to 168 px. Send is
   disabled while the field is empty, in `starts` and in `waits for your answer`, above 4096
@@ -1353,22 +1399,32 @@ SIL Open Font License 1.1), so it loads nothing from the network.
   line of the daemon for its act. During the reconnect after an update, a press of Send, a key,
   Interrupt, End session, or the open sends nothing, the text stays, and the hint (for the open,
   the line above the start button) says that the board reconnects and that the press did nothing.
-- In `waits for your answer` the shell shows the key controls Up, Down, Enter, Esc, 1, 2, and 3. A
-  press sends its key at once and keeps the focus on the key. After an accepted key, Interrupt, or
+- In `waits for your answer` the chat ends with a group `Waiting on you: <tool>` (the tool of the
+  waiting call, else `Waiting on you`), the summary of the call, the dialog lines as text, and the
+  key controls Up, Down, Enter, Esc, 1, 2, and 3. The group is no modal and takes no focus. A
+  press sends its key at once and keeps the focus on the key. When the state leaves
+  `waits for your answer`, the group becomes a line with no control after the entry that was last
+  while the dialog showed: `Answered with <key>` with the last key that the page sent in that
+  dialog, else `The dialog closed`. A press that fails or has an unknown outcome, and a second
+  press while a key is in flight, which sends nothing, keep that receipt.
+  The page keeps these lines for the session in its memory; a reload drops them. After an accepted key, Interrupt, or
   End session, the hint says that the key, the stop key, or the exit request is in the session; the
   next read shows the effect. During an act in flight each other act is disabled, with the act in
   flight in its title. Go stays enabled: it only shows the tab, and the maintainer needs the tab
   while a message waits for a draft there. This is a decision of the maintainer of 2026-11-13
   (#288), for the sentence of the spec that each other act is disabled during an act in flight.
-- When the session ends while the panel is open, the panel keeps the last text, dimmed, under the
-  line `The coordinator session ended. This is its last text.`, and offers `Start a new session`.
+- When the session ends while the panel is open, the panel keeps the last conversation, dimmed,
+  under the line `The coordinator session ended. This is its last conversation.`, and offers
+  `Start a new session`.
   Only a good read with the state `none` ends the panel; a failed read does not. After the page has
   seen `works`, `dialog`, or `turn-ended` for a session, a later `starting` read of the same
-  `sessionId` is the exit of the host, not a new start: the panel keeps the state, the text, and
-  its look, whatever the text of that read is (Claude Code prints a resume line when it exits). That
-  keeping lasts 5 seconds (`FOLD_BOUND`) from the first such read. After that, while the read stays
-  `starting`, the panel shows `starts` with its line and acts, and the last live text dimmed as not
-  current. A new `sessionId` shows its own text and `starting`. A reload shows
+  `sessionId` is the exit of the host, not a new start: the panel keeps the state, the
+  conversation, and its look, whatever that read holds (Claude Code prints a resume line when it
+  exits). That keeping lasts 5 seconds (`FOLD_BOUND`) from the first such read. After that, while
+  the read stays `starting`, the panel shows `starts` with its acts, and the last live conversation
+  dimmed as not current. A new `sessionId` drops the conversation, the open runs, and the dialog
+  lines of the old session, and shows its own conversation and `starting`; when the focus was on a
+  control of the old chat, it goes to the message field. A reload shows
   `no session` with the panel closed. A refused open shows each line of its refusal above that
   button, and the hint shows each line of a refused act. Each change of the state goes to the polite
   announcement region, for example `Coordinator: waits for your answer`.
@@ -1659,7 +1715,8 @@ Of the sessions, herdr-core, and the Herdr app:
   status, for example Claude Code before 2.1.295, has no card. The card does not show the kind of a
   `blocked` status (`permission`, `question`, or `auth`).
 - The card of a waiting session does not say what the agent asks: the details show the lines of its
-  terminal screen. The board does not read the private files of an agent.
+  terminal screen. Of the private files of an agent, the board reads only the session record of
+  the coordinator session.
 - The time of a session state starts when the server first sees that state. The server sees nothing
   while no page asks, and a start of the server starts each time again. The same holds for the
   state of the coordinator session.
@@ -1708,21 +1765,19 @@ Of the coordinator session (each case needs the Herdr tab `Coordinator`, which G
 - A picker of the host that is no dialog, for example the picker of `/model`. The host reports no
   `blocked` status, so the view has no keys.
 - A dialog that needs a free text or a sign-in.
-- A long answer while the session works or shows a dialog: hc gives only the visible screen in these
-  states, so the text is only that screen until the turn ends. At an ended turn, the text holds at
-  most the 200 history lines above the screen and the screen.
 - A host that reports no status: at the folder-trust dialog of Claude Code, at a start that hangs,
   or with a host version that reports none. The view stays `starting`, with no keys and no `end`,
   for as long as that lasts.
 - A Codex dialog shows only when its approvals reviewer is `user`: with the default `auto_review`,
   Codex approves itself and never reports `blocked`. A Claude session in auto mode shows no
   permission dialog. The Codex choice `2` (persist a rule) was not driven in a lab.
-- The text has the line breaks of the terminal and no colors. It holds the lines of the host
-  itself, for example its prompt line and its status line.
-- A history read that is not complete gives only the visible screen for the rest of that turn.
-- At a new ended turn, the text shows as the visible screen first and as the history later,
-  because the first history read of a turn is slow. With real hosts, `full: true` came 4.2 to 6.0 s
-  after the reply was on the screen, and 3.9 to 6.0 s (mostly 4.0 s) after the panel showed it.
+- The dialog lines have the line breaks of the terminal and no colors. They hold the lines of the
+  host itself around the dialog, and of a long dialog only its visible part.
+- A Codex call shows when its item completes: the item list of the thread holds a call only from
+  its end, so a long command shows no running call.
+- The format of the Claude Code session record is no public contract, and it can change in any
+  release. The server skips each row of an unknown form and logs the count, so a release that
+  changes the known fields gives an empty or partial chat.
 - Claude Code takes a tab of a sent message as 4 spaces. The daemon passes the tab to hc unchanged
   (the hc argv holds `\t`), and Codex keeps it, so the change is in the input of Claude Code. This is a
   decision of the maintainer of 2026-11-13 (#288).

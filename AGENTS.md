@@ -230,12 +230,13 @@ For installation changes, follow `plugins/celetis/README.md`, "Updates".
 
 - Keep the trust boundaries of the trust files: `engine/board/perimeter.ts`,
   `engine/board/requests.ts`, `engine/board/presses.ts`, the fixed adapter `engine/board/adapter.ts`,
-  `engine/board/coordinator.ts`, `engine/board/update-worker.ts`, `engine/board/start.ts`, the page
+  `engine/board/coordinator.ts`, `engine/board/chat.ts`, `engine/board/chat-claude.ts`,
+  `engine/board/chat-codex.ts`, `engine/board/update-worker.ts`, `engine/board/start.ts`, the page
   modules of `engine/board/page/`, `engine/lib/board-read.ts`, `engine/lib/visual.ts`,
   `engine/lib/fields.ts`, `engine/lib/host-names.ts`, `engine/lib/terminal.ts`, `engine/lib/effort.ts`,
   `engine/lib/process.ts`, `engine/lib/updater.ts`, `engine/lib/installation.ts`, `engine/lib/queue.ts`,
-  `engine/lib/coordinator.ts`, `engine/lib/coordinator-types.ts`, `engine/lib/daemon-server.ts`, and
-  `engine/lib/daemon-types.ts`.
+  `engine/lib/coordinator.ts`, `engine/lib/coordinator-types.ts`, `engine/lib/codex-app-server.ts`,
+  `engine/lib/daemon-server.ts`, and `engine/lib/daemon-types.ts`.
   `engine/board/README.md`, "The trust boundary", maps each file to its rules.
 - Check a UI change in Chromium at desktop width and at 375×812.
 

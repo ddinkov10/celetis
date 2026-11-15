@@ -50,6 +50,7 @@ export const claude: HostAdapter = {
     if (session.effort === null) throw new HostError('daemon: a claude session record has no effort', exits.internal);
     return ['--resume', session.session_id, '--effort', session.effort];
   },
+  sessionArguments: (sessionId) => ['--session-id', sessionId],
   interactiveArguments: (title, prompt) => ['-n', title, prompt],
   startId: () => randomUUID(),
   claim: async (_checkout, _prompt, announced) => ({ kind: 'one', id: announced }),

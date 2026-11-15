@@ -47,14 +47,12 @@
       </span>
     </header>
     <p class="co-banner" id="coordinator-banner" role="status" hidden></p>
-    <p class="co-scope" id="coordinator-scope" hidden></p>
     <div class="co-body">
-      <pre class="co-log" id="coordinator-log" role="region" tabindex="0" aria-label="Text of the coordinator session"></pre>
+      <div class="co-log co-chat" id="coordinator-log" role="log" tabindex="0" aria-label="Conversation with the coordinator"></div>
       <button type="button" class="btn ghost co-to-end" id="coordinator-to-end" hidden><span class="label">Go to the end</span></button>
     </div>
     <div class="co-foot">
       <form class="co-form" id="coordinator-form" hidden>
-        <div class="co-keys" id="coordinator-keys" role="group" aria-labelledby="coordinator-keys-text" hidden><p class="co-keys-text" id="coordinator-keys-text">The host shows a dialog. Answer it with a key.</p><div class="co-keys-row"></div></div>
         <textarea class="co-field" id="coordinator-field" rows="1" aria-label="Message to the coordinator" aria-describedby="coordinator-hint" placeholder="Write to the coordinator"></textarea>
         <div class="co-row"><p class="co-hint" id="coordinator-hint"></p><button type="submit" class="btn primary" id="coordinator-send"><span class="label">Send</span></button></div>
       </form>

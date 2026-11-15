@@ -74,6 +74,7 @@ export const opencode: HostAdapter = {
     };
   },
   resumeArguments: (session) => ['--standalone', '--auto', '-s', session.session_id],
+  sessionArguments: () => unsupported('opencode', 'interactive session'),
   interactiveArguments: () => unsupported('opencode', 'interactive session'),
   startId: newSessionId,
   claim: async (_checkout, _prompt, announced) => ({ kind: 'one', id: announced }),

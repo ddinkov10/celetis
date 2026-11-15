@@ -53,9 +53,10 @@ agent that waits.
 ## Capabilities and Constraints
 
 - The board has two views, Now (Needs you, Running, Idle) and Pipeline (one column for each stage),
-  plus Queue, History, Search, a details panel, and the coordinator panel: a conversation view of
-  the coordinator session, with its text, a message field, key controls for a dialog of its host,
-  and the acts Interrupt, End session, and Go. The header control Coordinator shows the state of
+  plus Queue, History, Search, a details panel, and the coordinator panel: a chat of the
+  coordinator session built from the session record of its host (the messages, the folded tool
+  calls, and the notes of the daemon), an inline dialog group with key controls for a dialog of its
+  host, a message field, and the acts Interrupt, End session, and Go. The header control Coordinator shows the state of
   that session and opens the panel. `engine/board/README.md`, "The layout, the
   keys, and the errors", is the design document and the source of truth for behavior and copy.
 - The board holds nothing of one repository: the lanes, steps, stages, and tracker name come from

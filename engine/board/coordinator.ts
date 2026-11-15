@@ -1,28 +1,60 @@
+import { randomUUID } from 'node:crypto';
+import type { CodexClient } from '../lib/codex-app-server.ts';
 import { coordinatorKeys, coordinatorStateOf, permittedActions } from '../lib/coordinator-types.ts';
+import { isSessionId } from '../lib/fields.ts';
+import type { Host } from '../lib/host-names.ts';
 import { type Exec, readHistory, readTerminal } from '../lib/terminal.ts';
 import type { Terminal } from '../lib/terminal-types.ts';
 import type { Adapter } from './adapter.ts';
+import { type ChatEvent, foldChat, type RecordRead } from './chat.ts';
+import { createClaudeRecord } from './chat-claude.ts';
+import { createCodexRecord } from './chat-codex.ts';
 import { cleanScreen } from './place.ts';
-import type { CoordinatorText, CoordinatorView } from './types.ts';
+import { firstLine } from './requests.ts';
+import type { ChatEntry, CoordinatorChat, CoordinatorView } from './types.ts';
 
-const HISTORY_LINES = 200;
 const factsFailed = 'coordinator: cannot read the hc facts of the tab Coordinator';
 const screenFailed = 'coordinator: cannot read the screen of the tab Coordinator';
+const badSession = 'coordinator: the session ID of the coordinator record is not valid';
 
 export type CoordinatorReads = Readonly<{
   view(terminals: Terminal[] | null): CoordinatorView;
-  text(): Promise<CoordinatorText>;
+  chat(since: string | null): Promise<CoordinatorChat>;
+  close(): Promise<void>;
 }>;
-type Kept = { terminal: string; turn: number; text: string; full: boolean; readAt: string };
+type Conversation = {
+  host: Host;
+  session: string;
+  record: { read(): Promise<RecordRead> };
+  events: Map<string, ChatEvent>;
+  waiting: boolean;
+  entries: ChatEntry[];
+  revision: string;
+  unknown: number;
+  readAt: string | null;
+  error: string | null;
+};
+type Dialog = { terminal: string; lines: string[]; readAt: string | null; error: string | null };
+
+const same = (kept: ChatEvent | undefined, event: ChatEvent): boolean => {
+  if (!kept) return false;
+  const fields = Object.entries(event);
+  return (
+    fields.length === Object.keys(kept).length &&
+    fields.every(([name, value]) => (kept as Record<string, unknown>)[name] === value)
+  );
+};
 
 export const createCoordinatorReads = ({
   adapter,
   exec,
   now,
+  codex,
 }: {
   adapter: Pick<Adapter, 'coordinator'>;
   exec: Exec;
   now: () => number;
+  codex: () => CodexClient;
 }): CoordinatorReads => {
   let last: CoordinatorView = {
     state: 'none',
@@ -37,11 +69,12 @@ export const createCoordinatorReads = ({
     error: null,
   };
   let lastKey: string | null = null;
-  let shown: Kept | null = null;
-  let history: Kept | null = null;
-  let tried: { terminal: string; turn: number } | null = null;
-  let loading: { terminal: string; turn: number; screen: Kept } | null = null;
-  let reading: Promise<CoordinatorText> | null = null;
+  const prefix = randomUUID().slice(0, 8);
+  let count = 0;
+  let conversation: Conversation | null = null;
+  let dialog: Dialog | null = null;
+  let client: CodexClient | null = null;
+  let reading: Promise<CoordinatorChat> | null = null;
 
   const view = (terminals: Terminal[] | null): CoordinatorView => {
     const facts = adapter.coordinator();
@@ -67,60 +100,100 @@ export const createCoordinatorReads = ({
     return last;
   };
 
-  const answer = (current: CoordinatorView, kept: Kept): CoordinatorText => {
-    shown = kept;
-    return { view: current, text: kept.text, full: kept.full, readAt: kept.readAt, error: null };
-  };
-  const failed = (current: CoordinatorView, terminal: string, error: string): CoordinatorText => {
-    const kept = shown?.terminal === terminal ? shown : null;
-    return { view: current, text: kept?.text ?? '', full: kept?.full ?? false, readAt: kept?.readAt ?? null, error };
+  const at = () => new Date(now()).toISOString();
+  const revision = () => `${prefix}.${++count}`;
+  const codexClient = () => {
+    client ??= codex();
+    return client;
   };
 
-  const read = async (): Promise<CoordinatorText> => {
-    const facts = adapter.coordinator();
-    if (!facts) return { view: view([]), text: '', full: false, readAt: null, error: null };
-    const id = facts.terminal;
-    const terminal = await readTerminal(id, { exec });
-    if (!terminal) return failed(view(null), id, factsFailed);
-    const current = view([terminal]);
-    const { turn } = terminal;
-    const at = () => new Date(now()).toISOString();
-    const visible = async (): Promise<Kept | null> => {
-      const screen = await readHistory(id, 0, exec);
-      if (!screen) return null;
-      return { terminal: id, turn, text: cleanScreen(screen.text, null).join('\n'), full: false, readAt: at() };
-    };
-    if (current.state === 'turn-ended') {
-      if (history?.terminal === id && history.turn === turn) return answer(current, history);
-      if (loading?.terminal === id && loading.turn === turn) return answer(current, loading.screen);
-      const fresh = !loading && (tried?.terminal !== id || tried.turn !== turn);
-      const screen = await visible();
-      if (!screen) return failed(current, id, screenFailed);
-      if (fresh) {
-        tried = { terminal: id, turn };
-        loading = { terminal: id, turn, screen };
-        void readHistory(id, HISTORY_LINES, exec)
-          .then((full) => {
-            if (full?.complete)
-              history = { terminal: id, turn, text: cleanScreen(full.text, null).join('\n'), full: true, readAt: at() };
-          })
-          .finally(() => {
-            loading = null;
-          });
+  const readDialog = async (id: string): Promise<Dialog> => {
+    const screen = await readHistory(id, 0, exec);
+    const kept = dialog?.terminal === id ? dialog : null;
+    dialog = screen
+      ? { terminal: id, lines: cleanScreen(screen.text, null), readAt: at(), error: null }
+      : { terminal: id, lines: kept?.lines ?? [], readAt: kept?.readAt ?? null, error: screenFailed };
+    return dialog;
+  };
+
+  const readChat = async (
+    { host, session, prompt }: { host: Host; session: string | null; prompt: string },
+    waiting: boolean,
+  ): Promise<Pick<CoordinatorChat, 'chat' | 'readAt' | 'error'>> => {
+    if (session === null) return { chat: null, readAt: null, error: null };
+    if (host === 'opencode' || !isSessionId(host, session)) return { chat: null, readAt: null, error: badSession };
+    if (conversation?.host !== host || conversation.session !== session)
+      conversation = {
+        host,
+        session,
+        record:
+          host === 'claude' ? createClaudeRecord(session, prompt) : createCodexRecord(session, codexClient(), prompt),
+        events: new Map(),
+        waiting: false,
+        entries: [],
+        revision: revision(),
+        unknown: 0,
+        readAt: null,
+        error: null,
+      };
+    const kept = conversation;
+    let changed = false;
+    try {
+      const { events, unknown } = await kept.record.read();
+      for (const event of events) {
+        const key = `${event.kind}:${event.id}`;
+        if (same(kept.events.get(key), event)) continue;
+        kept.events.set(key, event);
+        changed = true;
       }
-      return answer(current, screen);
+      if (unknown > 0) {
+        kept.unknown += unknown;
+        console.log(`board: coordinator chat: skipped ${kept.unknown} unknown rows of the record`);
+      }
+      kept.readAt = at();
+      kept.error = null;
+    } catch (cause) {
+      kept.error = `coordinator: cannot read the session record: ${firstLine(String((cause as Error)?.message ?? cause))}`;
     }
-    const screen = await visible();
-    return screen ? answer(current, screen) : failed(current, id, screenFailed);
+    if (changed || waiting !== kept.waiting) {
+      kept.waiting = waiting;
+      kept.entries = foldChat([...kept.events.values()], waiting);
+      kept.revision = revision();
+    }
+    return {
+      chat: { session, revision: kept.revision, entries: kept.entries },
+      readAt: kept.readAt,
+      error: kept.error,
+    };
+  };
+
+  const read = async (): Promise<CoordinatorChat> => {
+    const facts = adapter.coordinator();
+    if (!facts) return { view: view([]), chat: null, dialog: null, readAt: null, error: null };
+    const terminal = await readTerminal(facts.terminal, { exec });
+    const current = view(terminal ? [terminal] : null);
+    const waiting = current.state === 'dialog';
+    if (!waiting) dialog = null;
+    const [shown, record] = await Promise.all([waiting ? readDialog(facts.terminal) : null, readChat(facts, waiting)]);
+    return {
+      view: current,
+      dialog: shown && { lines: shown.lines, readAt: shown.readAt, error: shown.error },
+      ...record,
+    };
   };
 
   return {
     view,
-    text: () => {
+    chat: async (since) => {
       reading ??= read().finally(() => {
         reading = null;
       });
-      return reading;
+      const answer = await reading;
+      return answer.chat?.revision === since ? { ...answer, chat: { ...answer.chat, entries: null } } : answer;
+    },
+    close: async () => {
+      await reading?.catch(() => {});
+      await client?.close();
     },
   };
 };

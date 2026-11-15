@@ -519,6 +519,11 @@ gap. An observed version is no minimum version.
   hosts (the checks after the landing); a Codex coordinator session, whose daemon commands need the
   approval of Codex outside its sandbox; native Windows (the Verify evidence of #309). Evidence:
   [#252](https://github.com/ddinkov10/celetis/issues/252#issuecomment-6792535220).
+- **Coordinator chat (#326).** partial. Hosts: Claude Code 2.1.325, Codex CLI 0.169.0, hc 0.1.19,
+  Bun 1.4.4. Open: a Codex coordinator chat shows a call entry only when its item completes (the Codex
+  record holds no running call); a real interactive coordinator session of each host (the Verify
+  phase); native Windows (the Verify evidence of #309). Evidence:
+  [#326](https://github.com/ddinkov10/celetis/issues/326#issuecomment-6895016716).
 - **Owned-step usage recovery (#236).** partial. Hosts: Claude Code 2.1.318, Codex CLI 0.166.0,
   Bun 1.4.4. Open: a real ordinary Claude turn (BLOCKED by the weekly allowance); Codex
   termination proof (Codex stops and keeps its Resume information); native Linux; native Windows

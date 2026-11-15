@@ -890,7 +890,8 @@ order, it:
    main checkout, as a session tab ([The session tab](#the-session-tab)): with the focus for
    `celetis coordinator`, and with no focus for the quiet open, like a run session tab. It starts
    the start barrier `daemon --session-start <folder> <daemon PID> <host> - - <arguments>` with the interactive
-   arguments of `assist` and the prompt of the skill `coordinate`. The tab sets
+   arguments of `assist` and the prompt of the skill `coordinate`. For Claude Code, the arguments
+   start with `--session-id <uuid>`, a new random UUID. The tab sets
    `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0`, `DO_NOT_TRACK=1`, and `CELETIS_COORDINATOR=<token>`, a
    new random UUID: on macOS and Linux through `env` in the argv of the login shell, on Windows
    through the pairs of the tab wrapper. The login shell keeps no shell after an exit with
@@ -908,18 +909,32 @@ Each refusal is a 409 answer with its line and code, as "The requests" says: the
 config reader, of the contract check, and of the setup checks keep their codes.
 
 **The record.** `daemon/coordinator.json` (0600, a temporary file and a rename):
-`{schema: 1, host, terminal, barrier: {pid, start}, folder, token}`. `terminal` is the hc
-terminal of the tab, `barrier` is the process of the start barrier, `folder` is its start folder,
-and `token` is the value of `CELETIS_COORDINATOR`. The daemon holds the record while that process
-runs. It reads the process each 2 seconds and removes the record and the start folder only after
-a definite read that the process is gone. A failed read keeps the record. A record that does not
-validate is no record: the daemon prints its path and the cause once, and the next open writes
-over it.
+`{schema: 2, host, terminal, barrier: {pid, start}, folder, token, session, prompt, startedAt}`.
+`terminal` is the hc terminal of the tab, `barrier` is the process of the start barrier, `folder`
+is its start folder, and `token` is the value of `CELETIS_COORDINATOR`. `prompt` is the last
+argument that the host got, and `startedAt` is the time of the open in whole seconds. `session` is
+the native session ID, or `null` until the daemon has it. For Claude Code, the open writes the ID
+of `--session-id`. For Codex, the open writes `null`. After the notes of each pass, the loop asks
+`thread/list` for the one thread of the main checkout that has the exact `prompt` and starts at or
+after `startedAt`, as the claim of a Codex step does. When one thread matches, and `thread/read` and
+one saved turn of `thread/turns/list` confirm it, the daemon writes the record again with the ID,
+prints
+`daemon: coordinator: the codex session has the ID <id>`, and asks no more. No match asks again in
+the next pass. Two or more matches are no identity: the daemon prints one line and asks no more for
+that record. The daemon is the one writer of the record: the open, the late ID, and each removal go
+one after the other, and the late ID is written only while the daemon still holds the record that
+the claim started from. The daemon holds the record while the process of the barrier runs. It
+reads the process each 2 seconds and removes the record and the start folder only after a definite
+read that the process is gone. A failed read keeps the record. A record that does not validate is
+no record: the daemon prints its path and the cause once, and the next open writes over it. A
+record of schema 1 has no session ID and is no valid record: end its session in its tab, and the
+next open starts a session with an ID.
 
 **The takeover.** Before it opens the board, a daemon, also a successor, reads the record. So the
 first read of the board has the record of a live session, and no read shows that session as no
 session. It takes over a record whose barrier runs, and keeps a record whose read fails. It removes
-a record whose barrier is gone. After the takeover of the run records and before it serves, it
+a record whose barrier is gone. A record with `session: null` is valid: the new daemon goes on
+asking for the ID in its loop. After the takeover of the run records and before it serves, it
 starts the loop that reads the process, the attention states, and the notes; until then, `open` and
 `act` of the board answer the takeover line ("The board acts"). `celetis daemon stop` keeps the
 record and leaves the session open in its tab; until the next start, each form of `coordinator`
@@ -1044,8 +1059,8 @@ that refuses a composer with text. So the rule of the session that receives a me
 header at any place of the message, and the text before the header is no answer.
 
 **The board acts.** The board server calls three methods of the dispatcher in the daemon process
-(`coordinator` of `BoardDaemon`, `engine/board/adapter.ts`): `facts` gives the host and the terminal
-of the record while the daemon holds it, else `null`; `open` is the quiet open; `act` takes one act:
+(`coordinator` of `BoardDaemon`, `engine/board/adapter.ts`): `facts` gives the host, the terminal, the
+session ID, and the prompt of the record while the daemon holds it, else `null`; `open` is the quiet open; `act` takes one act:
 `{kind: 'say', text}`, `{kind: 'key', key}`, `{kind: 'interrupt'}`, or `{kind: 'end'}`. The
 socket has no path for them: `POST /coordinator/say`, `/coordinator/key`, `/coordinator/interrupt`,
 and `/coordinator/end` get 404. While the daemon stops, `open` and `act` answer the stop line, and

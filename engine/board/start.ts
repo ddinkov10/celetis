@@ -57,6 +57,7 @@ export async function startBoard(
       await updates?.close();
       server.closeAllConnections();
       await new Promise<void>((closed) => server.close(() => closed()));
+      await server.closeCoordinator();
     })();
     return closing;
   };

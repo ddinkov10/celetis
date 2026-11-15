@@ -533,22 +533,39 @@ radius, as the details panel.
 - **Head:** 48px minimum, the title in Title type, the host in 11.5px Geist Mono Ink Faint, the
   state pill with its age, and text-style acts (Interrupt, End session, Go) and Close at the right.
   The pill is Current Blue on a 12% tint while it starts or works and Beacon Orange on a 12% tint
-  for a dialog; its text takes the mix of the Status pill.
-- **Lines:** the line of a failed read or an ended session sits under the head on Veil at 12.5px,
-  and the log dims to 0.7. The line of the visible screen is 12px Ink Faint above the log, with a hairline under it.
-- **Log:** Geist Mono at 12.5px on 1.7, Ink, in a column of at most 104ch with at least 20px of
-  side padding, the white space of the terminal kept and long lines wrapped. `Go to the end` is a
-  ghost button on Card Slate with Raise, centred 10px above the bottom edge.
-- **Shell:** one raised shell at the foot, aligned to the 104ch column: Card Slate, the strong
-  hairline, a 12px radius, and Raise. It holds the key row, the field (44px to 168px, no border,
-  growing with its text), the hint (12px Ink Faint, Fault Red for an error), and Send (primary).
-  The focus ring goes around the shell only while the field has the focus; an invalid field turns
-  the border to 55% Fault Red.
-- **Key row:** a 6% Beacon Tint band at the top of the shell with a 35% Beacon Orange bottom
-  hairline. Each key is a key cap: 28px high, at least 32px wide, Veil, the strong hairline with a
-  2px bottom edge, an 8px radius, and 12px Geist Mono. On a phone the keys fill four equal columns.
-- **Phone:** below 720px the panel covers the page with no border and no radius, and each button,
-  key, and icon button is 44px.
+  for a dialog; its text and its age take the mix of the Status pill.
+- **Lines:** the line of a failed read or an ended session sits under the head on Veil at 12.5px
+  (a failed read adds a 3px Fault Red edge), and the chat dims to 0.7.
+- **Chat:** Geist at 13px on 1.55, Ink, in a column of at most 72ch with at least 20px of side
+  padding, entries 14px apart; long words wrap, and the chat has no horizontal scroll. `Go to the
+  end` is a ghost button on Card Slate with Raise, centred 10px above the bottom edge.
+- **Message:** the message of the maintainer is a right bubble on Veil Strong with a 14px radius,
+  at most 80% wide, with its line breaks kept. The message of the coordinator has no bubble and
+  takes the full width: paragraphs, headings at 13.5px 600, lists, quotes, inline code on Veil in
+  12px Geist Mono, and code blocks.
+- **Note:** a note of the daemon is a small centred pill on Veil, 12px Ink Faint, with its time.
+- **Steps:** a run of calls is one quiet trigger in Ink Faint: a state mark, `Ran 3 steps, 1 failed
+  · 5s` or `Running 2 steps`, and a chevron at the right that turns 90° when open. The mark is a Go
+  Green check, a Fault Red alert, or a Current Blue spinning mark. Its calls are triggers offset
+  24px: a state icon, the verb (`Used`, `Failed` in Fault Red, `Running`, `Waiting`), the tool in
+  500 Ink Muted, and the summary in 11.5px Geist Mono with an ellipsis. An open call shows its
+  input, then `Result:` or `Error:` and the result, as 12px Geist Mono blocks on Veil with an 8px
+  radius, offset 24px and wrapped. The chevron and the spinning marks stop under reduced motion.
+- **Dialog:** a 9% Beacon Tint group with a 10px radius at the end of the chat: the target mark and
+  `Waiting on you: <tool>` in 600 Beacon Orange mixed with Ink, the summary and the dialog lines in
+  12px Geist Mono, and the key caps. Each key is a key cap: 28px high, at least 32px wide, Veil,
+  the strong hairline with a 2px bottom edge, an 8px radius, and 12px Geist Mono. After the dialog
+  the group becomes a quiet line with a check or the target mark. `The coordinator works` with a
+  spinning mark ends the chat while the session works.
+- **Empty:** a centred 600 title and a 12.5px Ink Faint line.
+- **Shell:** one raised shell at the foot, centred, at most 104ch of 12.5px Geist Mono wide: Card Slate, the strong
+  hairline, a 12px radius, and Raise. It holds the field (44px to 168px, no border, growing with
+  its text), the hint (12px Ink Faint, Fault Red for an error), and Send (primary). The focus ring
+  goes around the shell only while the field has the focus; an invalid field turns the border to
+  55% Fault Red.
+- **Phone:** below 720px the panel covers the page with no border and no radius, each button,
+  trigger, key, and icon button is 44px, the bubble is at most 90% wide, the summary of the dialog
+  goes on its own line under `Waiting on you: <tool>`, and the keys fill four equal columns.
 
 ### Lane Track (signature)
 

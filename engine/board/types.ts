@@ -95,13 +95,40 @@ export type CoordinatorView = {
   readAt: string | null;
   error: string | null;
 };
-export type CoordinatorText = {
+export type CoordinatorChat = {
   view: CoordinatorView;
-  text: string;
-  full: boolean;
+  chat: { session: string; revision: string; entries: ChatEntry[] | null } | null;
+  dialog: { lines: string[]; readAt: string | null; error: string | null } | null;
   readAt: string | null;
   error: string | null;
 };
+export type ChatInline =
+  | string
+  | { k: 'strong' | 'em' | 'code'; c: ChatInline[] }
+  | { k: 'link'; href: string | null; c: ChatInline[] };
+export type ChatBlock =
+  | { k: 'p'; c: ChatInline[] }
+  | { k: 'h'; level: 1 | 2 | 3 | 4 | 5 | 6; c: ChatInline[] }
+  | { k: 'code'; language: string | null; text: string }
+  | { k: 'list'; ordered: boolean; start: number | null; items: ChatBlock[][] }
+  | { k: 'quote'; c: ChatBlock[] }
+  | { k: 'rule' };
+export type ChatText = { text: string; cut: number };
+export type ChatCall = {
+  id: string;
+  tool: string;
+  summary: string;
+  input: ChatText;
+  result: ChatText | null;
+  state: 'runs' | 'done' | 'failed' | 'waits';
+  startedAt: string | null;
+  endedAt: string | null;
+};
+export type ChatEntry =
+  | { kind: 'you'; id: string; at: string | null; text: string }
+  | { kind: 'agent'; id: string; at: string | null; blocks: ChatBlock[] }
+  | { kind: 'steps'; id: string; calls: ChatCall[] }
+  | { kind: 'note'; id: string; at: string | null; text: string };
 export type Session = {
   sessionId: string;
   agent: Host;

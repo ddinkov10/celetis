@@ -26,7 +26,7 @@ import {
   textLimit,
 } from './daemon-types.ts';
 import { HostError, unsupported } from './errors.ts';
-import { uuid } from './fields.ts';
+import { isSessionId, uuid } from './fields.ts';
 import { hostAvailability } from './host.ts';
 import { type Host, isHost } from './host-names.ts';
 import { hostAdapter, writeSessionEnv } from './hosts.ts';
@@ -60,12 +60,15 @@ import { withPluginRead } from './update-lock.ts';
 import type { Step } from './workflow.ts';
 
 export type CoordinatorRecord = Readonly<{
-  schema: 1;
+  schema: 2;
   host: Host;
   terminal: string;
   barrier: Identity;
   folder: string;
   token: string;
+  session: string | null;
+  prompt: string;
+  startedAt: number;
 }>;
 export type RunFacts = Readonly<{
   id: string;
@@ -229,10 +232,12 @@ export function attentionOf(
   return null;
 }
 
+const recordNames = ['schema', 'host', 'terminal', 'barrier', 'folder', 'token', 'session', 'prompt', 'startedAt'];
+
 export function parseCoordinatorRecord(value: unknown, layout: RepositoryLayout): CoordinatorRecord | null {
-  if (!object(value) || !exact(value, ['schema', 'host', 'terminal', 'barrier', 'folder', 'token'])) return null;
-  const { schema, host, terminal, barrier, folder, token } = value;
-  if (schema !== 1 || !isHost(host) || !isSafeId(terminal) || !object(barrier) || !exact(barrier, ['pid', 'start']))
+  if (!object(value) || !exact(value, recordNames)) return null;
+  const { schema, host, terminal, barrier, folder, token, session, prompt, startedAt } = value;
+  if (schema !== 2 || !isHost(host) || !isSafeId(terminal) || !object(barrier) || !exact(barrier, ['pid', 'start']))
     return null;
   const { pid, start } = barrier;
   if (typeof pid !== 'number' || !Number.isSafeInteger(pid) || pid <= 0 || typeof start !== 'string' || !start)
@@ -245,7 +250,10 @@ export function parseCoordinatorRecord(value: unknown, layout: RepositoryLayout)
   )
     return null;
   if (typeof token !== 'string' || !uuid.test(token)) return null;
-  return { schema: 1, host, terminal, barrier: { pid, start }, folder, token };
+  if (session !== null && !isSessionId(host, session)) return null;
+  if (typeof prompt !== 'string' || !prompt) return null;
+  if (typeof startedAt !== 'number' || !Number.isSafeInteger(startedAt) || startedAt <= 0) return null;
+  return { schema: 2, host, terminal, barrier: { pid, start }, folder, token, session, prompt, startedAt };
 }
 
 export function createCoordinator(
@@ -258,6 +266,9 @@ export function createCoordinator(
   const path = state.coordinator;
   let current: CoordinatorRecord | null = null;
   let forgetting: Promise<void> = Promise.resolve();
+  let writing: Promise<unknown> = Promise.resolve();
+  let claiming: Promise<void> | null = null;
+  let unclaimable: CoordinatorRecord | null = null;
   let opening: Promise<unknown> = Promise.resolve();
   let watching: Promise<void> = Promise.resolve();
   const attentions = new Map<string, { key: string; value: Attention | null }>();
@@ -270,12 +281,19 @@ export function createCoordinator(
     if (halt.signal.aborted) throw new HostError(stopLine, exits.prerequisite);
   };
 
-  const remove = async (record: CoordinatorRecord) => {
-    await rm(path, { force: true });
-    await rm(record.folder, { recursive: true, force: true });
+  const serial = <T>(work: () => Promise<T>): Promise<T> => {
+    const next = writing.then(work);
+    writing = next.catch(() => {});
+    return next;
   };
+  const holds = (record: CoordinatorRecord) => current?.token === record.token;
+  const remove = (record: CoordinatorRecord) =>
+    serial(async () => {
+      await rm(path, { force: true });
+      await rm(record.folder, { recursive: true, force: true });
+    });
   const forget = (record: CoordinatorRecord): Promise<void> => {
-    if (current !== record) return forgetting;
+    if (!holds(record)) return forgetting;
     current = null;
     items.clear();
     console.log(ended);
@@ -337,6 +355,13 @@ export function createCoordinator(
           error instanceof HostError ? error.code : exits.blocked,
         );
       }
+      const session = adapter.startId();
+      const startedAt = Math.floor(Date.now() / 1000);
+      const args = [
+        ...(session === null ? [] : adapter.sessionArguments(session)),
+        ...adapter.interactiveArguments(tab, promptFor[host](skill), randomUUID()),
+      ];
+      const prompt = args.at(-1) ?? '';
       const argv = daemonArgv(root, [
         '--session-start',
         folder,
@@ -345,7 +370,7 @@ export function createCoordinator(
         '-',
         '-',
         ...(await adapter.pin(main)),
-        ...adapter.interactiveArguments(tab, promptFor[host](skill), randomUUID()),
+        ...args,
       ]);
       const env = { BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0', DO_NOT_TRACK: '1', CELETIS_COORDINATOR: token };
       try {
@@ -358,16 +383,19 @@ export function createCoordinator(
         throw new HostError(`coordinator: cannot open the tab ${tab}: ${error.message}`, error.code);
       }
       const record: CoordinatorRecord = {
-        schema: 1,
+        schema: 2,
         host,
         terminal,
         barrier: await waitBarrier(folder, terminal),
         folder,
         token,
+        session,
+        prompt,
+        startedAt,
       };
       try {
         written = true;
-        await writeAtomic(path, `${JSON.stringify(record)}\n`);
+        await serial(() => writeAtomic(path, `${JSON.stringify(record)}\n`));
         await writeFile(startFiles(folder).go, '');
       } catch (error) {
         throw new HostError(
@@ -377,7 +405,7 @@ export function createCoordinator(
       }
       current = record;
     } catch (error) {
-      if (written) await rm(path, { force: true });
+      if (written) await serial(() => rm(path, { force: true }));
       if (terminal) await closeTerminal(terminal, exec);
       await rm(folder, { recursive: true, force: true });
       throw error;
@@ -488,11 +516,39 @@ export function createCoordinator(
       }
     });
   };
+  const identify = async (record: CoordinatorRecord) => {
+    const adapter = hostAdapter(record.host);
+    const claim = await adapter.claim(main, record.prompt, '', record.startedAt);
+    if (claim.kind === 'many') {
+      unclaimable = record;
+      console.error(
+        `daemon: coordinator: more than one ${record.host} session matches the prompt of the coordinator session; the daemon asks no more for its ID`,
+      );
+      return;
+    }
+    if (claim.kind === 'none' || !(await adapter.verifySession(main, claim.id, record.startedAt))) return;
+    const next: CoordinatorRecord = { ...record, session: claim.id };
+    const named = await serial(async () => {
+      if (current !== record) return false;
+      await writeAtomic(path, `${JSON.stringify(next)}\n`);
+      if (current !== record) return false;
+      current = next;
+      return true;
+    });
+    if (named) console.log(`daemon: coordinator: the ${record.host} session has the ID ${claim.id}`);
+  };
   const pass = async () => {
     const record = current;
     if (record && (await processState(record.barrier.pid, record.barrier.start)) === 'gone') await forget(record);
     await observe();
     await deliver();
+    const unnamed = current;
+    if (unnamed?.session === null && claiming === null && unclaimable !== unnamed)
+      claiming = identify(unnamed)
+        .catch((error: unknown) => console.error(`daemon: coordinator: ${described(error)}`))
+        .finally(() => {
+          claiming = null;
+        });
   };
   const watch = async () => {
     while (!halt.signal.aborted) {
@@ -517,7 +573,7 @@ export function createCoordinator(
     record: CoordinatorRecord,
     request: CoordinatorAct,
   ): Promise<{ status: number; answer: DaemonAnswer }> => {
-    if (current !== record) return refused(noSession, exits.prerequisite);
+    if (!holds(record)) return refused(noSession, exits.prerequisite);
     const barrier = await processState(record.barrier.pid, record.barrier.start);
     if (barrier === 'gone') return refused(noSession, exits.prerequisite);
     if (barrier === 'unknown') return refused(unreadable, exits.blocked);
@@ -552,7 +608,10 @@ export function createCoordinator(
       opening = next.catch(() => {});
       return next;
     },
-    facts: () => (current === null ? null : { host: current.host, terminal: current.terminal }),
+    facts: () =>
+      current === null
+        ? null
+        : { host: current.host, terminal: current.terminal, session: current.session, prompt: current.prompt },
     act: async (request) => {
       const problem = actProblem(request);
       if (problem !== null) return { status: 400, answer: { accepted: false, line: problem, code: exits.usage } };
@@ -676,6 +735,7 @@ export function createCoordinator(
       halt.abort();
       await watching;
       await opening;
+      await claiming;
     },
   };
 }
