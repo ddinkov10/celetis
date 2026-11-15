@@ -16,6 +16,8 @@ If the question is about logic or a state model, this is the wrong branch. Use `
 - **The platform rows:** the live use, the switches, the sizes, and the capture of each kind.
 - **Where the variants live:** the prototype checkout, and the two sub-shapes.
 - **The procedure:** the ten steps, from the list of states to the cleanup.
+- **The whole app:** the inventory, the diagnosis, the skeleton, the record, the rollout, and a
+  child of a whole-app epic.
 - **Captures:** the tools check, the hide of the bar, the file, the look before the post, and the
   post.
 - **A direct run:** a run of `/celetis:prototype` with no issue.
@@ -38,7 +40,8 @@ has that state (empty, loading, an error, a long name, a scrolled page). A chang
 a whole screen, or a component that each state of the screen shows, puts only the rest state on
 the list. A change that is for one state puts that state on the list, next to the rest state.
 This holds also when the change is only its look. The session takes the list from the issue and
-the code. It asks the maintainer no question about the list.
+the code. It asks the maintainer no question about the list. On the whole-app path, the inventory
+of "The whole app" takes the place of the list of states.
 
 - `specify` follows "The procedure" for each look decision.
 - `bug` follows it when the maintainer answers that the fix needs a new look.
@@ -47,15 +50,15 @@ the code. It asks the maintainer no question about the list.
 
 ## The two paths
 
-| Kind | A whole screen | A smaller change |
-| --- | --- | --- |
-| Web | `impeccable`: the structure round | `impeccable`: `generate` |
-| Mobile | `impeccable`: the structure round | Hand-built |
-| Desktop | Hand-built | Hand-built |
-| Terminal | Hand-built | Hand-built |
+| Kind | The whole app | A whole screen | A smaller change |
+| --- | --- | --- | --- |
+| Web | `impeccable`: the diagnosis and the structure round on the shell ("The whole app") | `impeccable`: the structure round | `impeccable`: `generate` |
+| Mobile | One look decision for each screen | `impeccable`: the structure round | Hand-built |
+| Desktop | One look decision for each screen | Hand-built | Hand-built |
+| Terminal | One look decision for each screen | Hand-built | Hand-built |
 
 - `<plugin>/references/procedures/design.md`, "A whole screen or a smaller change", puts a change in one
-  of the two columns.
+  of the columns.
 - **The `impeccable` path** follows `<plugin>/references/procedures/design.md`: its check in step 1, and
   its pick in step 3. It has one variant, `A`: the locked card or the accepted variant. The
   maintainer picks it before the switches, the check, and the captures.
@@ -114,7 +117,9 @@ folder, so no branch holds a capture.
 
 ## The procedure
 
-Do the steps in this order. The build of the variants starts after step 2.
+Do the steps in this order. The build of the variants starts after step 2. On the whole-app path,
+"The whole app" changes steps 1, 3, 4 to 7, and 9, and puts the diagnosis between step 1 and
+step 2.
 
 1. **The states and the row.** Take the kind and its row from `AGENTS.md` or the code, and the path
    from "The two paths". Then run the checks of `<plugin>/references/procedures/design.md`: "The check"
@@ -218,12 +223,106 @@ Do the steps in this order. The build of the variants starts after step 2.
     them. The build of the lane folds the chosen variant into the real code. It writes the variant
     again under the rules of production code.
 
+## The whole app
+
+The whole-app path is the look decision of a change that revises the shell of a web app, or the
+arrangement of its screens as a whole: the navigation, the regions, and the layout of each
+screen. The visual world of `DESIGN.md` (the color, the type, and the components) stays. A change
+of the visual world is a redesign, and it does not take this path. A change inside one screen
+takes the column of a whole screen or of a smaller change. The session takes the path from the
+issue and the code, and shows it in step 1. "The procedure" applies, with the changes of this
+section.
+
+**The inventory.** In step 1, the inventory takes the place of the list of states. Take it from
+the code and `AGENTS.md`, and ask the maintainer no question about it.
+
+- A **screen** is each route or top-level view of the app.
+- A **structural state** of a screen is its rest state, and each state that changes the
+  arrangement of the screen: an open panel, a drawer, a dialog, a menu, or a second pane.
+- Each screen gets a kebab-case key. Each structural state gets the key `<screen>-<state>`, for
+  example `list-rest` or `list-open-drawer`.
+- The sizes are the sizes of the web row of "The platform rows".
+
+Step 1 shows the inventory, with the number of its screens, its states, and its captures, in
+place of the list of states.
+
+**The diagnosis.** It comes after step 1 and before step 2. It changes no file of the product: a
+fixture stays in the prototype checkout ("Where the variants live"). From the `layout` command of
+`impeccable`, it runs only `<impeccable>/reference/layout.md`, "Two isolated assessments", and
+not its spatial thesis or its "Apply". The fixes come from the skeleton and the build.
+
+1. **The captures.** Make one capture of each structural state of the inventory at each size, of
+   the product as it runs today, by "Captures". The live data and the fixtures follow "Where the
+   variants live".
+2. **The layout assessment.** For each screen, answer each question of part 1 of "Two isolated
+   assessments" with rendered or source evidence. Answer one more question for the app as a
+   whole: do the shared regions (the navigation, the header, the panels) keep one place and one
+   behavior on each screen and at each size?
+3. **The mechanical scan.** After the assessment, run
+   `<impeccable>/scripts/impeccable detect --json --scope layout --viewport <W>x<H> <url>` once
+   for each screen at each size. Keep its output out of the assessment. A screen with no URL of
+   its own gets no URL scan: run
+   `<impeccable>/scripts/impeccable detect --json --scope layout <files>` once on the source
+   files of its view, and name the screen in the post. A scan that exits 1 did not scan its
+   target: name that screen and size in the post. A clean scan is no proof of a good structure.
+4. **The findings.** Write one line for each finding:
+   `- <grade> · <key> · <size> · <question or rule> · <evidence>`. The grade is `breaks` (a task
+   or a size does not work), `drifts` (two screens solve one need differently), or `minor`.
+5. **The post.** Write the body to a file. Its first line is the diagnosis line of "Captures",
+   "The post". The body holds the commit of the app that the captures show, the inventory with
+   its keys, and the findings. Post the captures as attachments, as "The post" says. Keep the
+   URL of each comment.
+6. **The hand-over.** In one short message with no question, show the maintainer the number of
+   findings of each grade, the three most important findings, and the link of each diagnosis
+   comment. Then go on to step 2.
+
+**A new entry.** On a new entry of the step, reuse the newest complete diagnosis of the issue
+(each part from 1 to k) when no commit after its commit changes a file of the app. Else make a
+new diagnosis. A new entry posts no second copy of a complete diagnosis.
+
+**The skeleton.**
+
+- Step 2 adds the canonical layouts of the platform and its guidelines to `## Prior art`, as for
+  each look decision.
+- Step 3 runs the structure round on the shell, by
+  `<plugin>/references/procedures/design.md`, "The pick". The findings of the diagnosis go to the
+  round as constraints, next to the lines of `### Required behavior`. The locked card is the one
+  variant, `A`. Build its structure on the real app: on each screen, in each structural state of
+  the inventory.
+- In steps 4 to 7, the state switch has one value for each key of the inventory, and the check
+  and the captures cover each key at each size. A capture of the prototype is
+  `A-<key>-<size>.png`.
+- In step 9, the `## Prototype` section also holds the full text of the locked card (its thesis,
+  each line of its `materials`, and its `viewport`), and each key that the prototype covered.
+- The spec says that the build updates only the layout parts of `DESIGN.md` (the shell, the
+  regions, and the breakpoints), to describe the built skeleton. Its visual world stays.
+
+**The record.** The spec, or the body of the epic parent, holds a `## Diagnosis` section before
+`## Prior art`: the link of each diagnosis comment, the inventory with its keys, and the number
+of findings of each grade (`<plugin>/docs/issue-tracker.md`, "What lives on the issue").
+
+**The rollout.** After the lock, the look decision does steps 4 to 10. Then run the scope check
+of `<plugin>/references/procedures/epic.md`, "A whole-app revision". The removal of the lane of
+an epic deletes the prototype branch (`<plugin>/docs/issue-tracker.md`, "Branches, PRs, merge"), so
+the children build from the text of the locked card and the capture comments of the parent.
+
+**A child of a whole-app epic.** When the body of the parent holds a `## Prototype` record of a
+whole-app skeleton, the child takes that skeleton as its look, by
+`<plugin>/references/procedures/design.md`, "The pick". In that case, the look decision of the
+child:
+
+- runs step 1 with the part of the inventory on its own screens, and runs no diagnosis;
+- builds the locked skeleton on its own screens in step 3, and makes their captures in step 7;
+- writes, in step 9, a `## Prototype` section that links the record of the parent, names its
+  screens and states, and links its own capture comments.
+
 ## Captures
 
 A capture is a screenshot or a terminal recording of one variant in one state at one size. The
 variants of step 7 use this section. The capture repro of a visual bug in `bug`, and the after-fix
 capture of a Verify scenario of `plan`, use it too: one capture at the failing state and size, with
-no variants.
+no variants. The diagnosis of "The whole app" uses it too: one capture of each key of its
+inventory at each size, with no variants.
 
 **The tools check.** Run it before the build, and before the first capture of a repro:
 
@@ -246,7 +345,9 @@ tab with no call of `<plugin>/references/procedures/design.md`, "The page CSP".
 **The file.** Name a capture `<variant>-<state>-<size>.png`, or `.gif`, for example
 `B-empty-375x812.png`. Put it in `docs/superpowers/captures/` of the checkout that took it. Its
 alt text is `<variant key> <variant name>, <state>, <size>`, for example
-`B Sidebar list, empty, 375×812`.
+`B Sidebar list, empty, 375×812`. A capture of the diagnosis has no variant: name it
+`<key>-<size>.png`, for example `list-open-drawer-375x812.png`, with the alt text
+`<key>, <size>`.
 
 **Look before the post.** Read each capture. When a capture shows a secret, a token, or data that
 the issue must not hold, give that state example data and make the capture again. The record names
@@ -257,7 +358,9 @@ each capture with example data. A capture on the issue of a public repository is
 - `Captures: <the question>` for the variants, with `part <i> of <k>` at the end when the captures
   need more than one comment;
 - `Capture repro: <state>, <size>` for the repro of a visual bug;
-- `After-fix capture: <state>, <size>` for the capture of a Verify scenario.
+- `After-fix capture: <state>, <size>` for the capture of a Verify scenario;
+- `Diagnosis: the layout of the whole app` for the diagnosis of "The whole app", with
+  `part <i> of <k>` at the end when the captures need more than one comment.
 
 The first line is never a `## ` heading. The resolver reads each comment that starts with `## `,
 and such a comment ends a current landing refusal (`<plugin>/docs/issue-tracker.md`, "Resolving an
@@ -288,6 +391,7 @@ structure round or `generate`, and the pick as a terminal question follow
   paths. The run posts nothing and writes no record.
 - The hand-over gives the two removal commands, to run after the user stops the prototype:
   `git worktree remove <path>` and `git branch -D prototype/<slug>`.
+- The whole-app path needs an issue: a direct run takes one look decision for each screen.
 
 ## Anti-patterns
 
@@ -304,6 +408,9 @@ structure round or `generate`, and the pick as a terminal question follow
 - **A question for the pick before the user could use the variants, on the hand-built path.** The pick comes after the live opening and the captures.
 - **A second pick after an `impeccable` lock or accept.** The lock or the accept is the pick.
 - **A look that the session chose.** The maintainer picks each look. THE ROLL, a recommended variant, and an answer that the host gives by its own timeout are no pick.
+- **A diagnosis that fixes.** The diagnosis changes no file of the product, and runs no "Apply" of the `layout` command ("The whole app").
+- **A skeleton card that changes the visual world.** Each card of the whole app keeps the color, the type, and the components of `DESIGN.md`.
+- **A question about the inventory.** The session takes the inventory from the code and `AGENTS.md` ("The whole app").
 - **A capture on a branch.** The captures go on the issue as attachments.
 - **A capture that shows a secret.** That state gets example data.
 - **A capture comment with a `## ` first line.** Its first line is one of the plain lines of "Captures".

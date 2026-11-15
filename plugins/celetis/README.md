@@ -108,9 +108,10 @@ The documents:
   desktop capabilities can differ.
 - For a look decision and a visual bug: `gh` 2.99.0 or later on github.com, and the capture tool of
   the platform row (`references/procedures/ui.md`, "Captures"). A look decision on the `impeccable` path
-  (a whole web or mobile screen, or a smaller web change) also needs the `impeccable` skill and a
-  `PRODUCT.md` of the product. The session checks for both. It never installs `impeccable`, which
-  is no plugin dependency, and you run `/impeccable init` once for the product
+  (the whole web app, a whole web or mobile screen, or a smaller web change) also needs the
+  `impeccable` skill and a `PRODUCT.md` of the product. The session checks for both. It never
+  installs `impeccable`, which is no plugin dependency, and you run `/impeccable init` once for the
+  product
   (`references/procedures/design.md`, "The check"). A look decision on the `generate` path also needs
   the window browser, and the host reviews its `browser_run_code_unsafe` call
   (`references/procedures/design.md`, "The page CSP"). Each browser check (a Verify scenario of a web

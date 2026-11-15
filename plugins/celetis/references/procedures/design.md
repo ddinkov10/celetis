@@ -13,9 +13,10 @@ procedure, and the step text cite it.
   of the review and of `detect`.
 - **The lane points:** the command and the result of each lane point, and the research that
   `shape` and `generate` get.
-- **A whole screen or a smaller change:** which path gives the options.
+- **A whole screen or a smaller change:** which path gives the options, the whole app too.
 - **Can the session ask:** the stop of a session that cannot ask.
-- **The pick:** the structure round and `generate`, each read after the terminal answer.
+- **The pick:** the structure round and `generate`, each read after the terminal answer, the
+  skeleton round of the whole app, and a child of a whole-app epic.
 - **The fallback of the pick:** the terminal question alone, or the stop of `generate`.
 - **The page CSP:** the tab with the CSP bypass in the window browser and in the background
   browser, the sign-in, the close of the window browser, its rules, and its stops.
@@ -27,10 +28,10 @@ procedure, and the step text cite it.
 ## The check
 
 Run the check once in a session, before its first lane point. For a look decision on the
-`impeccable` path (a whole web or mobile screen, or a smaller web change), check in this order,
-before any page, prototype checkout, or `shape` question: the skill, the commands of the lane
-point, `PRODUCT.md`, "Can the session ask", then on the `generate` path the browsers. The first
-failure is the stop of "Missing".
+`impeccable` path (the whole web app, a whole web or mobile screen, or a smaller web change),
+check in this order, before any page, prototype checkout, or `shape` question: the skill, the
+commands of the lane point, `PRODUCT.md`, "Can the session ask", then on the `generate` path the
+browsers. The first failure is the stop of "Missing".
 
 - **The skill.** Invoke `impeccable` as the host part says, and bind `<impeccable>` to the folder
   of its loaded `SKILL.md`. Its CLI is `<impeccable>/scripts/impeccable`. The skill is missing
@@ -117,6 +118,8 @@ the parts that need no Playwright browser, also `detect`, which runs its own bro
 | --- | --- | --- |
 | The states of a look decision (`specify`, `bug`) | `shape`, only its discovery questions without the states question, and its brief, with no Phase 2 (its direction or concept choice) | The list of states is the one of `<plugin>/references/procedures/ui.md`, "The look decision", not the "States and ranges" part of the brief |
 | A whole screen, web or mobile | The structure round: `concept-seed --scope surface` and the decision page | The locked card is the pick. With no `PRODUCT.md`, "The check" stops before the round |
+| The diagnosis of the whole app, web (`specify`) | The two assessments of `layout`: the layout assessment, then `detect --json --scope layout` | The diagnosis comment of `<plugin>/references/procedures/ui.md`, "The whole app". No "Apply" of `layout` |
+| The skeleton of the whole app, web | The structure round on the shell ("The pick") | The locked card is the pick. A child of a whole-app epic takes the lock of its parent |
 | A smaller web change | `generate` on the element, in the prototype checkout | The accepted variant is the pick |
 | The design review after the build, web and mobile | `critique`, `audit`, the refine commands, and on the web `detect` ("The design review") | Fixes on the lane branch |
 | The `detect` scenario of Verify | `detect` | Evidence, web only, by exit code |
@@ -124,15 +127,19 @@ the parts that need no Playwright browser, also `detect`, which runs its own bro
 At the `shape` and `generate` lane points, give the models and the `(measured)` lines of the
 `## Prior art` section as references, and the lines of its `### Required behavior` list as
 constraints. A measured value is never a target, and the pick stays the maintainer's ("The pick").
+At the structure round of the whole app, the findings of the diagnosis are constraints too.
 
 ## A whole screen or a smaller change
 
-The structure round runs for a whole page, screen, or flow whose composition is open: a new
-screen, or an existing screen that is redone as a whole. A section, card, step, or element inside
-an existing screen is a smaller change, and `generate` gives its options. A change of several
-screens is one look decision for each screen. Step 1 of `<plugin>/references/procedures/ui.md` shows
-the chosen path with the list of states. A smaller change on mobile takes the hand-built path of
-that procedure: `generate` is web only.
+The whole-app column (`<plugin>/references/procedures/ui.md`, "The whole app") takes a change that
+revises the shell of a web app, or the arrangement of its screens as a whole. The structure round
+runs for a whole page, screen, or flow whose composition is open: a new screen, or an existing
+screen that is redone as a whole. A section, card, step, or element inside an existing screen is
+a smaller change, and `generate` gives its options. Each other change of several screens is one
+look decision for each screen, and so is a whole-app revision of a kind other than web. Step 1 of
+`<plugin>/references/procedures/ui.md` shows the chosen path with the list of states or the
+inventory. A smaller change on mobile takes the hand-built path of that procedure: `generate` is
+web only.
 
 ## Can the session ask
 
@@ -172,6 +179,29 @@ timeout is no answer.
    - Exit 4: the page closed. Run `serve-question --start` again with the same payload, open its
      URL, and ask again. Later reads use the key that it prints.
    - Another result is no pick: do what its message says, then ask again.
+
+**The skeleton round of the whole app.** On the whole-app path of
+`<plugin>/references/procedures/ui.md`, the structure round above runs with the shell as its
+surface. Its list of five to seven structures and its payload take these rules:
+
+- Each structure answers each `breaks` finding of the diagnosis.
+- Each card keeps the visual system of `DESIGN.md`: the same palette, type, and components on
+  every card.
+- `thesis` names the shell: the navigation and the regions.
+- `materials` holds one short line for each screen of the inventory, `<screen>: <canonical
+  layout>`; one line `<W>x<H>: <change>` for the change between the two sizes of the web row; and
+  one line `Removes: <finding>, <finding>` that names the `drifts` findings that the card
+  removes.
+- `viewport` names the first viewport of the main screen, and the `html` sketch draws it at
+  1440×900.
+
+The locked card is the pick of the skeleton.
+
+**A child of a whole-app epic.** When the body of the parent of the issue holds a `## Prototype`
+record of a whole-app skeleton (`<plugin>/references/procedures/ui.md`, "The whole app"), the lock
+of the parent is the pick of the child for that skeleton. The child runs "The check", deals no
+round, and asks for no new pick. A look decision of the child beyond the skeleton, for example a
+new element of a screen, takes its own pick by this section.
 
 **`generate`.**
 
@@ -325,6 +355,10 @@ The review refines the chosen look on the rendered screen and keeps its directio
    `overdrive` change the direction: the review never runs them.
 3. On the web, run `<impeccable>/scripts/impeccable detect --json --viewport <W>x<H> <url>` once at
    each size of the platform row, and fix its findings.
+
+On a whole-app change, the states of the review are the keys of the inventory in the
+`## Prototype` record of the spec. A child of a whole-app epic reviews the keys of its own
+screens.
 
 Run at most two rounds. The task report keeps each finding that needs a new look, each unfixed
 finding, and the degraded mark of a `critique` that could not start its own subagents. The review

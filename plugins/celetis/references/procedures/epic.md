@@ -1,7 +1,8 @@
 # The epic
 
 The scope check of a feature. `feature` runs it at its start, and `specify` runs it in place of
-the upstream one-at-a-time brainstorm of several independent projects.
+the upstream one-at-a-time brainstorm of several independent projects, and again after the lock of
+a whole-app skeleton.
 
 ## The scope check
 
@@ -14,6 +15,20 @@ rationale or combined scenarios with their criterion, contributing children, pre
 expected behavior, timing, both loading links, and independent oracle. Keep each part of a
 compound outcome. A missing declaration stays unresolved; a question opt-out selects no mode.
 Record the maintainer's decision and source before publishing or changing acceptance meaning.
+
+## A whole-app revision
+
+A revision of the layout of a whole web app (`<plugin>/references/procedures/ui.md`, "The whole
+app") is one feature at the start of the lane, because the split needs the skeleton. After the
+maintainer locks the skeleton and the look decision ends with step 10 of "The procedure" of that
+file, run the scope check again, with the skeleton:
+
+- **One change** when the skeleton and all its screens can land as one change: continue the
+  step. The design review of the plan covers each key of the inventory.
+- **An epic** when the screens can land one by one. The first child is the shell. Each other
+  child is one screen or one group of screens. The parent body holds the `## Diagnosis` section
+  and the `## Prototype` record of the locked skeleton, as decisions that bind each child. Agree
+  the acceptance of the parent as for each epic.
 
 ## Make the issue an epic
 

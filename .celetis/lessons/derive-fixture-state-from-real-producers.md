@@ -14,8 +14,31 @@
   ],
   "date": "2026-11-07",
   "status": "active",
-  "source": "The implement session of ddinkov10/celetis#312 on Claude Code, Verify phase, 2026-11-14\n\nimplement session of #310 (Verify phase), 2026-11-13\n\nImplementation verification of ddinkov10/celetis#287\n\nTask 2 of ddinkov10/celetis#250, implement step session (child report to the coordinator)\n\nTask 3 of ddinkov10/celetis#141 (implement session, child t3-impl); recorded by the coordinator\n\nImplementation of ddinkov10/celetis#245, temporary verification correction",
+  "source": "Verify V4 of #325 (implement session, 2026-11-15): the capture script of the board diagnosis.\n\nThe implement session of ddinkov10/celetis#312 on Claude Code, Verify phase, 2026-11-14\n\nimplement session of #310 (Verify phase), 2026-11-13\n\nImplementation verification of ddinkov10/celetis#287\n\nTask 2 of ddinkov10/celetis#250, implement step session (child report to the coordinator)\n\nTask 3 of ddinkov10/celetis#141 (implement session, child t3-impl); recorded by the coordinator\n\nImplementation of ddinkov10/celetis#245, temporary verification correction",
   "incidents": [
+    {
+      "id": "a61eef13-ca66-4939-aa5f-991171aa3ed5",
+      "date": "2026-11-15",
+      "action": "The capture script reached each structural state of the board from a fresh page load and an opener act, and assumed that a fresh load shows the rest state of Now.",
+      "expected": "Before each capture, the script reads the state that the case needs (the view, the open panels, the epic groups) and restores it through its producer, as the carried lesson derive-fixture-state-from-real-producers says.",
+      "observed": "The view switch and the epic-group state persist in localStorage. After the first Pipeline state, each later 'now-*' capture loaded the Pipeline view (an evaluate read view: 'pipeline'), and a click on the open epic group #314 closed it. All captures were made again with a read of the view before each case.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "{\"items\":[...],\"sb\":{...,\"view\":\"pipeline\"}} and later 'row #314 ... expanded=false' after the earlier click; the fixed script logs '1440x900 fresh {\"view\":\"now\",\"panel\":false,\"coordinator\":false,\"queue\":false}' before each state.",
+        "reference": "https://github.com/ddinkov10/celetis/issues/325"
+      },
+      "inference": "The carried rule was in the brief, and the script did not read the state before each case: not-followed. The page stores the view in localStorage (engine/board/page/ui.ts), which a fresh load does not reset.",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "1ca3296",
+      "brief": "Plan of #325, lesson rules of the Verify phase: 'When several cases share one fixture, read the state that each case needs from the target before its first measurement, and stop the case on another state'.",
+      "lesson": {
+        "name": "derive-fixture-state-from-real-producers",
+        "revision": "40a0c7d",
+        "digest": "007c3dbff6700838aa805476828f3b4f38432ad4a491f1aa0413dcf016c65076"
+      }
+    },
     {
       "id": "bbe9439d-c8d8-455f-b9d8-dfbfffa5dfbe",
       "date": "2026-11-14",
@@ -147,7 +170,7 @@
       "revision": "40a31cb92ecce73591fc4c75321489240c5392fa plus the Idle scroll fix"
     }
   ],
-  "recurrences": 5,
+  "recurrences": 6,
   "reviews": [
     {
       "id": "6b06a4d9-8913-44c4-9181-015b1c981f26",
@@ -237,6 +260,21 @@
         "state": "proposed",
         "detail": "A separately authorized fixture helper could read the state that a case needs from the shared fixture before the case starts, and confirm the restore after a case that changes the state. This decision does not authorize or verify it, and it adds no tracked test."
       }
+    },
+    {
+      "id": "b1e15f86-3303-4a68-a3c3-b2524be9545e",
+      "requestDigest": "ba30bd8b984b84786beb65eee61beaf74459e04437a0122d0754cd0f47e6912f",
+      "date": "2026-11-15",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #325; claude child opus/high\n\nMerge (reviewer rules, \"Merge\"): the active lesson derive-fixture-state-from-real-producers already states the rule of the proposal for cases that share one fixture (read the state that each case needs before its first measurement). The #325 incident is a not-followed recurrence of that rule, with page state in browser storage as the shared fixture. The survivor keeps every incident and adds the browser-storage case to its applicability, action, and check.",
+      "related": [
+        "read-the-persisted-view-before-each-capture-of-a-shared-page",
+        "derive-fixture-state-from-real-producers"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "A capture helper of the project that reads and restores the stored page state before each capture needs separate authorization."
+      }
     }
   ]
 }
@@ -257,6 +295,8 @@ In the Verify phase of #310 on 2026-11-13, the harness started a read-only board
 
 In the Verify phase of #312 on 2026-11-14, the probe cases ran on one fixture board. The cases `phone-long-error` (run 1) and `disabled` (run 2) switched the fake `gh` to fail and ended with the state `read-ok`, which removes the switch but does not refresh the board. The board kept the read failure. In run 1, a later `resize` case failed 8 of 49 checks on `span.sb-text` "cannot read: gh: HTTP 502 from" and passed 49/0 after a refresh; the other cases after `phone-long-error` reported 0 failed on the leaked state. Run 2 ran the cases in sequence with a read of the board source before each case. After `disabled`, that read returned `error: "gh: HTTP 502 from api.github.com"`, and the next case ran again on a fresh read (33/0).
 
+In the V4 diagnosis of #325 on 2026-11-15, a capture script took one capture of each structural state of the board from a fresh page load and an opener act. The board keeps the view (Now or Pipeline) and the open epic groups in `localStorage`. After the first Pipeline state, each later Now capture loaded the Pipeline view, and a click on the open epic group #314 closed it. The session saw it in a read of the page state, discarded every capture, and took them again with a read of the view before each state. No wrong capture reached the issue. The brief carried this lesson.
+
 ## Root cause
 
 The source and retained output establish the #245 mismatch. Inferred: the fixture author assumed a boundary without reading its actual producer. No wider product defect is established.
@@ -270,6 +310,8 @@ For #287, inferred: the probe treated a successful cached GET as a new productio
 In #310, inferred: the harness derived the card states from the real producers, but missed one input of the board, the host commands on PATH, which gates the Run and Open agent controls. The harness author did not count host availability as an input of a derived state. Alternative: the brief named only `gh` and the adapter as fakes. Uncertain: whether an earlier task probe that asserted an Enter result on a Run action passed for the wrong reason; the Task 3 enter case used a Go action.
 
 For #312, inferred, not proven: the restore state `read-ok` changed the input behind the cached board model without its refresh producer, and no case read the board state before its first measurement. Alternative: cases on one shared board share state by design, so each case that changes the state leaks into the next case. Uncertain: whether the 0-failed results of run 1 after the leak were true; run 2 ran them again in sequence and they passed.
+
+For #325, observed: the page stores the view in `localStorage` (`engine/board/page/ui.ts`), and a fresh load does not reset it. Inferred: the script took a fresh load as a reset of the page state, and did not apply the carried rule for shared fixtures (read the state before each case). Uncertain: whether the script author read the rule as limited to server-side state.
 
 ## Fix
 
@@ -285,13 +327,15 @@ Proposed in #310, not enforced: before the first probe, compare the probe board 
 
 Proposed in #312, not enforced: when several cases share one fixture, each case reads the state that it needs from the target (for example the read source of `/api/board`) before its first measurement and stops on another state. A case that changes the shared state restores it through its producer and the refresh, and confirms the restore. Cases that change shared state run in sequence, not in a parallel batch. A fixture helper that every case calls first remains proposed work that needs separate authorization.
 
+Proposed in #325, not enforced: a capture script reads and logs the stored view and the open regions of the page before each capture, and restores the needed state through the page's own control. A capture helper of the project remains proposed work that needs separate authorization.
+
 ## Detection signature
 
-The board prints `celetis: <host> is not on PATH`; Run and Open agent controls are disabled; a Search for an Idle card lists no Run rows.
+The board prints `celetis: <host> is not on PATH`; Run and Open agent controls are disabled; a Search for an Idle card lists no Run rows. Two captures of different states show the same screen, or a capture of a toggle state shows the opposite state.
 
 ## Rule
 
-Applies when a runtime fixture must produce a derived state for a check, including a cached read model after its inputs change, a request that must still be unanswered at a later event (a stop, a restart, a timeout), the enabled state of a control that a case uses or a capture shows, and each case of several cases that share one fixture (a board, a server, a lab). Action: trace that state to its real input producer, and choose inputs that satisfy the existing derivation. For a cached model, trace and use the supported refresh producer and its completion boundary before asserting the new model; a successful cached read alone is no evidence of refresh. When a shared helper starts the producer, read the input that the producer stored (for example the selection of a run record) before the case waits, and stop the case when it differs from the input that the derivation needs. For a request in flight, find the point where its producer answers, put the block before that point, and observe the unanswered request directly when the event begins. For a control of a page, list each external command and service that the page reads to enable it (for the Celetis board, the host commands `claude` and `codex` on PATH), and give the probe process a fake of each that answers its read and starts nothing. When several cases share one fixture, read the state that each case needs from the target before its first measurement, and stop the case on another state; restore a state that a case changed through its producer and its refresh, confirm the restored state, and run state-changing cases in sequence, not in a parallel batch. Check: for a cached model, retain the old snapshot, refresh completion, and new independently expected values, and do not accept a no-refresh control as fresh evidence. The case output shows the stored input next to the expected input before the wait, and shows a request in flight still unanswered when the event begins; a control with the block after the answer point fails that observation; before the first probe, the page shows no unavailable-host message, and each control that a case uses or a capture shows is enabled as on the real board; the evidence shows the state read before each case of a shared fixture, and a control that leaves a changed state makes the next case refuse to start instead of measuring it; and the fixture reaches the required state before the check accepts the scenario result.
+Applies when a runtime fixture must produce a derived state for a check, including a cached read model after its inputs change, a request that must still be unanswered at a later event (a stop, a restart, a timeout), the enabled state of a control that a case uses or a capture shows, and each case of several cases that share one fixture (a board, a server, a lab, or one page whose state browser storage keeps over a fresh load). Action: trace that state to its real input producer, and choose inputs that satisfy the existing derivation. For a cached model, trace and use the supported refresh producer and its completion boundary before asserting the new model; a successful cached read alone is no evidence of refresh. When a shared helper starts the producer, read the input that the producer stored (for example the selection of a run record) before the case waits, and stop the case when it differs from the input that the derivation needs. For a request in flight, find the point where its producer answers, put the block before that point, and observe the unanswered request directly when the event begins. For a control of a page, list each external command and service that the page reads to enable it (for the Celetis board, the host commands `claude` and `codex` on PATH), and give the probe process a fake of each that answers its read and starts nothing. When several cases share one fixture, read the state that each case needs from the target before its first measurement, and stop the case on another state; a fresh page load does not reset the state that the page keeps in browser storage (for the Celetis board, the view and the open epic groups), so read that state too and restore it through the page's own control; restore a state that a case changed through its producer and its refresh, confirm the restored state, and run state-changing cases in sequence, not in a parallel batch. Check: for a cached model, retain the old snapshot, refresh completion, and new independently expected values, and do not accept a no-refresh control as fresh evidence. The case output shows the stored input next to the expected input before the wait, and shows a request in flight still unanswered when the event begins; a control with the block after the answer point fails that observation; before the first probe, the page shows no unavailable-host message, and each control that a case uses or a capture shows is enabled as on the real board; the evidence shows the state read before each case of a shared fixture (for captures of one page, the read view and open regions, equal to the state that the key of the capture names), and a control that leaves a changed state makes the next case refuse to start instead of measuring it; and the fixture reaches the required state before the check accepts the scenario result.
 
 ## Related lessons
 
