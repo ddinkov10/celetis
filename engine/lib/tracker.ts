@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Label } from './contract.ts';
 import { parseEpicAcceptance, parseEpicChildren, parseEpicRepository } from './epic-acceptance.ts';
-import { isIssueNumber } from './fields.ts';
+import { isCommit, isIssueNumber } from './fields.ts';
 import { run } from './process.ts';
 import { writeRefreshHint } from './refresh-hints.ts';
 import type { Entry, EpicSnapshot, IssueData } from './workflow.ts';
@@ -60,6 +60,7 @@ export type WorkflowRun = Readonly<{
   url: string;
 }>;
 export type Review = Readonly<{ user: string | null; state: string }>;
+export type PullDetails = Readonly<{ checks: readonly (CheckRun | CommitStatus)[]; reviews: readonly Review[] }>;
 export type Parent = Readonly<{ number: number; url: string }>;
 export type Bucket = 'pass' | 'skipping' | 'fail' | 'cancel' | 'pending';
 export type PullFilter = Readonly<{ state: 'open' }> | Readonly<{ head: string; state: 'closed' | 'all' }>;
@@ -70,7 +71,9 @@ export type NewIssue = Readonly<{ title: string; body: string; labels: readonly 
 export type GitHub = Readonly<{
   api(endpoint: string): Promise<unknown>;
   list(endpoint: string): Promise<unknown[]>;
-  history(issue: Issue): Promise<readonly Entry[]>;
+  graphql(query: string, variables?: Readonly<Record<string, string | number>>): Promise<Record<string, unknown>>;
+  timelines(issues: readonly Issue[]): Promise<ReadonlyMap<number, readonly Entry[]>>;
+  pullDetails(pulls: readonly Pull[]): Promise<ReadonlyMap<number, PullDetails>>;
   read(n: string): Promise<Readonly<{ issue: Issue; data: IssueData }>>;
   epic(n: string): Promise<EpicSnapshot>;
   issue(n: string): Promise<Issue>;
@@ -85,7 +88,6 @@ export type GitHub = Readonly<{
   workflowRuns(sha: string): Promise<readonly WorkflowRun[]>;
   workflowRun(id: number): Promise<WorkflowRun>;
   rerunFailedJobs(id: number): Promise<void>;
-  reviews(n: number): Promise<readonly Review[]>;
   parent(n: string): Promise<Parent>;
   labels(): Promise<readonly string[]>;
   createLabel(fields: NewLabel): Promise<void>;
@@ -201,11 +203,6 @@ function parseWorkflowRun(raw: unknown): WorkflowRun {
   };
 }
 
-function parseReview(raw: unknown): Review {
-  const review = record(raw);
-  return { user: orNull(review.user, (user) => text(record(user).login)), state: text(review.state) };
-}
-
 function parseParent(raw: unknown): Parent {
   const parent = typeof raw === 'object' && raw !== null && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
   const { number, html_url: url } = parent;
@@ -312,6 +309,96 @@ export function parseTimeline(entries: readonly unknown[]): Entry[] {
   });
 }
 
+export type Connection = Readonly<{ nodes: readonly unknown[]; next: string | null }>;
+
+function connection(raw: unknown): Connection {
+  const { nodes, pageInfo } = record(raw);
+  const { hasNextPage, endCursor } = record(pageInfo);
+  if (!Array.isArray(nodes) || typeof hasNextPage !== 'boolean') throw malformed();
+  return { nodes, next: hasNextPage ? text(endCursor) : null };
+}
+
+export async function drain(first: Connection, more: (cursor: string) => Promise<Connection>): Promise<unknown[]> {
+  const nodes = [...first.nodes];
+  let page = first;
+  while (page.next !== null) {
+    page = await more(page.next);
+    nodes.push(...page.nodes);
+  }
+  return nodes;
+}
+
+export function chunks<T>(items: readonly T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let i = 0; i < items.length; i += size) result.push(items.slice(i, i + size));
+  return result;
+}
+
+export function graphqlQuery(fields: string, ...variables: string[]): string {
+  return `query(${['$owner: String!', '$name: String!', ...variables].join(', ')}) { repository(owner: $owner, name: $name) { ${fields} } }`;
+}
+
+const timelineItems = (after: string) =>
+  `timelineItems(first: 100${after}, itemTypes: [ISSUE_COMMENT, LABELED_EVENT, UNLABELED_EVENT]) { pageInfo { hasNextPage endCursor } nodes { __typename ... on IssueComment { databaseId createdAt body } ... on LabeledEvent { createdAt label { name } } ... on UnlabeledEvent { createdAt label { name } } } }`;
+
+function timelineEntry(raw: unknown): Entry {
+  const node = record(raw);
+  switch (node.__typename) {
+    case 'IssueComment':
+      return { kind: 'comment', id: integer(node.databaseId), at: text(node.createdAt), body: text(node.body) };
+    case 'LabeledEvent':
+    case 'UnlabeledEvent':
+      return {
+        kind: 'label',
+        change: node.__typename === 'LabeledEvent' ? 'added' : 'removed',
+        name: text(record(node.label).name),
+        at: text(node.createdAt),
+      };
+    default:
+      throw malformed();
+  }
+}
+
+const reviewNodes = (after: string) =>
+  `reviews(first: 100${after}) { pageInfo { hasNextPage endCursor } nodes { state author { login } } }`;
+
+const checkRunNodes = (after: string) =>
+  `checkRuns(first: 50${after}, filterBy: { checkType: LATEST }) { pageInfo { hasNextPage endCursor } nodes { name status conclusion detailsUrl } }`;
+
+const checkSuiteNodes = (after: string) =>
+  `checkSuites(first: 50${after}) { pageInfo { hasNextPage endCursor } nodes { id databaseId app { slug } ${checkRunNodes('')} } }`;
+
+function reviewNode(raw: unknown): Review {
+  const review = record(raw);
+  return { user: orNull(review.author, (author) => text(record(author).login)), state: text(review.state) };
+}
+
+const lower = (value: unknown) => text(value).toLowerCase();
+
+const checkRunNode =
+  (suite: Record<string, unknown>) =>
+  (raw: unknown): CheckRun => {
+    const run = record(raw);
+    return {
+      name: text(run.name),
+      status: lower(run.status),
+      conclusion: orNull(run.conclusion, lower),
+      app: orNull(suite.app, (app) => text(record(app).slug)),
+      suite: orNull(suite.databaseId, integer),
+      url: orNull(run.detailsUrl, text),
+    };
+  };
+
+function statusNodes(commit: unknown): CommitStatus[] {
+  const { status } = record(commit);
+  if (status === null) return [];
+  const { contexts } = record(status);
+  if (!Array.isArray(contexts)) throw malformed();
+  return contexts.map((context) => ({ state: lower(record(context).state) }));
+}
+
+const select = (value: unknown, keys: readonly string[]) => keys.reduce((node, key) => record(node)[key], value);
+
 export function issueData(issue: Issue, history: readonly Entry[]): IssueData {
   return { state: issue.state, labels: issue.labels, body: issue.body, history };
 }
@@ -413,6 +500,151 @@ export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
     }
   }
 
+  async function graphql(
+    query: string,
+    variables: Readonly<Record<string, string | number>> = {},
+  ): Promise<Record<string, unknown>> {
+    signal?.throwIfAborted();
+    const result = await run(
+      'gh',
+      [
+        'api',
+        'graphql',
+        '-F',
+        'owner={owner}',
+        '-F',
+        'name={repo}',
+        '-f',
+        `query=${query}`,
+        ...Object.entries(variables).flatMap(([key, value]) => [
+          typeof value === 'number' ? '-F' : '-f',
+          `${key}=${value}`,
+        ]),
+      ],
+      { cwd, signal, env },
+    );
+    signal?.throwIfAborted();
+    stderr += result.stderr;
+    if (result.code !== 0)
+      throw new GitHubError(
+        'graphql',
+        `${result.stdout}${result.stderr}`.trimEnd(),
+        result.stderr,
+        'GitHub read failed',
+      );
+    return parsed('graphql', () => {
+      const answer = record(json(result.stdout));
+      if (answer.errors !== undefined) throw malformed();
+      return record(answer.data);
+    });
+  }
+
+  const connectionAt = (value: unknown, ...keys: string[]) => parsed('graphql', () => connection(select(value, keys)));
+
+  async function timelines(issues: readonly Issue[]): Promise<ReadonlyMap<number, readonly Entry[]>> {
+    const result = new Map<number, readonly Entry[]>(issues.map((issue) => [issue.number, []]));
+    for (const chunk of chunks(
+      issues.filter((issue) => issue.comments > 0),
+      50,
+    )) {
+      const data = await graphql(
+        graphqlQuery(
+          chunk.map(({ number }) => `i${number}: issue(number: ${number}) { ${timelineItems('')} }`).join(' '),
+        ),
+      );
+      for (const { number } of chunk) {
+        const nodes = await drain(connectionAt(data, 'repository', `i${number}`, 'timelineItems'), async (cursor) =>
+          connectionAt(
+            await graphql(
+              graphqlQuery(`issue(number: ${number}) { ${timelineItems(', after: $cursor')} }`, '$cursor: String!'),
+              {
+                cursor,
+              },
+            ),
+            'repository',
+            'issue',
+            'timelineItems',
+          ),
+        );
+        result.set(
+          number,
+          parsed('graphql', () => nodes.map(timelineEntry)),
+        );
+      }
+    }
+    return result;
+  }
+
+  async function checkRuns(suite: unknown): Promise<CheckRun[]> {
+    const fields = parsed('graphql', () => record(suite));
+    const nodes = await drain(connectionAt(fields, 'checkRuns'), async (cursor) =>
+      connectionAt(
+        await graphql(
+          `query($owner: String!, $name: String!, $id: ID!, $cursor: String!) { repository(owner: $owner, name: $name) { id } node(id: $id) { ... on CheckSuite { ${checkRunNodes(', after: $cursor')} } } }`,
+          { id: parsed('graphql', () => text(fields.id)), cursor },
+        ),
+        'node',
+        'checkRuns',
+      ),
+    );
+    return parsed('graphql', () => nodes.map(checkRunNode(fields)));
+  }
+
+  async function pullDetails(pulls: readonly Pull[]): Promise<ReadonlyMap<number, PullDetails>> {
+    const result = new Map<number, PullDetails>();
+    for (const chunk of chunks(pulls, 20)) {
+      parsed('graphql', () => {
+        if (!chunk.every(({ head }) => isCommit(head.sha))) throw malformed();
+      });
+      const data = await graphql(
+        graphqlQuery(
+          chunk
+            .map(
+              ({ number, head }) =>
+                `p${number}: pullRequest(number: ${number}) { ${reviewNodes('')} } c${number}: object(oid: "${head.sha}") { ... on Commit { status { contexts { state } } ${checkSuiteNodes('')} } }`,
+            )
+            .join(' '),
+        ),
+      );
+      for (const { number, head } of chunk) {
+        const reviews = await drain(connectionAt(data, 'repository', `p${number}`, 'reviews'), async (cursor) =>
+          connectionAt(
+            await graphql(
+              graphqlQuery(`pullRequest(number: ${number}) { ${reviewNodes(', after: $cursor')} }`, '$cursor: String!'),
+              { cursor },
+            ),
+            'repository',
+            'pullRequest',
+            'reviews',
+          ),
+        );
+        const commit = parsed('graphql', () => select(data, ['repository', `c${number}`]));
+        const statuses = parsed('graphql', () => statusNodes(commit));
+        const suites = await drain(connectionAt(commit, 'checkSuites'), async (cursor) =>
+          connectionAt(
+            await graphql(
+              graphqlQuery(
+                `object(oid: "${head.sha}") { ... on Commit { ${checkSuiteNodes(', after: $cursor')} } }`,
+                '$cursor: String!',
+              ),
+              { cursor },
+            ),
+            'repository',
+            'object',
+            'checkSuites',
+          ),
+        );
+        const runs: CheckRun[] = [];
+        for (const suite of suites) runs.push(...(await checkRuns(suite)));
+        result.set(number, {
+          checks: [...runs, ...statuses],
+          reviews: parsed('graphql', () => reviews.map(reviewNode)),
+        });
+      }
+    }
+    return result;
+  }
+
   async function history(issue: Issue): Promise<readonly Entry[]> {
     if (issue.comments === 0) return [];
     const endpoint = `issues/${issue.number}/timeline?per_page=100`;
@@ -423,7 +655,9 @@ export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
   return {
     api: (endpoint: string) => call(endpoint, false),
     list: (endpoint: string) => pages(endpoint),
-    history,
+    graphql,
+    timelines,
+    pullDetails,
     async read(n: string) {
       const issue = await get(`issues/${n}`, parseIssue);
       return { issue, data: issueData(issue, await history(issue)) };
@@ -521,7 +755,6 @@ export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
     async rerunFailedJobs(id: number) {
       await send('POST', `actions/runs/${id}/rerun-failed-jobs`);
     },
-    reviews: (n: number) => getAll(`pulls/${n}/reviews?per_page=100`, parseReview),
     parent: (n: string) => get(`issues/${n}/parent`, parseParent),
     labels: () => getAll('labels?per_page=100', parseLabelName),
     async createLabel(fields: NewLabel) {

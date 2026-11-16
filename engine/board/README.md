@@ -253,8 +253,12 @@ in the process, and the reply adds `daemon`: `{pid, auto}`, with the PID of the 
 mode (`on`, `off`, or `stopping`). These reads do not wait for GitHub.
 The tables below give the value of each field and the rule that gives each row its state.
 
-A full read collects all open issues and their timelines, and the open PRs and their check and
-review results. A selected-issue read fetches each selected issue once and lists open PRs once.
+A full read lists the open issues and the open PRs with REST. It reads the timelines of the open
+issues with comments in GraphQL batches of up to 50 issues, one call after another, and reads each
+further page of a long timeline in series. It reads the reviews of the open lane PRs, and the
+latest check runs of each check suite and the statuses of the head commit that the PR list names,
+in GraphQL batches of up to 20 PRs. A selected-issue read fetches each selected issue once and
+lists open PRs once.
 It reads timelines and PR details only for those issues. It also reads once each distinct parent
 of the open selected issues that is in the same repository, with `issues/<parent>` and no
 timeline; a 404 of that read gives no epic. Both paths use the same row rules.
@@ -391,8 +395,10 @@ it restores the board width.
 
 A full read, or a selected read that finds at least one closed issue, calls `readHistory` of
 `engine/lib/board-read.ts` once. Other selected reads retain History. `readHistory` reads the remote
-repository metadata and captures the default branch head. It walks
-100-commit pages pinned to that SHA until it finds 20 distinct issues or exhausts history. It
+repository metadata and captures the default branch head in GraphQL. It walks
+100-commit pages pinned to that SHA, each with the associated PRs of its commits in the same
+GraphQL query, until it finds 20 distinct issues or exhausts history. It reads the candidate
+issues of a page in one GraphQL batch, at most as many as the entries that are still missing. It
 keeps traversal order and each issue's newest occurrence, with no closure-time cutoff. A direct
 Celetis Conventional Commit has an issue suffix. For a PR landing, the commit must match a merged
 lane PR's merge SHA, base branch, and repository identities. The lane issue number must agree

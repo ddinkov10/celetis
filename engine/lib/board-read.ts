@@ -18,7 +18,7 @@ import { nextBoard } from './resolver.ts';
 import { laneFolder } from './state.ts';
 import { readStepEnd, type StepEndRecord } from './step-end.ts';
 import type { Exec } from './terminal.ts';
-import { type GitHub, github, type Issue, parseIssue } from './tracker.ts';
+import { type Connection, drain, type GitHub, github, graphqlQuery } from './tracker.ts';
 import { hasPage, visualPage } from './visual.ts';
 import { defaultGate, lands, lanes, stages, steps } from './workflow.ts';
 
@@ -162,80 +162,134 @@ const laneHead = new RegExp(
     .join('|')})/([1-9][0-9]*)-[a-z0-9][a-z0-9-]*$`,
 );
 
-async function readHistory(gh: Pick<GitHub, 'api' | 'list'>): Promise<History> {
-  const repo = record(await gh.api(''));
-  const trunk = text(repo.default_branch);
-  const name = text(repo.full_name);
+function connection(value: unknown): Connection {
+  const { nodes, pageInfo } = record(value);
+  const { hasNextPage, endCursor } = record(pageInfo);
+  if (typeof hasNextPage !== 'boolean') malformed();
+  return { nodes: array(nodes), next: hasNextPage ? text(endCursor) : null };
+}
+
+const pullsOf = (after: string) =>
+  `associatedPullRequests(first: 100${after}) { pageInfo { hasNextPage endCursor } nodes { number body mergedAt mergeCommit { oid } baseRefName headRefName baseRepository { nameWithOwner } headRepository { nameWithOwner } } }`;
+
+const historyOf = (after: string) =>
+  `history(first: 100${after}) { pageInfo { hasNextPage endCursor } nodes { oid url message committedDate ${pullsOf('')} } }`;
+
+type Landing = Readonly<{ n: number | null; sha: string; commitUrl: string; committedAt: string }>;
+type Landed = Readonly<{ title: string; url: string }>;
+
+async function readHistory(gh: Pick<GitHub, 'graphql'>): Promise<History> {
+  const repo = record(
+    (
+      await gh.graphql(
+        graphqlQuery(`nameWithOwner url defaultBranchRef { name target { ... on Commit { oid ${historyOf('')} } } }`),
+      )
+    ).repository,
+  );
+  const branch = record(repo.defaultBranchRef);
+  const trunk = text(branch.name);
+  const name = text(repo.nameWithOwner);
   if (!trunk || !/^[^/\s]+\/[^/\s]+$/.test(name)) malformed();
-  const url = `${link(repo.html_url).replace(/\/$/, '')}/commits/${encodeURIComponent(trunk)}`;
-  const heads = array(await gh.api(`commits?sha=${encodeURIComponent(trunk)}&per_page=1`));
-  const head = identity(record(heads[0]).sha);
+  const url = `${link(repo.url).replace(/\/$/, '')}/commits/${encodeURIComponent(trunk)}`;
+  const target = record(branch.target);
+  const head = identity(target.oid);
   const entries: LandedIssue[] = [];
   const seen = new Set<number>();
-  const issues = new Map<number, Issue>();
+  const issues = new Map<number, Landed | null>();
 
-  async function issueOf(n: number): Promise<Issue | null> {
-    if (!Number.isSafeInteger(n) || n < 1) return null;
-    let issue = issues.get(n);
-    if (!issue) {
-      issue = parseIssue(await gh.api(`issues/${n}`));
-      link(issue.url);
-      issues.set(n, issue);
-    }
-    return !issue.pull && issue.number === n ? issue : null;
+  async function commit(fields: string, oid: string, cursor: string): Promise<Record<string, unknown>> {
+    const data = await gh.graphql(
+      graphqlQuery(`object(oid: $oid) { ... on Commit { ${fields} } }`, '$oid: GitObjectID!', '$cursor: String!'),
+      { oid, cursor },
+    );
+    return record(record(data.repository).object);
   }
 
-  for (let page = 1; ; page++) {
-    const commits = array(await gh.api(`commits?sha=${head}&per_page=100&page=${page}`));
-    for (const raw of commits) {
-      const row = record(raw);
-      const sha = identity(row.sha);
-      const commitUrl = link(row.html_url);
-      const commit = record(row.commit);
-      const subject = text(commit.message).split('\n')[0] as string;
-      const committedAt = date(record(commit.committer).date);
-      const pulls = array(await gh.list(`commits/${sha}/pulls?per_page=100`));
-      let n: number | null = null;
-      if (pulls.length === 0) {
-        const direct = /^[a-z]+(?:\([^()\r\n]+\))?!?: [^ ].* \(#([1-9][0-9]*)\)$/.exec(subject);
-        if (direct) n = Number(direct[1]);
-      } else {
-        const candidates = new Set<number>();
-        for (const raw of pulls) {
-          const pull = record(raw);
-          const base = record(pull.base);
-          const head = record(pull.head);
-          const baseRepo = text(record(base.repo).full_name);
-          const headRepo = head.repo === null ? null : text(record(head.repo).full_name);
-          const baseRef = text(base.ref);
-          const headRef = text(head.ref);
-          const body = pull.body === null ? '' : text(pull.body);
-          const merged = pull.merged_at === null ? null : date(pull.merged_at);
-          const mergeSha = pull.merge_commit_sha === null ? null : identity(pull.merge_commit_sha);
-          const lane = laneHead.exec(headRef);
-          const closes = [...body.matchAll(/\bCloses\s+#([1-9][0-9]*)\b/gi)].map((match) => Number(match[1]));
-          if (
-            merged &&
-            mergeSha === sha &&
-            baseRef === trunk &&
-            baseRepo === name &&
-            headRepo === name &&
-            lane &&
-            closes.length > 0 &&
-            closes.every((number) => number === Number(lane[1]))
-          )
-            candidates.add(Number(lane[1]));
-        }
-        if (candidates.size === 1) n = [...candidates][0] as number;
+  async function readIssues(numbers: readonly number[]): Promise<void> {
+    const data = await gh.graphql(
+      graphqlQuery(
+        numbers
+          .map((n) => `n${n}: issueOrPullRequest(number: ${n}) { __typename ... on Issue { number title url } }`)
+          .join(' '),
+      ),
+    );
+    const repository = record(data.repository);
+    for (const n of numbers) {
+      const issue = record(repository[`n${n}`]);
+      if (issue.__typename === 'PullRequest') issues.set(n, null);
+      else if (issue.__typename !== 'Issue') malformed();
+      else {
+        const title = text(issue.title);
+        const href = text(issue.url);
+        link(href);
+        issues.set(n, issue.number === n ? { title, url: href } : null);
       }
+    }
+  }
+
+  function association(sha: string, pulls: readonly unknown[], subject: string): number | null {
+    if (pulls.length === 0) {
+      const direct = /^[a-z]+(?:\([^()\r\n]+\))?!?: [^ ].* \(#([1-9][0-9]*)\)$/.exec(subject);
+      return direct ? Number(direct[1]) : null;
+    }
+    const candidates = new Set<number>();
+    for (const raw of pulls) {
+      const pull = record(raw);
+      const baseRepo = pull.baseRepository === null ? null : text(record(pull.baseRepository).nameWithOwner);
+      const headRepo = pull.headRepository === null ? null : text(record(pull.headRepository).nameWithOwner);
+      const baseRef = text(pull.baseRefName);
+      const headRef = text(pull.headRefName);
+      const body = pull.body === null ? '' : text(pull.body);
+      const merged = pull.mergedAt === null ? null : date(pull.mergedAt);
+      const mergeSha = pull.mergeCommit === null ? null : identity(record(pull.mergeCommit).oid);
+      const lane = laneHead.exec(headRef);
+      const closes = [...body.matchAll(/\bCloses\s+#([1-9][0-9]*)\b/gi)].map((match) => Number(match[1]));
+      if (
+        merged &&
+        mergeSha === sha &&
+        baseRef === trunk &&
+        baseRepo === name &&
+        headRepo === name &&
+        lane &&
+        closes.length > 0 &&
+        closes.every((number) => number === Number(lane[1]))
+      )
+        candidates.add(Number(lane[1]));
+    }
+    return candidates.size === 1 ? ([...candidates][0] as number) : null;
+  }
+
+  let page = connection(target.history);
+  for (;;) {
+    const landings: Landing[] = [];
+    for (const raw of page.nodes) {
+      const row = record(raw);
+      const sha = identity(row.oid);
+      const commitUrl = link(row.url);
+      const subject = text(row.message).split('\n')[0] as string;
+      const committedAt = date(row.committedDate);
+      const pulls = await drain(connection(row.associatedPullRequests), async (cursor) =>
+        connection((await commit(pullsOf(', after: $cursor'), sha, cursor)).associatedPullRequests),
+      );
+      const n = association(sha, pulls, subject);
+      landings.push({ n: n !== null && Number.isSafeInteger(n) ? n : null, sha, commitUrl, committedAt });
+    }
+    for (const [index, { n, sha, commitUrl, committedAt }] of landings.entries()) {
       if (n === null || seen.has(n)) continue;
-      const issue = await issueOf(n);
+      if (!issues.has(n)) {
+        const unread = landings
+          .slice(index)
+          .flatMap(({ n }) => (n === null || seen.has(n) || issues.has(n) ? [] : [n]));
+        await readIssues([...new Set(unread)].slice(0, 20 - entries.length));
+      }
+      const issue = issues.get(n);
       if (!issue) continue;
       entries.push({ number: n, title: issue.title, url: issue.url, sha, commitUrl, committedAt });
       seen.add(n);
       if (entries.length === 20) return { trunk, url, head, entries };
     }
-    if (commits.length < 100) return { trunk, url, head, entries };
+    if (page.next === null) return { trunk, url, head, entries };
+    page = connection((await commit(historyOf(', after: $cursor'), head, page.next)).history);
   }
 }
 

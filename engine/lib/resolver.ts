@@ -19,6 +19,7 @@ import {
   github,
   type Issue,
   issueData,
+  type PullDetails,
   type Pull as TrackerPull,
 } from './tracker.ts';
 import { type Decision, decide, factsOf, type IssueData, laneOf, specified, stageOf } from './workflow.ts';
@@ -32,6 +33,25 @@ function checkResult(buckets: readonly Bucket[]): Pull['checks'] {
   return buckets.includes('pending') ? 'pending' : 'pass';
 }
 
+function branchPull(pr: TrackerPull, details: PullDetails | undefined): BranchPull {
+  if (details === undefined) throw new Error(`no details of PR #${pr.number}`);
+  const latest = new Map<string | null, string>();
+  for (const review of details.reviews)
+    if (['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(review.state)) latest.set(review.user, review.state);
+  const states = [...latest.values()];
+  const review = states.includes('CHANGES_REQUESTED')
+    ? 'changes'
+    : states.includes('APPROVED')
+      ? 'approved'
+      : pr.requestedReviewers > 0
+        ? 'required'
+        : null;
+  return {
+    branch: pr.head.ref,
+    pull: { number: pr.number, url: pr.url, draft: pr.draft, checks: checkResult(details.checks.map(bucket)), review },
+  };
+}
+
 const unreadable: Observed = { kind: 'observed', reason: 'unreadable' };
 
 function reader(operation: Operation, signal?: AbortSignal) {
@@ -39,29 +59,9 @@ function reader(operation: Operation, signal?: AbortSignal) {
   const gh = github(checkout, signal);
 
   async function openIssues(): Promise<Fetched[]> {
-    const result: Fetched[] = [];
-    for (const issue of (await gh.openIssues()).filter((issue) => !issue.pull))
-      result.push({ issue, data: issueData(issue, await gh.history(issue)) });
-    return result;
-  }
-
-  async function pullState(pr: TrackerPull): Promise<BranchPull> {
-    const checks = [...(await gh.checkRuns(pr.head.sha)), ...(await gh.statuses(pr.head.sha))].map(bucket);
-    const latest = new Map<string | null, string>();
-    for (const review of await gh.reviews(pr.number))
-      if (['APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'].includes(review.state)) latest.set(review.user, review.state);
-    const states = [...latest.values()];
-    const review = states.includes('CHANGES_REQUESTED')
-      ? 'changes'
-      : states.includes('APPROVED')
-        ? 'approved'
-        : pr.requestedReviewers > 0
-          ? 'required'
-          : null;
-    return {
-      branch: pr.head.ref,
-      pull: { number: pr.number, url: pr.url, draft: pr.draft, checks: checkResult(checks), review },
-    };
+    const issues = (await gh.openIssues()).filter((issue) => !issue.pull);
+    const histories = await gh.timelines(issues);
+    return issues.map((issue) => ({ issue, data: issueData(issue, histories.get(issue.number) ?? []) }));
   }
 
   async function dirty(path: string): Promise<boolean> {
@@ -107,7 +107,7 @@ function reader(operation: Operation, signal?: AbortSignal) {
     }
   }
 
-  return { checkout, gh, openIssues, pullState, dirty, lanes, observe, settle };
+  return { checkout, gh, openIssues, dirty, lanes, observe, settle };
 }
 
 type Keeps = (lane: string) => Promise<boolean>;
@@ -283,8 +283,8 @@ export async function nextBoard(
           ? /\/[0-9]+-/.test(pr.head.ref)
           : [...selected].some((number) => pr.head.ref.includes(`/${number}-`)),
       );
-      const prs: BranchPull[] = [];
-      for (const pr of pulls) prs.push(await read.pullState(pr));
+      const details = await read.gh.pullDetails(pulls);
+      const prs = pulls.map((pr) => branchPull(pr, details.get(pr.number)));
       const dirtyLanes: string[] = [];
       const paths =
         selected === null
