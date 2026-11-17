@@ -9,7 +9,7 @@ type Shown = CoordinatorState | 'ended';
 type Act = 'open' | 'say' | 'key' | 'interrupt' | 'end';
 type Line = { act: Act; text: string; tone: 'error' | 'status' };
 export type CoordinatorHooks = Readonly<{
-  closeOthers(): void;
+  reveal(): void;
   changed(view: CoordinatorView): void;
   notify(title: string, open: () => void): void;
 }>;
@@ -57,7 +57,7 @@ const none: CoordinatorView = {
 };
 
 export function setupCoordinator(hooks: CoordinatorHooks) {
-  const control = $('coordinator-open');
+  const mirrors = [$('pane-chat'), $('pb-chat')];
   const aside = $('coordinator');
   const log = $('coordinator-log');
   const toEnd = $('coordinator-to-end');
@@ -68,7 +68,6 @@ export function setupCoordinator(hooks: CoordinatorHooks) {
   const interrupt = $('coordinator-interrupt');
   const end = $('coordinator-end');
   const go = $('coordinator-go');
-  const close = $('coordinator-close');
   const startBlock = $('coordinator-start-block');
   const startText = $('coordinator-start-text');
   const start = $('coordinator-start');
@@ -91,7 +90,6 @@ export function setupCoordinator(hooks: CoordinatorHooks) {
   let linesError: string | null = null;
   let isDown = false;
   let isOpen = false;
-  let opener: HTMLElement | null = null;
   let follow = true;
   let behind = false;
   let lastTop = 0;
@@ -164,18 +162,20 @@ export function setupCoordinator(hooks: CoordinatorHooks) {
     const header = ended ? 'none' : state;
     const cause = staleCause();
     const unseen = isUnseen();
-    control.dataset.state = header;
-    control.toggleAttribute('data-stale', cause !== null);
-    control.setAttribute('aria-expanded', String(isOpen));
-    control.setAttribute(
-      'aria-label',
-      `Coordinator, ${WORDS[header]}${unseen ? ', new text' : ''}${cause ? ', not current' : ''}`,
-    );
-    control.title = cause
-      ? `${cause}. The state is from ${timeOf(view.readAt)}, not current.`
-      : `${isOpen ? 'Hide' : header === 'none' ? 'Start' : 'Show'} the coordinator session`;
-    setText(control.querySelector('.co-open-state') as HTMLElement, WORDS[header]);
-    (control.querySelector('.co-new') as HTMLElement).hidden = !unseen;
+    for (const control of mirrors) {
+      control.dataset.state = header;
+      control.toggleAttribute('data-stale', cause !== null);
+      control.toggleAttribute('data-new', unseen);
+      control.setAttribute(
+        'aria-label',
+        `Chat, coordinator ${WORDS[header]}${unseen ? ', new text' : ''}${cause ? ', not current' : ''}`,
+      );
+      control.title = cause
+        ? `${cause}. The state is from ${timeOf(view.readAt)}, not current.`
+        : 'Show the chat with the coordinator';
+      const words = control.querySelector<HTMLElement>('.co-open-state');
+      if (words) setText(words, WORDS[header]);
+    }
 
     aside.dataset.state = state;
     const banner = $('coordinator-banner');
@@ -250,8 +250,8 @@ export function setupCoordinator(hooks: CoordinatorHooks) {
     if (startLine) startText.setAttribute('role', 'alert');
 
     const now = document.activeElement;
-    if (wasInPanel && !(now instanceof HTMLElement && aside.contains(now) && now.checkVisibility()))
-      (field.checkVisibility() ? field : close).focus({ preventScroll: true });
+    if (isOpen && wasInPanel && !(now instanceof HTMLElement && aside.contains(now) && now.checkVisibility()))
+      focusIn();
   };
 
   const take = (read: CoordinatorView): string | null => {
@@ -392,8 +392,8 @@ export function setupCoordinator(hooks: CoordinatorHooks) {
     if (busy || !view.actions.includes('open')) return;
     if (isReconnecting()) {
       line = { act: 'open', text: RECONNECT, tone: 'status' };
-      if (isOpen) draw();
-      else open();
+      hooks.reveal();
+      draw();
       return;
     }
     ended = false;
@@ -402,11 +402,9 @@ export function setupCoordinator(hooks: CoordinatorHooks) {
     resetChat();
     known = 'starting';
     announce(`Coordinator: ${WORDS.starting}`);
-    if (!isOpen) open();
-    else {
-      draw();
-      field.focus({ preventScroll: true });
-    }
+    hooks.reveal();
+    draw();
+    (field.checkVisibility() ? field : start).focus({ preventScroll: true });
     if (!(await act('open', '/api/coordinator/open', {}))) {
       opening = 0;
       known = shown();
@@ -414,37 +412,33 @@ export function setupCoordinator(hooks: CoordinatorHooks) {
     }
   };
 
-  function open(): void {
+  const show = () => {
     if (isOpen) return;
-    opener = document.activeElement as HTMLElement | null;
-    hooks.closeOthers();
     isOpen = true;
     follow = true;
     aside.hidden = false;
-    document.body.classList.add('has-coordinator');
     draw();
     log.scrollTop = log.scrollHeight;
     lastTop = log.scrollTop;
-    (field.checkVisibility() ? field : close).focus({ preventScroll: true });
     void readChat();
-  }
+  };
 
-  const hide = (refocus: boolean) => {
+  const hide = () => {
     if (!isOpen) return;
     isOpen = false;
     ended = false;
     clearTimeout(timer);
     aside.hidden = true;
-    document.body.classList.remove('has-coordinator');
     draw();
-    if (refocus) (opener?.isConnected && opener.checkVisibility() ? opener : control).focus({ preventScroll: true });
   };
 
-  const toggle = () => {
-    if (isOpen) return hide(true);
-    if (shown() === 'none') return void startSession();
-    open();
-  };
+  const focusIn = () =>
+    (field.checkVisibility() ? field : start.checkVisibility() ? start : log).focus({ preventScroll: true });
+
+  function open(): void {
+    hooks.reveal();
+    focusIn();
+  }
 
   log.addEventListener('scroll', () => {
     if (log.scrollTop < lastTop - 1 && !atEnd()) follow = false;
@@ -478,12 +472,6 @@ export function setupCoordinator(hooks: CoordinatorHooks) {
     event.preventDefault();
     void sendText();
   });
-  aside.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape' || event.defaultPrevented) return;
-    if (event.target !== field && ($('update-dialog') as HTMLDialogElement).open) return;
-    event.preventDefault();
-    hide(true);
-  });
   interrupt.addEventListener('click', async () => {
     if (busy || !can('interrupt')) return;
     if (await act('interrupt', '/api/coordinator/interrupt', {}))
@@ -508,11 +496,8 @@ export function setupCoordinator(hooks: CoordinatorHooks) {
   go.addEventListener('click', () => {
     if (view.sessionId) void post('/api/go', { sessionId: view.sessionId }, 'Go failed');
   });
-  close.append(icon('close'));
-  close.addEventListener('click', () => hide(true));
   start.addEventListener('click', () => void startSession());
-  control.prepend(icon('message'));
-  control.addEventListener('click', toggle);
+  for (const control of mirrors) control.prepend(icon('message'));
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) clearTimeout(timer);
     else void readChat();
@@ -527,11 +512,11 @@ export function setupCoordinator(hooks: CoordinatorHooks) {
       isDown = value;
       draw();
     },
-    toggle,
+    show,
+    hide,
     open,
-    close: hide,
-    focus: () => control.focus(),
-    label: () =>
-      isOpen ? 'Hide the coordinator' : shown() === 'none' ? 'Start the coordinator session' : 'Show the coordinator',
+    start: () => void startSession(),
+    isShown: () => isOpen,
+    hasSession: () => shown() !== 'none' && shown() !== 'ended',
   };
 }

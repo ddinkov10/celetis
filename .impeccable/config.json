@@ -30,6 +30,34 @@
         "files": ["http://127.0.0.1:*", "http://127.0.0.1:*/"],
         "createdAt": "2026-11-14T16:45:33.943Z",
         "reason": "The spec of issue #322, section Prototype, fixes the padding of the Set aside pill (.aside-pill) at 1px 7px 1px 5px; the pill is a compact status label beside the step name."
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": ["http://127.0.0.1:*"],
+        "createdAt": "2026-11-16T21:28:34.190Z",
+        "reason": "The inset 3px Beacon Orange stripe on a Needs-you card is the Needs-you mark of DESIGN.md Cards; it is in base b998ac5 and the shell of #330 does not change it."
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": ["http://127.0.0.1:*/"],
+        "createdAt": "2026-11-16T21:28:34.207Z",
+        "reason": "The inset 3px Beacon Orange stripe on a Needs-you card is the Needs-you mark of DESIGN.md Cards; it is in base b998ac5 and the shell of #330 does not change it."
+      },
+      {
+        "rule": "edge-flush-cards",
+        "value": "*",
+        "files": ["http://127.0.0.1:*"],
+        "createdAt": "2026-11-16T21:28:34.224Z",
+        "reason": "The Not-in-a-step strip keeps the 2px list padding of base b998ac5; its cards carry their own border and the strip clips no corner; the shell of #330 does not change it."
+      },
+      {
+        "rule": "edge-flush-cards",
+        "value": "*",
+        "files": ["http://127.0.0.1:*/"],
+        "createdAt": "2026-11-16T21:28:34.240Z",
+        "reason": "The Not-in-a-step strip keeps the 2px list padding of base b998ac5; its cards carry their own border and the strip clips no corner; the shell of #330 does not change it."
       }
     ]
   }

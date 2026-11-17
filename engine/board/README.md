@@ -126,7 +126,7 @@ starts the daemon in the main checkout from each checkout of the repository, and
 `node_modules/.bin` item from the `PATH` of the daemon, so the board starts `git`, `gh`, `hc`, or
 `herdr-app` with no such item.
 
-**Open work during updates.** The status bar keeps one update control after the agent order.
+**Open work during updates.** The foot of the sidebar keeps one update control after the agent order.
 **Check for updates** starts discovery in one press. **Checking…** retains focus and ignores
 another press. **Up to date** reports that the installed engine and registered plugins match
 the configured target of each part; it does not mean that an open agent session has reloaded new code.
@@ -276,8 +276,8 @@ active selected read. That full read takes priority over the next selected batch
 consumes the targets pending at its start; later hints remain pending, including the same issue.
 A failed full read restores its consumed targets; a failed selected read waits for another cause.
 Before the first good document, targets cause only full reads. A read has a limit of 60 seconds.
-The stop of the board also stops a read that runs. In each case, the `gh` process of that read ends. When a read fails, the cards and history of the last good read stay, and the status bar shows
-`cannot read:` with one line:
+The stop of the board also stops a read that runs. In each case, the `gh` process of that read ends. When a read fails, the cards and history of the last good read stay, and the tracker read of the foot of the sidebar (on a phone, its row of
+`Board status`) shows `cannot read:` with one line:
 
 | Cause | Line |
 |---|---|
@@ -382,16 +382,14 @@ Each row also has `number`, `title`, `url`, `updatedAt` and these fields:
 
 ## Landed history
 
-History sits between Search and Refresh. It opens the existing panel, nonmodal beside the board
-and modal when it covers the page (see "The cards"), and closes card details. Card details close History. The default is closed on each page load; refresh keeps its
-open state, scroll, and matching focused link. Escape or Close returns focus to History. While it
-is open, `History` has `aria-expanded="true"`, a Veil Strong fill, and a strong hairline. The
-`landed` chip of the header and the `d` shortcut open the same panel; the landed count shows
-nowhere else. Search finds landed issue numbers and titles.
-On a phone the header has no History button and no `landed` chip; the row `Show history` or
-`Hide history` of More, the `d` shortcut, and the Search command open the panel. Below 1100 px
-width or 701 px height the panel is a drawer; below 720 px width it fills the viewport. Closing
-it restores the board width.
+History is the tab History of the right pane in Operations. A press on the tab, the `d` shortcut,
+and the Search command open it. A second `d` shows the tab Agents again, and a press on another tab
+shows that tab. The tab has no close button and no `landed` chip, and the landed count shows
+nowhere else. The page keeps the last tab in the browser storage, so a load opens the tab History
+again when it was the last tab; refresh keeps its scroll and matching focused link. Card details open in the center and do
+not close the tab; Escape closes them and shows the tab Agents with the focus on the card. Search
+finds landed issue numbers and titles. On a phone the tab History is in the Agents pane, which
+fills the space between the top bar and the bottom bar, and the More menu has no History row.
 
 A full read, or a selected read that finds at least one closed issue, calls `readHistory` of
 `engine/lib/board-read.ts` once. Other selected reads retain History. `readHistory` reads the remote
@@ -574,7 +572,7 @@ to the card of its row, and Run starts the step again.
 - On a `ready` card, the accessible name of Run is `Run <step> on <model> at <level>, #<n>`. The
   title of Run is `Start the <step> step on <model> (<source>) at <level> (<source>)`, then `. ` and
   the `hint` of that step when it has one, then ` (Enter)`.
-- Open agent sends no agent choice. It is the main action in Now, Pipeline, details, the card menu,
+- Open agent sends no agent choice. It is the main action in Agents, Pipeline, details, the card menu,
   and search. Open issue remains secondary, and `o` opens the issue. When the first eligible agent
   of the local order is not available, or every included agent is limited, Open agent is disabled
   with its cause.
@@ -1226,32 +1224,51 @@ A Run press types a run form in the repository of the board, and the daemon run 
 
 **The layout.** The page holds nothing of one repository: it uses neutral colours, follows the light
 or dark theme of the OS until the maintainer picks Light or Dark with the theme control, and shows
-the folder name of the main checkout in the header. It carries its two fonts, Geist and Geist
+the folder name of the main checkout in the sidebar. It carries its two fonts, Geist and Geist
 Mono, in `engine/board/fonts/` with their licence (`OFL.txt`, the SIL Open Font License 1.1), so it
 loads nothing from the network.
 
-- The header holds the folder name, the switch between Now and Pipeline, the count of each column
-  and of landed issues, New intake, Coordinator, Search, Queue, History, and Refresh. The title of the browser tab is
+- The page is one shell with its regions in this order, which is also the visual order: the
+  sidebar, the work area, and, in the work area of Operations, the chat and the right pane. The
+  sidebar is a `nav` named `Board`. It holds the logo and the folder name; New intake and Search,
+  above the destinations and apart from them; the four destinations Home, Operations, Control, and
+  Throughput, each a button with an icon and a one-word label; and at its foot the group
+  `Board status`: the tracker read with Refresh, `herdr`, `Daemon`, the agent order, the Celetis
+  update control, the theme control, Notify, and Keys. When the window is too short for all of
+  them, the destinations scroll in their own box down to Home and Operations, so the foot keeps
+  its place; below that height the sidebar scrolls. Exactly one destination is current, and it
+  has `aria-current="page"`. A press on a destination shows its area and sends nothing. The work
+  area is `main`, named `Work area`, with one container for each area: `area-home`,
+  `area-operations`, `area-control`, and `area-throughput`. Home, Control, and Throughput show a
+  title and one line that say that the area is not built yet and what it will hold. The page has no
+  header row and no status bar. The title of the browser tab is
   `(<n>) <folder> · Agent board` while `<n>` cards or sessions need you, and the tab icon has an orange dot
   then; it has a blue dot while an agent of an issue works and nothing needs you.
-- Below 720 px the header is two bars. The sticky top bar holds the folder name, Coordinator, and
-  Search. The bottom bar is fixed to the bottom edge and holds Now, Pipeline, New intake, Queue,
-  and More, each with an icon and its label. The count chips do not show, and History and Refresh
-  have no button there; their rows are in More. The status bar does not show there either; its items
-  are rows of More. Now carries a badge with the `need you` count (its name is
-  `Now, <n> need you`), and the badge hides at 0. The bottom bar does not hide on scroll. The
-  details and the coordinator panel cover the bottom bar.
-- New intake is a ghost button (a Veil fill, a hairline, and Ink text), not an Ink-filled one. Only
-  the chip `need you` keeps its outline, and it grows to 32 px while it needs you; the chips
-  `running`, `idle`, and `landed` have no outline and no fill. After a good Refresh the Refresh
+- Three skip links come first: `Skip to the sidebar`, `Skip to the chat`, and
+  `Skip to the work views` (the right pane). Outside Operations the second reads
+  `Skip to the work area` and goes to the area, and the third does not show. While the details
+  show, the second reads `Skip to the details` and moves the focus to the details, also at the
+  right of the wide Pipeline and in the Chat pane of a phone. `Skip to the chat` does not show
+  while the wide Pipeline with no details takes the place of the chat. On a phone the link of the
+  pane that does not show is hidden.
+- Below 720 px the sidebar is a slim top bar with the logo, the folder name, and Search, and the
+  bottom bar follows the work area: a `nav` named `Panes`, fixed to the bottom edge, with Chat,
+  Agents, New intake, and More, each with an icon and its label. One pane of Operations shows at a
+  time: Chat (the chat or the details) or Agents (the tabs of the right pane). A load shows Chat.
+  Chat or Agents is current while its pane shows, also with the details open in Chat; in Home,
+  Control, and Throughput, More is current. Chat carries the coordinator mark, and Agents carries a
+  badge with the `need you` count, which hides at 0. The items of `Board status` are rows of More.
+  The bottom bar does not hide on scroll. The details and the chat keep the top bar and the bottom
+  bar visible.
+- New intake is a ghost button (a Veil fill, a hairline, and Ink text), not an Ink-filled one.
+  After a good Refresh the Refresh
   icon is Go Green and its title reads `Read <tracker> again: done` for 2 seconds, also across a
   redraw, and the page announces `<tracker> read again` (`Issues read again` before the first good
   read) at each good Refresh, also twice in a row. A failed Refresh keeps the toast `Refresh failed`.
-- New intake stays in the header in Now, Pipeline, and Queue. On a phone it is the center item of
-  the bottom bar and keeps its label there.
-  Search becomes compact below 1700 px, and Refresh shows only its icon (its name stays), so the row
-  holds the widest state words of Coordinator; the folder name stops at 12 characters with an
-  ellipsis and a title. During a request it reads `Opening…`, announces progress,
+- New intake sits in the sidebar before Search in each area. Below 720 px it is an item of the
+  bottom bar, between Agents and More, and keeps its label there; a resize across 720 px moves it
+  and keeps its focus. The folder name cuts with an ellipsis at the width of the sidebar, the
+  rail, or the top bar, and its title holds the full name. During a request New intake reads `Opening…`, announces progress,
   and rejects further activation without moving keyboard focus. A known unavailable host shows
   its reason beside the unavailable control and in its title. Only a successful issue snapshot
   no more than 60 seconds old can disable the control for host availability; missing, failed,
@@ -1262,7 +1279,7 @@ loads nothing from the network.
   launch outcome is unknown, and tells the person to check Human sessions or herdr before a new
   press of New intake. No launch retries automatically. The button becomes available for deliberate recovery, and
   completion never takes focus back from another control.
-- The footer holds the agent order after the item `Daemon`. Its pill stacks the icons of the
+- The foot of the sidebar holds the agent order after the item `Daemon`. Its pill stacks the icons of the
   included agents in priority order with a chevron; hover or focus spreads them. A press opens the
   list upward, inside the viewport. Each row has a drag handle, its rank, the icon, the name, a
   detail line, and `First` on the first included agent. The detail line shows `In use` for an agent
@@ -1286,8 +1303,8 @@ loads nothing from the network.
   stays above its pill (above More on a phone) and within the viewport. Changes and Retry results
   go to a polite live region. Below 720 px width, the handles, the menu items, and Retry are at
   least 44 px high, and the handles are 44 px wide.
-- The status bar keeps the Celetis update control after the agent order, also while its nonmodal
-  dialog is open. Below 720 px the status bar does not show, and the control is the last row of
+- The foot of the sidebar keeps the Celetis update control after the agent order, also while its
+  nonmodal dialog is open. Below 720 px the foot does not show, and the control is the last row of
   More under `Board status`, as `Celetis: <label>`; a press closes the menu and opens the same
   dialog above the bottom bar, and the focus returns to More. The same button shows **Check for
   updates**, **Checking…**, **Up to date**, **Update available**, **Restart needed**, **Update
@@ -1295,18 +1312,18 @@ loads nothing from the network.
   attention**, or **Restart needs attention**. It uses the accent look only for **Update
   available** and **Restart needed**, the two states that need an action. Its accessible name and
   tooltip are `<label>, Celetis` in each state. Each state change goes to the polite status
-  region, also when the label stays. On a desktop the footer can wrap; its controls remain below
-  the dialog. While the coordinator panel is open, the dialog sits above the foot of the panel, so
-  it does not cover the message field. Checks
+  region, also when the label stays. While the chat shows, the dialog sits above the foot of the
+  chat, so it does not cover the message field. While the chat is hidden, it sits at the right of
+  the update control in the foot of the sidebar, and on a phone above the bottom bar. Checks
   keep the cards and other controls usable. The dialog opens only on a press of the control, which
   moves the focus to its title; a change of state moves no focus, and the polite status region
   gives the state. Escape closes the open dialog also
   when the focus is outside it, but not in a form field. An open menu, Search, or the keyboard
-  shortcuts close before the dialog, and the dialog closes before the card details or History.
+  shortcuts close before the dialog, and the dialog closes before the card details.
   Escape, **Later**, **Close**, or **Hide progress** returns the focus to the control when the
   focus was in the dialog, and leaves it in place when it was not; a background close does not
   take focus from other board work.
-- Human sessions is a strip between the header and the columns, in Now and in Pipeline. Each human
+- Human sessions is a strip at the top of the tab panel of Agents and Pipeline, above the columns. Each human
   session is one item: the agent mark, the title, the state with its age, and
   Go. A session with an empty title shows `A session` on its item and as the title of its details.
   A press on an item opens its details. The strip is hidden while no human session runs. The strip
@@ -1314,13 +1331,10 @@ loads nothing from the network.
   first, its host reports `blocked`: its item is orange. In the second, its host reports `idle`,
   `done`, or `error` and you have not seen that ended turn: its item shows `your turn`, an
   orange dot, and its title at weight 600, with no tint and no pulse. A new tab at its first prompt
-  is such a turn. The `need you` count in the header (the badge on Now below 720 px), the title of
-  the browser tab, the dot of the tab icon, and Notify count each of the two cases. At 720 px
-  width and more, a press on the `need you` count focuses, in this order, the coordinator control
-  in a dialog, the first human session in a dialog, the first human session at an unseen ended
-  turn, and then the first card of Needs you. Below 720 px the count chips do not show, and a
-  press on the badge on Now only opens the view Now. The column Needs you
-  and its count hold only issue work, so the header can count more than the column, and an empty
+  is such a turn. The `need you` count (the badge on Operations, and the badge on Agents, which
+  leaves out the coordinator dialog), the title of
+  the browser tab, the dot of the tab icon, and Notify count each of the two cases. The column Needs you
+  and its count hold only issue work, so the `need you` count can be more than the column, and an empty
   Needs you reads `No issue needs you`. `works` needs nothing from you.
   You see a turn when you open the details of the session (a press on its item, `Space`, the press
   on a notification, or `#<n>` of the search) or press its Go. The item then keeps the grey dot and
@@ -1328,38 +1342,44 @@ loads nothing from the network.
   each card of a human session carries) is unseen again. A screen reader hears
   `Human session "<label>": your turn` once when the turn ends; the first good read after a load
   counts and marks, but announces and notifies nothing.
-- The control Coordinator follows New intake in the header in Now, Pipeline, and Queue. Below
-  720 px it is an icon button of 44 px in the top bar, and its words show only in the state
-  `waits for your answer`. It shows the
-  state of the coordinator session in words and with a mark: `no session` (an empty ring), `starts`
-  (a blue ring), `works` (a blue dot), `turn ended` (a grey dot), and `waits for your answer` (an
-  orange diamond on an orange tint). Its accessible name is `Coordinator, <state>`. While an ended
-  turn has text that the panel did not show, the control has a second dot and the name ends with
-  `, new text`; the dot goes when the panel shows that turn, and the page keeps that turn in the
-  storage of the browser. After a failed read the mark and the words dim, the name ends with
-  `, not current`, and the title gives the cause and the time of the last good read. A view with an
-  error and no time of a good read (a board server with no good read yet) changes no state of the
-  page: the control, the panel, the counts, and the conversation stay as the page shows them, not current,
-  until the next good read. Below 1100 px the control shows its name and its mark, and the words
-  only for `waits for your answer`. A press with the state `none` sends the open, opens the panel,
-  and shows `starts` at once. Each other press, Enter, or Space opens or closes the panel. The
-  search has the same command: `Start the coordinator session`, `Show the coordinator`, or
-  `Hide the coordinator`.
+- Operations holds the chat in the center and the right pane beside it. The chat is the region
+  `Coordinator`: the coordinator session, with no Close and no control in a header. The right pane
+  is the region `Work views` with a `tablist` of the same name and the tabs Agents, Pipeline,
+  Queue, and History. The tabs follow the WAI-ARIA tabs pattern: one tab stop on the selected tab
+  (`aria-selected="true"`), Left and Right Arrow (they wrap), Home, and End move the focus, and a
+  tab shows its panel when it gets the focus. Each tab names its panel with `aria-controls`, and
+  each panel names its tab with `aria-labelledby`. A change of the tab sends nothing.
+- The page holds one shell value: the area, the tab of the right pane, the details of one card or
+  none, and below 720 px the pane (Chat or Agents). Each change of the area, the tab, the details,
+  or the pane is one change of that value, and the page draws each region from it. So the chat, the
+  details, Queue, and History cannot open over each other: the details take the place of the chat
+  in the center, and Queue and History are tabs. The chat shows while the area is Operations, no
+  details show, and on a wide window the tab is not Pipeline (below 720 px: while the pane is
+  Chat). A change that hides the focused element, also a resize across 720 px, moves the focus to
+  the selected tab when it shows, else to the work area.
+- The button Chat shows the state of the coordinator session with a mark: `no session` (an empty
+  ring), `starts` (a blue ring), `works` (a blue dot), `turn ended` (a grey dot), and `waits for
+  your answer` (an orange diamond on an orange tint). There are two: Chat at the left of the tabs,
+  which shows only while Pipeline is wide and also shows the state in words, and Chat of the bottom
+  bar. The accessible name of each is `Chat, coordinator <state>`. While an ended turn has text
+  that the chat did not show, the button has a second dot and the name ends with `, new text`; the
+  dot goes when the chat shows that turn, and the page keeps that turn in the storage of the
+  browser. After a failed read the mark and the words dim, the name ends with `, not current`, and
+  the title gives the cause and the time of the last good read. A view with an error and no time of
+  a good read (a board server with no good read yet) changes no state of the page: the buttons, the
+  chat, the counts, and the conversation stay as the page shows them, not current, until the next
+  good read. A press of Chat shows the chat (from the wide Pipeline it shows the tab Agents) and
+  sends nothing; the press of Chat at the left of the tabs also moves the focus into the chat. With
+  no session the chat shows its start button. Only a press of that button, or the search command
+  `Start the coordinator session` while no session runs, sends the open; the chat then shows
+  `starts` at once and the focus goes to the message field, else to the start button. A load, an
+  area change, a tab change, a pane change, and a resize send no open.
 - Only the state `waits for your answer` of the coordinator session needs you: it counts in the
-  `need you` count, the title of the browser tab, and the dot of the tab icon, and a press on the
-  count focuses the control first. An ended turn does not count; it gives the dot of new text.
-- The coordinator panel is a side panel. At 1100 px or more wide and more than 700 px high it is
-  the right part of the work area, wider than the left part, and Now shows only Needs you beside
-  it. Below these sizes it covers the right side of the page, and below 720 px the whole page, where
-  each of its targets is 44 px or more. One side panel shows at a time: the open of the panel
-  closes the details, History, and Queue, and the open of the details, History, or Queue closes
-  the panel. The open moves the focus to the message field (to Close when the field does not
-  show), and Escape, Close, or a second press of the control returns the focus to the element
-  that had it before the open. Escape closes the panel also from the field, and the text of the
-  field stays.
-- The head of the panel holds `Coordinator`, the host, the state with its age, Interrupt (only in
-  `works`), End session (only at an ended turn), Go (it shows the tab of the session in the Herdr
-  app), and Close. The page shows and enables each act only from `actions` of the view. A line
+  `need you` count, the title of the browser tab, and the dot of the tab icon. An ended turn does
+  not count; it gives the dot of new text.
+- The head of the chat holds `Coordinator`, the host, the state with its age, Interrupt (only in
+  `works`), End session (only at an ended turn), and Go (it shows the tab of the session in the
+  Herdr app). Below 720 px each target of the chat is 44 px or more. The page shows and enables each act only from `actions` of the view. A line
   under the head says when the conversation can be out of date: the cause and the time of the last
   good read of the record; in `waits for your answer`, a failed read of the dialog lines gives the
   same line for the lines. The log is the chat: a column of at most 72 characters of Geist at
@@ -1389,7 +1409,7 @@ loads nothing from the network.
   the end or `Go to the end`, which shows only away from the end, starts it again. A change of the
   size of the log keeps the follow. While the person holds a text selection in the log, the chat
   shows each change, and the follow waits until the selection ends. The selection stays while its
-  entries do not change. While the panel is open and the page is in view, the page reads
+  entries do not change. While the chat shows and the page is in view, the page reads
   `GET /api/coordinator?since=<revision>` each 2 seconds, and at no other time; the page draws a
   new list only when the answer has entries.
 - One raised shell at the foot holds the message field, the hint, and Send.
@@ -1420,34 +1440,38 @@ loads nothing from the network.
   flight in its title. Go stays enabled: it only shows the tab, and the maintainer needs the tab
   while a message waits for a draft there. This is a decision of the maintainer of 2026-11-13
   (#288), for the sentence of the spec that each other act is disabled during an act in flight.
-- When the session ends while the panel is open, the panel keeps the last conversation, dimmed,
+- When the session ends while the chat shows, the chat keeps the last conversation, dimmed,
   under the line `The coordinator session ended. This is its last conversation.`, and offers
   `Start a new session`.
-  Only a good read with the state `none` ends the panel; a failed read does not. After the page has
+  Only a good read with the state `none` ends the chat; a failed read does not. After the page has
   seen `works`, `dialog`, or `turn-ended` for a session, a later `starting` read of the same
-  `sessionId` is the exit of the host, not a new start: the panel keeps the state, the
+  `sessionId` is the exit of the host, not a new start: the chat keeps the state, the
   conversation, and its look, whatever that read holds (Claude Code prints a resume line when it
   exits). That keeping lasts 5 seconds (`FOLD_BOUND`) from the first such read. After that, while
-  the read stays `starting`, the panel shows `starts` with its acts, and the last live conversation
+  the read stays `starting`, the chat shows `starts` with its acts, and the last live conversation
   dimmed as not current. A new `sessionId` drops the conversation, the open runs, and the dialog
   lines of the old session, and shows its own conversation and `starting`; when the focus was on a
-  control of the old chat, it goes to the message field. A reload shows
-  `no session` with the panel closed. A refused open shows each line of its refusal above that
+  control of the old chat, it goes to the message field. A reload shows the state of its first
+  read in the chat. A refused open shows each line of its refusal above that
   button, and the hint shows each line of a refused act. Each change of the state goes to the polite
   announcement region, for example `Coordinator: waits for your answer`.
-- Now shows the three columns. Needs you groups its cards by reason, in this order: Waits for your
+- The tab Agents shows Human sessions, then Needs you, Running, and Idle as one scroll list. Needs
+  you groups its cards by reason, in this order: Waits for your
   answer, Stuck (no progress, a dirty tree), Your input on the issue (the `blocked` cards), Paused by
   usage limits, and Ready to run. The first two groups show full cards, and the other groups show one row for each card,
   as Idle does. The label of a group stays in view while the column scrolls. When cards are below
   the fold, a line at the foot of the column names them, for example
   `3 more below: 1 need your input on the issue, 2 ready to run`; a press scrolls to the first of them.
   A card that is partly below the line counts as below.
-  Each column of Now and each stage of Pipeline keeps its current vertical position during a data
-  refresh; the browser clamps it when the content shrinks, and a switch of the view starts each
-  column at the top.
+  Each column of Agents and each stage of Pipeline keeps its current vertical position during a data
+  refresh; the browser clamps it when the content shrinks, and a change between the tabs Agents and
+  Pipeline starts each column at the top.
   A group row in Idle holds a chevron, the epic number, the epic title, and the count of its cards.
   A press shows or hides the children, and a group starts closed.
-- Queue preserves the saved Now/Pipeline choice. Current work appears above Up next. The picker
+- Queue is a tab of the right pane, with no `Back to board` button. Its tab label holds the count
+  (`Queue 3`, or `Queue` when the queue is empty). A change to the tab Queue moves no focus.
+  History is a tab too: the landed issues of the trunk, with no close button. Current work appears
+  above Up next. The picker
   sits beside waiting work on desktop and below it on a phone. Add persists immediately and starts
   an empty queue. Only waiting rows expose Up, Down, and Remove, including during runs and stops.
   The picker sentence is `Add puts the issue at the end of the queue, and starts the queue when it
@@ -1466,7 +1490,8 @@ loads nothing from the network.
 - Queue keeps pending admission, saved/starting, and verified running distinct. A stale press
   reads authoritative state and requires another press. Status uses the polite announcement region.
   Focus returns to a queue control only when that control owned focus; unrelated work keeps focus.
-  The hidden board's card shortcuts do nothing while Queue is open.
+  The card shortcuts do nothing while the tab Queue or History shows, outside Operations, or in the
+  Chat pane of a phone.
 
 - A card shows the type, the number, the title, the lane track, the state with its age, and its
   buttons. A working card shows the lines that it changed. A card whose row has `pr` shows the
@@ -1534,8 +1559,10 @@ loads nothing from the network.
   `set aside` in bold, and the step in mono. Resume is its main button; Run again and, with `path`,
   Open shell are in the `m` menu and the details. A `set-aside` card with a `path` shows the line
   `The lane worktree has uncommitted changes: <short path>`. The tab count, the notices, and the
-  `need you` chip do not count it.
-- A press on a card, or `Space`, opens its details in place of Idle: for a session, the last 16
+  `need you` count do not count it.
+- A press on a card, or `Space`, opens its details in the center of Operations, in place of the
+  chat; with the wide Pipeline they open at the right of the stage columns, after the right pane.
+  No list hides while the details show. The details show: for a session, the last 16
   lines of its terminal screen (with no empty line, rule, or box border), so you can read the dialog or the end
   of the answer; the lane steps, with `auto` on a step whose gate is `auto` while auto mode is on, and
   `auto off` while it is off or stopping; the pull request, the
@@ -1554,19 +1581,21 @@ loads nothing from the network.
   `Resume` with `Opens the same session again.` and `Run again with <agent>` with
   `Starts a new session of the step.`, then the other agents under `Other agents`. The card and its
   menu keep `Run` and `Run again`. A waiting session shows its
-  lines at the top, beside Go, except a human session whose turn ended. `Esc` closes the details.
-  Below 1100 px the details cover the right side of the page, and below 720 px the whole page.
-  While the details or History cover the page (below 1100 px wide, or 700 px high or less), the
-  page under them is inert and dimmed, Tab stays in the panel, and `Esc` returns the focus to the
-  card. A resize that makes the panel cover the page moves the focus into the panel. Wider and
-  taller, the panel stays beside the board and the page stays active.
+  lines at the top, beside Go, except a human session whose turn ended. `Esc` or Close closes the
+  details: the chat (or the wide Pipeline) shows again, and the focus goes to the card. Details
+  that opened while the tab was Queue or History (from `#<n>` of the search) return to the tab
+  Agents. Below 720 px the details show in the Chat pane, and `Esc` or Close shows the Agents pane
+  with the focus on the card. A resize keeps the details open and the focus on its element. A read
+  that no longer lists the card closes its details and keeps the tab and the pane; a focus in the
+  details goes to the selected tab when it shows, else to the work area. Below 720 px a change to a
+  tab closes the details.
 - A card that changed since you last looked at the board has a dot, until you point at it or focus
   it. The board takes the cards as seen when its window loses the focus. A closed group row shows
   the dot while one of its hidden cards has it.
-- The status bar shows when the board last read the data, with the name of the tracker (`Issues`
-  before the first good read), whether herdr-core answers (the item `herdr`), and the state of the
-  master daemon (the item `Daemon`, hidden until the first data and below 720 px). Below 720 px
-  the status bar does not show. Its items are rows of More under the heading `Board status`: the
+- The foot of the sidebar shows when the board last read the data, with the name of the tracker
+  (`Issues` before the first good read), whether herdr-core answers (the item `herdr`), and the state
+  of the master daemon (the item `Daemon`, hidden until the first data and below 720 px). Below
+  720 px the foot does not show. Its items are rows of More under the heading `Board status`: the
   tracker (`<tracker>: read <age> ago`, or `<tracker>: cannot read: <line>` in Caution Amber), `herdr`,
   `Agent order` (only while the agent order shows), and the update control. The tracker row and the
   `herdr` row only inform: a press does nothing and the menu stays open. More builds its rows at
@@ -1574,13 +1603,17 @@ loads nothing from the network.
   dot while an item needs you: Caution Amber when the read or `herdr` failed, otherwise Beacon
   Orange for **Update available** or **Restart needed**. The name of More ends with
   `, <name>: <words>` for each failed item. The banner of a failed read still shows above the
-  board. The board menu on a phone has the rows `Show history` or `Hide history`, the read again
-  row, the Notify switch, the theme row `Theme: <Choice>`, and the keyboard shortcuts, then
-  `Board status`. It has no row for the queue, because the bottom bar keeps its button, and no row
-  for Coordinator, because the top bar keeps its button. Search keeps the queue, History,
-  Coordinator, and theme commands at each width. The status bar also shows the keys of the focused
-  card, the theme control, the Notify switch, and the list of keys. The item `Daemon` shows
-  `daemon` of each placement ("The data"):
+  board. The board menu on a phone has the rows `Home`, `Control`, and `Throughput`, a rule, the
+  read again row, the Notify switch, the theme row `Theme: <Choice>`, and the keyboard shortcuts,
+  then `Board status`. It has no row for the queue or History, because the tabs of the Agents pane
+  hold them, and no row for Coordinator, because the Chat button of the bottom bar shows it. Search
+  has, at each width, `Go to Home`, `Go to Operations`, `Go to Control`, and `Go to Throughput`; the
+  queue, History, and theme commands; and `Start the coordinator session` while no session lives.
+  It has no command to show or hide the coordinator, because the chat always shows in Operations. The foot of the sidebar shows the keys of the focused
+  card (from 1100 px; the rail hides them), the tracker read with Refresh, `herdr`, the item
+  `Daemon`, the agent order, the update control, the theme control, the Notify switch, and the
+  list of keys. Below 720 px the foot has no box, and its controls are rows of the More menu. The
+  item `Daemon` shows `daemon` of each placement ("The data"):
 
   | Auto mode | Text | Tone | Title |
   |---|---|---|---|
@@ -1590,7 +1623,7 @@ loads nothing from the network.
 
   The board runs in its daemon, so the item has no state for a daemon that does not run, does not
   answer, or runs another program.
-- The theme control: an icon button of the status bar, before Notify, with the name and title
+- The theme control: an icon button of the foot of the sidebar, before Notify, with the name and title
   `Theme: <Choice>. Press to change`, where `<Choice>` is `System`, `Light`, or `Dark`. Its icon
   shows the current choice. A press sets the next choice: System, then Light, then Dark, then
   System, applies it at once, and keeps focus on the button. System follows the light or dark
@@ -1606,9 +1639,12 @@ loads nothing from the network.
   `A human session ended its turn` when its title is empty. A press on the
   notification opens the details of the card. A change of the coordinator session to
   `waits for your answer` or to `turn ended` shows `The coordinator waits for your answer` or
-  `The coordinator ended its turn`, and a press on it opens the panel. A screen reader hears each card that enters Needs you,
+  `The coordinator ended its turn`, and a press on it shows the chat. A screen reader hears each card that enters Needs you,
   each card that starts, and the session or the warning that ends a start.
-- Pipeline has one column for each item of `flow.stages`, in order, and it shows each issue at its
+- Pipeline is a tab of the right pane. On a window of 720 px or more it widens over the chat to the
+  full width of the work area while its tab shows. A choice of another tab, the key `v`, or the
+  button Chat at the left of the tabs gives the chat its place again. Pipeline has one column for
+  each item of `flow.stages`, in order, and it shows each issue at its
   step. A strip at the top, Not in a step, holds the issues whose step is in no stage. The Idle
   cards of a stage group in the same way: the row has the chevron, the number, the title, and the
   count, a press shows or hides the children, and a group starts closed.
@@ -1616,15 +1652,16 @@ loads nothing from the network.
   that says the board read failed and that the cards and history show the last good read.
 - A card that changes its column moves to its new place. The page shows no motion when the OS asks
   for reduced motion.
-- Below 1100 px Needs you takes the left half and Running and Idle share the right half, and the
-  page scrolls as one document; it also scrolls as one document at a height of 700 px or less. Below
-  720 px the columns stack.
-- The page keeps five choices in the storage of the browser: the view, the Notify switch, the
-  switch of the single-key shortcuts, the open epic groups, and the theme (Light or Dark; System
-  stores nothing). It also keeps the last ended turn of the coordinator session that the panel
-  showed, and the last ended turn of each human session that you saw, by terminal and hc `turn`; an
-  entry leaves the storage at the next good read that lists no such session, and a failed read
-  removes none. The open epic groups, the theme, and the seen turns of human sessions follow a
+- The right pane has a bounded width beside the chat. Below 720 px one pane shows at a time.
+- The page keeps six choices in the storage of the browser: the area, the tab of the right pane,
+  the Notify switch, the switch of the single-key shortcuts, the open epic groups, and the theme
+  (Light or Dark; System stores nothing). A load restores the area and the tab: an unknown or
+  missing area gives Operations, and an unknown or missing tab gives Agents. A stored Pipeline
+  also gives Agents, so a load never starts with the wide Pipeline over the chat, and below 720 px
+  a load shows the Chat pane. A load shows no details. It also keeps the last ended turn of the
+  coordinator session that the chat showed, and the last ended turn of each human session that you
+  saw, by terminal and hc `turn`; an entry leaves the storage at the next good read that lists no
+  such session, and a failed read removes none. The open epic groups, the theme, and the seen turns of human sessions follow a
   change in another tab of the same board. A board on another port has its own choices.
 
 **The clock.** Each time of day on the page is a 24-hour local time, `14:05` (`00:05` after
@@ -1641,15 +1678,21 @@ too), the landed issues, and the commands of the board. `#<n>` lists `Go to #<n>
 on it opens its epic group and its details and focuses the card; when the open details hide the idle
 column, the focus stays in the details. The actions of the card follow under
 `Actions for #<n>`, and `Enter` runs no action unless you move to one. The number of an epic lists
-`Go to epic #<n>`, which opens the group and focuses its row; it first closes the details or History
-when they cover the page or hide the row. An empty search lists no `Go to` row.
+`Go to epic #<n>`, which opens the group and focuses its row; it first shows the tab Agents, or stays
+in the tab Pipeline when its row shows there. An empty search lists no `Go to` row.
 `<n>` alone also finds a human session whose title is `<n>`. `j` and `k` (and `↓` and `↑`) move to the next or the previous card,
 `h` and `l` (and `←` and `→`) to the column on the left or the right; `Enter` presses the main
 button of the card (Go, Run, Resume, Open agent, Open shell, or Open issue),
 `Space` opens its details, `m` opens all its actions, `o` opens the issue, `c` copies the
 command or the path of the card, and `s` sets a stuck card aside or opens the Stop dialog of a
-session card. `v` changes between Now and Pipeline, `d` shows or hides History, `r`
-reads the issues again, and `?` shows the list. `j`, `k`, `h`, `l`, and the arrows stop at the row of an
+session card. `v` changes between the tabs Agents and Pipeline, `d` opens or closes the tab History
+(each first goes to Operations), `r` reads the issues again, and `?` shows the list. The keys `v`,
+`d`, `r`, `?`, and `/` work in each area; the keys of a card do nothing where no card shows: outside Operations, in the tabs
+Queue and History, and in the Chat pane of a phone. The search has the commands `Go to Home`,
+`Go to Operations`, `Go to Control`, and `Go to Throughput`. A press on the badge of Operations
+focuses, in this order, the chat of a coordinator that waits, else the first human session in a
+dialog, else the first human session at an ended turn you have not seen, else the first card of
+Needs you. With no badge, the press only shows Operations. `j`, `k`, `h`, `l`, and the arrows stop at the row of an
 epic group and skip the issues of a closed group; `Enter` and `Space` on a row show or hide its
 issues. The search has `Expand all epic groups` and `Collapse all epic groups`. `#<n>` in the
 search, a notification press, and the return from the details open the group of a hidden issue and
@@ -1679,13 +1722,13 @@ the texts are `Open the issue` and `Read the issues again`.
   not run, an `hc` or a `herdr-app` that is not on `PATH`, and a press that the server or the
   master daemon refuses. For Run and Resume, the daemon checks `hc` and the Herdr app, and the
   toast shows the line of its refusal.
-- The status bar shows `herdr down` when `hc ls` fails, with the error in its title. Below 720 px
+- The foot of the sidebar shows `herdr down` when `hc ls` fails, with the error in its title. Below 720 px
   the row `herdr: down` of More shows it, with a Caution Amber dot on More.
   The board then shows no session card, and the issue cards stay.
-- The status bar shows `cannot read:` with one line when the last read of the issues failed ("The
+- The foot of the sidebar shows `cannot read:` with one line when the last read of the issues failed ("The
   data"). The cards of the last good read stay. Below 720 px the tracker row of More shows it, with
   a Caution Amber dot on More.
-- The status bar says that the board server does not answer when a request of the page failed. A
+- The foot of the sidebar says that the board server does not answer when a request of the page failed. A
   press at that time gives a toast with that text and a line that tells the person to start the
   daemon again in a terminal with `celetis daemon start`.
 - Queue disables execution controls during a request or an unavailable authoritative read. A failed
@@ -1740,7 +1783,7 @@ Of the sessions, herdr-core, and the Herdr app:
   link label.
 - The board needs a herdr-core server that runs and an open Herdr app window. When `herdr-app ls`
   fails, a press of New intake, Assist, Make visual, or Open shell gives a toast and starts no
-  terminal, and the daemon refuses a Run or Resume with its line. When `hc ls` fails, the status bar shows `herdr down`.
+  terminal, and the daemon refuses a Run or Resume with its line. When `hc ls` fails, the foot of the sidebar (on a phone, the row of `Board status`) shows `herdr down`.
 - A Go press focuses the pane of the session in the Herdr app (`pane.focus`). The board makes no
   call that brings the window to the front.
 - The API of herdr-core and the commands of the Herdr app are previews (version 0.x). The board

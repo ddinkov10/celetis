@@ -52,12 +52,15 @@ agent that waits.
 
 ## Capabilities and Constraints
 
-- The board has two views, Now (Needs you, Running, Idle) and Pipeline (one column for each stage),
-  plus Queue, History, Search, a details panel, and the coordinator panel: a chat of the
-  coordinator session built from the session record of its host (the messages, the folded tool
-  calls, and the notes of the daemon), an inline dialog group with key controls for a dialog of its
-  host, a message field, and the acts Interrupt, End session, and Go. The header control Coordinator shows the state of
-  that session and opens the panel. `engine/board/README.md`, "The layout, the
+- The board is one shell: a sidebar with New intake, Search, and the areas Home, Operations,
+  Control, and Throughput (a bottom bar with Chat, Agents, New intake, and More on a phone), and the
+  work area of the current area. Operations holds the coordinator chat in the center and a right
+  pane with the tabs Agents (Needs you, Running, Idle), Pipeline (one column for each stage), Queue,
+  and History; the details of a card open in the center, and Search finds each card and command.
+  The chat is built from the session record of its host (the messages, the folded tool calls, and
+  the notes of the daemon), with an inline dialog group with key controls for a dialog of its host,
+  a message field, and the acts Interrupt, End session, and Go. The button Chat shows the state of
+  that session. `engine/board/README.md`, "The layout, the
   keys, and the errors", is the design document and the source of truth for behavior and copy.
 - The board holds nothing of one repository: the lanes, steps, stages, and tracker name come from
   the data document. Only the folder name of the main checkout identifies the repository.

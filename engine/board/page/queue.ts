@@ -16,7 +16,7 @@ let open = false;
 let busy = false;
 let uncertain = false;
 const retired = new Set<string>();
-let options: { back: () => void; refresh: () => Promise<void> };
+let options: { refresh: () => Promise<void> };
 const section = () => $('queue');
 const cards = () => Object.values(board?.columns ?? {}).flat();
 const available = () => cards().filter((card) => card.number !== null && !card.sessionId && card.run && card.step);
@@ -184,12 +184,12 @@ function draw(): void {
   const state = stateOf();
   section().dataset.state = state;
   section().setAttribute('aria-busy', String(busy));
-  ($('queue-open').querySelector('.label') as HTMLElement).textContent =
+  ($('tab-queue').querySelector('.label') as HTMLElement).textContent =
     `Queue${numbers.length ? ` ${numbers.length}` : ''}`;
   const head = el('header', 'queue-head');
   const title = el('div', 'queue-heading');
   title.append(el('h2', '', 'Issue queue'), el('span', 'queue-count', `${numbers.length} remaining`));
-  head.append(title, button('Back to board', 'back', options.back));
+  head.append(title);
   const status = el('div', 'queue-status');
   const headingNode = el(
     'h3',
@@ -325,20 +325,13 @@ function draw(): void {
   if (open) restore(active);
 }
 
-export function setupQueue(next: { back: () => void; refresh: () => Promise<void> }): void {
+export function setupQueue(next: { refresh: () => Promise<void> }): void {
   options = next;
 }
 export function setQueueOpen(value: boolean): void {
   open = value;
   section().hidden = !open;
-  document.body.classList.toggle('queue-view-open', open);
-  $('queue-open').setAttribute('aria-pressed', String(open));
-  for (const button of document.querySelectorAll<HTMLElement>('.views button'))
-    button.setAttribute('aria-pressed', String(!open && button.dataset.view === $('columns').dataset.view));
-  if (open) {
-    draw();
-    heading()?.focus();
-  }
+  if (open) draw();
 }
 export function drawQueue(next: Board): void {
   board = next;

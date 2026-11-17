@@ -129,16 +129,6 @@ components:
     typography: "{typography.label}"
     rounded: "{rounded.inner}"
     height: "24px"
-  count-chip:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink-muted}"
-    typography: "{typography.label}"
-    rounded: "{rounded.md}"
-    padding: "0 8px"
-    height: "28px"
-  count-chip-hot:
-    backgroundColor: "color-mix(in srgb, #ff7a45 10%, transparent)"
-    textColor: "{colors.ink}"
   search-field:
     backgroundColor: "{colors.veil}"
     textColor: "{colors.ink-faint}"
@@ -205,7 +195,7 @@ The mood is calm, precise, and utilitarian. The density is high but ordered: sma
 body), tight controls (28px), and a strict three-column field. The page must read at a glance after
 hours of use, so it uses no decorative graphics. It is never a marketing dashboard: no decorative
 gradients, no charts, no hero graphics. The board shows nothing of one product. Only the folder
-name of the checkout appears in the header, so the same look fits any repository.
+name of the checkout appears in the sidebar (and the phone top bar), so the same look fits any repository.
 
 The board follows the light or dark theme of the OS until the maintainer picks Light or Dark with
 the theme control; the choice stays in the browser. Dark is the base definition, and light
@@ -303,7 +293,7 @@ The `px` values in this section are the sizes at that default.
 - **Title** (600, 14px, 1.38, -0.012em): card titles, clamped to two lines. The brand name uses the
   same size and weight at line height 1.
 - **Body** (400, 13px, 1.5): the base text of the page, toasts, and act lines (12px).
-- **Label** (500, 12.5px, 1): buttons, the view switch, count chips, and the search field.
+- **Label** (500, 12.5px, 1): buttons, the pane tabs, and the search field.
 - **Label Caps** (600, 11px, 0.07em, uppercase): group labels in Needs you, such as "Waits for your
   answer".
 - **Mono** (400, 11.5px, 1): the card head (number, type, and agent) and code act lines.
@@ -318,39 +308,55 @@ Do not add a weight above 600 for emphasis; use Ink color instead.
 
 ## Layout
 
-The page is one full-height application frame: a header (56px minimum), an optional Human sessions
-strip, the work area, and a 34px status bar. The page itself does not scroll on a desktop; each
-column scrolls inside itself, with a soft fade mask at its top and bottom edges.
+The page is one full-height application frame: the sidebar at the left and the work area (`main`)
+beside it. The page itself does not scroll; each list scrolls inside its own box, and Needs you in
+the Agents list keeps a line for the cards below the fold.
 
-- **Gutter:** `max(20px, calc((100% - 1640px) / 2))`. The content caps at 1640px and centers.
-- **Now:** three columns with a 14px gap. Needs you is the widest (`minmax(380px, 1.3fr)`), then
-  Running (`1fr`) and Idle (`0.95fr`). When nothing needs you, the three columns are equal.
-- **Details:** the panel opens at the right at `clamp(360px, 32vw, 452px)` and replaces Idle.
-- **Coordinator panel:** the right part of the work area at `minmax(0, 1.2fr)` beside the board at
-  `minmax(340px, 0.8fr)`; in Now only Needs you stays beside it.
-- **Pipeline:** one column for each stage of the flow, with horizontal scroll when needed.
+- **Sidebar:** 232px wide from 1100px, with a right hairline on the page background. From the top:
+  the logo and the folder name; New intake and Search as 32px rows, apart from the destinations by
+  a hairline; the four destinations Home, Operations, Control, and Throughput as 34px rows, each an
+  icon and a label; and, pushed to the foot, the control group of the board status (the key hints,
+  the tracker read with Refresh, `herdr`, the daemon, the agent order, the update control, and the
+  theme, Notify, and Keys buttons). When the window is short, the destinations scroll in their own
+  box down to Home and Operations, so the foot keeps its place; below that height the sidebar
+  scrolls inside itself.
+- **Rail:** from 720px to 1099px the sidebar is an 88px icon rail. Each item is an icon above an
+  11px label, 50px high, and the badge of Operations sits at the top right of its icon. The foot
+  keeps its dots and drops the state words. A foot control that needs the maintainer keeps a
+  visible mark: the update control (**Update available**, **Restart needed**) takes an 8px Beacon
+  Orange dot, and a failed tracker read or `herdr` keeps its Caution Amber dot.
+- **Phone:** below 720px the sidebar is a slim top bar of 56px that stays in view (the logo, the
+  folder name, and a 44px Search) with no box for the destinations and the foot, and the bottom
+  bar of 70px shows ("Bottom bar"). The rail and the sidebar never show with the bottom bar.
+- **Work area:** 12px above, 16px at the sides (12px on a phone, with the bar height below), and
+  14px below. A banner of a failed read or a dirty tree sits above Operations.
+- **Operations:** the chat in the center (`minmax(0, 1fr)`) and the right pane at
+  `clamp(360px, 30vw, 452px)`, 14px apart. The pane is a Console Grey region with a hairline and a
+  16px radius. Its head holds the tab list; its body holds the tab panel.
+- **Agents:** one scroll list in the pane: the Human sessions strip (one slim strip at the top),
+  then Needs you, Running, and Idle, each with a sticky 40px head.
+- **Pipeline wide:** while the tab Pipeline shows on a window of 720px or wider, the pane spans the
+  whole work area and the chat has no box. Each stage column keeps 200px at least for its cards;
+  the columns scroll inside the pane, with a 56px fade at the right edge while columns are cut.
+  The button Chat sits at the left of the tabs.
+- **Details:** the details of a card open in the center in place of the chat. On Pipeline they
+  open at the right of the stage columns, at the pane width; the columns keep scrolling in their
+  box.
+- **Placeholder screens:** Home, Control, and Throughput show a centred 600 title and one 12.5px
+  Ink Faint line in a Console Grey region with a hairline and a 16px radius.
 - **Rhythm:** gaps of 6, 8, 10, and 14px. Cards stack with a 10px gap; parts inside a card with 8px.
 
 Responsive steps:
 
-- Below 1700px the search field collapses to its icon (without the key hint from 1280px), and
-  Refresh keeps only its icon (its name stays), so the header row holds the widest state words of
-  the control Coordinator. The header gap is 10px, and the folder name stops at 12ch with an
-  ellipsis. The header still wraps to two rows from 1280px to 1380px, and at 1440px with a folder
-  name of 17 or more characters. The maintainer accepted this compaction of the header parts (the
-  search, Refresh, the 8px padding of a count chip, the folder name) and the remaining wrap on
-  2026-11-13 (#288).
-- Below 1100px Needs you takes the left half, Running and Idle share the right half, and the page
-  scrolls as one document with a sticky header. The details and the coordinator panel (at most
-  680px wide, with Float) cover the right side, and the control Coordinator hides its state words
-  except `waits for your answer`. At a height of 700px or less the coordinator panel also covers
-  the right side.
-- At a height of 700px or less the page also scrolls as one document.
-- Below 720px the columns stack, the details and the coordinator panel cover the whole page (the
-  bottom bar too), and touch targets grow to 44px. The header becomes a slim sticky top bar (the
-  logo, the folder name, Coordinator, and Search) of about 61px and a fixed bottom bar of 70px
-  ("Bottom bar"); the count chips, History, and Refresh have no box. The work area keeps the bar
-  height as bottom padding.
+- From 1100px the sidebar shows; from 720px to 1099px the rail shows; below 720px the top bar and
+  the bottom bar show. The pane keeps its bounded width at each width from 720px.
+- Below 720px one pane shows at a time: the chat or the Agents pane (the tabs Agents, Pipeline,
+  Queue, and History). The details and the chat keep the top bar and the bottom bar in view, and
+  the work area keeps the bar height as bottom padding, so a focused control is never fully under
+  the bar. Each scroll box and the page keep a scroll padding of 78px at the bottom.
+- Touch targets grow to 44px below 720px; each pointer target is at least 24px from 720px.
+- The tab list scrolls in its own box when its tabs do not fit. At 320px no region scrolls the page
+  sideways: a region that needs more width scrolls in its own box.
 - Cards use container queries: below 360px card width the foot stacks and the agent name hides.
 
 ## Elevation & Depth
@@ -374,14 +380,14 @@ above the page uses Float. No other shadow exists.
 **The Ring Not Glow Rule.** Selection and focus are rings: a 2px Current Blue outline with a 2px
 offset for focus, and a 1px Ink Faint ring for the selected card. Never use a colored glow.
 
-**The No Blur Rule.** The side panels and the header have no backdrop blur. Only the backdrop of a
-modal dialog blurs the page, at 2px.
+**The No Blur Rule.** The sidebar, the right pane, and the bars of the phone have no backdrop blur.
+Only the backdrop of a modal dialog blurs the page, at 2px.
 
 ## Shapes
 
 Corners are gently rounded and nest: an inner shape is smaller than its container. Surfaces use 16px
 (columns, the details panel, the queue, the keys dialog), cards, toasts, and the update dialog 12px,
-the palette 14px, controls 8px, the view switch 9px around 7px tabs, tags 6px, and small marks 5px.
+the palette 14px, controls 8px, the pane tab track 9px around 7px tabs, tags 6px, and small marks 5px.
 Dots are full circles. Borders are always 1px hairlines. The start label draws each default value
 with a dashed outline.
 
@@ -398,8 +404,8 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
 - **Primary:** an Ink fill with Ink On text. It is the main button of a card in Needs you. Hover
   lowers the opacity to 0.88.
 - **Ghost:** a Veil fill, a hairline border, and Ink text. Hover moves to Veil Strong and the strong
-  hairline. Each header button, New intake included, is a ghost button: the header has no Ink-filled
-  button, because the Ink fill stays for the main button of a card.
+  hairline. New intake is a ghost button: the sidebar and the bars have no Ink-filled button,
+  because the Ink fill stays for the main button of a card.
 - **Icon:** a 26px square with a 7px radius, transparent, Ink Faint; hover adds Veil Strong and Ink.
 - **Head act:** the act button in a card head before More (Set aside, Stop). It is a 26px icon button
   with a 7px radius, Ink Faint, and a 13px icon. On hover and on keyboard focus it takes a Veil
@@ -411,11 +417,6 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
 
 ### Chips
 
-- **Count chip:** a 28px chip in the header with a 6px state dot and a bold Ink count. Only the
-  `need you` chip has an outline; the chips `running`, `idle`, and `landed` have no outline and no
-  fill. The `hot` variant of `need you`, used while something needs you, is 32px high and tints its
-  fill and border with Beacon Orange. Below 720px no count chip shows; the `need you` count is the
-  badge on Now in the bottom bar.
 - **Tag:** a 22px chip with a Veil fill for PR, checks, and review state. Check and review tags take
   an 8% tint and a 28–30% border of their state color.
 - **Status pill:** a 24px minimum pill that wraps its text. The text is the state color mixed with
@@ -465,32 +466,50 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
 
 ### Inputs / Fields
 
-- **Search field:** a 30px Veil field with a hairline border and an 8px radius in the header. It
-  opens the palette.
+- **Search field:** a Veil field with a hairline border and an 8px radius, a 32px row of the sidebar
+  (see Sidebar items) and a 44px button of the phone top bar. It opens the palette.
 - **Palette:** a 640px Card Slate dialog with a 14px radius and Float. Its input row is 52px high
   with 14.5px text and no visible outline; the caret is Current Blue.
 - **Focus:** a 2px Current Blue outline with a 2px offset on every focusable element.
 
 ### Navigation
 
-- **View switch:** a 30px Veil track with a 1px hairline, a 9px radius, and 24px tabs. The active
-  tab is Card Slate with Raise and Ink text; an inactive tab is Ink Faint and turns Ink on hover. On
-  a phone the views are the first two items of the bottom bar, with an icon and a label each.
+- **Sidebar items:** New intake and Search are 32px rows: New intake is a ghost button, and Search is
+  a Veil field with a 1px hairline, an 8px radius, and the key hint `⌘K` in Ink Faint. A destination
+  is a 34px row with a 16px icon and a 12.5px label in Ink Muted; it turns Ink on a Veil fill on
+  hover. The current destination has a Veil Strong fill, a 1px hairline, and Ink text, and it
+  carries `aria-current="page"`. Operations carries the badge at the right end of its row. On the
+  rail each item is an icon above an 11px label, 50px high, with the badge at the top right of the
+  icon. The focus ring of a destination sits inside its row, because the destinations can scroll.
 - **Bottom bar:** below 720px only, a 70px bar fixed to the bottom edge, with a top hairline and the
-  page background, and no hide on scroll. It has five items of 56px: Now, Pipeline, New intake in
-  the center (a little wider), Queue, and More. Each item is an 18px icon above an 11px label. The
-  pressed Now, Pipeline, or Queue, and More while its menu is open, has a Veil Strong pill behind
-  its icon and Ink text; the other items are Ink Faint. New intake is the only item with a Veil
-  Strong fill and a strong hairline; while it is unavailable it loses the fill, and its reason shows
-  as a small Card Slate label above the bar. Now has a Beacon Orange badge with the `need you` count
-  on its icon; the badge hides at 0. The bar sits below the panels and above the page, and a toast
-  sits above it.
+  page background, and no hide on scroll. It has four items of 56px: Chat, Agents, New intake in
+  the center (a little wider), and More. Each item is an 18px icon above an 11px label. The
+  current Chat or Agents, and More while its menu is open or while the current area is not
+  Operations, has a Veil Strong pill behind its icon and Ink text; the other items are Ink Faint.
+  New intake is the only item with a Veil Strong fill and a strong hairline; while it is
+  unavailable it loses the fill, and its reason shows as a small Card Slate label above the bar.
+  Chat carries the coordinator mark (a 7px mark at the top right of its icon, in the shape and
+  color of the Chat button) and Agents carries the badge. More holds Home, Control, and Throughput,
+  then the `Board status` rows. The bar sits below the panels and above the page, and a toast sits
+  above it.
+- **Badge:** a Beacon Orange pill with Ink On text, 18px high, 18px wide at least, with 5px of
+  side padding and a 600 11px tabular count. The badge of Operations counts the full `need you`
+  count (issue work, human sessions, and the coordinator dialog); the badge of Agents, on its tab
+  and on the bottom bar, counts issue work and human sessions. A badge hides at 0 and has a box in
+  each area, pane, and width.
+- **Pane tabs:** a Veil track with a 1px hairline, a 9px radius, and 2px padding. A tab is 26px high
+  (44px on a phone) with a 7px radius and 12.5px Ink Faint text; the selected tab is Card Slate
+  with Raise and Ink text. The tab list scrolls in its own box when its tabs do not fit, and its
+  focus ring sits inside the tab. On Pipeline wide the button Chat sits before the list.
 - **Segmented control:** a group of buttons for one fixed choice, as the queue agent. The track is
   Veil with a 9px radius and 2px padding. A segment is 26px high (44px on a phone) with a 7px
   radius and 12.5px Ink Muted text; the pressed segment is Card Slate with Raise and Ink text and
   has `aria-pressed="true"`. A disabled segment is dimmed and keeps `aria-disabled="true"`.
-- **Status bar:** 34px, 12px Ink Faint text, a top hairline. Below 720px it does not show: its
-  items are rows of More (see Menu), and the page keeps the banner of a failed read above the board.
+- **Foot of the sidebar:** the control group of the board status, 12px Ink Faint text, below a top
+  hairline, in rows of 26px: the tracker read with Refresh, `herdr`, the daemon, the agent order,
+  the update control, then the theme, Notify, and Keys buttons. The key hints sit above the rows
+  from 1100px. Below 720px it does not show: its items are rows of More (see Menu), and the page
+  keeps the banner of a failed read above the board.
 - **Menu rows:** the run menu shows the icon of each agent in place of the run icon, and the agent
   that the card details name has a `Default` tag after its label: Ink Muted on Veil Strong, 11px,
   outside the label that can be cut. Level rows keep the run icon, and the current level the check.
@@ -503,15 +522,15 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
   and `herdr`) keeps full Ink Muted text, shows no hover fill, and does nothing when pressed. A
   failed row is Caution Amber; the update row is Beacon Orange while it needs you. More shows an
   8px dot on its icon in the same color (Caution Amber over Beacon Orange) while a row needs you.
-- **Theme control:** a 24px icon-only status bar button before Notify, Ink Faint, Ink on hover,
+- **Theme control:** a 26px icon-only foot button before Notify, Ink Faint, Ink on hover,
   with the 14px icon of the current choice: a half-filled circle for System, a sun for Light, and a
   moon for Dark. On a phone it is the More row `Theme: <Choice>`.
-- **Update control:** a 24px status bar button whose label names the update
+- **Update control:** a 26px foot button whose label names the update
   state. Only **Update available** and **Restart needed**, the states that need you, take the
   accent: Beacon Orange text on a 10% Beacon Tint fill (13% on hover). Each other state is Ink
-  Faint, as the other status bar buttons. On a phone it is the last row of `Board status`, as
+  Faint, as the other foot buttons. On a phone it is the last row of `Board status`, as
   `Celetis: <label>`.
-- **Agent order:** the status bar pill is a capsule 24px high with `0 8px`
+- **Agent order:** the foot pill is a capsule 24px high with `0 8px`
   padding, a Veil fill, a 1px strong hairline, and Veil Strong on hover and while open. On a phone
   it is the row `Agent order` of `Board status`, and its list opens above the bottom bar. It stacks
   18px icon discs with a ring of the pill color; hover and keyboard focus fan the icons out. The
@@ -519,23 +538,25 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
   keeps full opacity: a grayscale icon, the name in Ink Muted, and a 12px Ink Faint detail. The
   `First` badge is a Veil Strong fill with Ink Muted text, not a color.
 
-- **Coordinator control:** a ghost header button after New intake: the message icon, the label
-  `Coordinator`, a 7px state mark, and the state words in Ink Muted. The mark changes its shape
-  with the state: an empty Ink Faint ring for no session, a Current Blue ring while it starts, a
-  Current Blue dot while it works, an Ink Muted dot at an ended turn, and a Beacon Orange diamond
-  while the host shows a dialog; then the button also takes a 10% Beacon Tint fill and a 45% Beacon
-  Orange border, and the words turn Ink. A second 7px Ink dot with a soft ring marks an ended turn
-  that the panel did not show. After a failed read the mark drops to 0.55 opacity and the words turn Ink Faint.
-  Open, the button has Veil Strong and the strong hairline. Below 720px it is a 44px icon button in
-  the top bar: the label hides, and the state words show only in the state `dialog`.
+- **Chat button:** a ghost button Chat with the message icon, a 7px state mark, and the state words
+  in Ink Muted. It sits at the left of the pane tabs while Pipeline is wide, and it is the item Chat
+  of the bottom bar. The mark changes its shape with the state: an empty Ink Faint ring for no
+  session, a Current Blue ring while it starts, a Current Blue dot while it works, an Ink Muted dot
+  at an ended turn, and a Beacon Orange diamond while the host shows a dialog; then the button also
+  takes a 10% Beacon Tint fill and a 45% Beacon Orange border, and the words turn Ink. A second 7px
+  Ink dot with a soft ring marks an ended turn that the chat did not show. After a failed read the
+  mark drops to 0.55 opacity and the words turn Ink Faint. The bottom bar item shows the mark
+  only.
 
 ### Coordinator panel
 
-A conversation column in a Console Grey side panel with a 1px strong hairline border and a 16px
-radius, as the details panel.
+A conversation column in the center of Operations: a Console Grey region with a 1px strong hairline
+border and a 16px radius, as the details panel. It always shows in Operations, except while the
+details, the wide Pipeline, or the Agents pane of a phone take its place.
 
 - **Head:** 48px minimum, the title in Title type, the host in 11.5px Geist Mono Ink Faint, the
-  state pill with its age, and text-style acts (Interrupt, End session, Go) and Close at the right.
+  state pill with its age, and text-style acts (Interrupt, End session, Go) at the right. It has no
+  Close.
   The pill is Current Blue on a 12% tint while it starts or works and Beacon Orange on a 12% tint
   for a dialog; its text and its age take the mix of the Status pill.
 - **Lines:** the line of a failed read or an ended session sits under the head on Veil at 12.5px
@@ -567,8 +588,8 @@ radius, as the details panel.
   its text), the hint (12px Ink Faint, Fault Red for an error), and Send (primary). The focus ring
   goes around the shell only while the field has the focus; an invalid field turns the border to
   55% Fault Red.
-- **Phone:** below 720px the panel covers the page with no border and no radius, each button,
-  trigger, key, and icon button is 44px, the bubble is at most 90% wide, the summary of the dialog
+- **Phone:** below 720px the chat fills the work area between the top bar and the bottom bar and
+  keeps its border and radius, each button, trigger, key, and icon button is 44px, the bubble is at most 90% wide, the summary of the dialog
   goes on its own line under `Waiting on you: <tool>`, and the keys fill four equal columns.
 
 ### Lane Track (signature)
@@ -582,8 +603,9 @@ against the card in both themes, and the track keeps its `Step n of m` name.
 
 ### Update dialog
 
-The update dialog is a short card: a nonmodal layer above the right end of the status bar, with
-Float, Card Slate, a 1px hairline border, a 12px radius, 18px 18px 16px padding, and a width of
+The update dialog is a short card: a nonmodal layer that sits above the foot of the chat while the
+chat shows, and else at the right of the update control in the foot of the sidebar (above the bottom
+bar on a phone), with Float, Card Slate, a 1px hairline border, a 12px radius, 18px 18px 16px padding, and a width of
 272px (at most the viewport less 24px). It says only what happens and the action: no revision
 list and no note.
 

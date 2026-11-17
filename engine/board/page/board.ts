@@ -54,6 +54,17 @@ import { setupCoordinator } from './coordinator.ts';
 import { openMenu, openPalette, setupMenu, setupPalette } from './palette.ts';
 import { drawPanel } from './panel.ts';
 import { drawQueue, setQueueOpen, setupQueue } from './queue.ts';
+import {
+  AREA_NAMES,
+  AREAS,
+  type Area,
+  isChatShown,
+  type Pane,
+  readShell,
+  type Shell,
+  TABS,
+  type Tab,
+} from './shell.ts';
 import { dialogOpen, openStopDialog } from './stop-dialog.ts';
 import { applyTheme, readTheme, THEME_KEY, THEMES, type Theme, writeTheme } from './theme-choice.ts';
 import {
@@ -78,12 +89,6 @@ import {
 } from './ui.ts';
 import { isReconnecting, setupUpdates } from './update-dialog.ts';
 
-const SUMMARY: [Column | 'history', string][] = [
-  ['needs', 'need you'],
-  ['running', 'running'],
-  ['idle', 'idle'],
-  ['history', 'landed'],
-];
 const COPY: Record<string, string> = { 'no-progress': 'command', 'set-aside': 'command', 'dirty-tree': 'path' };
 const STOPPING = 'The daemon ends the session. The card moves to Idle when the session has ended.';
 const ON_ISSUE = new Set(['blocked']);
@@ -107,13 +112,10 @@ const QUEUE_LEVEL = 'The queue starts this step at the start pair, with no overr
 
 let data: Board | null = null;
 let theme: Theme = readTheme();
-let selected: string | null = null;
-let view = store.get('view') === 'pipeline' ? 'pipeline' : 'now';
+let shell: Shell = readShell({ area: store.get('area'), tab: store.get('tab') });
 let isNotifyOn = store.get('notify') === 'on';
 let isKeysOn = store.get('keys') !== 'off';
 let openEpics = parseOpenEpics(store.get('open-epics') ?? '');
-let isHistoryOpen = false;
-let isQueueOpen = false;
 let isServerDown = false;
 let intakePending = false;
 let seen: Map<string, string> | null = null;
@@ -311,7 +313,7 @@ const agentOrderEntry = {
   icon: 'person',
   label: 'Change the agent order',
   key: '',
-  title: 'Open the agent order in the footer',
+  title: 'Open the agent order in the sidebar',
   run: () => {
     const trigger = $('agent-picker').querySelector<HTMLElement>('.ap-trigger');
     if (trigger?.getAttribute('aria-expanded') !== 'true') trigger?.click();
@@ -531,7 +533,7 @@ const menuOf = (card: Card, key: string): (MenuEntry | 'rule')[] => [
   ...actionsOf(card).map((action) => toMenuEntry(action, card)),
   ...levelEntries(card),
   'rule',
-  { icon: 'panel', label: 'Show the details', key: 'Space', run: () => openPanel(key) },
+  { icon: 'panel', label: 'Show the details', key: 'Space', run: () => openDetails(key) },
   ...(card.url && !ON_ISSUE.has(card.state as string)
     ? [
         {
@@ -655,10 +657,10 @@ const keyFor = (card: Card) => {
   return key;
 };
 
-const shell = (card: Card, column: Column, isCompact: boolean, level: 'h2' | 'h3' | 'h4' = 'h3') => {
+const cardShell = (card: Card, column: Column, isCompact: boolean, level: 'h2' | 'h3' | 'h4' = 'h3') => {
   const key = keyFor(card);
   byKey.set(key, { card, column });
-  const node = el('article', `card${isCompact ? ' compact' : ''}${key === selected ? ' is-selected' : ''}`);
+  const node = el('article', `card${isCompact ? ' compact' : ''}${key === shell.details ? ' is-selected' : ''}`);
   node.dataset.state = card.state ?? 'next';
   node.dataset.key = key;
   node.tabIndex = -1;
@@ -726,7 +728,7 @@ const drawCard = (
   column: Column,
   { isCompact = false, level }: { isCompact?: boolean; level?: 'h2' | 'h3' | 'h4' } = {},
 ) => {
-  const { key, node, title, id } = shell(card, column, isCompact, level);
+  const { key, node, title, id } = cardShell(card, column, isCompact, level);
   if (column === 'needs') node.classList.add('is-needs');
   const actions = actionsOf(card);
   const isQuiet = column !== 'needs';
@@ -940,7 +942,9 @@ const measureTail = () => {
   const body = document.querySelector<HTMLElement>('.col-needs .col-body');
   const wrap = body?.querySelector<HTMLElement>('.tail-wrap');
   if (!body || !wrap) return;
-  const bottom = body.getBoundingClientRect().bottom - (wrap.hidden ? 0 : wrap.offsetHeight);
+  const bottom =
+    Math.min(body.getBoundingClientRect().bottom, $('tp-board').getBoundingClientRect().bottom) -
+    (wrap.hidden ? 0 : wrap.offsetHeight);
   const counts = new Map();
   for (const node of body.querySelectorAll<HTMLElement>('.card[data-key]')) {
     const isHidden = node.getBoundingClientRect().bottom > bottom + 1;
@@ -952,15 +956,26 @@ const measureTail = () => {
       count: (counts.get(group.dataset.group)?.count ?? 0) + 1,
     });
   }
-  const text = body.scrollHeight > body.clientHeight + 4 ? tail([...counts.values()]) : '';
+  const text = counts.size ? tail([...counts.values()]) : '';
   wrap.hidden = text === '';
   (wrap.querySelector<HTMLElement>('.tail-text') as HTMLElement).textContent = text;
+};
+
+const measureFade = () => {
+  const board = $('columns');
+  board.toggleAttribute(
+    'data-fade',
+    board.dataset.view === 'pipeline' && board.scrollLeft + board.clientWidth < board.scrollWidth - 2,
+  );
 };
 
 let tailFrame = 0;
 const updateTail = () => {
   cancelAnimationFrame(tailFrame);
-  tailFrame = requestAnimationFrame(measureTail);
+  tailFrame = requestAnimationFrame(() => {
+    measureTail();
+    measureFade();
+  });
 };
 
 const pipelineView = (columns: Columns, flow: Flow | null) => {
@@ -1023,43 +1038,6 @@ const syncStops = () => {
   }
 };
 
-const focusFirst = (selectors: string[]) => {
-  if (isQueueOpen) showQueue(false);
-  for (const selector of selectors) {
-    const target = [...document.querySelectorAll<HTMLElement>(selector)].find(isStop);
-    if (!target) continue;
-    target.focus();
-    target.scrollIntoView({ block: 'nearest', behavior: isCalm.matches ? 'auto' : 'smooth' });
-    return;
-  }
-};
-
-const summary = (board: Board) =>
-  SUMMARY.map(([key, label]) => {
-    const count =
-      key === 'history'
-        ? (data?.history?.entries.length ?? 0)
-        : key === 'needs'
-          ? needsYou(board, seenTurn).length
-          : board.columns[key].length;
-    const chip = el('button', `chip chip-${key}`);
-    chip.type = 'button';
-    chip.classList.toggle('hot', key === 'needs' && count > 0);
-    chip.append(el('i', 'dot'), el('b', '', String(count)), el('span', '', label));
-    chip.addEventListener('click', () => {
-      if (key === 'history') return setHistory(true);
-      if (key === 'needs' && data?.coordinator.state === 'dialog') return coordinator.focus();
-      if (view !== 'now') setView('now');
-      focusFirst([
-        ...(key === 'needs'
-          ? ['.human-pill[data-wait="dialog"] .human-open', '.human-pill[data-your-turn] .human-open']
-          : []),
-        `#col-${key} .card, #col-${key} .epic-row, #col-${key} .empty`,
-      ]);
-    });
-    return chip;
-  });
-
 const humanPill = (card: Card) => {
   const key = keyFor(card);
   byKey.set(key, { card, column: 'human' });
@@ -1068,7 +1046,7 @@ const humanPill = (card: Card) => {
   pill.dataset.wait = card.waitFor ?? '';
   const isTurn = isYourTurn(card, seenTurn);
   if (isTurn) pill.dataset.yourTurn = '';
-  const open = el('button', `human-open${key === selected ? ' is-selected' : ''}`);
+  const open = el('button', `human-open${key === shell.details ? ' is-selected' : ''}`);
   open.type = 'button';
   open.dataset.key = key;
   open.title = 'Show the details and the screen of this session';
@@ -1078,7 +1056,7 @@ const humanPill = (card: Card) => {
     el('i', 'human-dot'),
     el('span', 'human-state', isTurn ? 'your turn' : (stateLabel(card) as string)),
   );
-  open.addEventListener('click', () => (selected === key ? closePanel() : openPanel(key)));
+  open.addEventListener('click', () => (shell.details === key ? closeDetails(true) : openDetails(key)));
   const [go] = actionsOf(card) as [Action];
   pill.append(
     open,
@@ -1102,10 +1080,10 @@ const visualPresses = new Set<number>();
 const makeVisual = async (number: number) => {
   if (visualPresses.has(number)) return;
   visualPresses.add(number);
-  if (isHistoryOpen) drawHistory();
+  if (shell.tab === 'history') drawHistory();
   await act('/api/visual', { number }, 'Make visual failed');
   visualPresses.delete(number);
-  if (isHistoryOpen) drawHistory();
+  if (shell.tab === 'history') drawHistory();
 };
 
 const visualControl = (entry: HistoryRow) => {
@@ -1142,7 +1120,7 @@ const visualControl = (entry: HistoryRow) => {
 };
 
 const drawHistory = () => {
-  const panel = $('panel');
+  const panel = $('history-pane');
   const active = panel.contains(document.activeElement) ? (document.activeElement as HTMLElement) : null;
   const href = active?.getAttribute('href');
   const label = active?.getAttribute('aria-label');
@@ -1151,12 +1129,8 @@ const drawHistory = () => {
   const history = data?.history;
   const error = isServerDown ? SERVER_DOWN : data?.source.error;
   panel.dataset.state = 'history';
-  panel.setAttribute('aria-label', 'Landed history');
   const head = el('div', 'panel-head history-head');
-  head.append(
-    el('h2', '', history ? `Landed on ${history.trunk}` : 'Landed history'),
-    iconButton('close', 'Close history (Esc)', () => setHistory(false)),
-  );
+  head.append(el('h2', '', history ? `Landed on ${history.trunk}` : 'Landed history'));
   const body = el('div', 'history-body');
   if (!history)
     body.append(el('p', 'history-note', error ? `Cannot read history: ${error}` : 'Loading landed history…'));
@@ -1206,44 +1180,109 @@ const drawHistory = () => {
 };
 
 const phone = matchMedia('(max-width: 719px)');
-const covering = matchMedia('(max-width: 1099px), (max-height: 700px)');
 const PANEL_FOCUS = '.panel-actions .btn, .ask .btn, .icon-btn';
-const syncCover = () => {
-  const panel = $('panel');
-  const isCovered = !panel.hidden && covering.matches;
-  const isFocusOutside = !panel.contains(document.activeElement);
-  for (const node of document.querySelectorAll<HTMLElement>('.top, #human, #queue, #columns, .statusbar'))
-    node.inert = isCovered;
-  document.body.classList.toggle('is-covered', isCovered);
-  if (isCovered) {
-    panel.setAttribute('role', 'dialog');
-    panel.setAttribute('aria-modal', 'true');
-  } else {
-    panel.removeAttribute('role');
-    panel.removeAttribute('aria-modal');
-  }
-  if (isCovered && isFocusOutside)
-    (panel.querySelector<HTMLElement>(PANEL_FOCUS) ?? panel.querySelector<HTMLElement>('button'))?.focus({
-      preventScroll: true,
-    });
-};
-covering.addEventListener('change', syncCover);
+const AREA_ICONS: Record<Area, string> = { home: 'home', operations: 'board', control: 'sliders', throughput: 'trend' };
+const boardView = (): 'now' | 'pipeline' => (shell.tab === 'pipeline' ? 'pipeline' : 'now');
 
-const setHistory = (isOpen: boolean) => {
-  if (isOpen && isQueueOpen) showQueue(false);
-  if (!isOpen) return closePanel();
-  coordinator.close(false);
-  selected = null;
-  for (const node of document.querySelectorAll('[data-key].is-selected')) node.classList.remove('is-selected');
-  isHistoryOpen = true;
-  $('history').setAttribute('aria-expanded', 'true');
-  document.body.classList.add('has-panel');
-  $('panel').hidden = false;
-  drawHistory();
-  syncCover();
-  $('panel').querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
+const markCurrent = (node: Element, isCurrent: boolean) => {
+  if (isCurrent) node.setAttribute('aria-current', 'page');
+  else node.removeAttribute('aria-current');
+};
+
+const moveTo = (node: HTMLElement, parent: HTMLElement, before: Element | null) => {
+  if (node.parentElement === parent && node.nextElementSibling === before) return;
+  const active = node.contains(document.activeElement) ? (document.activeElement as HTMLElement) : null;
+  parent.insertBefore(node, before);
+  active?.focus({ preventScroll: true });
+};
+
+const drawShell = () => {
+  const { area, tab, details, pane } = shell;
+  const isPhone = phone.matches;
+  const isOps = area === 'operations';
+  const isWide = tab === 'pipeline' && !isPhone;
+  const isChat = isChatShown(shell, isPhone);
+  const ops = $('area-operations');
+  $('work').dataset.area = area;
+  for (const each of AREAS) $(`area-${each}`).hidden = each !== area;
+  ops.dataset.tab = tab;
+  ops.dataset.pane = pane;
+  ops.toggleAttribute('data-details', details !== null);
+  for (const node of document.querySelectorAll<HTMLElement>('.dest'))
+    markCurrent(node, !isPhone && node.dataset.area === area);
+  markCurrent($('pb-chat'), isPhone && isOps && pane === 'chat');
+  markCurrent($('pb-agents'), isPhone && isOps && pane === 'agents');
+  markCurrent($('board-more'), isPhone && !isOps);
+  for (const node of document.querySelectorAll<HTMLElement>('.tab')) {
+    const isSelected = node.dataset.tab === tab;
+    node.setAttribute('aria-selected', String(isSelected));
+    node.tabIndex = isSelected ? 0 : -1;
+  }
+  $('tp-board').hidden = tab === 'queue' || tab === 'history';
+  $('tp-board').setAttribute('aria-labelledby', `tab-${boardView() === 'pipeline' ? 'pipeline' : 'agents'}`);
+  $('history-pane').hidden = tab !== 'history';
+  if (tab === 'history') drawHistory();
+  setQueueOpen(tab === 'queue');
+  $('pane-chat').hidden = !isWide;
+  $('panel').hidden = details === null;
+  if (isWide) moveTo($('panel'), ops, null);
+  else moveTo($('panel'), $('center'), null);
+  const intake = document.querySelector<HTMLElement>('.intake-control') as HTMLElement;
+  if (isPhone) moveTo(intake, $('bar'), $('board-more'));
+  else moveTo(intake, $('side'), $('find'));
+  const isDetails = isOps && details !== null && (!isPhone || pane === 'chat');
+  const skipCenter = $('skip-center') as HTMLAnchorElement;
+  skipCenter.textContent = !isOps ? 'Skip to the work area' : isDetails ? 'Skip to the details' : 'Skip to the chat';
+  skipCenter.href = !isOps ? `#area-${area}` : isDetails ? '#panel' : '#coordinator';
+  skipCenter.hidden = isOps && !isChat && !isDetails;
+  $('skip-pane').hidden = !isOps || (isPhone && pane !== 'agents');
+  if (isChat) coordinator.show();
+  else coordinator.hide();
   updateTail();
 };
+let hiddenFocus: Element | null = null;
+document.addEventListener('focusout', (event) => {
+  hiddenFocus = event.target instanceof HTMLElement && !event.target.checkVisibility() ? event.target : null;
+});
+phone.addEventListener('change', () =>
+  setShell(shell, document.activeElement === document.body ? hiddenFocus : document.activeElement),
+);
+
+const setShell = (next: Shell, active: Element | null = document.activeElement) => {
+  const was = shell;
+  const wasView = boardView();
+  const wasInPanel = active instanceof HTMLElement && $('panel').contains(active);
+  shell = next;
+  store.set('area', next.area);
+  store.set('tab', next.tab);
+  if (was.details !== null && next.details !== was.details) {
+    $('panel').replaceChildren();
+    for (const node of document.querySelectorAll<HTMLElement>('[data-key].is-selected'))
+      node.classList.remove('is-selected');
+  }
+  drawShell();
+  if (data && boardView() !== wasView) drawBoard(project(data));
+  const now = document.activeElement;
+  const isLost = active instanceof HTMLElement && (active.isConnected ? !active.checkVisibility() : wasInPanel);
+  if (isLost && (now === active || now === document.body)) {
+    const tabNode = $(`tab-${shell.tab}`);
+    (shell.area === 'operations' && tabNode.checkVisibility() ? tabNode : $('work')).focus({ preventScroll: true });
+  } else if (now === document.body && active instanceof HTMLElement && active.isConnected)
+    active.focus({ preventScroll: true });
+};
+
+const setArea = (area: Area) => setShell({ ...shell, area });
+const setTab = (tab: Tab) =>
+  setShell({ ...shell, area: 'operations', tab, ...(phone.matches ? { pane: 'agents' as const, details: null } : {}) });
+const setPane = (pane: Pane) => setShell({ ...shell, area: 'operations', pane, details: null });
+const showChat = () =>
+  setShell({
+    ...shell,
+    area: 'operations',
+    details: null,
+    pane: 'chat',
+    tab: shell.tab === 'pipeline' ? 'agents' : shell.tab,
+  });
 
 const markSeen = (key: string) => {
   const entry = byKey.get(key);
@@ -1307,8 +1346,8 @@ const notify = (cards: Card[]) => {
   for (const card of fresh) {
     const { title, body } = notice(card);
     systemNotice(title, body, keyOf(card), () => {
-      if (view !== 'now') setView('now');
-      openPanel(keyOf(card));
+      if (shell.tab === 'pipeline') setTab('agents');
+      openDetails(keyOf(card));
     });
   }
   needsKeys = keys;
@@ -1379,7 +1418,7 @@ const statusWords = (item: HTMLElement) =>
 const drawStatus = (source: Board['source'], isDown: boolean) => {
   const changed = isServerDown !== isDown;
   isServerDown = isDown;
-  if (changed && isHistoryOpen) drawHistory();
+  if (changed && shell.tab === 'history') drawHistory();
   const fresh = $('fresh');
   const state = isDown || source.error ? 'fail' : source.readAt ? 'ok' : 'wait';
   const name = data?.tracker ?? 'Issues';
@@ -1468,19 +1507,21 @@ const panelContext = (card: Card) => ({
   flow: (data as Board).flow,
   registry: registry(),
   on: onTracker(),
-  close: closePanel,
+  close: () => closeDetails(true),
   auto: (data as Board).daemon.auto,
 });
 
 const drawPanelFor = () => {
-  const entry = byKey.get(selected as string);
-  if (!entry) return closePanel();
+  const selected = shell.details as string;
+  const entry = byKey.get(selected);
+  if (!entry) return closeDetails(false);
   $('panel').setAttribute('aria-label', 'Card details');
-  const focused = $('panel').contains(document.activeElement)
-    ? (document.activeElement as Element).getAttribute('aria-label')
-    : null;
+  const focused =
+    $('panel').contains(document.activeElement) && document.activeElement !== $('panel')
+      ? (document.activeElement as Element).getAttribute('aria-label')
+      : null;
   const scroll = $('panel').dataset.key === selected ? ($('panel').querySelector('.panel-body')?.scrollTop ?? 0) : 0;
-  $('panel').dataset.key = selected as string;
+  $('panel').dataset.key = selected;
   $('panel').replaceChildren(...drawPanel(entry.card, panelContext(entry.card)));
   const body = $('panel').querySelector('.panel-body');
   if (body) body.scrollTop = scroll;
@@ -1498,61 +1539,48 @@ const revealCard = (key: string) => {
   if (group) setEpicOpen(Number(group.closest<HTMLElement>('.epic-group')?.dataset.epic), true);
 };
 
-const openPanel = (key: string) => {
-  if (isQueueOpen) showQueue(false);
+const openDetails = (key: string) => {
   if (!byKey.has(key)) return;
-  coordinator.close(false);
   revealCard(key);
-  isHistoryOpen = false;
-  $('history').setAttribute('aria-expanded', 'false');
-  selected = key;
+  setShell({ ...shell, area: 'operations', details: key, pane: 'chat' });
   for (const node of document.querySelectorAll<HTMLElement>('[data-key].is-selected'))
     node.classList.remove('is-selected');
-  document.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`)?.classList.add('is-selected');
-  document.body.classList.add('has-panel');
-  $('panel').hidden = false;
+  const selected = document.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
+  selected?.classList.add('is-selected');
+  if (shell.tab === 'pipeline') selected?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   drawPanelFor();
   markSeen(key);
   const entry = byKey.get(key);
   if (entry?.column === 'human') seeTurn(entry.card);
-  syncCover();
   $('panel').querySelector<HTMLElement>(PANEL_FOCUS)?.focus({ preventScroll: true });
-  updateTail();
 };
 
-function closePanel() {
-  const key = selected;
-  const wasHistory = isHistoryOpen;
-  isHistoryOpen = false;
-  $('history').setAttribute('aria-expanded', 'false');
-  selected = null;
-  document.body.classList.remove('has-panel');
-  $('panel').hidden = true;
-  $('panel').replaceChildren();
-  syncCover();
-  for (const node of document.querySelectorAll<HTMLElement>('[data-key].is-selected'))
-    node.classList.remove('is-selected');
-  if (wasHistory) $('history').focus({ preventScroll: true });
-  if (key) {
+function closeDetails(refocus: boolean) {
+  const key = shell.details;
+  const isBack = refocus && key !== null;
+  setShell({
+    ...shell,
+    details: null,
+    ...(isBack && (shell.tab === 'queue' || shell.tab === 'history') ? { tab: 'agents' as const } : {}),
+    ...(isBack && phone.matches ? { pane: 'agents' as const } : {}),
+  });
+  if (isBack) {
     revealCard(key);
-    document.querySelector<HTMLElement>(`#columns [data-key="${CSS.escape(key)}"]`)?.focus({ preventScroll: true });
+    document.querySelector<HTMLElement>(`#tp-board [data-key="${CSS.escape(key)}"]`)?.focus({ preventScroll: true });
   }
-  updateTail();
 }
 
 const reachable = (node: HTMLElement | null | undefined) =>
   node?.closest('.epic-children[hidden]')?.closest('.epic-group')?.querySelector<HTMLElement>('.epic-row') ?? node;
 
 type FocusMark = {
-  kind: 'card' | 'control' | 'chip' | 'tail' | 'epic' | 'pill';
+  kind: 'card' | 'control' | 'tail' | 'epic' | 'pill';
   key: string;
   column?: string;
   label?: string;
 };
 
 const markFocus = (active: Element | null): FocusMark | null => {
-  const chip = active?.closest('#summary .chip');
-  if (chip) return { kind: 'chip', key: [...chip.classList].find((name) => name.startsWith('chip-')) as string };
   const pill = active?.closest<HTMLElement>('.human-pill');
   if (pill) {
     const key = (pill.querySelector('[data-key]') as HTMLElement).dataset.key as string;
@@ -1586,7 +1614,6 @@ const restoreFocus = (mark: FocusMark) => {
     ?.querySelector<HTMLElement>(`:is(${STOPS})[tabindex="0"], .empty`);
   if (mark.kind === 'tail') measureTail();
   const target = {
-    chip: () => one(`#summary .${mark.key}`),
     tail: () => (one('.col-needs .tail-wrap')?.hidden === false ? one('.col-needs .tail') : stop),
     epic: () => one(`.epic-row[data-group="${CSS.escape(mark.key)}"]`) ?? stop,
     pill: () => {
@@ -1599,14 +1626,37 @@ const restoreFocus = (mark: FocusMark) => {
   target?.focus({ preventScroll: true });
 };
 
-let nowCount = 0;
-const drawNow = (count: number): void => {
-  nowCount = count;
-  $('now-badge').hidden = count === 0;
-  $('now-badge').textContent = count === 0 ? '' : String(count);
-  $('now').setAttribute('aria-label', phone.matches ? (count === 0 ? 'Now' : `Now, ${count} need you`) : 'Now view');
+const badgeText = (count: number): string => (count === 0 ? '' : count > 999 ? '999+' : String(count));
+
+const drawBadge = (badge: HTMLElement, owner: HTMLElement, name: string, count: number): void => {
+  badge.hidden = count === 0;
+  badge.textContent = badgeText(count);
+  owner.setAttribute('aria-label', count === 0 ? name : `${name}, ${count} need you`);
 };
-phone.addEventListener('change', () => drawNow(nowCount));
+
+const drawNow = (all: number, work: number): void => {
+  drawBadge($('ops-badge'), $('ops-badge').closest('button') as HTMLElement, 'Operations', all);
+  drawBadge($('agents-badge'), $('tab-agents'), 'Agents', work);
+  drawBadge($('now-badge'), $('pb-agents'), 'Agents', work);
+};
+
+const focusNeed = (): void => {
+  if (!data) return;
+  const board = project(data);
+  if (needsYou(board, seenTurn).length === 0) return;
+  if (board.coordinator.state === 'dialog') {
+    showChat();
+    coordinator.open();
+    return;
+  }
+  setTab('agents');
+  const { human } = board.columns;
+  const session = human.find((card) => card.waitFor === 'dialog') ?? human.find((card) => isYourTurn(card, seenTurn));
+  const target = session
+    ? document.querySelector<HTMLElement>(`#human [data-key="${CSS.escape(keyOf(session))}"]`)
+    : document.querySelector<HTMLElement>('#col-needs .card');
+  target?.focus();
+};
 
 const drawBoard = (next: Board) => {
   drawQueue(next);
@@ -1614,7 +1664,8 @@ const drawBoard = (next: Board) => {
   used = new Set();
   byKey = new Map();
   const needs = next.columns.needs.length;
-  document.title = pageTitle(next.repo, needsYou(next, seenTurn).length);
+  const waiting = needsYou(next, seenTurn);
+  document.title = pageTitle(next.repo, waiting.length);
   drawFavicon();
   $('repo').textContent = next.repo;
   $('repo').title = next.repo;
@@ -1622,11 +1673,10 @@ const drawBoard = (next: Board) => {
   $('dirty').hidden = !next.noRun;
   const banner = next.noRun ?? '';
   if ($('dirty').textContent !== banner) $('dirty').textContent = banner;
-  $('summary').replaceChildren(...summary(next));
-  drawNow(needsYou(next, seenTurn).length);
-  if (isHistoryOpen) drawHistory();
+  drawNow(waiting.length, waiting.filter(isCard).length);
+  if (shell.tab === 'history') drawHistory();
   const board = $('columns');
-  board.dataset.view = view;
+  board.dataset.view = boardView();
   board.style.setProperty('--stages', String(Math.max(1, next.flow?.stages.length ?? 0)));
   board.classList.toggle('is-calm', needs === 0);
   const bodies = () => board.querySelectorAll<HTMLElement>('.col[aria-labelledby] > .col-body');
@@ -1634,7 +1684,7 @@ const drawBoard = (next: Board) => {
     [...bodies()].map((body) => [body.parentElement?.getAttribute('aria-labelledby'), body.scrollTop]),
   );
   board.replaceChildren(
-    ...(view === 'pipeline'
+    ...(boardView() === 'pipeline'
       ? pipelineView(next.columns, next.flow)
       : COLUMNS.map((spec) => column(spec, next.columns[spec.key]))),
   );
@@ -1649,15 +1699,15 @@ const drawBoard = (next: Board) => {
     markAllSeen();
   }
   const lines = [
-    ...notify(needsYou(next, seenTurn).filter(isCard)),
+    ...notify(waiting.filter(isCard)),
     ...startNotices(next.columns),
     ...(coordinatorLine ? [coordinatorLine] : []),
   ];
   coordinatorLine = null;
   if (lines.length) announce(lines.join('. '));
-  if (selected) {
-    if (byKey.has(selected)) drawPanelFor();
-    else closePanel();
+  if (shell.details !== null) {
+    if (byKey.has(shell.details)) drawPanelFor();
+    else closeDetails(false);
   }
   syncStops();
   if (mark) restoreFocus(mark);
@@ -1678,26 +1728,6 @@ const drawSkeleton = () =>
     }),
   );
 
-const showQueue = (open: boolean) => {
-  isQueueOpen = open;
-  if (open) {
-    closePanel();
-    setHistory(false);
-    coordinator.close(false);
-  }
-  setQueueOpen(open);
-  if (!open) $('queue-open').focus();
-};
-
-const setView = (next: string) => {
-  if (isQueueOpen) showQueue(false);
-  view = next;
-  store.set('view', next);
-  for (const button of document.querySelectorAll<HTMLElement>('.views button'))
-    button.setAttribute('aria-pressed', String(button.dataset.view === next));
-  if (data) drawBoard(project(data));
-};
-
 const tick = () => {
   drawIntake();
   const now = Date.now();
@@ -1711,7 +1741,7 @@ const tick = () => {
 const isCalm = matchMedia('(prefers-reduced-motion: reduce)');
 const layoutOf = (next: Board) =>
   JSON.stringify([
-    view,
+    boardView(),
     Object.entries(next.columns).map(([key, cards]) => [key, cards.map((card: Card) => keyOf(card))]),
   ]);
 let last = '';
@@ -2008,11 +2038,13 @@ const readEntry = (): MenuEntry => ({
   key: 'r',
   run: () => $('refresh').click(),
 });
+const toggleHistory = () => setTab(shell.tab === 'history' ? 'agents' : 'history');
+const toggleView = () => setTab(shell.tab === 'pipeline' ? 'agents' : 'pipeline');
 const historyEntry = (): MenuEntry => ({
-  label: isHistoryOpen ? 'Hide history' : 'Show history',
+  label: shell.tab === 'history' ? 'Hide history' : 'Show history',
   icon: 'clock',
   key: 'd',
-  run: () => setHistory(!isHistoryOpen),
+  run: toggleHistory,
 });
 const notifyEntry = (): MenuEntry => ({
   label: isNotifyOn ? 'Turn notifications off' : 'Turn notifications on',
@@ -2033,9 +2065,20 @@ const keysEntry = (): MenuEntry => ({
   run: () => $('keys').showModal(),
 });
 
+const goEntries = (names: Area[]): MenuEntry[] =>
+  names.map((area) => ({
+    label: `Go to ${AREA_NAMES[area]}`,
+    icon: AREA_ICONS[area],
+    key: '',
+    run: () => setArea(area),
+  }));
+
 const boardActions = (): MenuEntry[] => [
-  { label: coordinator.label(), icon: 'message', key: '', run: coordinator.toggle },
-  { label: 'Show the issue queue', icon: 'stages', key: '', run: () => showQueue(true) },
+  ...goEntries([...AREAS]),
+  ...(coordinator.hasSession()
+    ? []
+    : [{ label: 'Start the coordinator session', icon: 'message', key: '', run: coordinator.start }]),
+  { label: 'Show the issue queue', icon: 'queue', key: '', run: () => setTab('queue') },
   readEntry(),
   historyEntry(),
   notifyEntry(),
@@ -2052,11 +2095,17 @@ const statusEntry = (item: HTMLElement, iconName: string): MenuEntry => ({
   run: () => {},
 });
 
-const phoneMenu = (): (MenuEntry | MenuSection)[] => {
+const phoneMenu = (): (MenuEntry | MenuSection | 'rule')[] => {
   const trigger = $('agent-picker').querySelector<HTMLElement>('.ap-trigger');
   const update = $('update-open');
   return [
-    historyEntry(),
+    ...AREAS.filter((area) => area !== 'operations').map((area) => ({
+      label: AREA_NAMES[area],
+      icon: AREA_ICONS[area],
+      key: '',
+      run: () => setArea(area),
+    })),
+    'rule' as const,
     readEntry(),
     notifyEntry(),
     themeEntry(),
@@ -2128,9 +2177,10 @@ const paletteItems = () => {
           tone: null,
           key: '',
           run: () => {
-            if (!document.querySelector(`[data-key="${CSS.escape(key)}"]`)) setView('now');
-            openPanel(key);
-            document.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`)?.focus();
+            if (!document.querySelector(`[data-key="${CSS.escape(key)}"]`)) setTab('agents');
+            openDetails(key);
+            const node = document.querySelector<HTMLElement>(`#tp-board [data-key="${CSS.escape(key)}"]`);
+            if (node?.checkVisibility()) node.focus();
           },
         });
       const [main] = actionsOf(card);
@@ -2144,7 +2194,7 @@ const paletteItems = () => {
           icon: 'panel',
           tone: null,
           key: '',
-          run: () => openPanel(key),
+          run: () => openDetails(key),
         });
       if (card.run && card.number !== null && data?.agents && !data?.noRun) {
         for (const [id, entry] of Object.entries(data.agents)) {
@@ -2183,8 +2233,7 @@ const paletteItems = () => {
       key: '',
       run: () => {
         const row = () => document.querySelector<HTMLElement>(`.epic-row[data-epic="${number}"]`);
-        if (!row()) setView('now');
-        if (!$('panel').hidden && (covering.matches || row()?.offsetParent === null)) closePanel();
+        setTab(shell.tab === 'pipeline' && row() ? 'pipeline' : 'agents');
         setEpicOpen(number, true);
         row()?.focus();
       },
@@ -2206,11 +2255,11 @@ const paletteItems = () => {
     {
       group: 'Board',
       number: null,
-      label: view === 'now' ? 'Show the pipeline' : 'Show what needs you now',
+      label: shell.tab === 'pipeline' ? 'Show the agents' : 'Show the pipeline',
       context: '',
-      icon: view === 'now' ? 'stages' : 'board',
+      icon: shell.tab === 'pipeline' ? 'board' : 'stages',
       key: 'v',
-      run: () => setView(view === 'now' ? 'pipeline' : 'now'),
+      run: toggleView,
     },
     ...boardActions().map((action) => ({ group: 'Board', number: null, context: '', ...action })),
     {
@@ -2273,8 +2322,8 @@ const KEYS: Record<string, () => void> = {
   h: () => move(-1, 0),
   l: () => move(1, 0),
   r: () => $('refresh').click(),
-  d: () => setHistory(!isHistoryOpen),
-  v: () => setView(view === 'now' ? 'pipeline' : 'now'),
+  d: toggleHistory,
+  v: toggleView,
   '?': () => $('keys').showModal(),
   '/': () => openPalette(paletteItems()),
 };
@@ -2284,7 +2333,7 @@ const CARD_KEYS: Record<string, (card: HTMLElement) => void> = {
   ArrowLeft: () => move(-1, 0),
   ArrowRight: () => move(1, 0),
   Enter: (card: HTMLElement) => card.querySelector<HTMLElement>('.main-action')?.click(),
-  ' ': (card: HTMLElement) => openPanel(card.dataset.key as string),
+  ' ': (card: HTMLElement) => openDetails(card.dataset.key as string),
   o: (card: HTMLElement) => card.dataset.url && window.open(card.dataset.url, '_blank', 'noopener,noreferrer'),
   c: (card: HTMLElement) => {
     const entry = byKey.get(card.dataset.key as string);
@@ -2309,10 +2358,7 @@ const ROW_KEYS: Record<string, () => void> = {
 
 const updates = setupUpdates();
 const coordinator = setupCoordinator({
-  closeOthers: () => {
-    if (isQueueOpen) showQueue(false);
-    if (selected || isHistoryOpen) closePanel();
-  },
+  reveal: showChat,
   changed: (next) => {
     if (!data) return;
     data = { ...data, coordinator: next };
@@ -2335,15 +2381,15 @@ document.addEventListener('keydown', (event) => {
     event.preventDefault();
     return;
   }
-  if (event.key === 'Escape' && isHistoryOpen) {
+  if (event.key === 'Escape' && shell.details !== null) {
     event.preventDefault();
-    return setHistory(false);
+    return closeDetails(true);
   }
-  if (event.key === 'Escape' && selected) {
-    event.preventDefault();
-    return closePanel();
-  }
-  if (isQueueOpen && !['r', 'd', 'v', '?', '/'].includes(event.key)) return;
+  const isBoardShown =
+    shell.area === 'operations' &&
+    (shell.tab === 'agents' || shell.tab === 'pipeline') &&
+    !(phone.matches && shell.pane === 'chat');
+  if (!isBoardShown && !['r', 'd', 'v', '?', '/'].includes(event.key)) return;
   const card = document.activeElement?.matches?.('.card[data-key]') ? (document.activeElement as HTMLElement) : null;
   const isRow = document.activeElement?.matches?.('.epic-row');
   const press = (card && CARD_KEYS[event.key]) || (isRow && ROW_KEYS[event.key]) || (isKeysOn && KEYS[event.key]);
@@ -2363,8 +2409,8 @@ columns.addEventListener('focusin', (event) => {
 columns.addEventListener('click', (event) => {
   const node = (event.target as Element).closest<HTMLElement>('.card[data-key]');
   if (!node || (event.target as Element).closest<HTMLElement>('a, button')) return;
-  if (selected === node.dataset.key) return closePanel();
-  openPanel(node.dataset.key as string);
+  if (shell.details === node.dataset.key) return closeDetails(true);
+  openDetails(node.dataset.key as string);
 });
 columns.addEventListener('contextmenu', (event) => {
   const node = (event.target as Element).closest<HTMLElement>('.card[data-key]');
@@ -2389,7 +2435,7 @@ columns.addEventListener('pointerover', (event) => {
   const node = (event.target as Element).closest<HTMLElement>('.card[data-key].is-unseen');
   if (node) markSeen(node.dataset.key as string);
 });
-columns.addEventListener('scroll', updateTail, true);
+$('tp-board').addEventListener('scroll', updateTail, true);
 addEventListener('resize', updateTail);
 matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
   if (theme !== 'system') return;
@@ -2437,18 +2483,36 @@ $('refresh').addEventListener('click', async () => {
 $('find').prepend(icon('search'));
 ($('find').querySelector<HTMLElement>('kbd') as HTMLElement).textContent = FIND_KEY;
 $('find').addEventListener('click', () => openPalette(paletteItems()));
-for (const button of document.querySelectorAll<HTMLElement>('.views button')) {
-  button.prepend(icon(button.dataset.view === 'now' ? 'board' : 'stages'));
-  button.setAttribute('aria-label', `${(button.querySelector<HTMLElement>('.label') as HTMLElement).textContent} view`);
-  button.setAttribute('aria-pressed', String(button.dataset.view === view));
-  button.addEventListener('click', () => setView(button.dataset.view as string));
+for (const area of AREAS) {
+  const button = document.querySelector<HTMLElement>(`.dest[data-area="${area}"]`) as HTMLElement;
+  button.prepend(icon(AREA_ICONS[area]));
+  button.addEventListener('click', () => {
+    setArea(area);
+    if (area === 'operations' && !$('ops-badge').hidden) focusNeed();
+  });
 }
-$('queue-open').prepend(icon('queue'));
+$('pb-chat').addEventListener('click', showChat);
+$('pb-agents').prepend(icon('board'));
+$('pb-agents').addEventListener('click', () => setPane('agents'));
+$('pane-chat').addEventListener('click', coordinator.open);
+const tabList = TABS.map((tab) => $(`tab-${tab}`));
+for (const [at, tab] of TABS.entries()) tabList[at]?.addEventListener('click', () => setTab(tab));
+$('tabs').addEventListener('keydown', (event) => {
+  const at = tabList.indexOf(event.target as HTMLElement);
+  const moves: Record<string, number> = { ArrowLeft: at - 1, ArrowRight: at + 1, Home: 0, End: tabList.length - 1 };
+  const to = moves[event.key];
+  if (at < 0 || to === undefined) return;
+  const index = (to + TABS.length) % TABS.length;
+  const tab = TABS[index];
+  const next = tabList[index];
+  if (!tab || !next) return;
+  event.preventDefault();
+  setTab(tab);
+  next.focus();
+});
 $('intake').prepend(icon('spark'));
 $('intake').addEventListener('click', () => void openIntake());
 drawIntake();
-$('history').prepend(icon('clock'));
-$('history').addEventListener('click', () => setHistory(!isHistoryOpen));
 $('notify').addEventListener('click', toggleNotify);
 $('theme').addEventListener('click', cycleTheme);
 drawTheme();
@@ -2473,13 +2537,11 @@ $('keys-on').addEventListener('change', () => {
 $('toast-close').append(icon('close'));
 setupToast();
 setupQueue({
-  back: () => showQueue(false),
   refresh: async () => {
     settled = reads;
     await load();
   },
 });
-$('queue-open').addEventListener('click', () => showQueue(!isQueueOpen));
 const replaceOrder = async (order: readonly Host[], expectedVersion: string): Promise<AgentOrder> => {
   if (isReconnecting()) throw new Error('the board is reconnecting');
   settled = reads;
@@ -2521,5 +2583,6 @@ drawNotify();
 drawHints(null);
 setInterval(tick, 1000);
 drawSkeleton();
+drawShell();
 drawStatus(source, false);
 load();

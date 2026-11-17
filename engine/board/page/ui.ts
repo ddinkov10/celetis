@@ -191,6 +191,15 @@ const ICONS: Record<string, [string, Record<string, string | number>][]> = {
     ['circle', { cx: 5.5, cy: 8, r: 1.25 }],
     ['circle', { cx: 10.5, cy: 8, r: 1.25 }],
   ],
+  home: [
+    ['path', { d: 'M2.75 7.25 8 2.75l5.25 4.5v5.5a.75.75 0 0 1-.75.75H9.75V9.75h-3.5v3.75H3.5a.75.75 0 0 1-.75-.75Z' }],
+  ],
+  sliders: [
+    ['path', { d: 'M2.75 4.5h5.5M11.25 4.5h2M2.75 11.5h2M7.75 11.5h5.5' }],
+    ['circle', { cx: 9.75, cy: 4.5, r: 1.5 }],
+    ['circle', { cx: 6.25, cy: 11.5, r: 1.5 }],
+  ],
+  trend: [['path', { d: 'M2.25 11.5 6 7.75l2.5 2.5 5.25-5.5M10.5 4.75h3.25V8' }]],
   panel: [
     ['rect', { x: 1.75, y: 2.5, width: 12.5, height: 11, rx: 2 }],
     ['path', { d: 'M9.5 2.5v11' }],

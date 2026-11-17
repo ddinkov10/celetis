@@ -12,68 +12,95 @@
 <link rel="stylesheet" href="/board.css">
 </head>
 <body>
-<header class="top">
-  <div class="brand"><span class="logo" id="logo"></span><h1>Agent board</h1><span class="slash" aria-hidden="true">/</span><span class="repo" id="repo"></span></div>
-  <div class="dock">
-    <div class="views" role="group" aria-label="View"><button type="button" id="now" data-view="now"><span class="label">Now</span><span class="dock-badge" id="now-badge" hidden></span></button><button type="button" data-view="pipeline"><span class="label">Pipeline</span></button></div>
-    <div class="summary" id="summary" role="group" aria-label="Counts"></div>
-    <div class="intake-control"><button type="button" class="btn ghost" id="intake" aria-describedby="intake-reason"><span class="label">New intake</span></button><span id="intake-reason" class="intake-reason" hidden></span></div>
-    <button type="button" class="btn ghost" id="queue-open" aria-controls="queue" aria-pressed="false"><span class="label">Queue</span></button>
-    <button type="button" class="btn ghost" id="board-more" aria-label="More board actions" aria-haspopup="menu" aria-expanded="false" title="More board actions"><span class="label">More</span></button>
-  </div>
-  <button type="button" class="btn ghost co-open" id="coordinator-open" aria-controls="coordinator" aria-expanded="false" data-state="none"><span class="label">Coordinator</span><i class="co-mark" aria-hidden="true"></i><span class="co-open-state">no session</span><i class="co-new" aria-hidden="true" hidden></i></button>
-  <button type="button" class="find" id="find" aria-label="Search or run a step: the cards, history, and commands" aria-keyshortcuts="Control+K Meta+K /"><span class="find-text">Search or run a step</span><kbd>⌘K</kbd></button>
-  <button type="button" class="btn ghost" id="history" aria-controls="panel" aria-expanded="false" title="Show or hide history (d)"><span class="label">History</span></button>
-  <button type="button" class="btn ghost" id="refresh" title="Read the issues again (r)"><span class="label">Refresh</span></button>
-</header>
-<div class="banners">
-  <p class="banner warn" id="dirty" role="alert" hidden></p>
-  <p class="banner" id="stale" role="alert" hidden>The board read failed. The cards and history show the last good read.</p>
+<div class="skips" id="skips">
+  <a class="skip" href="#side">Skip to the sidebar</a>
+  <a class="skip" id="skip-center" href="#coordinator">Skip to the chat</a>
+  <a class="skip" id="skip-pane" href="#pane">Skip to the work views</a>
 </div>
-<section class="human" id="human" aria-labelledby="human-title" hidden></section>
-<main class="work">
-  <section class="queue" id="queue" aria-label="Issue queue" hidden></section>
-  <div class="board" id="columns" aria-busy="true"></div>
-  <aside class="panel" id="panel" aria-label="Card details" hidden></aside>
-  <aside class="coordinator" id="coordinator" aria-labelledby="coordinator-title" data-state="none" hidden>
-    <header class="co-head">
-      <h2 class="co-title" id="coordinator-title">Coordinator</h2>
-      <span class="co-host" id="coordinator-host"></span>
-      <span class="pill co-pill" id="coordinator-head-state"></span>
-      <span class="co-head-end">
-        <button type="button" class="btn ghost" id="coordinator-interrupt" hidden><span class="label">Interrupt</span></button>
-        <button type="button" class="btn ghost" id="coordinator-end" hidden><span class="label">End session</span></button>
-        <button type="button" class="btn ghost" id="coordinator-go" title="Show the tab of the session in the Herdr app" hidden><span class="label">Go</span></button>
-        <button type="button" class="icon-btn" id="coordinator-close" aria-label="Close the coordinator (Esc)" title="Close the coordinator (Esc)"></button>
-      </span>
-    </header>
-    <p class="co-banner" id="coordinator-banner" role="status" hidden></p>
-    <div class="co-body">
-      <div class="co-log co-chat" id="coordinator-log" role="log" tabindex="0" aria-label="Conversation with the coordinator"></div>
-      <button type="button" class="btn ghost co-to-end" id="coordinator-to-end" hidden><span class="label">Go to the end</span></button>
-    </div>
-    <div class="co-foot">
-      <form class="co-form" id="coordinator-form" hidden>
-        <textarea class="co-field" id="coordinator-field" rows="1" aria-label="Message to the coordinator" aria-describedby="coordinator-hint" placeholder="Write to the coordinator"></textarea>
-        <div class="co-row"><p class="co-hint" id="coordinator-hint"></p><button type="submit" class="btn primary" id="coordinator-send"><span class="label">Send</span></button></div>
-      </form>
-      <div class="co-start" id="coordinator-start-block" hidden><p class="co-start-text" id="coordinator-start-text" hidden></p><button type="button" class="btn primary" id="coordinator-start"><span class="label">Start a new session</span></button></div>
-    </div>
-  </aside>
-</main>
-<footer class="statusbar">
-  <span class="sb-item" id="fresh"></span>
-  <span class="sb-item" id="terminal"><i class="dot"></i><span class="sb-name">herdr</span><span class="sb-text">checking</span></span>
-  <span class="sb-item" id="daemon" hidden></span>
-  <div class="agent-picker" id="agent-picker" hidden></div>
-  <button type="button" class="sb-btn update-open" id="update-open" aria-controls="update-dialog" aria-expanded="false" aria-label="Check for updates, Celetis" title="Check for updates, Celetis"><span class="label">Check for updates</span></button>
-  <span class="sb-end">
+<nav class="side" id="side" aria-label="Board">
+  <div class="brand"><span class="logo" id="logo"></span><h1 class="sr-only">Agent board</h1><span class="repo" id="repo"></span></div>
+  <div class="intake-control"><button type="button" class="btn ghost" id="intake" aria-describedby="intake-reason"><span class="label">New intake</span></button><span id="intake-reason" class="intake-reason" hidden></span></div>
+  <button type="button" class="find" id="find" aria-label="Search or run a step: the cards, history, and commands" aria-keyshortcuts="Control+K Meta+K /"><span class="find-text">Search</span><kbd>⌘K</kbd></button>
+  <ul class="dests" id="dests">
+    <li><button type="button" class="dest" data-area="home"><span class="label">Home</span></button></li>
+    <li><button type="button" class="dest" data-area="operations"><span class="label">Operations</span><span class="dest-badge" id="ops-badge" hidden></span></button></li>
+    <li><button type="button" class="dest" data-area="control"><span class="label">Control</span></button></li>
+    <li><button type="button" class="dest" data-area="throughput"><span class="label">Throughput</span></button></li>
+  </ul>
+  <div class="side-foot" id="side-foot" role="group" aria-label="Board status">
     <span class="hints" id="hints" aria-hidden="true"></span>
-    <button type="button" class="sb-btn theme-cycle" id="theme" aria-label="Theme: System. Press to change" title="Theme: System. Press to change"><svg class="icon i-theme-system" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path class="fill" d="M8 2.5a5.5 5.5 0 0 1 0 11Z"/></svg><svg class="icon i-theme-light" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></svg><svg class="icon i-theme-dark" viewBox="0 0 16 16" aria-hidden="true"><path d="M13 9.6A5.5 5.5 0 1 1 6.4 3a4.4 4.4 0 0 0 6.6 6.6Z"/></svg></button>
-    <button type="button" class="sb-btn" id="notify" aria-pressed="false"></button>
-    <button type="button" class="sb-btn" id="keys-open" title="Keyboard shortcuts (?)"><span class="sb-name">Keys</span></button>
-  </span>
-</footer>
+    <div class="sf-row"><span class="sb-item" id="fresh"></span><button type="button" class="btn ghost" id="refresh" title="Read the issues again (r)"><span class="label">Refresh</span></button></div>
+    <span class="sb-item" id="terminal"><i class="dot"></i><span class="sb-name">herdr</span><span class="sb-text">checking</span></span>
+    <span class="sb-item" id="daemon" hidden></span>
+    <div class="agent-picker" id="agent-picker" hidden></div>
+    <button type="button" class="sb-btn update-open" id="update-open" aria-controls="update-dialog" aria-expanded="false" aria-label="Check for updates, Celetis" title="Check for updates, Celetis"><span class="label">Check for updates</span></button>
+    <div class="sf-row sf-tools">
+      <button type="button" class="sb-btn theme-cycle" id="theme" aria-label="Theme: System. Press to change" title="Theme: System. Press to change"><svg class="icon i-theme-system" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path class="fill" d="M8 2.5a5.5 5.5 0 0 1 0 11Z"/></svg><svg class="icon i-theme-light" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></svg><svg class="icon i-theme-dark" viewBox="0 0 16 16" aria-hidden="true"><path d="M13 9.6A5.5 5.5 0 1 1 6.4 3a4.4 4.4 0 0 0 6.6 6.6Z"/></svg></button>
+      <button type="button" class="sb-btn" id="notify" aria-pressed="false"></button>
+      <button type="button" class="sb-btn" id="keys-open" title="Keyboard shortcuts (?)"><span class="sb-name">Keys</span></button>
+    </div>
+  </div>
+</nav>
+<main class="work" id="work" tabindex="-1" aria-label="Work area" data-area="operations">
+  <div class="banners">
+    <p class="banner warn" id="dirty" role="alert" hidden></p>
+    <p class="banner" id="stale" role="alert" hidden>The board read failed. The cards and history show the last good read.</p>
+  </div>
+  <section class="area-screen" id="area-home" aria-labelledby="area-home-title" hidden><div class="area-empty"><h2 id="area-home-title">Home is not built yet.</h2><p>Home will show what needs you, the agents now, and the trends of the work.</p></div></section>
+  <section class="area-screen" id="area-control" aria-labelledby="area-control-title" hidden><div class="area-empty"><h2 id="area-control-title">Control is not built yet.</h2><p>Control will hold the agent order, auto mode, updates, notifications, and the board status. Until then they are at the foot of the sidebar.</p></div></section>
+  <section class="area-screen" id="area-throughput" aria-labelledby="area-throughput-title" hidden><div class="area-empty"><h2 id="area-throughput-title">Throughput is not built yet.</h2><p>Throughput will show how fast the issues move from intent to the trunk.</p></div></section>
+  <div class="ops" id="area-operations" data-tab="agents" data-pane="chat">
+    <div class="center" id="center">
+      <section class="coordinator" id="coordinator" aria-labelledby="coordinator-title" data-state="none" hidden>
+        <header class="co-head">
+          <h2 class="co-title" id="coordinator-title">Coordinator</h2>
+          <span class="co-host" id="coordinator-host"></span>
+          <span class="pill co-pill" id="coordinator-head-state"></span>
+          <span class="co-head-end">
+            <button type="button" class="btn ghost" id="coordinator-interrupt" hidden><span class="label">Interrupt</span></button>
+            <button type="button" class="btn ghost" id="coordinator-end" hidden><span class="label">End session</span></button>
+            <button type="button" class="btn ghost" id="coordinator-go" title="Show the tab of the session in the Herdr app" hidden><span class="label">Go</span></button>
+          </span>
+        </header>
+        <p class="co-banner" id="coordinator-banner" role="status" hidden></p>
+        <div class="co-body">
+          <div class="co-log co-chat" id="coordinator-log" role="log" tabindex="0" aria-label="Conversation with the coordinator"></div>
+          <button type="button" class="btn ghost co-to-end" id="coordinator-to-end" hidden><span class="label">Go to the end</span></button>
+        </div>
+        <div class="co-foot">
+          <form class="co-form" id="coordinator-form" hidden>
+            <textarea class="co-field" id="coordinator-field" rows="1" aria-label="Message to the coordinator" aria-describedby="coordinator-hint" placeholder="Write to the coordinator"></textarea>
+            <div class="co-row"><p class="co-hint" id="coordinator-hint"></p><button type="submit" class="btn primary" id="coordinator-send"><span class="label">Send</span></button></div>
+          </form>
+          <div class="co-start" id="coordinator-start-block" hidden><p class="co-start-text" id="coordinator-start-text" hidden></p><button type="button" class="btn primary" id="coordinator-start"><span class="label">Start a new session</span></button></div>
+        </div>
+      </section>
+      <section class="panel" id="panel" aria-label="Card details" tabindex="-1" hidden></section>
+    </div>
+    <section class="pane" id="pane" aria-label="Work views" tabindex="-1">
+      <div class="pane-head">
+        <button type="button" class="btn ghost pane-chat co-open" id="pane-chat" hidden><span class="label">Chat</span><i class="co-mark" aria-hidden="true"></i><span class="co-open-state"></span></button>
+        <div class="tabs" role="tablist" aria-label="Work views" id="tabs">
+          <button type="button" role="tab" class="tab" id="tab-agents" data-tab="agents" aria-controls="tp-board"><span class="label">Agents</span><span class="tab-badge" id="agents-badge" hidden></span></button>
+          <button type="button" role="tab" class="tab" id="tab-pipeline" data-tab="pipeline" aria-controls="tp-board"><span class="label">Pipeline</span></button>
+          <button type="button" role="tab" class="tab" id="tab-queue" data-tab="queue" aria-controls="queue"><span class="label">Queue</span></button>
+          <button type="button" role="tab" class="tab" id="tab-history" data-tab="history" aria-controls="history-pane"><span class="label">History</span></button>
+        </div>
+      </div>
+      <div class="tp-board" id="tp-board" role="tabpanel" aria-labelledby="tab-agents">
+        <section class="human" id="human" aria-labelledby="human-title" hidden></section>
+        <div class="board" id="columns" aria-busy="true"></div>
+      </div>
+      <section class="queue" id="queue" role="tabpanel" aria-labelledby="tab-queue" hidden></section>
+      <section class="history-pane" id="history-pane" role="tabpanel" aria-labelledby="tab-history" hidden></section>
+    </section>
+  </div>
+</main>
+<nav class="bar" id="bar" aria-label="Panes">
+  <button type="button" class="dock-item co-open" id="pb-chat"><span class="label">Chat</span><i class="co-mark" aria-hidden="true"></i></button>
+  <button type="button" class="dock-item" id="pb-agents"><span class="label">Agents</span><span class="dock-badge" id="now-badge" hidden></span></button>
+  <button type="button" class="dock-item" id="board-more" aria-label="More board actions" aria-haspopup="menu" aria-expanded="false" title="More board actions"><span class="label">More</span></button>
+</nav>
 <p class="sr-only" id="announce" aria-live="polite"></p>
 <div class="toast" id="toast" role="alert" hidden><span class="toast-icon" id="toast-icon"></span><span id="toast-text"></span><button type="button" class="toast-close" id="toast-close" aria-label="Close"></button></div>
 <div class="menu" id="menu" role="menu" popover></div>
@@ -95,8 +122,8 @@
     <div><dt><kbd>o</kbd></dt><dd>Open the issue</dd></div>
     <div><dt><kbd>c</kbd></dt><dd>Copy the command or the path of the card</dd></div>
     <div><dt><kbd>s</kbd></dt><dd>Set the card aside, or stop its session</dd></div>
-    <div><dt><kbd>v</kbd></dt><dd>Change between Now and Pipeline</dd></div>
-    <div><dt><kbd>d</kbd></dt><dd>Show or hide history</dd></div>
+    <div><dt><kbd>v</kbd></dt><dd>Change between the tabs Agents and Pipeline</dd></div>
+    <div><dt><kbd>d</kbd></dt><dd>Open or close the tab History</dd></div>
     <div><dt><kbd>r</kbd></dt><dd>Read the issues again</dd></div>
     <div><dt><kbd>?</kbd></dt><dd>Show this list</dd></div>
   </dl>
