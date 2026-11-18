@@ -2,14 +2,38 @@
 {
   "schema": 1,
   "name": "search-every-record-for-the-clause-that-a-new-record-replaces",
-  "description": "A new ADR listed the records that the plan named in its Supersedes section, and missed ADR-0083, whose Decision also stated the replaced root entry",
+  "description": "A new ADR took its Supersedes search from the plan alone and missed a record whose Decision held a clause that the change replaced (ADR-0083 in #283, ADR-0060 in #339)",
   "tags": [
-    "process"
+    "process",
+    "recurring"
   ],
   "date": "2026-11-10",
   "status": "active",
-  "source": "Final review of ddinkov10/celetis#283 (commit dce0477)",
+  "source": "The implement session of #339 on Claude Code, final whole-branch review, 2026-11-18\n\nFinal review of ddinkov10/celetis#283 (commit dce0477)",
   "incidents": [
+    {
+      "id": "1f075d3b-3cee-48e9-8ed3-1ab742981005",
+      "date": "2026-11-18",
+      "action": "Searched docs/adr only for the three literals that plan step 3 named, and wrote the Supersedes section of ADR-0111 with ADR-0040 only",
+      "expected": "Supersedes names every earlier decision clause that the change replaces, including the ADR-0060 clause \"The design review is the last task of the plan of a web or mobile UI change.\"",
+      "observed": "The final reviewer quoted docs/adr/0060 line 102 in Decision; the index row of 0060 did not list 0111 until fix commit 21518d2",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "[Important] ADR-0111's Supersedes omits a decision clause of ADR-0060 that it replaces. docs/adr/0060 line 102: \"The design review is the last task of the plan of a web or mobile UI change.\"",
+        "reference": "https://github.com/ddinkov10/celetis/issues/339"
+      },
+      "inference": "The literal list came from the plan, not from the diff; alternative: the active rule does not name the source of the literal list",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "edbf50c",
+      "brief": "Task 2 Lesson rules carried search-every-record-for-the-clause-that-a-new-record-replaces; step 3 searched three literals: inline — one task, one task, micro-plan",
+      "lesson": {
+        "name": "search-every-record-for-the-clause-that-a-new-record-replaces",
+        "revision": "21518d2",
+        "digest": "ffb9ae691e80c286095b8694c08547d716244418f4b06e90ede317f261dc4765"
+      }
+    },
     {
       "id": "0800d9ec-26c3-49ae-b1e1-2f42344a0dd0",
       "date": "2026-11-10",
@@ -28,7 +52,7 @@
       "revision": "dce0477"
     }
   ],
-  "recurrences": 0,
+  "recurrences": 1,
   "reviews": [
     {
       "id": "3f0c6a2e-8b14-4d7a-9e51-6c2d7b9a1f03",
@@ -43,6 +67,21 @@
         "state": "not-needed",
         "detail": "The rule stays text, as its Fix says: the classification of each match needs a reading."
       }
+    },
+    {
+      "id": "fba09d47-8372-4706-9a40-dd27c5b0060a",
+      "requestDigest": "bf2e3742644bcdb525c4cff560471d180f10e262d177dd520e3c9e9061921e19",
+      "date": "2026-11-18",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #339; claude child opus/high\n\nMerge under the reviewer rules: the proposal states the same rule as the active lesson search-every-record-for-the-clause-that-a-new-record-replaces, which its incident names as the examined lesson, and adds a new incident, so the survivor keeps both incidents. The incident is observed in the lane: at edbf50c the Supersedes section of ADR-0111 named only ADR-0040; docs/adr/0060 Decision, bullet \"The review refines and never redesigns\", says \"The design review is the last task of the plan of a web or mobile UI change.\"; the diff of plugins/celetis/skills/plan/SKILL.md puts the security-review task after the design review; commit 21518d2 added ADR-0060 to the Supersedes section and to the index row of ADR-0060. The proposal refines the action of the active rule, and does not contradict it: the literals come from the removed or changed lines of the diff, not from the plan or brief alone. The survivor rule takes that refinement, so no two incompatible rules stay active. The cause stays inference: the incident's diagnosis not-followed and its alternative, an incomplete rule, are both kept in the Root cause. The rule adds a search, widens no permission, weakens no check, and agrees with AGENTS.md \"Decision records\" and step 3 of \"Write\" of the skill record-architecture-decisions. The tag recurring is added because the rule now has two incidents.",
+      "related": [
+        "derive-replaced-literals-from-the-diff-not-only-the-plan",
+        "search-every-record-for-the-clause-that-a-new-record-replaces"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "A possible structural check, named in the Fix of the proposal: for a new record, print the records whose decision text holds a sentence that the diff of the same branch removed from an agent file. Not authorized or checked here."
+      }
     }
   ]
 }
@@ -53,17 +92,21 @@
 
 In #283, ADR-0091 replaced the root entry `<root>/celetis` with `engine/celetis`. Its `## Supersedes` section named ADR-0042 and ADR-0085, the records that the plan named. The final review found that ADR-0083, Decision, also states the entry `<root>/celetis`, and the index did not show 0091 against it.
 
+In #339 (2026-11-18), Task 2 wrote ADR-0111. Plan step 3 named three literals to search in `docs/adr/`: `inline — one task`, `one task`, and `micro-plan`. The session searched only these three, and `## Supersedes` named only ADR-0040 (commit edbf50c). The same change also edited the design-review paragraph of `plugins/celetis/skills/plan/SKILL.md`: the security-review task now comes after the design review. The final whole-branch review found that ADR-0060, "Decision", says "The design review is the last task of the plan of a web or mobile UI change.", and that ADR-0111 did not supersede it. Fix commit 21518d2 added the clause, and the index then listed ADR-0111 in the row of ADR-0060.
+
 ## Root cause
 
-Inferred: the record was written from the list of the plan, with no search of the record store for the literal of each replaced clause. The plan said "at least ADR-0085", which can read as a complete list. The evidence does not show which cause dominated.
+Inferred for #283: the record was written from the list of the plan, with no search of the record store for the literal of each replaced clause. The plan said "at least ADR-0085", which can read as a complete list. The evidence does not show which cause dominated.
+
+Inferred for #339: the task brief carried this rule, and the session took its literal list from the plan step, not from the diff. The plan listed the literals of the decision that its author saw, not of a second rule that the same change edits. Alternative: the rule did not say where the literal list comes from, so a list that a plan gives read as complete. The evidence does not separate the two.
 
 ## Fix
 
-Proposed: before the record is committed, search each record file for each literal that the decision replaces (an old path, an old name, an old value) and classify each match as replaced in part, context, or unchanged. A structural check is not proposed: whether a match is a clause or only evidence needs a reading of the record.
+Proposed: before the record is committed, derive the literals that the decision replaces from each line of agent text or of a document that the diff of the change removes or changes, add the literals that the plan names, search each record file for each literal, and classify each match as replaced in part, context, or unchanged. A structural check is not proposed: which words of a changed line are a decision literal, and whether a match is a clause or only evidence, need a reading. A possible check that prints, for a new record, the records whose decision text holds a sentence that the diff of the same branch removed from an agent file, is a separate follow-up and is not authorized here.
 
 ## Rule
 
-Applies when a new decision record replaces part of earlier decisions (a path, a name, a value, or a rule). Action: list each literal that the decision replaces, search every record file for each one, and add each record whose decision clause holds a match to `## Supersedes`; a match in evidence or context stays out, with its reason. Check: the search of each literal over the record store finds no decision clause that the new record neither supersedes nor names as unchanged.
+Applies when a new decision record replaces part of earlier decisions (a path, a name, a value, or a rule). Action: list each literal that the decision replaces, from each removed or changed line of the diff of the change (agent text and documents) and from the plan or brief, not from the plan or brief alone; search every record file for each one, and add each record whose decision clause holds a match to `## Supersedes`; a match in evidence or context stays out, with its reason. Check: for each line that the diff removes or changes, the search of its decision literals over the record store finds no decision clause that the new record neither supersedes nor names as unchanged.
 
 ## Related lessons
 

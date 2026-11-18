@@ -121,6 +121,11 @@ The documents:
   background browser, with `--isolated` and `--headless`. The server `playwright-window` is the
   window browser, with `--isolated` and no `--headless`. Each machine adds them as
   "Each machine: Claude Code" and "Each machine: Codex only" say.
+- For the security review of a change that touches a trust boundary: the optional skill
+  `security-audit`, which you install with
+  `npx skills add https://github.com/cloudflare/security-audit-skill --skill security-audit --global`.
+  The session checks for it and never installs it; with no skill, the review does not run and
+  the lane goes on (`references/procedures/security.md`, "The check").
 - For the research of a UI component, optional tools that you install: a code-search tool (for
   example the grep.app MCP server), a web fetch or scrape tool, and the background browser. The
   session uses each one that it has and records a limit for each missing one
@@ -523,10 +528,10 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | | [`/celetis:triage`](skills/triage/SKILL.md) | Picks the lane of an issue whose type is not known, and sets the lane label |
 | | [`/celetis:feature`](skills/feature/SKILL.md) | The lane for new behavior: the scope check that can make an epic, the worktree, and then `specify` |
 | | [`/celetis:bug`](skills/bug/SKILL.md) | The lane for existing behavior that is wrong: the root cause with `superpowers:systematic-debugging`, the `## Root cause` report, and then `plan` |
-| | [`/celetis:hotfix`](skills/hotfix/SKILL.md) | The lane for broken production: the root cause, a plan of one task, `implement`, and the ship checklist |
+| | [`/celetis:hotfix`](skills/hotfix/SKILL.md) | The lane for broken production: the root cause, a plan of one task, or two with its security review, `implement`, and the ship checklist |
 | | [`/celetis:chore`](skills/chore/SKILL.md) | The lane for a change with no change of behavior: the change, the verify gate, the commit, and the landing |
 | **Steps** | [`/celetis:specify`](skills/specify/SKILL.md) | The design step. It adds the project context, prior-art research, and bounded probes for critical design unknowns to `superpowers:brainstorming`, and the spec that you approve becomes the body of the issue |
-| | [`/celetis:plan`](skills/plan/SKILL.md) | The plan step. It adds the choice of the build flow, a capability score for each task, a design-review task for a web or mobile UI change, and a Verify phase to `superpowers:writing-plans`, and it posts the plan on the issue |
+| | [`/celetis:plan`](skills/plan/SKILL.md) | The plan step. It adds the choice of the build flow, a capability score for each task, a design-review task for a web or mobile UI change, a security-review task for a change that touches a trust boundary, and a Verify phase to `superpowers:writing-plans`, and it posts the plan on the issue |
 | | [`/celetis:implement`](skills/implement/SKILL.md) | The build step. It runs the plan with `superpowers:executing-plans` or `superpowers:subagent-driven-development`, as the `Execution:` line of the plan says, and adds the verify gate at the end of each task, the Verify phase, and the landing |
 | **Review and memory** | [`/celetis:critic-loop`](skills/critic-loop/SKILL.md) | Scores the current diff from 0 to 10 across five perspectives, and fixes and scores again until the diff passes |
 | | [`/celetis:polishing-code-comments`](skills/polishing-code-comments/SKILL.md) | A pass that removes and tightens the comments of a diff or a file |

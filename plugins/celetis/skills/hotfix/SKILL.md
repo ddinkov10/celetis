@@ -35,10 +35,11 @@ little time for the lane → the change does not ship tonight.
    `<plugin>/references/procedures/diagnosis.md`, "The diagnosis". Post the report, with
    its `## External facts` section, with `celetis --agent <host> issue <n> root-cause <report>`:
    it posts the report with `## Root cause` as its first line, so the report file has no heading.
-5. **Author a one-task micro-plan in `docs/superpowers/plans/<n>.md`** (gitignored scratch; the
-   fire's substitute for `plan`):
-   - The first line of the micro-plan is `Execution: inline — one task`. A micro-plan has no
-     `### Your steps` and no `Bias:` line, so this line is its header.
+5. **Author a micro-plan of one task, or two with its security review, in
+   `docs/superpowers/plans/<n>.md`** (gitignored scratch; the fire's substitute for `plan`):
+   - The first line of the micro-plan is `Execution: inline — one task` for one task. With Task 2,
+     it is `Execution: inline — ` and a reason of one sentence that names the fix and its security
+     review. A micro-plan has no `### Your steps` and no `Bias:` line, so this line is its header.
    - The task is the root-cause fix under `### Task 1: <title>`, with step 3's traps as its
      constraints. Both build flows of `implement` find a task by its `Task <N>` heading.
    - Carry matched lesson rules into that task per `<plugin>/references/procedures/task-lessons.md`,
@@ -57,7 +58,11 @@ little time for the lane → the change does not ship tonight.
      - `<plugin>/references/principles/separate-before-serializing-shared-state.md`
      - `<plugin>/references/principles/type-system-discipline.md`
      - `<plugin>/references/principles/test-behavior-not-implementation.md`
-   - Apply `<plugin>/references/procedures/capability-score.md`, "The rubric — six dimensions, each 0–2" and "Scorecard format — MANDATORY", to the task's digits and evidence reason. Emit its CAP line via `celetis --agent <host> capscore J V B N S X` — never hand-computed. It is a recommendation for the session, because `implement` builds a micro-plan inline.
+   - When `boundary-discipline` applies to Task 1, add `### Task 2: Security review`, the review
+     of `<plugin>/references/procedures/security.md`. The task text cites the module by its
+     absolute path and says: when `security-audit` is missing at build time, print the one line of
+     its "Missing", and complete the task with no change and no commit.
+   - Apply `<plugin>/references/procedures/capability-score.md`, "The rubric — six dimensions, each 0–2" and "Scorecard format — MANDATORY", to the digits and evidence reason of each task. Emit its CAP line via `celetis --agent <host> capscore J V B N S X` — never hand-computed. It is a recommendation for the session, because `implement` builds a micro-plan inline.
    - Verify phase: the red repro re-run post-fix, plus one error branch of any newly-enabled
      path (widened allow-list / enum / dispatch literal / flag). Read
      `<plugin>/references/procedures/runtime-verification.md` and apply "Planning" to its runtime
