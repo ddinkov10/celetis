@@ -28,6 +28,8 @@ const FILES: Record<string, [string, string]> = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/board.css': ['board.css', 'text/css; charset=utf-8'],
   '/board.js': ['board.js', 'text/javascript; charset=utf-8'],
+  '/prototype-board.css': ['prototype-board.css', 'text/css; charset=utf-8'],
+  '/prototype-board.js': ['prototype-board.js', 'text/javascript; charset=utf-8'],
   '/theme.js': ['theme.js', 'text/javascript; charset=utf-8'],
   '/fonts/geist.woff2': ['fonts/geist.woff2', 'font/woff2'],
   '/fonts/geist-mono.woff2': ['fonts/geist-mono.woff2', 'font/woff2'],
@@ -143,7 +145,8 @@ export const createBoard = ({
     const url = request.url ?? '/';
     const path = url.split('?')[0] as string;
     if (request.method === 'GET' && Object.hasOwn(FILES, path)) {
-      const [name, type] = FILES[path] as [string, string];
+      const isPrototype = path === '/' && new URLSearchParams(url.split('?')[1] ?? '').get('variant') === 'A';
+      const [name, type] = isPrototype ? ['prototype-index.html', 'text/html; charset=utf-8'] : (FILES[path] as [string, string]);
       return send(response, 200, type, await readFile(join(HERE, name)));
     }
     if (request.method === 'GET' && path === '/api/queue') return sendJson(response, 200, await queueReadView(main));

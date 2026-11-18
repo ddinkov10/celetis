@@ -18,7 +18,7 @@ const ring = (extra: Record<string, string> = {}): [string, Record<string, strin
   'circle',
   { cx: 8, cy: 8, r: 6, ...extra },
 ];
-const ICONS: Record<string, [string, Record<string, string | number>][]> = {
+export const ICONS: Record<string, [string, Record<string, string | number>][]> = {
   logo: [
     ['rect', { x: 1.5, y: 1.5, width: 5.5, height: 13, rx: 1.75, class: 'fill' }],
     ['rect', { x: 9, y: 1.5, width: 5.5, height: 8, rx: 1.75, class: 'fill' }],
