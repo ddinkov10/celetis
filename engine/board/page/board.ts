@@ -8,11 +8,9 @@ import type {
   Card,
   Column,
   Columns,
-  DaemonView,
   Flow,
   HistoryRow,
   MenuEntry,
-  MenuSection,
   PaletteItem,
   ParentEpic,
   RunRequest,
@@ -50,8 +48,9 @@ import {
   turnLine,
 } from '../view.ts';
 import { createAgentPicker, OrderConflict } from './agent-picker.ts';
+import { drawControl } from './control.ts';
 import { setupCoordinator } from './coordinator.ts';
-import { openMenu, openPalette, setupMenu, setupPalette } from './palette.ts';
+import { closeMenu, openMenu, openPalette, setupMenu, setupPalette } from './palette.ts';
 import { drawPanel } from './panel.ts';
 import { drawQueue, setQueueOpen, setupQueue } from './queue.ts';
 import {
@@ -92,11 +91,6 @@ import { isReconnecting, setupUpdates } from './update-dialog.ts';
 const COPY: Record<string, string> = { 'no-progress': 'command', 'set-aside': 'command', 'dirty-tree': 'path' };
 const STOPPING = 'The daemon ends the session. The card moves to Idle when the session has ended.';
 const ON_ISSUE = new Set(['blocked']);
-const AUTO: Record<DaemonView['auto'], { tone: string; title: string }> = {
-  on: { tone: 'ok', title: 'Auto mode starts each auto step.' },
-  off: { tone: 'off', title: 'Auto mode is off: auto steps wait.' },
-  stopping: { tone: 'off', title: 'Auto mode stops after its current work.' },
-};
 const STATUS_ICONS: Record<string, string> = {
   works: 'works',
   starts: 'works',
@@ -313,10 +307,10 @@ const agentOrderEntry = {
   icon: 'person',
   label: 'Change the agent order',
   key: '',
-  title: 'Open the agent order in the sidebar',
+  title: 'Open the agent order on Control',
   run: () => {
-    const trigger = $('agent-picker').querySelector<HTMLElement>('.ap-trigger');
-    if (trigger?.getAttribute('aria-expanded') !== 'true') trigger?.click();
+    setArea('control');
+    if (!picker.focus()) $('ctl-agents').focus();
   },
 };
 
@@ -1212,7 +1206,8 @@ const drawShell = () => {
     markCurrent(node, !isPhone && node.dataset.area === area);
   markCurrent($('pb-chat'), isPhone && isOps && pane === 'chat');
   markCurrent($('pb-agents'), isPhone && isOps && pane === 'agents');
-  markCurrent($('board-more'), isPhone && !isOps);
+  markCurrent($('pb-control'), isPhone && area === 'control');
+  markCurrent($('board-more'), isPhone && (area === 'home' || area === 'throughput'));
   for (const node of document.querySelectorAll<HTMLElement>('.tab')) {
     const isSelected = node.dataset.tab === tab;
     node.setAttribute('aria-selected', String(isSelected));
@@ -1228,7 +1223,7 @@ const drawShell = () => {
   if (isWide) moveTo($('panel'), ops, null);
   else moveTo($('panel'), $('center'), null);
   const intake = document.querySelector<HTMLElement>('.intake-control') as HTMLElement;
-  if (isPhone) moveTo(intake, $('bar'), $('board-more'));
+  if (isPhone) moveTo(intake, $('bar'), $('pb-control'));
   else moveTo(intake, $('side'), $('find'));
   const isDetails = isOps && details !== null && (!isPhone || pane === 'chat');
   const skipCenter = $('skip-center') as HTMLAnchorElement;
@@ -1238,6 +1233,10 @@ const drawShell = () => {
   $('skip-pane').hidden = !isOps || (isPhone && pane !== 'agents');
   if (isChat) coordinator.show();
   else coordinator.hide();
+  if (area !== 'control') {
+    updates.dismiss();
+    if ($('agent-picker').querySelector('.ap-handle[aria-expanded="true"]')) closeMenu();
+  }
   updateTail();
 };
 let hiddenFocus: Element | null = null;
@@ -1313,6 +1312,7 @@ const drawTheme = () => {
   const label = `Theme: ${THEME_WORDS[theme]}. Press to change`;
   $('theme').setAttribute('aria-label', label);
   $('theme').title = label;
+  $('theme-words').textContent = THEME_WORDS[theme];
 };
 const setTheme = (next: Theme) => {
   theme = next;
@@ -1407,11 +1407,6 @@ const drawHints = (card: HTMLElement | null) => {
   );
 };
 
-const daemonItem = (daemon: DaemonView): { text: string; tone: string; title: string } => {
-  const { tone, title } = AUTO[daemon.auto];
-  return { text: `auto ${daemon.auto}`, tone, title: `The daemon PID ${daemon.pid} runs. ${title}` };
-};
-
 const statusWords = (item: HTMLElement) =>
   `${item.querySelector('.sb-name')?.textContent}: ${item.querySelector('.sb-text')?.textContent}`;
 
@@ -1441,21 +1436,18 @@ const drawStatus = (source: Board['source'], isDown: boolean) => {
   terminalNode.title = terminal?.error ? `herdr: ${terminal.error}` : 'Run and Go use herdr';
   (terminalNode.querySelector('.sb-text') as HTMLElement).textContent =
     terminal?.ok === true ? 'up' : terminal?.ok === false ? 'down' : 'checking';
-  const more = $('board-more');
-  const moreName = [
-    'More board actions',
-    ...[fresh, terminalNode].filter((item) => item.dataset.tone === 'fail').map(statusWords),
-  ].join(', ');
-  more.setAttribute('aria-label', moreName);
-  more.title = moreName;
-  const daemon = $('daemon');
-  daemon.hidden = !data;
-  if (data) {
-    const item = daemonItem(data.daemon);
-    daemon.dataset.tone = item.tone;
-    daemon.title = item.title;
-    daemon.replaceChildren(el('i', 'dot'), el('span', 'sb-name', 'Daemon'), el('span', 'sb-text', item.text));
+  const failed = [fresh, terminalNode].filter((item) => item.dataset.tone === 'fail').map(statusWords);
+  const controlName = ['Control', ...failed].join(', ');
+  for (const node of [document.querySelector('.dest[data-area="control"]') as HTMLElement, $('pb-control')]) {
+    if (failed.length) {
+      node.setAttribute('aria-label', controlName);
+      node.title = controlName;
+    } else {
+      node.removeAttribute('aria-label');
+      node.removeAttribute('title');
+    }
   }
+  drawControl({ daemon: data?.daemon ?? null, isDown });
   if (data?.picker) picker.update(data.picker, data.registry);
   document.body.toggleAttribute('data-stale', isDown);
   coordinator.down(isDown);
@@ -2086,56 +2078,13 @@ const boardActions = (): MenuEntry[] => [
   keysEntry(),
 ];
 
-const statusEntry = (item: HTMLElement, iconName: string): MenuEntry => ({
-  label: statusWords(item),
-  icon: iconName,
-  title: item.title,
-  isInfo: true,
-  ...(item.dataset.tone === 'fail' ? { alert: 'caution' as const } : {}),
-  run: () => {},
-});
-
-const phoneMenu = (): (MenuEntry | MenuSection | 'rule')[] => {
-  const trigger = $('agent-picker').querySelector<HTMLElement>('.ap-trigger');
-  const update = $('update-open');
-  return [
-    ...AREAS.filter((area) => area !== 'operations').map((area) => ({
-      label: AREA_NAMES[area],
-      icon: AREA_ICONS[area],
-      key: '',
-      run: () => setArea(area),
-    })),
-    'rule' as const,
-    readEntry(),
-    notifyEntry(),
-    themeEntry(),
-    keysEntry(),
-    {
-      heading: 'Board status',
-      entries: [
-        statusEntry($('fresh'), 'board'),
-        statusEntry($('terminal'), 'terminal'),
-        ...($('agent-picker').hidden
-          ? []
-          : [
-              {
-                ...agentOrderEntry,
-                label: trigger?.getAttribute('aria-label') ?? agentOrderEntry.label,
-                title: trigger?.title ?? '',
-              },
-            ]),
-        {
-          label: `Celetis: ${update.querySelector('.label')?.textContent ?? ''}`,
-          icon: 'refresh',
-          title: update.title,
-          isDisabled: update.getAttribute('aria-disabled') === 'true',
-          ...(update.classList.contains('is-accent') ? { alert: 'beacon' as const } : {}),
-          run: () => update.click(),
-        },
-      ],
-    },
-  ];
-};
+const phoneMenu = (): MenuEntry[] =>
+  (['home', 'throughput'] as const).map((area) => ({
+    label: AREA_NAMES[area],
+    icon: AREA_ICONS[area],
+    key: '',
+    run: () => setArea(area),
+  }));
 
 const paletteItems = () => {
   if (!data) return [];
@@ -2293,8 +2242,17 @@ const paletteItems = () => {
 };
 
 async function toggleNotify() {
+  const button = $('notify');
+  if (button.getAttribute('aria-busy') === 'true') return;
   if (!('Notification' in window)) return toast('This browser has no notifications', { isError: true });
-  if (!isNotifyOn && Notification.permission === 'default') await Notification.requestPermission();
+  if (!isNotifyOn && Notification.permission === 'default') {
+    button.setAttribute('aria-busy', 'true');
+    try {
+      await Notification.requestPermission();
+    } finally {
+      button.removeAttribute('aria-busy');
+    }
+  }
   if (Notification.permission === 'denied') {
     isNotifyOn = false;
     toast('The browser blocks notifications for this page', {
@@ -2315,6 +2273,17 @@ async function toggleNotify() {
   store.set('notify', isNotifyOn ? 'on' : 'off');
   drawNotify();
 }
+
+const drawKeys = () => {
+  $('keys-on').checked = isKeysOn;
+  $('keys-switch').setAttribute('aria-pressed', String(isKeysOn));
+  $('keys-switch').textContent = isKeysOn ? 'On' : 'Off';
+};
+const setKeys = (isOn: boolean): void => {
+  isKeysOn = isOn;
+  store.set('keys', isOn ? 'on' : 'off');
+  drawKeys();
+};
 
 const KEYS: Record<string, () => void> = {
   j: () => move(0, 1),
@@ -2367,13 +2336,13 @@ const coordinator = setupCoordinator({
   notify: (title, open) => systemNotice(title, '', 'coordinator', open),
 });
 document.addEventListener('keydown', (event) => {
-  if (event.defaultPrevented || updates.contains(event.target) || $('agent-picker').contains(event.target as Node))
-    return;
+  if (event.defaultPrevented || updates.contains(event.target)) return;
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault();
     if (!$('palette').open) openPalette(paletteItems());
     return;
   }
+  if ($('agent-picker').contains(event.target as Node)) return;
   if (event.metaKey || event.ctrlKey || event.altKey || $('keys').open || $('palette').open || dialogOpen()) return;
   if ((event.target as Element).closest?.<HTMLElement>('input, textarea, select, [contenteditable]')) return;
   if (event.key === 'Escape' && $('menu').matches(':popover-open')) return;
@@ -2494,6 +2463,8 @@ for (const area of AREAS) {
 $('pb-chat').addEventListener('click', showChat);
 $('pb-agents').prepend(icon('board'));
 $('pb-agents').addEventListener('click', () => setPane('agents'));
+$('pb-control').prepend(icon('sliders'));
+$('pb-control').addEventListener('click', () => setArea('control'));
 $('pane-chat').addEventListener('click', coordinator.open);
 const tabList = TABS.map((tab) => $(`tab-${tab}`));
 for (const [at, tab] of TABS.entries()) tabList[at]?.addEventListener('click', () => setTab(tab));
@@ -2529,11 +2500,9 @@ $('keys-close').addEventListener('click', () => $('keys').close());
 $('keys').addEventListener('click', (event) => {
   if (event.target === $('keys')) $('keys').close();
 });
-$('keys-on').checked = isKeysOn;
-$('keys-on').addEventListener('change', () => {
-  isKeysOn = $('keys-on').checked;
-  store.set('keys', isKeysOn ? 'on' : 'off');
-});
+drawKeys();
+$('keys-on').addEventListener('change', () => setKeys($('keys-on').checked));
+$('keys-switch').addEventListener('click', () => setKeys(!isKeysOn));
 $('toast-close').append(icon('close'));
 setupToast();
 setupQueue({

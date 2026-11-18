@@ -27,18 +27,8 @@
     <li><button type="button" class="dest" data-area="control"><span class="label">Control</span></button></li>
     <li><button type="button" class="dest" data-area="throughput"><span class="label">Throughput</span></button></li>
   </ul>
-  <div class="side-foot" id="side-foot" role="group" aria-label="Board status">
+  <div class="side-foot" id="side-foot">
     <span class="hints" id="hints" aria-hidden="true"></span>
-    <div class="sf-row"><span class="sb-item" id="fresh"></span><button type="button" class="btn ghost" id="refresh" title="Read the issues again (r)"><span class="label">Refresh</span></button></div>
-    <span class="sb-item" id="terminal"><i class="dot"></i><span class="sb-name">herdr</span><span class="sb-text">checking</span></span>
-    <span class="sb-item" id="daemon" hidden></span>
-    <div class="agent-picker" id="agent-picker" hidden></div>
-    <button type="button" class="sb-btn update-open" id="update-open" aria-controls="update-dialog" aria-expanded="false" aria-label="Check for updates, Celetis" title="Check for updates, Celetis"><span class="label">Check for updates</span></button>
-    <div class="sf-row sf-tools">
-      <button type="button" class="sb-btn theme-cycle" id="theme" aria-label="Theme: System. Press to change" title="Theme: System. Press to change"><svg class="icon i-theme-system" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path class="fill" d="M8 2.5a5.5 5.5 0 0 1 0 11Z"/></svg><svg class="icon i-theme-light" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></svg><svg class="icon i-theme-dark" viewBox="0 0 16 16" aria-hidden="true"><path d="M13 9.6A5.5 5.5 0 1 1 6.4 3a4.4 4.4 0 0 0 6.6 6.6Z"/></svg></button>
-      <button type="button" class="sb-btn" id="notify" aria-pressed="false"></button>
-      <button type="button" class="sb-btn" id="keys-open" title="Keyboard shortcuts (?)"><span class="sb-name">Keys</span></button>
-    </div>
   </div>
 </nav>
 <main class="work" id="work" tabindex="-1" aria-label="Work area" data-area="operations">
@@ -47,7 +37,40 @@
     <p class="banner" id="stale" role="alert" hidden>The board read failed. The cards and history show the last good read.</p>
   </div>
   <section class="area-screen" id="area-home" aria-labelledby="area-home-title" hidden><div class="area-empty"><h2 id="area-home-title">Home is not built yet.</h2><p>Home will show what needs you, the agents now, and the trends of the work.</p></div></section>
-  <section class="area-screen" id="area-control" aria-labelledby="area-control-title" hidden><div class="area-empty"><h2 id="area-control-title">Control is not built yet.</h2><p>Control will hold the agent order, auto mode, updates, notifications, and the board status. Until then they are at the foot of the sidebar.</p></div></section>
+  <section class="area-screen" id="area-control" aria-labelledby="area-control-title" hidden>
+    <h2 id="area-control-title">Control</h2>
+    <section class="ctl-section" id="ctl-agents" tabindex="-1" aria-labelledby="ctl-agents-title">
+      <h3 id="ctl-agents-title">Agents</h3>
+      <p class="ctl-desc">New default work uses the first available agent. Drag a handle, or press it for the move actions.</p>
+      <div class="agent-picker" id="agent-picker"></div>
+    </section>
+    <section class="ctl-section" id="ctl-auto" aria-labelledby="ctl-auto-title">
+      <h3 id="ctl-auto-title">Automation</h3>
+      <p class="ctl-desc">Auto mode of the daemon starts each auto step by itself. The board shows its state only.</p>
+      <p class="ctl-auto-state" id="ctl-auto-state"></p>
+      <p class="ctl-auto-command" id="ctl-auto-command" hidden></p>
+    </section>
+    <section class="ctl-section" id="ctl-updates" aria-labelledby="ctl-updates-title">
+      <h3 id="ctl-updates-title">Updates</h3>
+      <p class="ctl-desc">The installed engine and plugins of Celetis. Update and restart needs your click, and the daemon restarts after it.</p>
+      <button type="button" class="sb-btn update-open" id="update-open" aria-controls="update-dialog" aria-expanded="false" aria-label="Check for updates, Celetis" title="Check for updates, Celetis"><span class="label">Check for updates</span></button>
+    </section>
+    <section class="ctl-section" id="ctl-prefs" aria-labelledby="ctl-prefs-title">
+      <h3 id="ctl-prefs-title">Notifications, keys, and theme</h3>
+      <p class="ctl-desc">Settings of this browser. A change takes effect at once.</p>
+      <div class="ctl-row"><div class="ctl-row-text"><span class="ctl-label" id="notify-label">Notify</span><p class="ctl-help" id="notify-help">A system notification shows when a card needs you and the board is not in front.</p></div><button type="button" class="sb-btn" id="notify" aria-pressed="false"></button></div>
+      <div class="ctl-row"><div class="ctl-row-text"><span class="ctl-label" id="keys-label">Single-key shortcuts</span><p class="ctl-help" id="keys-help">j k h l v d r / ?. The keys of a focused card always work.</p></div><button type="button" class="btn ghost" id="keys-switch" aria-pressed="true" aria-labelledby="keys-label" aria-describedby="keys-help">On</button><button type="button" class="sb-btn" id="keys-open" title="Keyboard shortcuts (?)"><span class="sb-name">Keys</span></button></div>
+      <div class="ctl-row"><div class="ctl-row-text"><span class="ctl-label" id="theme-label">Theme</span><p class="ctl-help" id="theme-help">System follows the setting of the device.</p></div><span class="theme-words" id="theme-words">System</span><button type="button" class="sb-btn theme-cycle" id="theme" aria-label="Theme: System. Press to change" title="Theme: System. Press to change"><svg class="icon i-theme-system" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path class="fill" d="M8 2.5a5.5 5.5 0 0 1 0 11Z"/></svg><svg class="icon i-theme-light" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></svg><svg class="icon i-theme-dark" viewBox="0 0 16 16" aria-hidden="true"><path d="M13 9.6A5.5 5.5 0 1 1 6.4 3a4.4 4.4 0 0 0 6.6 6.6Z"/></svg></button></div>
+    </section>
+    <section class="ctl-section" id="ctl-status" aria-labelledby="ctl-status-title">
+      <h3 id="ctl-status-title">Board status</h3>
+      <p class="ctl-desc">What the board reads, and the parts that Run and Go use.</p>
+      <span class="sb-item" id="fresh"></span>
+      <span class="sb-item" id="terminal"><i class="dot"></i><span class="sb-name">herdr</span><span class="sb-text">checking</span></span>
+      <span class="sb-item" id="daemon"></span>
+      <button type="button" class="btn ghost" id="refresh" title="Read the issues again (r)"><span class="label">Refresh</span></button>
+    </section>
+  </section>
   <section class="area-screen" id="area-throughput" aria-labelledby="area-throughput-title" hidden><div class="area-empty"><h2 id="area-throughput-title">Throughput is not built yet.</h2><p>Throughput will show how fast the issues move from intent to the trunk.</p></div></section>
   <div class="ops" id="area-operations" data-tab="agents" data-pane="chat">
     <div class="center" id="center">
@@ -99,6 +122,7 @@
 <nav class="bar" id="bar" aria-label="Panes">
   <button type="button" class="dock-item co-open" id="pb-chat"><span class="label">Chat</span><i class="co-mark" aria-hidden="true"></i></button>
   <button type="button" class="dock-item" id="pb-agents"><span class="label">Agents</span><span class="dock-badge" id="now-badge" hidden></span></button>
+  <button type="button" class="dock-item" id="pb-control"><span class="label">Control</span></button>
   <button type="button" class="dock-item" id="board-more" aria-label="More board actions" aria-haspopup="menu" aria-expanded="false" title="More board actions"><span class="label">More</span></button>
 </nav>
 <p class="sr-only" id="announce" aria-live="polite"></p>

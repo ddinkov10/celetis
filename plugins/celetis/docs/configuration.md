@@ -319,7 +319,7 @@ installed engine and builds a fixed argv with its command and no `--agent`. A Ru
 action with no agent choice gives the selection `{}` to the daemon, an explicit Run choice gives
 `{"explicit":"<agent>"}`, and Resume has no agent and uses the saved host. No board config file is
 made. The board start checks no replacement policy; the daemon run of each Run and Resume checks
-it. The board can remain open during a manual update. The agent order of the footer reads and replaces the local
+it. The board can remain open during a manual update. The agent order of the Control screen reads and replaces the local
 order through the `agents` command, with the version that it read; a stale version returns the
 current order and writes nothing. A board Run choice applies only to that start; Resume
 uses its saved host. See [the board document](https://github.com/ddinkov10/celetis/blob/main/engine/board/README.md#the-commands-of-the-board) for the refusal of each press.

@@ -793,13 +793,14 @@ var setupPalette = () => {
   });
 };
 var anchor = null;
+var anchorAlign = "end";
 var closed;
-var position = (menu, from) => {
+var position = (menu, from, align) => {
   menu.style.left = "12px";
   const box = from.getBoundingClientRect();
   const width = menu.offsetWidth;
   const height = menu.offsetHeight;
-  const left = Math.min(Math.max(12, box.right - width), innerWidth - width - 12);
+  const left = Math.min(Math.max(12, align === "start" ? box.left : box.right - width), innerWidth - width - 12);
   const below = box.bottom + 6 + height <= innerHeight - 12;
   menu.style.left = `${left}px`;
   menu.style.top = `${below ? box.bottom + 6 : Math.max(12, box.top - height - 6)}px`;
@@ -814,7 +815,7 @@ var agentMark = (host) => {
 };
 var menuRow = (entry) => {
   const menu = $("menu");
-  const node = el("button", `menu-row${entry.isInfo ? " menu-info" : ""}${entry.alert ? ` menu-${entry.alert}` : ""}`);
+  const node = el("button", "menu-row");
   node.type = "button";
   node.setAttribute("role", "menuitem");
   if (entry.id)
@@ -824,28 +825,16 @@ var menuRow = (entry) => {
   if (entry.tag)
     text.append(el("em", "menu-tag", entry.tag));
   node.append(entry.host ? agentMark(entry.host) : icon(entry.icon), text, entry.key ? el("kbd", "", entry.key) : el("span"));
-  if (entry.isDisabled || entry.isInfo)
+  if (entry.isDisabled)
     node.setAttribute("aria-disabled", "true");
   if (entry.title)
     node.title = entry.title;
   node.addEventListener("click", (event) => {
     event.stopPropagation();
-    if (entry.isInfo)
-      return;
     menu.hidePopover();
     entry.run();
   });
   return node;
-};
-var sections = 0;
-var menuSection = ({ heading, entries }) => {
-  const group = el("div");
-  const head = el("div", "menu-head", heading);
-  head.id = `menu-head-${sections++}`;
-  group.setAttribute("role", "group");
-  group.setAttribute("aria-labelledby", head.id);
-  group.append(head, ...entries.map(menuRow));
-  return group;
 };
 var openMenu = (from, entries, options) => {
   const menu = $("menu");
@@ -860,24 +849,21 @@ var openMenu = (from, entries, options) => {
   if (anchor !== from)
     anchor?.setAttribute("aria-expanded", "false");
   anchor = from;
+  anchorAlign = options.align ?? "end";
   closed = options.onClose;
   menu.setAttribute("aria-label", options.label);
-  menu.replaceChildren(...entries.map((entry) => {
-    if (entry === "rule")
-      return el("hr");
-    return "heading" in entry ? menuSection(entry) : menuRow(entry);
-  }));
+  menu.replaceChildren(...entries.map((entry) => entry === "rule" ? el("hr") : menuRow(entry)));
   if (isOpen)
     from.setAttribute("aria-expanded", "true");
   else
     menu.showPopover();
-  position(menu, from);
+  position(menu, from, anchorAlign);
   (kept && menu.querySelector(`.menu-row[data-id="${CSS.escape(kept)}"]`) || menu.querySelector(".menu-row"))?.focus();
 };
 var placeMenu = () => {
   const menu = $("menu");
   if (anchor && menu.matches(":popover-open"))
-    position(menu, anchor);
+    position(menu, anchor, anchorAlign);
 };
 var closeMenu = () => {
   const menu = $("menu");
@@ -921,8 +907,6 @@ class OrderConflict extends Error {
   }
 }
 var NS2 = "http://www.w3.org/2000/svg";
-var GAP = 8;
-var EDGE = 12;
 var svg = (className, viewBox, shapes) => {
   const node = document.createElementNS(NS2, "svg");
   node.setAttribute("class", className);
@@ -936,19 +920,6 @@ var svg = (className, viewBox, shapes) => {
   }
   return node;
 };
-var chevron = () => svg("ap-chev", "0 0 10 10", [
-  [
-    "path",
-    {
-      d: "M2 3.5 5 6.5 8 3.5",
-      fill: "none",
-      stroke: "currentColor",
-      "stroke-width": "1.4",
-      "stroke-linecap": "round",
-      "stroke-linejoin": "round"
-    }
-  ]
-]);
 var grip = () => svg("ap-grip", "0 0 10 14", [2.5, 7.5].flatMap((cx) => [2.5, 7, 11.5].map((cy) => [
   "circle",
   { cx: String(cx), cy: String(cy), r: "1.3", fill: "currentColor" }
@@ -975,8 +946,7 @@ function createAgentPicker(root, actions) {
   let confirmed = null;
   let saving = null;
   let notice = "";
-  let open = false;
-  let opener = null;
+  let ready = false;
   let menuFor = null;
   let drag = null;
   let suppressClick = false;
@@ -984,33 +954,15 @@ function createAgentPicker(root, actions) {
   let drawn = "";
   let polled = "";
   const retrying = new Set;
-  const trigger = el("button", "ap-trigger");
-  trigger.type = "button";
-  trigger.setAttribute("aria-haspopup", "dialog");
-  trigger.setAttribute("aria-expanded", "false");
-  trigger.setAttribute("aria-controls", "agent-order");
-  const stack = el("span", "ap-stack");
-  trigger.append(stack, chevron());
-  const pop = el("section", "ap-pop");
-  pop.id = "agent-order";
-  pop.setAttribute("role", "dialog");
-  pop.setAttribute("aria-labelledby", "agent-order-title");
-  pop.inert = true;
-  const head = el("header", "ap-head");
-  const title = el("h2", "", "Agent order");
-  title.id = "agent-order-title";
-  head.append(title, el("p", "", "New default work uses the first available agent. Drag a handle, or press it for move actions."));
   const list = el("ol", "ap-list");
   list.setAttribute("aria-label", "Agents in priority order");
   const marker = el("div", "ap-drop");
   marker.hidden = true;
   const message = el("p", "ap-notice");
   const waits = el("div", "ap-waits");
-  pop.append(head, list, marker, message, waits);
   const live = el("p", "sr-only");
   live.setAttribute("aria-live", "polite");
-  root.replaceChildren(trigger, pop, live);
-  root.hidden = true;
+  root.replaceChildren(el("p", "ap-notice", "The agent order is not read yet."), live);
   const announce = (text) => {
     live.textContent = "";
     setTimeout(() => {
@@ -1022,23 +974,12 @@ function createAgentPicker(root, actions) {
   const excluded = () => (registry ? Object.keys(registry) : []).filter((host) => !shown().includes(host));
   const handleOf = (host) => list.querySelector(`.ap-row[data-host="${host}"] .ap-handle`);
   const paused = () => Boolean(view && shown().every((host) => view?.usage[host]));
-  const placement = () => trigger.checkVisibility() ? trigger : $("board-more");
-  const returnTo = () => trigger.checkVisibility() ? trigger : opener?.isConnected && opener.checkVisibility() ? opener : $("board-more");
-  const place = () => {
-    if (!open)
-      return;
-    const box = placement().getBoundingClientRect();
-    pop.style.maxHeight = `${Math.max(0, Math.min(innerHeight - EDGE * 2, box.top - GAP - EDGE))}px`;
-    const left = Math.max(EDGE, Math.min(box.left, innerWidth - pop.offsetWidth - EDGE));
-    pop.style.left = `${left}px`;
-    pop.style.top = `${Math.max(EDGE, box.top - pop.offsetHeight - GAP)}px`;
+  const follow = () => {
     if (menuFor)
       placeMenu();
   };
-  const resize = new ResizeObserver(place);
-  resize.observe(pop);
-  if (root.parentElement)
-    resize.observe(root.parentElement);
+  addEventListener("resize", follow);
+  addEventListener("scroll", follow, true);
   const detail = (host) => {
     if (!shown().includes(host))
       return "Excluded from default work";
@@ -1090,8 +1031,6 @@ function createAgentPicker(root, actions) {
     const active = document.activeElement;
     if (!(active instanceof HTMLElement) || !root.contains(active))
       return null;
-    if (active === trigger)
-      return "trigger";
     const host = active.closest(".ap-row")?.dataset.host;
     if (host)
       return `handle:${host}`;
@@ -1102,24 +1041,22 @@ function createAgentPicker(root, actions) {
   const restore = (key) => {
     if (!key)
       return;
-    const target = key === "trigger" ? trigger : key.startsWith("handle:") ? handleOf(key.slice(7)) : waits.querySelector(`[data-wait="${CSS.escape(key.slice(5))}"]`);
-    (target ?? (open ? list.querySelector(".ap-handle") : trigger))?.focus({ preventScroll: true });
+    const target = key.startsWith("handle:") ? handleOf(key.slice(7)) : waits.querySelector(`[data-wait="${CSS.escape(key.slice(5))}"]`);
+    (target ?? list.querySelector(".ap-handle"))?.focus({ preventScroll: true });
   };
   const draw = (force = false) => {
     if (!view || !confirmed || drag)
       return;
-    const signature = JSON.stringify([view, confirmed, saving, notice, open, [...retrying]]);
+    const signature = JSON.stringify([view, confirmed, saving, notice, [...retrying]]);
     if (!force && signature === drawn)
       return;
     drawn = signature;
     const focus = focusKey();
-    root.hidden = false;
+    if (!ready) {
+      ready = true;
+      root.replaceChildren(list, marker, message, waits, live);
+    }
     const order = shown();
-    stack.replaceChildren(...order.map(agentIcon));
-    const using = view.activeHosts.length ? ` In use: ${view.activeHosts.map((host) => nameOf(host)).join(", ")}.` : "";
-    trigger.setAttribute("aria-label", `Agent order: ${order.map((host) => nameOf(host)).join(", then ")}.${using}${paused() ? " Default work is paused." : ""}`);
-    trigger.title = `Agent order: ${order.map((host) => nameOf(host)).join(" › ")}`;
-    trigger.dataset.state = paused() ? "paused" : "ready";
     list.replaceChildren(...order.map((host, at) => row(host, at + 1)), ...excluded().map((host) => row(host, null)));
     list.setAttribute("aria-busy", String(Boolean(saving)));
     const status = notice || (saving ? "Saving the agent order." : view.error ? `The agent state is unavailable: ${view.error}` : paused() && !view.waits.length ? "New default work waits: every included agent reached a usage limit." : "");
@@ -1127,13 +1064,12 @@ function createAgentPicker(root, actions) {
     message.hidden = !status;
     if (!saving && !notice && status !== polled) {
       polled = status;
-      if (status && open)
+      if (status)
         announce(status);
     }
     waits.replaceChildren(...view.waits.map(waitLine));
     if (menuFor)
       showMenu(menuFor, "keep");
-    place();
     restore(focus);
   };
   const commit = async (next, success) => {
@@ -1227,6 +1163,7 @@ function createAgentPicker(root, actions) {
     openMenu(handle, entries(host), {
       label: `${nameOf(host)} actions`,
       focus,
+      align: "start",
       onClose: () => {
         menuFor = null;
       }
@@ -1236,23 +1173,6 @@ function createAgentPicker(root, actions) {
   const hideMenu = () => {
     if (menuFor)
       closeMenu();
-  };
-  const setOpen = (value, refocus = true) => {
-    open = value;
-    pop.classList.toggle("ap-open", open);
-    pop.inert = !open;
-    trigger.setAttribute("aria-expanded", String(open));
-    if (!open) {
-      cancelDrag();
-      hideMenu();
-      if (refocus)
-        returnTo().focus();
-      return;
-    }
-    const focused = document.activeElement;
-    opener = focused instanceof HTMLElement && focused !== document.body && !pop.contains(focused) ? focused : null;
-    draw(true);
-    list.querySelector(".ap-handle")?.focus();
   };
   const cancelDrag = () => {
     if (!drag)
@@ -1267,7 +1187,6 @@ function createAgentPicker(root, actions) {
     if (handle?.hasPointerCapture(pointer))
       handle.releasePointerCapture(pointer);
   };
-  trigger.addEventListener("click", () => setOpen(!open));
   list.addEventListener("click", (event) => {
     const handle = event.target.closest(".ap-handle");
     const pressed = event.detail === 0 ? null : pressedWith;
@@ -1344,7 +1263,7 @@ function createAgentPicker(root, actions) {
       return;
     }
     const near = rows[Math.min(slot, rows.length - 1)];
-    marker.style.top = `${list.offsetTop - list.scrollTop + (slot < rows.length ? near.offsetTop - 2 : near.offsetTop + near.offsetHeight)}px`;
+    marker.style.top = `${list.offsetTop + (slot < rows.length ? near.offsetTop - 2 : near.offsetTop + near.offsetHeight)}px`;
     marker.hidden = false;
     drag.to = slot > from ? slot - 1 : slot;
   });
@@ -1390,27 +1309,17 @@ function createAgentPicker(root, actions) {
     }
   });
   const onKey = (event) => {
-    if (event.key !== "Escape" || !open)
+    if (event.key !== "Escape" || !(drag || menuFor))
       return;
     event.preventDefault();
     event.stopPropagation();
     if (drag) {
       cancelDrag();
       draw(true);
-    } else if (menuFor)
+    } else
       hideMenu();
-    else
-      setOpen(false);
-  };
-  const onOutside = (event) => {
-    const target = event.target;
-    if (open && !root.contains(target) && !(menuFor && $("menu").contains(target)))
-      setOpen(false, false);
   };
   root.addEventListener("keydown", onKey);
-  document.addEventListener("pointerdown", onOutside);
-  addEventListener("resize", place);
-  addEventListener("scroll", place, true);
   return {
     update(next, served) {
       registry = served;
@@ -1430,16 +1339,61 @@ function createAgentPicker(root, actions) {
       confirmed = next.order;
       draw();
     },
+    focus() {
+      const handle = list.querySelector(".ap-handle");
+      handle?.focus();
+      return Boolean(handle);
+    },
     destroy() {
       cancelDrag();
-      resize.disconnect();
       root.removeEventListener("keydown", onKey);
-      document.removeEventListener("pointerdown", onOutside);
-      removeEventListener("resize", place);
-      removeEventListener("scroll", place, true);
+      removeEventListener("resize", follow);
+      removeEventListener("scroll", follow, true);
       root.replaceChildren();
     }
   };
+}
+
+// engine/board/page/control.ts
+var AUTO = {
+  on: { tone: "ok", title: "Auto mode starts each auto step." },
+  off: { tone: "off", title: "Auto mode is off: auto steps wait." },
+  stopping: { tone: "off", title: "Auto mode stops after its current work." }
+};
+var WORDS = {
+  on: "Auto mode is on.",
+  off: "Auto mode is off.",
+  stopping: "Auto mode is stopping."
+};
+var daemonItem = (daemon) => {
+  const { tone, title } = AUTO[daemon.auto];
+  return { text: `auto ${daemon.auto}`, tone, title: `The daemon PID ${daemon.pid} runs. ${title}` };
+};
+var write = (node, text, code = null) => {
+  if (node.textContent === text + (code ?? ""))
+    return;
+  node.replaceChildren(...text ? [text] : [], ...code ? [el("code", "", code)] : []);
+};
+function drawControl({ daemon, isDown }) {
+  const auto = isDown ? null : daemon?.auto ?? null;
+  if (isDown)
+    write($("ctl-auto-state"), "No daemon answers. Start it in a terminal: ", "celetis daemon start");
+  else
+    write($("ctl-auto-state"), auto ? WORDS[auto] : "The daemon state is not read yet.");
+  const command = $("ctl-auto-command");
+  command.hidden = auto === null;
+  if (auto)
+    write(command, "Change it in a terminal: ", `celetis daemon auto ${auto === "on" ? "off" : "on"}`);
+  else
+    write(command, "");
+  const item = isDown ? { text: "not running", tone: "fail", title: "The board server does not answer." } : daemon ? daemonItem(daemon) : { text: "checking", tone: "wait", title: "" };
+  const row = $("daemon");
+  if (row.dataset.tone !== item.tone)
+    row.dataset.tone = item.tone;
+  if (row.title !== item.title)
+    row.title = item.title;
+  if (row.textContent !== `Daemon${item.text}`)
+    row.replaceChildren(el("i", "dot"), el("span", "sb-name", "Daemon"), el("span", "sb-text", item.text));
 }
 
 // engine/board/page/chat.ts
@@ -2134,7 +2088,7 @@ var LIMIT = 4096;
 var RECONNECT = "The board reconnects after an update, so the press did nothing. Press again after the reconnect.";
 var OPEN_BOUND = 30000;
 var FOLD_BOUND = 5000;
-var WORDS = {
+var WORDS2 = {
   none: "no session",
   starting: "starts",
   dialog: "waits for your answer",
@@ -2247,7 +2201,7 @@ function setupCoordinator(hooks) {
     if (state === "starting")
       return "The session starts: send after its first status";
     if (!can("say"))
-      return `The session ${WORDS[state]}`;
+      return `The session ${WORDS2[state]}`;
     if (field.value.length > LIMIT)
       return `A message takes at most ${LIMIT} characters`;
     if (field.value.trim() === "")
@@ -2287,11 +2241,11 @@ function setupCoordinator(hooks) {
       control.dataset.state = header;
       control.toggleAttribute("data-stale", cause !== null);
       control.toggleAttribute("data-new", unseen);
-      control.setAttribute("aria-label", `Chat, coordinator ${WORDS[header]}${unseen ? ", new text" : ""}${cause ? ", not current" : ""}`);
+      control.setAttribute("aria-label", `Chat, coordinator ${WORDS2[header]}${unseen ? ", new text" : ""}${cause ? ", not current" : ""}`);
       control.title = cause ? `${cause}. The state is from ${timeOf(view.readAt)}, not current.` : "Show the chat with the coordinator";
       const words = control.querySelector(".co-open-state");
       if (words)
-        setText(words, WORDS[header]);
+        setText(words, WORDS2[header]);
     }
     aside.dataset.state = state;
     const banner = $("coordinator-banner");
@@ -2310,7 +2264,7 @@ function setupCoordinator(hooks) {
     const age = state === "ended" || state === "none" ? null : view.since;
     if (pillKey !== `${state}|${age}`) {
       pillKey = `${state}|${age}`;
-      pill.replaceChildren(el("span", "", WORDS[state]), ...age ? [timed(age, state === "starting" || state === "works" || state === "dialog")] : []);
+      pill.replaceChildren(el("span", "", WORDS2[state]), ...age ? [timed(age, state === "starting" || state === "works" || state === "dialog")] : []);
     }
     const dialog = state === "dialog" ? { lines, keys: can("key") ? view.keys : [] } : null;
     if (chat.draw(entries, dialog, state))
@@ -2386,7 +2340,7 @@ function setupCoordinator(hooks) {
       hooks.notify("The coordinator waits for your answer", open);
     if (state === "turn-ended")
       hooks.notify("The coordinator ended its turn", open);
-    return state === "ended" ? "The coordinator session ended" : `Coordinator: ${WORDS[state]}`;
+    return state === "ended" ? "The coordinator session ended" : `Coordinator: ${WORDS2[state]}`;
   };
   const schedule = (from) => {
     clearTimeout(timer);
@@ -2513,7 +2467,7 @@ function setupCoordinator(hooks) {
     opening = Date.now();
     resetChat();
     known = "starting";
-    announce(`Coordinator: ${WORDS.starting}`);
+    announce(`Coordinator: ${WORDS2.starting}`);
     hooks.reveal();
     draw();
     (field.checkVisibility() ? field : start).focus({ preventScroll: true });
@@ -3147,11 +3101,6 @@ var applyTheme = (theme) => {
 var COPY = { "no-progress": "command", "set-aside": "command", "dirty-tree": "path" };
 var STOPPING = "The daemon ends the session. The card moves to Idle when the session has ended.";
 var ON_ISSUE = new Set(["blocked"]);
-var AUTO = {
-  on: { tone: "ok", title: "Auto mode starts each auto step." },
-  off: { tone: "off", title: "Auto mode is off: auto steps wait." },
-  stopping: { tone: "off", title: "Auto mode stops after its current work." }
-};
 var STATUS_ICONS = {
   works: "works",
   starts: "works",
@@ -3349,11 +3298,11 @@ var agentOrderEntry = {
   icon: "person",
   label: "Change the agent order",
   key: "",
-  title: "Open the agent order in the sidebar",
+  title: "Open the agent order on Control",
   run: () => {
-    const trigger = $("agent-picker").querySelector(".ap-trigger");
-    if (trigger?.getAttribute("aria-expanded") !== "true")
-      trigger?.click();
+    setArea("control");
+    if (!picker.focus())
+      $("ctl-agents").focus();
   }
 };
 var namedHost = (card) => {
@@ -4149,7 +4098,8 @@ var drawShell = () => {
     markCurrent(node, !isPhone && node.dataset.area === area);
   markCurrent($("pb-chat"), isPhone && isOps && pane === "chat");
   markCurrent($("pb-agents"), isPhone && isOps && pane === "agents");
-  markCurrent($("board-more"), isPhone && !isOps);
+  markCurrent($("pb-control"), isPhone && area === "control");
+  markCurrent($("board-more"), isPhone && (area === "home" || area === "throughput"));
   for (const node of document.querySelectorAll(".tab")) {
     const isSelected = node.dataset.tab === tab;
     node.setAttribute("aria-selected", String(isSelected));
@@ -4169,7 +4119,7 @@ var drawShell = () => {
     moveTo($("panel"), $("center"), null);
   const intake = document.querySelector(".intake-control");
   if (isPhone)
-    moveTo(intake, $("bar"), $("board-more"));
+    moveTo(intake, $("bar"), $("pb-control"));
   else
     moveTo(intake, $("side"), $("find"));
   const isDetails = isOps && details !== null && (!isPhone || pane === "chat");
@@ -4182,6 +4132,11 @@ var drawShell = () => {
     coordinator.show();
   else
     coordinator.hide();
+  if (area !== "control") {
+    updates.dismiss();
+    if ($("agent-picker").querySelector('.ap-handle[aria-expanded="true"]'))
+      closeMenu();
+  }
   updateTail();
 };
 var hiddenFocus = null;
@@ -4251,6 +4206,7 @@ var drawTheme = () => {
   const label = `Theme: ${THEME_WORDS[theme]}. Press to change`;
   $("theme").setAttribute("aria-label", label);
   $("theme").title = label;
+  $("theme-words").textContent = THEME_WORDS[theme];
 };
 var setTheme = (next) => {
   theme = next;
@@ -4332,10 +4288,6 @@ var drawHints = (card) => {
     return node;
   }));
 };
-var daemonItem = (daemon) => {
-  const { tone, title } = AUTO[daemon.auto];
-  return { text: `auto ${daemon.auto}`, tone, title: `The daemon PID ${daemon.pid} runs. ${title}` };
-};
 var statusWords = (item) => `${item.querySelector(".sb-name")?.textContent}: ${item.querySelector(".sb-text")?.textContent}`;
 var drawStatus = (source, isDown) => {
   const changed = isServerDown !== isDown;
@@ -4362,21 +4314,18 @@ var drawStatus = (source, isDown) => {
   terminalNode.dataset.tone = terminal?.ok === true ? "ok" : terminal?.ok === false ? "fail" : "wait";
   terminalNode.title = terminal?.error ? `herdr: ${terminal.error}` : "Run and Go use herdr";
   terminalNode.querySelector(".sb-text").textContent = terminal?.ok === true ? "up" : terminal?.ok === false ? "down" : "checking";
-  const more = $("board-more");
-  const moreName = [
-    "More board actions",
-    ...[fresh, terminalNode].filter((item) => item.dataset.tone === "fail").map(statusWords)
-  ].join(", ");
-  more.setAttribute("aria-label", moreName);
-  more.title = moreName;
-  const daemon = $("daemon");
-  daemon.hidden = !data;
-  if (data) {
-    const item = daemonItem(data.daemon);
-    daemon.dataset.tone = item.tone;
-    daemon.title = item.title;
-    daemon.replaceChildren(el("i", "dot"), el("span", "sb-name", "Daemon"), el("span", "sb-text", item.text));
+  const failed = [fresh, terminalNode].filter((item) => item.dataset.tone === "fail").map(statusWords);
+  const controlName = ["Control", ...failed].join(", ");
+  for (const node of [document.querySelector('.dest[data-area="control"]'), $("pb-control")]) {
+    if (failed.length) {
+      node.setAttribute("aria-label", controlName);
+      node.title = controlName;
+    } else {
+      node.removeAttribute("aria-label");
+      node.removeAttribute("title");
+    }
   }
+  drawControl({ daemon: data?.daemon ?? null, isDown });
   if (data?.picker)
     picker.update(data.picker, data.registry);
   document.body.toggleAttribute("data-stale", isDown);
@@ -4930,53 +4879,12 @@ var boardActions = () => [
   themeEntry(),
   keysEntry()
 ];
-var statusEntry = (item, iconName) => ({
-  label: statusWords(item),
-  icon: iconName,
-  title: item.title,
-  isInfo: true,
-  ...item.dataset.tone === "fail" ? { alert: "caution" } : {},
-  run: () => {}
-});
-var phoneMenu = () => {
-  const trigger = $("agent-picker").querySelector(".ap-trigger");
-  const update = $("update-open");
-  return [
-    ...AREAS.filter((area) => area !== "operations").map((area) => ({
-      label: AREA_NAMES[area],
-      icon: AREA_ICONS[area],
-      key: "",
-      run: () => setArea(area)
-    })),
-    "rule",
-    readEntry(),
-    notifyEntry(),
-    themeEntry(),
-    keysEntry(),
-    {
-      heading: "Board status",
-      entries: [
-        statusEntry($("fresh"), "board"),
-        statusEntry($("terminal"), "terminal"),
-        ...$("agent-picker").hidden ? [] : [
-          {
-            ...agentOrderEntry,
-            label: trigger?.getAttribute("aria-label") ?? agentOrderEntry.label,
-            title: trigger?.title ?? ""
-          }
-        ],
-        {
-          label: `Celetis: ${update.querySelector(".label")?.textContent ?? ""}`,
-          icon: "refresh",
-          title: update.title,
-          isDisabled: update.getAttribute("aria-disabled") === "true",
-          ...update.classList.contains("is-accent") ? { alert: "beacon" } : {},
-          run: () => update.click()
-        }
-      ]
-    }
-  ];
-};
+var phoneMenu = () => ["home", "throughput"].map((area) => ({
+  label: AREA_NAMES[area],
+  icon: AREA_ICONS[area],
+  key: "",
+  run: () => setArea(area)
+}));
 var paletteItems = () => {
   if (!data)
     return [];
@@ -5128,10 +5036,19 @@ var paletteItems = () => {
   return [...goTo, ...items];
 };
 async function toggleNotify() {
+  const button = $("notify");
+  if (button.getAttribute("aria-busy") === "true")
+    return;
   if (!("Notification" in window))
     return toast("This browser has no notifications", { isError: true });
-  if (!isNotifyOn && Notification.permission === "default")
-    await Notification.requestPermission();
+  if (!isNotifyOn && Notification.permission === "default") {
+    button.setAttribute("aria-busy", "true");
+    try {
+      await Notification.requestPermission();
+    } finally {
+      button.removeAttribute("aria-busy");
+    }
+  }
   if (Notification.permission === "denied") {
     isNotifyOn = false;
     toast("The browser blocks notifications for this page", {
@@ -5152,6 +5069,16 @@ async function toggleNotify() {
   store.set("notify", isNotifyOn ? "on" : "off");
   drawNotify();
 }
+var drawKeys = () => {
+  $("keys-on").checked = isKeysOn;
+  $("keys-switch").setAttribute("aria-pressed", String(isKeysOn));
+  $("keys-switch").textContent = isKeysOn ? "On" : "Off";
+};
+var setKeys = (isOn) => {
+  isKeysOn = isOn;
+  store.set("keys", isOn ? "on" : "off");
+  drawKeys();
+};
 var KEYS2 = {
   j: () => move(0, 1),
   k: () => move(0, -1),
@@ -5203,7 +5130,7 @@ var coordinator = setupCoordinator({
   notify: (title, open) => systemNotice(title, "", "coordinator", open)
 });
 document.addEventListener("keydown", (event) => {
-  if (event.defaultPrevented || updates.contains(event.target) || $("agent-picker").contains(event.target))
+  if (event.defaultPrevented || updates.contains(event.target))
     return;
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();
@@ -5211,6 +5138,8 @@ document.addEventListener("keydown", (event) => {
       openPalette(paletteItems());
     return;
   }
+  if ($("agent-picker").contains(event.target))
+    return;
   if (event.metaKey || event.ctrlKey || event.altKey || $("keys").open || $("palette").open || dialogOpen())
     return;
   if (event.target.closest?.("input, textarea, select, [contenteditable]"))
@@ -5343,6 +5272,8 @@ for (const area of AREAS) {
 $("pb-chat").addEventListener("click", showChat);
 $("pb-agents").prepend(icon("board"));
 $("pb-agents").addEventListener("click", () => setPane("agents"));
+$("pb-control").prepend(icon("sliders"));
+$("pb-control").addEventListener("click", () => setArea("control"));
 $("pane-chat").addEventListener("click", coordinator.open);
 var tabList = TABS.map((tab) => $(`tab-${tab}`));
 for (const [at, tab] of TABS.entries())
@@ -5380,11 +5311,9 @@ $("keys").addEventListener("click", (event) => {
   if (event.target === $("keys"))
     $("keys").close();
 });
-$("keys-on").checked = isKeysOn;
-$("keys-on").addEventListener("change", () => {
-  isKeysOn = $("keys-on").checked;
-  store.set("keys", isKeysOn ? "on" : "off");
-});
+drawKeys();
+$("keys-on").addEventListener("change", () => setKeys($("keys-on").checked));
+$("keys-switch").addEventListener("click", () => setKeys(!isKeysOn));
 $("toast-close").append(icon("close"));
 setupToast();
 setupQueue({

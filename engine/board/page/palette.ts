@@ -1,5 +1,5 @@
 import type { Host } from '../../lib/config-core.ts';
-import type { MenuEntry, MenuSection, PaletteItem } from '../types.ts';
+import type { MenuEntry, PaletteItem } from '../types.ts';
 import { filterItems } from '../view.ts';
 import { $, AGENT_ICONS, el, icon } from './ui.ts';
 
@@ -114,14 +114,15 @@ export const setupPalette = () => {
 };
 
 let anchor: HTMLElement | null = null;
+let anchorAlign: 'start' | 'end' = 'end';
 let closed: (() => void) | undefined;
 
-const position = (menu: HTMLElement, from: HTMLElement) => {
+const position = (menu: HTMLElement, from: HTMLElement, align: 'start' | 'end') => {
   menu.style.left = '12px';
   const box = from.getBoundingClientRect();
   const width = menu.offsetWidth;
   const height = menu.offsetHeight;
-  const left = Math.min(Math.max(12, box.right - width), innerWidth - width - 12);
+  const left = Math.min(Math.max(12, align === 'start' ? box.left : box.right - width), innerWidth - width - 12);
   const below = box.bottom + 6 + height <= innerHeight - 12;
   menu.style.left = `${left}px`;
   menu.style.top = `${below ? box.bottom + 6 : Math.max(12, box.top - height - 6)}px`;
@@ -138,7 +139,7 @@ const agentMark = (host: Host) => {
 
 const menuRow = (entry: MenuEntry) => {
   const menu = $('menu');
-  const node = el('button', `menu-row${entry.isInfo ? ' menu-info' : ''}${entry.alert ? ` menu-${entry.alert}` : ''}`);
+  const node = el('button', 'menu-row');
   node.type = 'button';
   node.setAttribute('role', 'menuitem');
   if (entry.id) node.dataset.id = entry.id;
@@ -150,32 +151,20 @@ const menuRow = (entry: MenuEntry) => {
     text,
     entry.key ? el('kbd', '', entry.key) : el('span'),
   );
-  if (entry.isDisabled || entry.isInfo) node.setAttribute('aria-disabled', 'true');
+  if (entry.isDisabled) node.setAttribute('aria-disabled', 'true');
   if (entry.title) node.title = entry.title;
   node.addEventListener('click', (event) => {
     event.stopPropagation();
-    if (entry.isInfo) return;
     menu.hidePopover();
     entry.run();
   });
   return node;
 };
 
-let sections = 0;
-const menuSection = ({ heading, entries }: MenuSection) => {
-  const group = el('div');
-  const head = el('div', 'menu-head', heading);
-  head.id = `menu-head-${sections++}`;
-  group.setAttribute('role', 'group');
-  group.setAttribute('aria-labelledby', head.id);
-  group.append(head, ...entries.map(menuRow));
-  return group;
-};
-
 export const openMenu = (
   from: HTMLElement,
-  entries: (MenuEntry | MenuSection | 'rule')[],
-  options: { label: string; focus?: 'first' | 'keep'; onClose?: () => void },
+  entries: (MenuEntry | 'rule')[],
+  options: { label: string; focus?: 'first' | 'keep'; align?: 'start' | 'end'; onClose?: () => void },
 ) => {
   const menu = $('menu');
   const isOpen = menu.matches(':popover-open');
@@ -189,17 +178,13 @@ export const openMenu = (
   }
   if (anchor !== from) anchor?.setAttribute('aria-expanded', 'false');
   anchor = from;
+  anchorAlign = options.align ?? 'end';
   closed = options.onClose;
   menu.setAttribute('aria-label', options.label);
-  menu.replaceChildren(
-    ...entries.map((entry) => {
-      if (entry === 'rule') return el('hr');
-      return 'heading' in entry ? menuSection(entry) : menuRow(entry);
-    }),
-  );
+  menu.replaceChildren(...entries.map((entry) => (entry === 'rule' ? el('hr') : menuRow(entry))));
   if (isOpen) from.setAttribute('aria-expanded', 'true');
   else menu.showPopover();
-  position(menu, from);
+  position(menu, from, anchorAlign);
   (
     (kept && menu.querySelector<HTMLElement>(`.menu-row[data-id="${CSS.escape(kept)}"]`)) ||
     menu.querySelector<HTMLElement>('.menu-row')
@@ -208,7 +193,7 @@ export const openMenu = (
 
 export const placeMenu = () => {
   const menu = $('menu');
-  if (anchor && menu.matches(':popover-open')) position(menu, anchor);
+  if (anchor && menu.matches(':popover-open')) position(menu, anchor, anchorAlign);
 };
 
 export const closeMenu = () => {

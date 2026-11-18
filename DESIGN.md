@@ -209,8 +209,7 @@ redefines every color token. It loads nothing from the network and carries its o
 - Hairline borders and translucent fills instead of heavy shadows.
 - Geist for words and Geist Mono for numbers, paths, and identifiers.
 - Small, dense, keyboard-first controls with a visible focus ring.
-- Motion only for state: the beacon pulse, the working flow, and card moves. The one motion that
-  is not a state is the fan of the agent order icons on hover and focus. All of it stops for
+- Motion only for state: the beacon pulse, the working flow, and card moves. All of it stops for
   reduced motion.
 
 ## Colors
@@ -246,7 +245,7 @@ decoration.
 
 - **Tower Night** (`tower-night`): the page background. Light theme: **Tower Day** (`tower-day`).
 - **Console Grey** (`console-grey`): columns, the details panel, and sticky group labels.
-- **Card Slate** (`card-slate`): cards, the search palette, menus, the agent order list, toasts,
+- **Card Slate** (`card-slate`): cards, the search palette, menus, the sections of Control, toasts,
   and the active view tab.
   `card-slate-hover` is its hover step.
 - **Veil** (`veil`, `veil-strong`): translucent fills for ghost buttons, tags, the search field, and
@@ -264,7 +263,7 @@ ready or passed, red failed, amber is a dirty tree. Never use a signal color for
 emphasis. The selected Codex and Claude Code icons are the only vendor-color exception: retain
 their original colors and proportions at 18×18 px in both themes. Codex keeps its white background;
 Claude Code keeps its transparency. Add no tile background, border, or shadow. The one exception
-is the agent order, where each icon sits on an 18px disc with a ring of the pill color. The icons
+is the agent order, where each icon sits on an 18px disc. The icons
 identify the agent only; state indicators and card treatments keep their existing meanings.
 
 **The Ink Action Rule.** The primary button is filled with Ink, not with a signal color. A filled
@@ -315,16 +314,17 @@ the Agents list keeps a line for the cards below the fold.
 - **Sidebar:** 232px wide from 1100px, with a right hairline on the page background. From the top:
   the logo and the folder name; New intake and Search as 32px rows, apart from the destinations by
   a hairline; the four destinations Home, Operations, Control, and Throughput as 34px rows, each an
-  icon and a label; and, pushed to the foot, the control group of the board status (the key hints,
-  the tracker read with Refresh, `herdr`, the daemon, the agent order, the update control, and the
-  theme, Notify, and Keys buttons). When the window is short, the destinations scroll in their own
+  icon and a label; and, pushed to the foot, the key hints. The controls of the board are on the
+  Control screen. The Control row carries the mark of the controls: an 8px dot at the right end of
+  its row, Caution Amber while the tracker read or `herdr` failed, else Beacon Orange while the
+  update control shows **Update available** or **Restart needed**. When the window is short, the
+  destinations scroll in their own
   box down to Home and Operations, so the foot keeps its place; below that height the sidebar
   scrolls inside itself.
 - **Rail:** from 720px to 1099px the sidebar is an 88px icon rail. Each item is an icon above an
   11px label, 50px high, and the badge of Operations sits at the top right of its icon. The foot
-  keeps its dots and drops the state words. A foot control that needs the maintainer keeps a
-  visible mark: the update control (**Update available**, **Restart needed**) takes an 8px Beacon
-  Orange dot, and a failed tracker read or `herdr` keeps its Caution Amber dot.
+  does not show. The mark of the Control item keeps its 8px dot, at the top right of its icon,
+  in the same colors.
 - **Phone:** below 720px the sidebar is a slim top bar of 56px that stays in view (the logo, the
   folder name, and a 44px Search) with no box for the destinations and the foot, and the bottom
   bar of 70px shows ("Bottom bar"). The rail and the sidebar never show with the bottom bar.
@@ -342,8 +342,21 @@ the Agents list keeps a line for the cards below the fold.
 - **Details:** the details of a card open in the center in place of the chat. On Pipeline they
   open at the right of the stage columns, at the pane width; the columns keep scrolling in their
   box.
-- **Placeholder screens:** Home, Control, and Throughput show a centred 600 title and one 12.5px
-  Ink Faint line in a Console Grey region with a hairline and a 16px radius.
+- **Control screen:** a Console Grey region with a hairline and a 16px radius that scrolls in its
+  own box (20px padding, 12px on a phone). It holds one centred column, at most 720px wide, with
+  14px between its parts: the title `Control` (600, Ink), then five sections in this order: `Agents`,
+  `Automation`, `Updates`, `Notifications, keys, and theme`, and `Board status`. A section is a
+  Card Slate card with a 1px hairline, a 12px radius, Raise, and 20px padding (16px on a phone). It
+  has a 14px 600 Ink heading and a 12.5px Ink Faint description 8px below it. A settings row has
+  its label (13px at 500, Ink) with a 12px Ink Faint help line at the start and its control at
+  the end; below 720px the control wraps under the label. Rows are apart by a hairline. The
+  switch `Single-key shortcuts` is a button with the words `On` or `Off`, in the look of the
+  Segmented control: Card Slate with Raise and Ink text while pressed, a Veil fill and Ink Muted
+  text otherwise. The status rows of `Board status` (the tracker read, `herdr`, and the daemon) are
+  full-width rows of a dot and words with no ellipsis, above Refresh. The section `Agents` shows the
+  agent order as an inline list (see "Agent order").
+- **Placeholder screens:** Home and Throughput show a centred 600 title and one 12.5px Ink Faint
+  line in a Console Grey region with a hairline and a 16px radius.
 - **Rhythm:** gaps of 6, 8, 10, and 14px. Cards stack with a 10px gap; parts inside a card with 8px.
 
 Responsive steps:
@@ -482,16 +495,17 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
   rail each item is an icon above an 11px label, 50px high, with the badge at the top right of the
   icon. The focus ring of a destination sits inside its row, because the destinations can scroll.
 - **Bottom bar:** below 720px only, a 70px bar fixed to the bottom edge, with a top hairline and the
-  page background, and no hide on scroll. It has four items of 56px: Chat, Agents, New intake in
-  the center (a little wider), and More. Each item is an 18px icon above an 11px label. The
-  current Chat or Agents, and More while its menu is open or while the current area is not
-  Operations, has a Veil Strong pill behind its icon and Ink text; the other items are Ink Faint.
+  page background, and no hide on scroll. It has five items of 56px: Chat, Agents, New intake in
+  the center (a little wider), Control, and More. Each item is an 18px icon above an 11px label.
+  The current Chat, Agents, or Control, and More while its menu is open or while the current area
+  is Home or Throughput, has a Veil Strong pill behind its icon and Ink text; the other items are
+  Ink Faint.
   New intake is the only item with a Veil Strong fill and a strong hairline; while it is
   unavailable it loses the fill, and its reason shows as a small Card Slate label above the bar.
   Chat carries the coordinator mark (a 7px mark at the top right of its icon, in the shape and
-  color of the Chat button) and Agents carries the badge. More holds Home, Control, and Throughput,
-  then the `Board status` rows. The bar sits below the panels and above the page, and a toast sits
-  above it.
+  color of the Chat button), Agents carries the badge, and Control carries the mark of the
+  controls (an 8px dot at the top right of its icon). More holds Home and Throughput. The bar sits
+  below the panels and above the page, and a toast sits above it.
 - **Badge:** a Beacon Orange pill with Ink On text, 18px high, 18px wide at least, with 5px of
   side padding and a 600 11px tabular count. The badge of Operations counts the full `need you`
   count (issue work, human sessions, and the coordinator dialog); the badge of Agents, on its tab
@@ -505,38 +519,29 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
   Veil with a 9px radius and 2px padding. A segment is 26px high (44px on a phone) with a 7px
   radius and 12.5px Ink Muted text; the pressed segment is Card Slate with Raise and Ink text and
   has `aria-pressed="true"`. A disabled segment is dimmed and keeps `aria-disabled="true"`.
-- **Foot of the sidebar:** the control group of the board status, 12px Ink Faint text, below a top
-  hairline, in rows of 26px: the tracker read with Refresh, `herdr`, the daemon, the agent order,
-  the update control, then the theme, Notify, and Keys buttons. The key hints sit above the rows
-  from 1100px. Below 720px it does not show: its items are rows of More (see Menu), and the page
-  keeps the banner of a failed read above the board.
+- **Foot of the sidebar:** the key hints, 12px Ink Faint text, below a top hairline, from 1100px.
+  The controls of the board are on the Control screen. Below 720px the foot does not show, and the
+  page keeps the banner of a failed read above the board.
 - **Menu rows:** the run menu shows the icon of each agent in place of the run icon, and the agent
   that the card details name has a `Default` tag after its label: Ink Muted on Veil Strong, 11px,
   outside the label that can be cut. Level rows keep the run icon, and the current level the check.
   Each agent icon is 16px.
 - **Menu:** on a phone it keeps 12px from each screen edge, wraps its labels, has rows of 44px or
   more, and shows no key hints. A coarse pointer shows no key hints at any width.
-- **Menu, board status:** the More menu of a phone ends with a section headed `Board status` (12px
-  Ink Faint, the heading of its group). Its rows give the tracker read, `herdr`, the agent order,
-  and the update control, each with its name and state words. A row that only informs (the tracker
-  and `herdr`) keeps full Ink Muted text, shows no hover fill, and does nothing when pressed. A
-  failed row is Caution Amber; the update row is Beacon Orange while it needs you. More shows an
-  8px dot on its icon in the same color (Caution Amber over Beacon Orange) while a row needs you.
-- **Theme control:** a 26px icon-only foot button before Notify, Ink Faint, Ink on hover,
-  with the 14px icon of the current choice: a half-filled circle for System, a sun for Light, and a
-  moon for Dark. On a phone it is the More row `Theme: <Choice>`.
-- **Update control:** a 26px foot button whose label names the update
-  state. Only **Update available** and **Restart needed**, the states that need you, take the
-  accent: Beacon Orange text on a 10% Beacon Tint fill (13% on hover). Each other state is Ink
-  Faint, as the other foot buttons. On a phone it is the last row of `Board status`, as
-  `Celetis: <label>`.
-- **Agent order:** the foot pill is a capsule 24px high with `0 8px`
-  padding, a Veil fill, a 1px strong hairline, and Veil Strong on hover and while open. On a phone
-  it is the row `Agent order` of `Board status`, and its list opens above the bottom bar. It stacks
-  18px icon discs with a ring of the pill color; hover and keyboard focus fan the icons out. The
-  list is Card Slate with Float and a 12px radius, and its rows show 18px discs. An excluded row
-  keeps full opacity: a grayscale icon, the name in Ink Muted, and a 12px Ink Faint detail. The
-  `First` badge is a Veil Strong fill with Ink Muted text, not a color.
+- **Theme control:** a 24px icon-only button at the end of the row `Theme` of Control, after the
+  words of the current choice (`System`, `Light`, or `Dark`, 12.5px Ink Muted). It is Ink Faint,
+  Ink on hover, with the 14px icon of the current choice: a half-filled circle for System, a sun
+  for Light, and a moon for Dark. On a phone it is 44px square.
+- **Update control:** a 24px button in the section `Updates` of Control (44px high on a phone)
+  whose label names the update state. Only **Update available** and **Restart needed**, the states
+  that need you, take the accent: Beacon Orange text on a 10% Beacon Tint fill (13% on hover).
+  Each other state is Ink Faint, as the other buttons of Control.
+- **Agent order:** the inline list of the section `Agents` of Control, with no trigger and no
+  layer. A row is 40px high (48px on a phone) with an 8px radius: the 24px handle (44px on a
+  phone), the rank, an 18px icon disc, the name with a 12px Ink Faint detail, and the badge. A
+  row has a Veil fill on hover. An excluded row keeps full opacity: a grayscale icon, the name in
+  Ink Muted, and the detail. The `First` badge is a Veil Strong fill with Ink Muted text, not a
+  color.
 
 - **Chat button:** a ghost button Chat with the message icon, a 7px state mark, and the state words
   in Ink Muted. It sits at the left of the pane tabs while Pipeline is wide, and it is the item Chat
@@ -603,9 +608,9 @@ against the card in both themes, and the track keeps its `Step n of m` name.
 
 ### Update dialog
 
-The update dialog is a short card: a nonmodal layer that sits above the foot of the chat while the
-chat shows, and else at the right of the update control in the foot of the sidebar (above the bottom
-bar on a phone), with Float, Card Slate, a 1px hairline border, a 12px radius, 18px 18px 16px padding, and a width of
+The update dialog is a short card: a nonmodal layer that sits 8px below the update control in the
+section `Updates` of Control, with its left edge at the control, and above the control when the
+space below is too small (above the bottom bar on a phone), with Float, Card Slate, a 1px hairline border, a 12px radius, 18px 18px 16px padding, and a width of
 272px (at most the viewport less 24px). It says only what happens and the action: no revision
 list and no note.
 
@@ -633,8 +638,7 @@ rises in over 0.24s. It names the failed press above the server line.
 - **Do** define every new color for both themes: the dark base and the light variant.
 - **Do** use the existing ease `cubic-bezier(0.2, 0.8, 0.2, 1)` for entrances and 0.15s for color
   and border transitions.
-- **Do** stop all animation and transition under `prefers-reduced-motion: reduce`. The fan of the
-  agent order, the one motion that is not a state, then moves with no transition.
+- **Do** stop all animation and transition under `prefers-reduced-motion: reduce`.
 - **Do** check every change at desktop width and at 375×812 in Chromium.
 
 ### Don't:

@@ -126,7 +126,7 @@ starts the daemon in the main checkout from each checkout of the repository, and
 `node_modules/.bin` item from the `PATH` of the daemon, so the board starts `git`, `gh`, `hc`, or
 `herdr-app` with no such item.
 
-**Open work during updates.** The foot of the sidebar keeps one update control after the agent order.
+**Open work during updates.** The section `Updates` of Control keeps one update control.
 **Check for updates** starts discovery in one press. **Checking…** retains focus and ignores
 another press. **Up to date** reports that the installed engine and registered plugins match
 the configured target of each part; it does not mean that an open agent session has reloaded new code.
@@ -141,7 +141,7 @@ reads. A direct board decision approves one exact offer for one attempt. The bro
 the offer ID; the controller keeps its complete identity. A stale offer, conflict, or failure needs
 a new check and decision. The native update locks and validation also apply to this path.
 
-The nonmodal update dialog sits at the bottom right and keeps the board usable. It shows a title,
+The nonmodal update dialog keeps the board usable. It shows a title,
 one line, and its actions. The control and the polite status region carry each state; no change
 of state opens the dialog. Only a press of the control opens it, and an open dialog stays open
 across changes of state until Escape, **Later**, **Close**, or **Hide progress**. At **Up to date**
@@ -276,8 +276,8 @@ active selected read. That full read takes priority over the next selected batch
 consumes the targets pending at its start; later hints remain pending, including the same issue.
 A failed full read restores its consumed targets; a failed selected read waits for another cause.
 Before the first good document, targets cause only full reads. A read has a limit of 60 seconds.
-The stop of the board also stops a read that runs. In each case, the `gh` process of that read ends. When a read fails, the cards and history of the last good read stay, and the tracker read of the foot of the sidebar (on a phone, its row of
-`Board status`) shows `cannot read:` with one line:
+The stop of the board also stops a read that runs. In each case, the `gh` process of that read ends. When a read fails, the cards and history of the last good read stay, and the tracker read of the section `Board status` of Control shows
+`cannot read:` with one line:
 
 | Cause | Line |
 |---|---|
@@ -746,11 +746,11 @@ external input.
 Add supplies the default order (`selection` `{}`) or one host (`{explicit: <host>}`). Other actions send `{}`, and the daemon uses the saved choice. Retry with null step resolves
 terminal work without authorizing a session. No batch Start or Reset command remains.
 
-**The agent order.** The footer shows the local agent order (`picker.order`) and edits it
+**The agent order.** The section `Agents` of Control shows the local agent order (`picker.order`) and edits it
 ("The layout, the keys, and the errors"). New default work uses the first included agent with no
 confirmed usage block. The `CELETIS_AGENT` of the daemon selects no host for the board reads and
 does not pin a default start. The command palette entry `Change the agent order`
-opens the list.
+opens Control with the focus on the first handle of the list.
 
 To use another available agent for one independent Run, use the card's agent choices. An independent
 Run without a choice sends no agent, and the daemon run selects from the effective order of each step:
@@ -1232,18 +1232,30 @@ loads nothing from the network.
   sidebar, the work area, and, in the work area of Operations, the chat and the right pane. The
   sidebar is a `nav` named `Board`. It holds the logo and the folder name; New intake and Search,
   above the destinations and apart from them; the four destinations Home, Operations, Control, and
-  Throughput, each a button with an icon and a one-word label; and at its foot the group
-  `Board status`: the tracker read with Refresh, `herdr`, `Daemon`, the agent order, the Celetis
-  update control, the theme control, Notify, and Keys. When the window is too short for all of
-  them, the destinations scroll in their own box down to Home and Operations, so the foot keeps
-  its place; below that height the sidebar scrolls. Exactly one destination is current, and it
-  has `aria-current="page"`. A press on a destination shows its area and sends nothing. The work
-  area is `main`, named `Work area`, with one container for each area: `area-home`,
-  `area-operations`, `area-control`, and `area-throughput`. Home, Control, and Throughput show a
-  title and one line that say that the area is not built yet and what it will hold. The page has no
-  header row and no status bar. The title of the browser tab is
+  Throughput, each a button with an icon and a one-word label; and at its foot the key hints.
+  When the window is too short for all of them, the destinations scroll in their own box down to
+  Home and Operations, so the foot keeps its place; below that height the sidebar scrolls. Exactly
+  one destination is current, and it has `aria-current="page"`. A press on a destination shows its
+  area and sends nothing. The work area is `main`, named `Work area`, with one container for each
+  area: `area-home`, `area-operations`, `area-control`, and `area-throughput`. Home and Throughput
+  show a title and one line that say that the area is not built yet and what it will hold. The
+  page has no header row and no status bar. The title of the browser tab is
   `(<n>) <folder> · Agent board` while `<n>` cards or sessions need you, and the tab icon has an orange dot
   then; it has a blue dot while an agent of an issue works and nothing needs you.
+- Control holds each control of the product. Its title is `Control`, and it has five sections in
+  this order, each with a heading, one line that says what the section does, and its body:
+  `Agents` (the agent order), `Automation` (the state of auto mode and the command that changes
+  it), `Updates` (the Celetis update control), `Notifications, keys, and theme` (the rows
+  `Notify`, `Single-key shortcuts`, and `Theme`, each with a label, a help line, and its control
+  at the end), and `Board status` (the tracker read, `herdr`, `Daemon`, and Refresh). Automation
+  only reads: `Auto mode is on.`, `Auto mode is off.`, or `Auto mode is stopping.`, then
+  `Change it in a terminal: celetis daemon auto off` (or `auto on`). While the board server
+  does not answer, it says `No daemon answers. Start it in a terminal: celetis daemon start`, and
+  before the first data `The daemon state is not read yet.`. A poll with the same state changes
+  no text. The Control item of the sidebar (and of the bottom bar) carries the mark of the
+  controls: a dot while an item needs you, Caution Amber when the tracker read or `herdr` failed,
+  otherwise Beacon Orange for **Update available** or **Restart needed**. Its name is
+  `Control, <name>: <words>` for each failed item; while none failed, its name is its label.
 - Three skip links come first: `Skip to the sidebar`, `Skip to the chat`, and
   `Skip to the work views` (the right pane). Outside Operations the second reads
   `Skip to the work area` and goes to the area, and the third does not show. While the details
@@ -1253,11 +1265,12 @@ loads nothing from the network.
   pane that does not show is hidden.
 - Below 720 px the sidebar is a slim top bar with the logo, the folder name, and Search, and the
   bottom bar follows the work area: a `nav` named `Panes`, fixed to the bottom edge, with Chat,
-  Agents, New intake, and More, each with an icon and its label. One pane of Operations shows at a
-  time: Chat (the chat or the details) or Agents (the tabs of the right pane). A load shows Chat.
-  Chat or Agents is current while its pane shows, also with the details open in Chat; in Home,
-  Control, and Throughput, More is current. Chat carries the coordinator mark, and Agents carries a
-  badge with the `need you` count, which hides at 0. The items of `Board status` are rows of More.
+  Agents, New intake, Control, and More, each with an icon and its label. One pane of Operations
+  shows at a time: Chat (the chat or the details) or Agents (the tabs of the right pane). A load
+  shows Chat. Chat or Agents is current while its pane shows, also with the details open in Chat;
+  Control is current in Control, and More is current in Home and Throughput. More holds the rows
+  `Home` and `Throughput`. Chat carries the coordinator mark, Agents carries a badge with the
+  `need you` count, which hides at 0, and Control carries the mark of the controls.
   The bottom bar does not hide on scroll. The details and the chat keep the top bar and the bottom
   bar visible.
 - New intake is a ghost button (a Veil fill, a hairline, and Ink text), not an Ink-filled one.
@@ -1266,7 +1279,7 @@ loads nothing from the network.
   redraw, and the page announces `<tracker> read again` (`Issues read again` before the first good
   read) at each good Refresh, also twice in a row. A failed Refresh keeps the toast `Refresh failed`.
 - New intake sits in the sidebar before Search in each area. Below 720 px it is an item of the
-  bottom bar, between Agents and More, and keeps its label there; a resize across 720 px moves it
+  bottom bar, between Agents and Control, and keeps its label there; a resize across 720 px moves it
   and keeps its focus. The folder name cuts with an ellipsis at the width of the sidebar, the
   rail, or the top bar, and its title holds the full name. During a request New intake reads `Opening…`, announces progress,
   and rejects further activation without moving keyboard focus. A known unavailable host shows
@@ -1279,19 +1292,18 @@ loads nothing from the network.
   launch outcome is unknown, and tells the person to check Human sessions or herdr before a new
   press of New intake. No launch retries automatically. The button becomes available for deliberate recovery, and
   completion never takes focus back from another control.
-- The foot of the sidebar holds the agent order after the item `Daemon`. Its pill stacks the icons of the
-  included agents in priority order with a chevron; hover or focus spreads them. A press opens the
-  list upward, inside the viewport. Each row has a drag handle, its rank, the icon, the name, a
+- The section `Agents` of Control holds the agent order as a list that is always open. It has no
+  pill and no list that opens, and a press outside changes nothing. Before the first read, the
+  section shows `The agent order is not read yet.` and no list. Each row has a drag handle, its rank, the icon, the name, a
   detail line, and `First` on the first included agent. The detail line shows `In use` for an agent
   of a live session, `Limit reached · resets <time>` or `reset unknown` with the reason, `Available`,
   or `Excluded from default work`. A drag shows the row under the pointer and an insertion line. A
-  press of a handle without a drag opens its menu: Move first, Move up, Move down, Move to bottom,
+  press of a handle without a drag opens its menu below the handle, with its left edge at the handle,
+  or above it when the space below is too small: Move first, Move up, Move down, Move to bottom,
   and Exclude from default work or Include in default work. The last included agent cannot be
   excluded; inclusion puts the agent last. On a handle, Up and Down move the focus, Alt+Up and
-  Alt+Down move the agent, and Enter or Space opens the menu. Escape closes the menu, then the list,
-  and returns the focus to the handle or the pill. A press outside closes the list. Below 720 px
-  width the pill has no box: the row `Agent order` of More opens the same list above the bottom
-  bar, and the focus returns to More.
+  Alt+Down move the agent, and Enter or Space opens the menu. Escape cancels a drag, else closes
+  the menu and returns the focus to the handle. A change to another area closes an open menu.
 - Each change is one replacement with the version that the list read, and the list shows the new
   order at once. During a save, the list takes no other change. A failed save restores the
   confirmed order and shows the cause. A stale change shows the current order and asks for the
@@ -1299,22 +1311,20 @@ loads nothing from the network.
   on the handle of the same agent. While a run waits because every included agent is limited,
   the list names the issue, the cause, and its next reset or `No reset time is known`, with
   `Retry #<n>` for each waiting issue. When every included agent is limited and no run waits,
-  the list says that new default work waits. A long agent list or wait list scrolls inside the picker, which
-  stays above its pill (above More on a phone) and within the viewport. Changes and Retry results
+  the list says that new default work waits. A long agent list or wait list makes the screen of Control longer, and the
+  screen scrolls. Changes and Retry results
   go to a polite live region. Below 720 px width, the handles, the menu items, and Retry are at
   least 44 px high, and the handles are 44 px wide.
-- The foot of the sidebar keeps the Celetis update control after the agent order, also while its
-  nonmodal dialog is open. Below 720 px the foot does not show, and the control is the last row of
-  More under `Board status`, as `Celetis: <label>`; a press closes the menu and opens the same
-  dialog above the bottom bar, and the focus returns to More. The same button shows **Check for
+- The section `Updates` of Control keeps the Celetis update control at each width, also while its
+  nonmodal dialog is open. A change to another area closes the dialog. The same button shows **Check for
   updates**, **Checking…**, **Up to date**, **Update available**, **Restart needed**, **Update
   check failed**, **Update in progress**, **Restarting…**, **Update completed**, **Update needs
   attention**, or **Restart needs attention**. It uses the accent look only for **Update
   available** and **Restart needed**, the two states that need an action. Its accessible name and
   tooltip are `<label>, Celetis` in each state. Each state change goes to the polite status
-  region, also when the label stays. While the chat shows, the dialog sits above the foot of the
-  chat, so it does not cover the message field. While the chat is hidden, it sits at the right of
-  the update control in the foot of the sidebar, and on a phone above the bottom bar. Checks
+  region, also when the label stays. From 720 px width the dialog sits below the update control,
+  and above it when the space below is too small. Below 720 px it sits at the right, above the bottom
+  bar. Checks
   keep the cards and other controls usable. The dialog opens only on a press of the control, which
   moves the focus to its title; a change of state moves no focus, and the polite status region
   gives the state. Escape closes the open dialog also
@@ -1592,44 +1602,39 @@ loads nothing from the network.
 - A card that changed since you last looked at the board has a dot, until you point at it or focus
   it. The board takes the cards as seen when its window loses the focus. A closed group row shows
   the dot while one of its hidden cards has it.
-- The foot of the sidebar shows when the board last read the data, with the name of the tracker
-  (`Issues` before the first good read), whether herdr-core answers (the item `herdr`), and the state
-  of the master daemon (the item `Daemon`, hidden until the first data and below 720 px). Below
-  720 px the foot does not show. Its items are rows of More under the heading `Board status`: the
-  tracker (`<tracker>: read <age> ago`, or `<tracker>: cannot read: <line>` in Caution Amber), `herdr`,
-  `Agent order` (only while the agent order shows), and the update control. The tracker row and the
-  `herdr` row only inform: a press does nothing and the menu stays open. More builds its rows at
-  each open from the words of the status items, and an open menu keeps its words. More shows a
-  dot while an item needs you: Caution Amber when the read or `herdr` failed, otherwise Beacon
-  Orange for **Update available** or **Restart needed**. The name of More ends with
-  `, <name>: <words>` for each failed item. The banner of a failed read still shows above the
-  board. The board menu on a phone has the rows `Home`, `Control`, and `Throughput`, a rule, the
-  read again row, the Notify switch, the theme row `Theme: <Choice>`, and the keyboard shortcuts,
-  then `Board status`. It has no row for the queue or History, because the tabs of the Agents pane
-  hold them, and no row for Coordinator, because the Chat button of the bottom bar shows it. Search
-  has, at each width, `Go to Home`, `Go to Operations`, `Go to Control`, and `Go to Throughput`; the
-  queue, History, and theme commands; and `Start the coordinator session` while no session lives.
-  It has no command to show or hide the coordinator, because the chat always shows in Operations. The foot of the sidebar shows the keys of the focused
-  card (from 1100 px; the rail hides them), the tracker read with Refresh, `herdr`, the item
-  `Daemon`, the agent order, the update control, the theme control, the Notify switch, and the
-  list of keys. Below 720 px the foot has no box, and its controls are rows of the More menu. The
-  item `Daemon` shows `daemon` of each placement ("The data"):
+- The section `Board status` of Control shows when the board last read the data, with the name of
+  the tracker (`Issues` before the first good read; `<tracker>: cannot read: <line>` in Caution
+  Amber), whether herdr-core answers (the item `herdr`), the state of the master daemon (the item
+  `Daemon`), and Refresh, at each width. The banner of a failed read still shows above the board.
+  The board menu More on a phone has the rows `Home` and `Throughput`. It has no row for the queue
+  or History, because the tabs of the Agents pane hold them, no row for Coordinator, because the
+  Chat button of the bottom bar shows it, and no row for Control, because the bottom bar has its
+  item. Search has, at each width, `Go to Home`, `Go to Operations`, `Go to Control`, and `Go to
+  Throughput`; the queue, History, and theme commands; and `Start the coordinator session` while
+  no session lives. It has no command to show or hide the coordinator, because the chat always
+  shows in Operations. The foot of the sidebar shows the keys of the focused card (from 1100 px;
+  the rail hides them), and below 720 px it does not show. The item `Daemon` shows `daemon` of
+  each placement ("The data"):
 
   | Auto mode | Text | Tone | Title |
   |---|---|---|---|
   | on | `auto on` | ok | `The daemon PID <pid> runs. Auto mode starts each auto step.` |
   | off | `auto off` | off | `The daemon PID <pid> runs. Auto mode is off: auto steps wait.` |
   | stops | `auto stopping` | off | `The daemon PID <pid> runs. Auto mode stops after its current work.` |
+  | before the first data | `checking` | wait | none |
+  | the board server does not answer | `not running` | fail | `The board server does not answer.` |
 
-  The board runs in its daemon, so the item has no state for a daemon that does not run, does not
-  answer, or runs another program.
-- The theme control: an icon button of the foot of the sidebar, before Notify, with the name and title
+  The board runs in its daemon, so the page shows a board server that does not answer as a daemon
+  that does not run; the item has no state for a daemon that runs another program.
+- The theme control: an icon button at the end of the row `Theme` of Control, after the word of
+  the current choice, with the name and title
   `Theme: <Choice>. Press to change`, where `<Choice>` is `System`, `Light`, or `Dark`. Its icon
   shows the current choice. A press sets the next choice: System, then Light, then Dark, then
   System, applies it at once, and keeps focus on the button. System follows the light or dark
-  theme of the OS, also when the OS changes it. The More row and the Search command
-  `Theme: <Choice>` do the same press.
-- Notify: the first press asks the browser for permission. Then each card that enters Needs you
+  theme of the OS, also when the OS changes it. The Search command `Theme: <Choice>` does the
+  same press.
+- Notify: the first press asks the browser for permission; a press while that request runs does
+  nothing, and the button has `aria-busy="true"` until it ends. Then each card that enters Needs you
   shows a system notification while the board is not in front: `#<n> waits for your answer`,
   `#<n> ended its turn`, `#<n> made no progress`, `#<n> has a dirty worktree`, `#<n> <reason>` for a
   `blocked` card, and `#<n> is ready to run <step>`, with the title of the issue. A human session
@@ -1696,7 +1701,8 @@ Needs you. With no badge, the press only shows Operations. `j`, `k`, `h`, `l`, a
 epic group and skip the issues of a closed group; `Enter` and `Space` on a row show or hide its
 issues. The search has `Expand all epic groups` and `Collapse all epic groups`. `#<n>` in the
 search, a notification press, and the return from the details open the group of a hidden issue and
-store that open. The list has a switch that turns the single-key shortcuts off; the keys of a
+store that open. The list and the row `Single-key shortcuts` of Control each have a switch that
+turns the single-key shortcuts off, and both show the same state; the keys of a
 focused card or epic group always work, and the arrow keys move from a focused card or epic group
 as `h`, `j`, `k`, and `l` do. `Tab` reaches one card or epic group in each column: the one that last
 had the focus, else the first. A press on a count of 0 focuses the empty state of its column. After a
@@ -1722,15 +1728,16 @@ the texts are `Open the issue` and `Read the issues again`.
   not run, an `hc` or a `herdr-app` that is not on `PATH`, and a press that the server or the
   master daemon refuses. For Run and Resume, the daemon checks `hc` and the Herdr app, and the
   toast shows the line of its refusal.
-- The foot of the sidebar shows `herdr down` when `hc ls` fails, with the error in its title. Below 720 px
-  the row `herdr: down` of More shows it, with a Caution Amber dot on More.
+- The section `Board status` of Control shows `herdr down` when `hc ls` fails, with the error in its
+  title, and the Control item has a Caution Amber dot.
   The board then shows no session card, and the issue cards stay.
-- The foot of the sidebar shows `cannot read:` with one line when the last read of the issues failed ("The
-  data"). The cards of the last good read stay. Below 720 px the tracker row of More shows it, with
-  a Caution Amber dot on More.
-- The foot of the sidebar says that the board server does not answer when a request of the page failed. A
-  press at that time gives a toast with that text and a line that tells the person to start the
-  daemon again in a terminal with `celetis daemon start`.
+- The section `Board status` of Control shows `cannot read:` with one line when the last read of the
+  issues failed ("The data"), and the Control item has a Caution Amber dot. The cards of the last
+  good read stay.
+- The section `Board status` of Control says that the board server does not answer when a request
+  of the page failed, the item `Daemon` shows `not running`, and Automation says that no daemon
+  answers. A press at that time gives a toast with that text and a line that tells the person to
+  start the daemon again in a terminal with `celetis daemon start`.
 - Queue disables execution controls during a request or an unavailable authoritative read. A failed
   press retains the accepted queue and shows the server reason. Recovery controls
   follow the current engine action flags, including an interrupted run.
@@ -1783,7 +1790,7 @@ Of the sessions, herdr-core, and the Herdr app:
   link label.
 - The board needs a herdr-core server that runs and an open Herdr app window. When `herdr-app ls`
   fails, a press of New intake, Assist, Make visual, or Open shell gives a toast and starts no
-  terminal, and the daemon refuses a Run or Resume with its line. When `hc ls` fails, the foot of the sidebar (on a phone, the row of `Board status`) shows `herdr down`.
+  terminal, and the daemon refuses a Run or Resume with its line. When `hc ls` fails, the section `Board status` of Control shows `herdr down`.
 - A Go press focuses the pane of the session in the Herdr app (`pane.focus`). The board makes no
   call that brings the window to the front.
 - The API of herdr-core and the commands of the Herdr app are previews (version 0.x). The board

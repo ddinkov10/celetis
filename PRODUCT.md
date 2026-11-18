@@ -53,7 +53,7 @@ agent that waits.
 ## Capabilities and Constraints
 
 - The board is one shell: a sidebar with New intake, Search, and the areas Home, Operations,
-  Control, and Throughput (a bottom bar with Chat, Agents, New intake, and More on a phone), and the
+  Control, and Throughput (a bottom bar with Chat, Agents, New intake, Control, and More on a phone), and the
   work area of the current area. Operations holds the coordinator chat in the center and a right
   pane with the tabs Agents (Needs you, Running, Idle), Pipeline (one column for each stage), Queue,
   and History; the details of a card open in the center, and Search finds each card and command.
