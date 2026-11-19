@@ -130,6 +130,16 @@ The documents:
   example the grep.app MCP server), a web fetch or scrape tool, and the background browser. The
   session uses each one that it has and records a limit for each missing one
   (`references/procedures/component-research.md`).
+- For a lane of a web product, the optional skill `modern-web-guidance`, which you install at user
+  scope: `claude plugin marketplace add GoogleChrome/modern-web-guidance` and
+  `claude plugin install modern-web-guidance@googlechrome`, or
+  `codex plugin marketplace add GoogleChrome/modern-web-guidance` and
+  `codex plugin add modern-web-guidance@googlechrome`. The build, the task review, and the research
+  of a web UI consult it (`references/procedures/web-guidance.md`). The session never installs or
+  updates it, and it is no plugin dependency. When the skill is unavailable, for any cause, the step prints
+  `web guidance: modern-web-guidance is not available; <cause>.` and goes on. Each consult runs
+  `npx` with network access, and sends anonymous telemetry to Google unless the shell sets
+  `DISABLE_TELEMETRY=1`.
 - On macOS, herdr-core 0.1.19 (`hc`) with its running server, and the open window of the Herdr app
   0.1.15 (`herdr-app`), for each run and for the board: each session runs in a tab
   of the Herdr app (ADR-0058, ADR-0062). The host reports its status to herdr-core with OSC 7501

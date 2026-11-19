@@ -510,6 +510,11 @@ gap. An observed version is no minimum version.
   the exit grace, the job proof of a usage-limit hand-off, an update restart, the lab, and the
   private socket folder. Evidence: the Verify evidence of
   [#309](https://github.com/ddinkov10/celetis/issues/309).
+- **Modern Web Guidance in the lanes (#338).** partial. Hosts: Claude Code 2.1.327 and 2.1.328,
+  Codex CLI 0.167.0. Open: the Codex checks of #338 (the reading checks, the build task with the
+  skill, the build task with no network, and the child agent), blocked by a usage limit of the
+  Codex account; a lane with the user-scope install of the maintainer. Evidence:
+  [#338](https://github.com/ddinkov10/celetis/issues/338).
 - **Model and effort of a step session (#290).** partial. Hosts: Claude Code 2.1.322, Codex CLI
   0.167.0, Bun 1.4.4. Open: a real `fable` start in a tab at the consent prompt of usage credits; a
   provider other than the Anthropic API; a real Codex step start with the tier rule. Evidence:

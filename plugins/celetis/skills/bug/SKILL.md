@@ -98,7 +98,9 @@ one-character diff runs the same lane.
      report lists each of its behaviors as a requirement of the fix, in its intended behavior. An
      escalation presents the found patterns among its options; a fix that resolves alone follows
      "The recommendation" of `<plugin>/references/procedures/prior-art.md`, or the report states
-     the reason.
+     the reason. When the fix chooses new UI behavior of a web product
+     (`<plugin>/references/procedures/web-guidance.md`, "When"), apply that module in the same
+     research pass; each applied guide goes into the `## Prior art` section by its "The record".
    - **The decision.** If the fix merges two states that step 5 shows have different writers (for
      example, treating "absent" as "false"), or the spec does not define behavior for every listed
      state, STOP and ask the user — present the states and the decision as concrete options. Do not

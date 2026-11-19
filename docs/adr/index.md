@@ -130,3 +130,4 @@ gate refused a repeated number, and they keep their files.
 | [0109](0109-a-set-aside-record-keeps-auto-mode-away-from-an-issue.md) | A set-aside record keeps auto mode away from an issue | [0009](0009-the-board-is-a-package-of-its-own.md) |  |
 | [0110](0110-the-coordinator-chat-reads-the-session-record-of-the-host.md) | The coordinator chat reads the session record of the host | [0106](0106-the-board-carries-the-acts-of-the-coordinator-session.md) |  |
 | [0111](0111-a-security-review-runs-security-audit-on-a-trust-boundary-change.md) | A security review runs security-audit on a trust-boundary change | [0040](0040-the-planner-chooses-the-build-flow.md), [0060](0060-impeccable-gives-the-options-of-web-and-mobile-look-decisions.md) |  |
+| [0112](0112-the-lanes-of-a-web-product-consult-modern-web-guidance.md) | The lanes of a web product consult Modern Web Guidance |  |  |
