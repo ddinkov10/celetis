@@ -2,7 +2,16 @@ import { readdir, readFile, realpath } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import { effectiveOrder, readAgentOrder } from './agent-order.ts';
 import { activeBlock, readUsage, selectAgent } from './agent-usage.ts';
-import type { Diff, Document, Flow, History, LandedIssue, QuotaState } from './board-read-types.ts';
+import type {
+  CacheLine,
+  DeliveryWindow,
+  Diff,
+  Document,
+  Flow,
+  History,
+  LandedIssue,
+  QuotaState,
+} from './board-read-types.ts';
 import type { AgentDecision, AgentOrder, Host, UsageBlock } from './config-core.ts';
 import { levels } from './effort.ts';
 import { commit, isCommit } from './fields.ts';
@@ -18,12 +27,14 @@ import { nextBoard } from './resolver.ts';
 import { laneFolder } from './state.ts';
 import { readStepEnd, type StepEndRecord } from './step-end.ts';
 import type { Exec } from './terminal.ts';
-import { type Connection, drain, type GitHub, github, graphqlQuery } from './tracker.ts';
+import { type Connection, chunks, drain, type GitHub, github, graphqlQuery } from './tracker.ts';
+import { appendCache, deliveryWindows, readCache } from './trends.ts';
 import { hasPage, visualPage } from './visual.ts';
 import { defaultGate, lands, lanes, stages, steps } from './workflow.ts';
 
 export { commonDir } from './git.ts';
 export { readRefreshHints } from './refresh-hints.ts';
+export { appendSample, hourlySeries, pruneTrends, readSamples } from './trends.ts';
 
 export type Reconcile = () => Promise<QueueView>;
 
@@ -63,8 +74,8 @@ async function readDocument(
     signal.throwIfAborted();
     throw new Error(stderr.trim() || 'cannot read the issues from GitHub');
   }
-  const history = !target || data.closed ? await readHistory(github(main, signal)) : target.previous.history;
   const common = operation.checkout.common as string;
+  const history = !target || data.closed ? await readHistory(github(main, signal), common) : target.previous.history;
   const flow: Flow = {
     lanes: Object.fromEntries(Object.entries(lanes).map(([lane, definition]) => [lane, [...definition.steps]])),
     stages: stages.map((stage) => ({ name: stage.name, steps: [...stage.steps] })),
@@ -172,17 +183,36 @@ function connection(value: unknown): Connection {
 const pullsOf = (after: string) =>
   `associatedPullRequests(first: 100${after}) { pageInfo { hasNextPage endCursor } nodes { number body mergedAt mergeCommit { oid } baseRefName headRefName baseRepository { nameWithOwner } headRepository { nameWithOwner } } }`;
 
-const historyOf = (after: string) =>
-  `history(first: 100${after}) { pageInfo { hasNextPage endCursor } nodes { oid url message committedDate ${pullsOf('')} } }`;
+const historyOf = (after: string, since = '') =>
+  `history(first: 100${after}${since}) { pageInfo { hasNextPage endCursor } nodes { oid url message committedDate } }`;
 
 type Landing = Readonly<{ n: number | null; sha: string; commitUrl: string; committedAt: string }>;
 type Landed = Readonly<{ title: string; url: string }>;
+type Repo = Readonly<{ trunk: string; name: string }>;
+type Commit = Readonly<{ sha: string; commitUrl: string; subject: string; committedAt: string }>;
+type CommitLine = Extract<CacheLine, { sha: string }>;
+type Cache = {
+  commits: Map<string, number | null>;
+  issues: Map<number, string | null>;
+  fresh: CacheLine[];
+  waiting: Map<number, CommitLine[]>;
+};
 
-async function readHistory(gh: Pick<GitHub, 'graphql'>): Promise<History> {
+const walkDays = 56;
+
+async function loadCache(common: string): Promise<Cache> {
+  const cache: Cache = { commits: new Map(), issues: new Map(), fresh: [], waiting: new Map() };
+  for (const line of await readCache(common))
+    if ('sha' in line) cache.commits.set(line.sha, line.issue);
+    else cache.issues.set(line.issue, line.createdAt);
+  return cache;
+}
+
+async function readTrunk(gh: Pick<GitHub, 'graphql'>, history: string) {
   const repo = record(
     (
       await gh.graphql(
-        graphqlQuery(`nameWithOwner url defaultBranchRef { name target { ... on Commit { oid ${historyOf('')} } } }`),
+        graphqlQuery(`nameWithOwner url defaultBranchRef { name target { ... on Commit { oid ${history} } } }`),
       )
     ).repository,
   );
@@ -190,107 +220,260 @@ async function readHistory(gh: Pick<GitHub, 'graphql'>): Promise<History> {
   const trunk = text(branch.name);
   const name = text(repo.nameWithOwner);
   if (!trunk || !/^[^/\s]+\/[^/\s]+$/.test(name)) malformed();
-  const url = `${link(repo.url).replace(/\/$/, '')}/commits/${encodeURIComponent(trunk)}`;
   const target = record(branch.target);
-  const head = identity(target.oid);
+  return { trunk, name, repoUrl: repo.url, head: identity(target.oid), page: connection(target.history) };
+}
+
+function commits(page: Connection): Commit[] {
+  return page.nodes.map((raw) => {
+    const row = record(raw);
+    return {
+      sha: identity(row.oid),
+      commitUrl: link(row.url),
+      subject: text(row.message).split('\n')[0] as string,
+      committedAt: date(row.committedDate),
+    };
+  });
+}
+
+async function commitObject(
+  gh: Pick<GitHub, 'graphql'>,
+  fields: string,
+  oid: string,
+  cursor: string,
+): Promise<Record<string, unknown>> {
+  const data = await gh.graphql(
+    graphqlQuery(`object(oid: $oid) { ... on Commit { ${fields} } }`, '$oid: GitObjectID!', '$cursor: String!'),
+    { oid, cursor },
+  );
+  return record(record(data.repository).object);
+}
+
+async function readIssues(
+  gh: Pick<GitHub, 'graphql'>,
+  numbers: readonly number[],
+  issues: Map<number, Landed | null>,
+  cache: Cache,
+): Promise<void> {
+  const data = await gh.graphql(
+    graphqlQuery(
+      numbers
+        .map(
+          (n) => `n${n}: issueOrPullRequest(number: ${n}) { __typename ... on Issue { number title url createdAt } }`,
+        )
+        .join(' '),
+    ),
+  );
+  const repository = record(data.repository);
+  for (const n of numbers) {
+    const issue = record(repository[`n${n}`]);
+    if (issue.__typename === 'PullRequest') issues.set(n, null);
+    else if (issue.__typename !== 'Issue') malformed();
+    else {
+      const title = text(issue.title);
+      const href = text(issue.url);
+      link(href);
+      issues.set(n, issue.number === n ? { title, url: href } : null);
+    }
+    if (!cache.issues.has(n)) {
+      const createdAt = issues.get(n) ? date(issue.createdAt) : null;
+      cache.issues.set(n, createdAt);
+      cache.fresh.push({ issue: n, createdAt });
+    }
+  }
+}
+
+function association(
+  trunk: string,
+  name: string,
+  sha: string,
+  pulls: readonly unknown[],
+  subject: string,
+): number | null {
+  if (pulls.length === 0) {
+    const direct = /^[a-z]+(?:\([^()\r\n]+\))?!?: [^ ].* \(#([1-9][0-9]*)\)$/.exec(subject);
+    return direct ? Number(direct[1]) : null;
+  }
+  const candidates = new Set<number>();
+  for (const raw of pulls) {
+    const pull = record(raw);
+    const baseRepo = pull.baseRepository === null ? null : text(record(pull.baseRepository).nameWithOwner);
+    const headRepo = pull.headRepository === null ? null : text(record(pull.headRepository).nameWithOwner);
+    const baseRef = text(pull.baseRefName);
+    const headRef = text(pull.headRefName);
+    const body = pull.body === null ? '' : text(pull.body);
+    const merged = pull.mergedAt === null ? null : date(pull.mergedAt);
+    const mergeSha = pull.mergeCommit === null ? null : identity(record(pull.mergeCommit).oid);
+    const lane = laneHead.exec(headRef);
+    const closes = [...body.matchAll(/\bCloses\s+#([1-9][0-9]*)\b/gi)].map((match) => Number(match[1]));
+    if (
+      merged &&
+      mergeSha === sha &&
+      baseRef === trunk &&
+      baseRepo === name &&
+      headRepo === name &&
+      lane &&
+      closes.length > 0 &&
+      closes.every((number) => number === Number(lane[1]))
+    )
+      candidates.add(Number(lane[1]));
+  }
+  return candidates.size === 1 ? ([...candidates][0] as number) : null;
+}
+
+async function issuesOf(
+  gh: Pick<GitHub, 'graphql'>,
+  repo: Repo,
+  commits: readonly { sha: string; subject: string; committedAt: string }[],
+  cache: Cache,
+  save: () => Promise<void>,
+  answer?: (numbers: number[]) => Promise<void>,
+): Promise<(number | null)[]> {
+  const unread = [...new Map(commits.filter(({ sha }) => !cache.commits.has(sha)).map((c) => [c.sha, c])).values()];
+  const waiting = new Map<string, number>();
+  // About 300 bytes per alias: 50 keep one `gh` argument far below the Windows limit of 32,767 characters.
+  for (const chunk of chunks(unread, 50)) {
+    const repository = record(
+      (
+        await gh.graphql(
+          graphqlQuery(
+            chunk.map(({ sha }, i) => `c${i}: object(oid: "${sha}") { ... on Commit { ${pullsOf('')} } }`).join(' '),
+          ),
+        )
+      ).repository,
+    );
+    for (const [i, { sha, subject, committedAt }] of chunk.entries()) {
+      const pulls = await drain(connection(record(repository[`c${i}`]).associatedPullRequests), async (cursor) =>
+        connection((await commitObject(gh, pullsOf(', after: $cursor'), sha, cursor)).associatedPullRequests),
+      );
+      const n = association(repo.trunk, repo.name, sha, pulls, subject);
+      const issue = n !== null && Number.isSafeInteger(n) ? n : null;
+      const line = { sha, issue, at: committedAt };
+      if (pulls.length === 0 && issue !== null && !cache.issues.get(issue)) {
+        // GitHub can list no PR for a new merge commit for a short time, so the line waits for an Issue answer.
+        cache.waiting.set(issue, [...(cache.waiting.get(issue) ?? []), line]);
+        waiting.set(sha, issue);
+        continue;
+      }
+      cache.commits.set(sha, issue);
+      cache.fresh.push(line);
+    }
+    await answer?.([...new Set(chunk.flatMap(({ sha }) => cache.commits.get(sha) ?? waiting.get(sha) ?? []))]);
+    await save();
+  }
+  return commits.map(({ sha }) => cache.commits.get(sha) ?? waiting.get(sha) ?? null);
+}
+
+async function answerIssues(
+  gh: Pick<GitHub, 'graphql'>,
+  numbers: readonly number[],
+  issues: Map<number, Landed | null>,
+  cache: Cache,
+): Promise<void> {
+  if (numbers.length === 0) return;
+  const known = new Set(numbers.filter((n) => cache.issues.has(n)));
+  await readIssues(gh, numbers, issues, cache);
+  for (const n of numbers) {
+    const lines = cache.waiting.get(n);
+    if (!lines) continue;
+    cache.waiting.delete(n);
+    if (cache.issues.get(n))
+      for (const line of lines) {
+        cache.commits.set(line.sha, n);
+        cache.fresh.push(line);
+      }
+    else if (!known.has(n)) cache.fresh = cache.fresh.filter((line) => 'sha' in line || line.issue !== n);
+  }
+}
+
+export async function readHistory(gh: Pick<GitHub, 'graphql'>, common: string): Promise<History> {
+  const { trunk, name, repoUrl, head, page: first } = await readTrunk(gh, historyOf(''));
+  const url = `${link(repoUrl).replace(/\/$/, '')}/commits/${encodeURIComponent(trunk)}`;
+  const cache = await loadCache(common);
   const entries: LandedIssue[] = [];
   const seen = new Set<number>();
   const issues = new Map<number, Landed | null>();
+  const save = () => appendCache(common, cache.fresh.splice(0));
+  const done = async (): Promise<History> => {
+    await save();
+    return { trunk, url, head, entries };
+  };
 
-  async function commit(fields: string, oid: string, cursor: string): Promise<Record<string, unknown>> {
-    const data = await gh.graphql(
-      graphqlQuery(`object(oid: $oid) { ... on Commit { ${fields} } }`, '$oid: GitObjectID!', '$cursor: String!'),
-      { oid, cursor },
-    );
-    return record(record(data.repository).object);
-  }
-
-  async function readIssues(numbers: readonly number[]): Promise<void> {
-    const data = await gh.graphql(
-      graphqlQuery(
-        numbers
-          .map((n) => `n${n}: issueOrPullRequest(number: ${n}) { __typename ... on Issue { number title url } }`)
-          .join(' '),
-      ),
-    );
-    const repository = record(data.repository);
-    for (const n of numbers) {
-      const issue = record(repository[`n${n}`]);
-      if (issue.__typename === 'PullRequest') issues.set(n, null);
-      else if (issue.__typename !== 'Issue') malformed();
-      else {
-        const title = text(issue.title);
-        const href = text(issue.url);
-        link(href);
-        issues.set(n, issue.number === n ? { title, url: href } : null);
-      }
-    }
-  }
-
-  function association(sha: string, pulls: readonly unknown[], subject: string): number | null {
-    if (pulls.length === 0) {
-      const direct = /^[a-z]+(?:\([^()\r\n]+\))?!?: [^ ].* \(#([1-9][0-9]*)\)$/.exec(subject);
-      return direct ? Number(direct[1]) : null;
-    }
-    const candidates = new Set<number>();
-    for (const raw of pulls) {
-      const pull = record(raw);
-      const baseRepo = pull.baseRepository === null ? null : text(record(pull.baseRepository).nameWithOwner);
-      const headRepo = pull.headRepository === null ? null : text(record(pull.headRepository).nameWithOwner);
-      const baseRef = text(pull.baseRefName);
-      const headRef = text(pull.headRefName);
-      const body = pull.body === null ? '' : text(pull.body);
-      const merged = pull.mergedAt === null ? null : date(pull.mergedAt);
-      const mergeSha = pull.mergeCommit === null ? null : identity(record(pull.mergeCommit).oid);
-      const lane = laneHead.exec(headRef);
-      const closes = [...body.matchAll(/\bCloses\s+#([1-9][0-9]*)\b/gi)].map((match) => Number(match[1]));
-      if (
-        merged &&
-        mergeSha === sha &&
-        baseRef === trunk &&
-        baseRepo === name &&
-        headRepo === name &&
-        lane &&
-        closes.length > 0 &&
-        closes.every((number) => number === Number(lane[1]))
-      )
-        candidates.add(Number(lane[1]));
-    }
-    return candidates.size === 1 ? ([...candidates][0] as number) : null;
-  }
-
-  let page = connection(target.history);
+  let page = first;
   for (;;) {
-    const landings: Landing[] = [];
-    for (const raw of page.nodes) {
-      const row = record(raw);
-      const sha = identity(row.oid);
-      const commitUrl = link(row.url);
-      const subject = text(row.message).split('\n')[0] as string;
-      const committedAt = date(row.committedDate);
-      const pulls = await drain(connection(row.associatedPullRequests), async (cursor) =>
-        connection((await commit(pullsOf(', after: $cursor'), sha, cursor)).associatedPullRequests),
-      );
-      const n = association(sha, pulls, subject);
-      landings.push({ n: n !== null && Number.isSafeInteger(n) ? n : null, sha, commitUrl, committedAt });
-    }
+    const walked = commits(page);
+    const numbers = await issuesOf(gh, { trunk, name }, walked, cache, save);
+    const landings: Landing[] = walked.map(({ sha, commitUrl, committedAt }, i) => ({
+      n: numbers[i] ?? null,
+      sha,
+      commitUrl,
+      committedAt,
+    }));
     for (const [index, { n, sha, commitUrl, committedAt }] of landings.entries()) {
       if (n === null || seen.has(n)) continue;
       if (!issues.has(n)) {
         const unread = landings
           .slice(index)
           .flatMap(({ n }) => (n === null || seen.has(n) || issues.has(n) ? [] : [n]));
-        await readIssues([...new Set(unread)].slice(0, 20 - entries.length));
+        await answerIssues(gh, [...new Set(unread)].slice(0, 20 - entries.length), issues, cache);
       }
       const issue = issues.get(n);
       if (!issue) continue;
       entries.push({ number: n, title: issue.title, url: issue.url, sha, commitUrl, committedAt });
       seen.add(n);
-      if (entries.length === 20) return { trunk, url, head, entries };
+      if (entries.length === 20) return done();
     }
-    if (page.next === null) return { trunk, url, head, entries };
-    page = connection((await commit(historyOf(', after: $cursor'), head, page.next)).history);
+    await save();
+    if (page.next === null) return done();
+    page = connection((await commitObject(gh, historyOf(', after: $cursor'), head, page.next)).history);
   }
+}
+
+export async function readDelivery(
+  main: string,
+  common: string,
+  now: number,
+  signal: AbortSignal,
+): Promise<DeliveryWindow[]> {
+  const gh = github(main, signal);
+  const from = now - walkDays * 86_400_000;
+  const since = `, since: "${new Date(from).toISOString()}"`;
+  const { trunk, name, head, page: first } = await readTrunk(gh, historyOf('', since));
+  const walked: Commit[] = [];
+  let page = first;
+  for (;;) {
+    walked.push(...commits(page));
+    if (page.next === null) break;
+    page = connection((await commitObject(gh, historyOf(', after: $cursor', since), head, page.next)).history);
+  }
+  const kept = walked.filter(({ committedAt }) => Date.parse(committedAt) >= from);
+  const cache = await loadCache(common);
+  const save = () => appendCache(common, cache.fresh.splice(0));
+  const answer = (numbers: number[]) =>
+    answerIssues(
+      gh,
+      numbers.filter((n) => !cache.issues.has(n)),
+      new Map(),
+      cache,
+    );
+  const numbers = await issuesOf(gh, { trunk, name }, kept, cache, save, answer);
+  const landed = new Map<number, number>();
+  for (const [i, { committedAt }] of kept.entries()) {
+    const n = numbers[i];
+    if (n != null && !landed.has(n)) landed.set(n, Date.parse(committedAt));
+  }
+  const unread = [...landed.keys()].filter((n) => !cache.issues.has(n));
+  for (const chunk of chunks(unread, 50)) {
+    await answer(chunk);
+    await save();
+  }
+  return deliveryWindows(
+    [...landed].flatMap(([n, at]) => {
+      const createdAt = cache.issues.get(n);
+      return createdAt ? [{ at, createdAt: Date.parse(createdAt) }] : [];
+    }),
+    now,
+  );
 }
 
 export type AgentState = Readonly<{

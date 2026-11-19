@@ -1,4 +1,13 @@
-import type { Diff, Document, Flow, History, LandedIssue, QuotaState, QuotaWait } from '../lib/board-read-types.ts';
+import type {
+  Diff,
+  Document,
+  Flow,
+  History,
+  LandedIssue,
+  QuotaState,
+  QuotaWait,
+  Trends,
+} from '../lib/board-read-types.ts';
 import type { AgentChoice, AgentDecision, AgentOrder, Host, UsageBlock } from '../lib/config-core.ts';
 import type { CoordinatorAction, CoordinatorKey, CoordinatorState } from '../lib/coordinator-types.ts';
 import type { Level, RowSource, StartPair } from '../lib/effort.ts';
@@ -19,6 +28,7 @@ export type {
   Pull,
   QuotaState,
   QuotaWait,
+  Trends,
   UpdateStage,
 };
 export type BoardOffer = {
@@ -191,6 +201,7 @@ export type Board = Placement & {
   coordinator: CoordinatorView;
   source: { readAt: string | null; error: string | null };
   repo: string;
+  trends: Trends;
 };
 export type Action = {
   id: string;

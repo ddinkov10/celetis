@@ -240,6 +240,14 @@ Waiting edits preserve a pending token and the current stop. The daemon reads co
 membership before transitions. Final drain releases execution ownership and commits empty under
 the same write lock, so an Add on either side survives with an executor or explicit recovery.
 
+The board keeps two local trend files beside it, `trend-samples.jsonl` and `trend-cache.jsonl`
+(mode 0600, one JSON object per line). A sample line is `{at, needs, working}` with counts or null;
+a cache line is a commit line `{sha, issue, at}` or an issue line `{issue, createdAt}`. The native
+`trends-write.lock` serializes each append and each prune, and waits at most 10 seconds. A read takes
+no lock and skips a line that does not parse. The prune keeps the samples of the last 7 days and the
+commit lines of the last 56 days with the issue lines that they name. The board server is the one
+writer in the normal case.
+
 The existing launch loop retains startup barriers, saved-session checks, skip/no-progress checks,
 and foreground cleanup. A live foreground retains ownership when its daemon dies. A save failure
 prevents further starts. An unowned pending or running record permits deliberate Try again;

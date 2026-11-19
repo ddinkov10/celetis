@@ -35,3 +35,10 @@ export type Document = {
 export type QuotaWait = { number: number; waitId: string; nextResetAt: number | null };
 export type QuotaState = { kind: 'waiting'; wait: QuotaWait } | { kind: 'orphaned' };
 export type Diff = { files: number; added: number; removed: number };
+export type Sample = { at: string; needs: number | null; working: number | null };
+export type CacheLine = { sha: string; issue: number | null; at: string } | { issue: number; createdAt: string | null };
+export type DeliveryWindow = { landed: number; medianDays: number | null };
+export type Trends = {
+  live: { needs: (number | null)[]; working: (number | null)[]; readAt: string | null; error: string | null };
+  delivery: { windows: DeliveryWindow[] | null; readAt: string | null; error: string | null };
+};

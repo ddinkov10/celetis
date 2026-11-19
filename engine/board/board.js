@@ -250,6 +250,8 @@ var ICONS = {
       }
     ]
   ],
+  "trend-up": [["path", { d: "M8 13V3M4 7l4-4 4 4" }]],
+  "trend-down": [["path", { d: "M8 3v10M4 9l4 4 4-4" }]],
   pin: [["path", { d: "M5.5 2h5l-.8 4.2 2.3 2.3v1H8.6V14h-1.2V9.5H4v-1l2.3-2.3z", class: "fill" }]],
   spark: [["path", { d: "M8 2.25 9.3 6.7 13.75 8 9.3 9.3 8 13.75 6.7 9.3 2.25 8 6.7 6.7Z" }]],
   wrench: [
@@ -2593,6 +2595,201 @@ function setupCoordinator(hooks) {
   };
 }
 
+// engine/board/page/home.ts
+var needsRow = (card, actions) => {
+  const meta = stateLabel(card) ?? card.reason ?? "";
+  const open = el("button", "btn primary", "Open");
+  open.type = "button";
+  open.setAttribute("aria-label", `Open #${card.number} ${card.title}`);
+  open.addEventListener("click", () => actions.open(keyOf(card)));
+  const text = el("div", "home-row-text");
+  text.append(el("p", "home-title", card.title), el("p", "home-meta", card.number === null ? meta : `#${card.number} · ${meta}`));
+  const row = el("li", "home-row");
+  row.dataset.key = keyOf(card);
+  row.append(text, open);
+  return row;
+};
+var agentRow = (card, board, actions) => {
+  const meta = [card.step, agentOf(card, board.registry)?.name, stateLabel(card)].filter(Boolean).join(" · ");
+  const button = el("button", "home-agent");
+  button.type = "button";
+  button.append(el("span", "home-title", `#${card.number} ${card.title}`), el("span", "home-meta", meta));
+  button.addEventListener("click", () => actions.open(keyOf(card)));
+  const row = el("li");
+  row.dataset.key = keyOf(card);
+  row.append(button);
+  return row;
+};
+var LISTS = ["home-needs", "home-agents"];
+var spotOf = () => {
+  const row = document.activeElement?.closest("li");
+  for (const list of LISTS) {
+    const rows = [...$(`${list}-list`).children];
+    if (row && rows.includes(row))
+      return { list, index: rows.indexOf(row), key: row.dataset.key };
+  }
+  return null;
+};
+var restore = ({ list, index, key }) => {
+  const rows = (id) => [...$(`${id}-list`).children];
+  const mine = rows(list);
+  const other = rows(LISTS.find((id) => id !== list));
+  const row = mine.find((each) => each.dataset.key === key) ?? mine[Math.min(index, mine.length - 1)] ?? other[0];
+  (row?.querySelector("button") ?? $("work")).focus({ preventScroll: true });
+};
+var drawList = (id, cards, row) => {
+  $(`${id}-list`).hidden = cards.length === 0;
+  $(`${id}-empty`).hidden = cards.length > 0;
+  $(`${id}-list`).replaceChildren(...cards.map(row));
+};
+var queueText = (board) => {
+  const count = board.queue?.record?.numbers.length ?? 0;
+  return count === 0 ? "empty" : `${count} issue${count === 1 ? "" : "s"}`;
+};
+var facts = (board) => {
+  const names = Object.entries(board.agents ?? {}).filter(([, state]) => state.available).map(([host]) => board.registry[host].name);
+  return [
+    ["Auto mode", board.daemon.auto],
+    ["Queue", queueText(board)],
+    ["Agents", names.join(", ") || "none"],
+    ["Herdr", board.terminal.ok === null ? "checking" : board.terminal.ok ? "up" : "down"]
+  ];
+};
+var NS3 = "http://www.w3.org/2000/svg";
+var NONE = "–";
+var BEFORE = "the 7 days before";
+var sparkPath = (points) => {
+  const known = points.filter((point) => point !== null);
+  if (known.length < 2)
+    return null;
+  const min = Math.min(...known);
+  const max = Math.max(...known);
+  const round = (n) => Math.round(n * 100) / 100;
+  let d = "";
+  let dot = { x: 0, y: 0 };
+  points.forEach((point, i) => {
+    if (point === null)
+      return;
+    const x = round(3 + i * 90 / (points.length - 1));
+    const y = round(max === min ? 16 : 3 + (max - point) / (max - min) * 26);
+    const alone = points[i - 1] == null && points[i + 1] == null;
+    d += `${points[i - 1] == null ? `${d ? " " : ""}M` : " L"}${x} ${y}${alone ? " h0" : ""}`;
+    dot = { x, y };
+  });
+  return { d, dot, last: known[known.length - 1] };
+};
+var tileOf = (kind, board) => {
+  const { live, delivery } = board.trends;
+  const isLive = kind === "needs" || kind === "working";
+  const read = isLive ? live : delivery;
+  const windows = delivery.windows;
+  const series = isLive ? live.error && !live.readAt ? null : live[kind] : windows?.map((each) => kind === "landed" ? each.landed : each.medianDays);
+  const span = isLive ? "last 24 hours" : "last 8 weeks";
+  const source = isLive ? "local samples" : kind === "landed" ? "the trunk history" : "the issues and the trunk history";
+  const stale = series && read.error && read.readAt ? clock(read.readAt) : null;
+  const state = !series ? read.error ? { kind: "failed", text: "The history read failed" } : { kind: "reading", text: "Reading the history" } : series.filter((point) => point !== null).length < 2 ? { kind: "few", text: isLive ? "Too few samples yet" : "Too few landings yet" } : { kind: "line", points: series };
+  const now = windows?.[7];
+  const before = windows?.[6];
+  let label = "Needs you";
+  let value = NONE;
+  let unit = "";
+  let phrase = "";
+  let change = null;
+  if (isLive) {
+    label = kind === "needs" ? "Needs you" : "Agents working";
+    value = String(board.columns[kind === "needs" ? "needs" : "running"].length);
+    unit = kind === "needs" ? "issues wait for your step" : "sessions of issues";
+    const known = (series ?? []).filter((point) => point !== null);
+    if (known.length)
+      change = { dir: null, text: `peak ${Math.max(...known)} in 24 hours` };
+  } else if (kind === "landed") {
+    label = "Landed per week";
+    unit = "issues in 7 days";
+    if (now && before) {
+      value = String(now.landed);
+      const gap = now.landed - before.landed;
+      change = gap ? { dir: gap > 0 ? "up" : "down", text: `${Math.abs(gap)} ${gap > 0 ? "more" : "fewer"} than ${BEFORE}` } : { dir: null, text: `same as ${BEFORE}` };
+    }
+  } else {
+    label = "Intent to landing";
+    unit = now ? `median of ${now.landed} landings` : "median of landings";
+    phrase = unit;
+    if (now && before) {
+      if (now.medianDays === null)
+        change = { dir: null, text: "no landing in the last 7 days" };
+      else {
+        value = `${now.medianDays.toFixed(1)} d`;
+        phrase = `median ${now.medianDays.toFixed(1)} days of ${now.landed} landings in the last 7 days`;
+        const gap = Math.round((now.medianDays - (before.medianDays ?? now.medianDays)) * 10) / 10;
+        change = before.medianDays === null ? { dir: null, text: "no landing in the 7 days before" } : gap ? {
+          dir: gap < 0 ? "down" : "up",
+          text: `${Math.abs(gap).toFixed(1)} d ${gap < 0 ? "faster" : "slower"} than ${BEFORE}`
+        } : { dir: null, text: `same as ${BEFORE}` };
+      }
+    }
+  }
+  const lead = phrase || `${value} ${unit}`;
+  const changeText = change ? `, ${change.text.replace(/^(\S+) d /, "$1 days ")}` : "";
+  const trend = state.kind === "line" ? `Trend over the ${span}, from ${source}.` : `${state.text}.`;
+  return {
+    label,
+    value,
+    unit,
+    change,
+    window: stale ? `last read ${stale}` : span,
+    source,
+    state,
+    name: `${label}: ${lead}${changeText}. ${kind === "median" ? "Down is good. " : ""}${trend}${stale ? ` Last read ${stale}.` : ""}`
+  };
+};
+var svgOf = (tag, attributes) => {
+  const node = document.createElementNS(NS3, tag);
+  for (const [key, value] of Object.entries(attributes))
+    node.setAttribute(key, value);
+  return node;
+};
+var tileNode = (tile) => {
+  const row = el("div", "trend-row");
+  row.append(el("p", "trend-value", tile.value));
+  if (tile.state.kind === "line") {
+    const spark = sparkPath(tile.state.points);
+    if (spark) {
+      const line = svgOf("svg", { class: "trend-line", viewBox: "0 0 96 32", "aria-hidden": "true" });
+      line.append(svgOf("path", { d: spark.d }), svgOf("circle", { cx: String(spark.dot.x), cy: String(spark.dot.y), r: "2.5" }));
+      const last = el("span", "trend-last", spark.last % 1 ? spark.last.toFixed(1) : String(spark.last));
+      last.setAttribute("aria-hidden", "true");
+      row.append(line, last);
+    }
+  } else
+    row.append(el("p", "trend-state", tile.state.text));
+  const change = el("p", "trend-change");
+  if (tile.change?.dir)
+    change.append(icon(tile.change.dir === "up" ? "trend-up" : "trend-down"));
+  if (tile.change)
+    change.append(el("span", "", tile.change.text));
+  const node = el("div", "trend");
+  node.setAttribute("role", "group");
+  node.setAttribute("aria-label", tile.name);
+  node.append(el("h3", "trend-label", tile.label), row, el("p", "trend-unit", tile.unit), change, el("p", "trend-window", tile.window));
+  return node;
+};
+var drawTiles = (board) => {
+  $("home-tiles").replaceChildren(...["needs", "working", "landed", "median"].map((kind) => tileNode(tileOf(kind, board))));
+};
+var drawHome = (board, actions) => {
+  const spot = spotOf();
+  drawList("home-needs", board.columns.needs, (card) => needsRow(card, actions));
+  drawList("home-agents", board.columns.running, (card) => agentRow(card, board, actions));
+  $("home-system-facts").replaceChildren(...facts(board).map(([name, value]) => {
+    const fact = el("div", "home-fact");
+    fact.append(el("dt", "", name), el("dd", "", value));
+    return fact;
+  }));
+  if (spot)
+    restore(spot);
+  drawTiles(board);
+};
+
 // engine/board/page/panel.ts
 var TONES = {
   waits: "needs",
@@ -2659,7 +2856,7 @@ var steps2 = (card, flow, auto) => {
   }
   return section("Lane", `${card.type} · step ${track.findIndex((step) => step.state === "now") + 1} of ${track.length}`, list);
 };
-var facts = (rows) => {
+var facts2 = (rows) => {
   const list = el("dl", "facts");
   for (const [term, value, copyable] of rows.filter((row) => Boolean(row))) {
     const dd = el("dd", typeof value === "string" ? "mono" : "");
@@ -2768,7 +2965,7 @@ var drawPanel = (card, {
   body.append(...[
     pr(card),
     steps2(card, flow, auto),
-    section(isSession ? "Session" : "Issue", null, facts(details)),
+    section(isSession ? "Session" : "Issue", null, facts2(details)),
     pane && section("Screen", "the last lines of its pane", pane)
   ].filter((node) => Boolean(node)));
   $("panel").setAttribute("aria-labelledby", "panel-title");
@@ -2815,7 +3012,7 @@ function accept(view) {
     retired.add(old.id);
   submitted = view;
 }
-var restore = (key) => {
+var restore2 = (key) => {
   if (!key)
     return;
   const control = section2().querySelector(`[data-control="${CSS.escape(key)}"]:not([aria-disabled="true"])`);
@@ -3008,7 +3205,7 @@ function draw2() {
   content.append(waiting, picker);
   section2().replaceChildren(head, status, actions, content);
   if (open)
-    restore(active);
+    restore2(active);
 }
 function setupQueue(next) {
   options = next;
@@ -3045,7 +3242,7 @@ var member = (list, value) => list.find((each) => each === value);
 var readShell = (stored) => {
   const tab = member(TABS, stored.tab);
   return {
-    area: member(AREAS, stored.area) ?? "operations",
+    area: member(AREAS, stored.area) ?? "home",
     tab: tab === undefined || tab === "pipeline" ? "agents" : tab,
     details: null,
     pane: "chat"
@@ -4096,10 +4293,11 @@ var drawShell = () => {
   ops.toggleAttribute("data-details", details !== null);
   for (const node of document.querySelectorAll(".dest"))
     markCurrent(node, !isPhone && node.dataset.area === area);
+  markCurrent($("pb-home"), isPhone && area === "home");
   markCurrent($("pb-chat"), isPhone && isOps && pane === "chat");
   markCurrent($("pb-agents"), isPhone && isOps && pane === "agents");
   markCurrent($("pb-control"), isPhone && area === "control");
-  markCurrent($("board-more"), isPhone && (area === "home" || area === "throughput"));
+  markCurrent($("board-more"), isPhone && area === "throughput");
   for (const node of document.querySelectorAll(".tab")) {
     const isSelected = node.dataset.tab === tab;
     node.setAttribute("aria-selected", String(isSelected));
@@ -4471,7 +4669,8 @@ var drawBadge = (badge, owner, name, count) => {
   badge.textContent = badgeText(count);
   owner.setAttribute("aria-label", count === 0 ? name : `${name}, ${count} need you`);
 };
-var drawNow = (all, work) => {
+var drawNow = (all, work, home) => {
+  drawBadge($("home-badge"), $("home-badge").closest("button"), "Home", home);
   drawBadge($("ops-badge"), $("ops-badge").closest("button"), "Operations", all);
   drawBadge($("agents-badge"), $("tab-agents"), "Agents", work);
   drawBadge($("now-badge"), $("pb-agents"), "Agents", work);
@@ -4509,7 +4708,8 @@ var drawBoard = (next) => {
   const banner = next.noRun ?? "";
   if ($("dirty").textContent !== banner)
     $("dirty").textContent = banner;
-  drawNow(waiting.length, waiting.filter(isCard).length);
+  drawNow(waiting.length, waiting.filter(isCard).length, next.columns.needs.length);
+  drawHome(next, { open: openDetails });
   if (shell.tab === "history")
     drawHistory();
   const board = $("columns");
@@ -4655,6 +4855,8 @@ var render = (canMove = true) => {
     next.queue,
     next.coordinator.state,
     next.daemon.auto,
+    next.terminal.ok,
+    next.trends,
     next.columns.human.map((card) => [card.sessionId, card.turn, isYourTurn(card, seenTurn)]),
     [...startFailures],
     [...asides.keys()],
@@ -4879,7 +5081,7 @@ var boardActions = () => [
   themeEntry(),
   keysEntry()
 ];
-var phoneMenu = () => ["home", "throughput"].map((area) => ({
+var phoneMenu = () => ["throughput"].map((area) => ({
   label: AREA_NAMES[area],
   icon: AREA_ICONS[area],
   key: "",
@@ -5269,6 +5471,8 @@ for (const area of AREAS) {
       focusNeed();
   });
 }
+$("pb-home").prepend(icon("home"));
+$("pb-home").addEventListener("click", () => setArea("home"));
 $("pb-chat").addEventListener("click", showChat);
 $("pb-agents").prepend(icon("board"));
 $("pb-agents").addEventListener("click", () => setPane("agents"));

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { commonDir, readBoard, readBoardTargets, readRefreshHints } from '../lib/board-read.ts';
+import { commonDir, readBoard, readBoardTargets, readDelivery, readRefreshHints } from '../lib/board-read.ts';
 import { exits } from '../lib/contract.ts';
 import { HostError } from '../lib/errors.ts';
 import { type Engine, installedEngine } from '../lib/installation.ts';
@@ -44,6 +44,8 @@ export async function startBoard(
     readTargets: (numbers, previous, signal) =>
       readBoardTargets(main, adapter.reconcileQueue, numbers, previous, AbortSignal.any([signal, work.signal])),
     hints: () => readRefreshHints(common),
+    common,
+    readDelivery: (signal) => readDelivery(main, common, Date.now(), AbortSignal.any([signal, work.signal])),
     adapter,
     updates: () => updates,
     runtime: { revision: context.revision, instance: randomUUID() },

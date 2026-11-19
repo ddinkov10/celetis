@@ -304,7 +304,9 @@ function tokens(source: string): Token[] {
 }
 
 const readSide: ReadonlySet<string> = new Set(
-  ['perimeter', 'requests', 'reads', 'place', 'presses', 'view', 'start'].map((name) => `engine/board/${name}.ts`),
+  ['perimeter', 'requests', 'reads', 'place', 'presses', 'view', 'start', 'trends'].map(
+    (name) => `engine/board/${name}.ts`,
+  ),
 );
 const engineState: ReadonlySet<string> = new Set(
   'resolver tracker operation quota-recovery agent-usage step-end refresh-hints git workflow'.split(' '),

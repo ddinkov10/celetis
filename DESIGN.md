@@ -194,7 +194,8 @@ appears as a state signal or in the selected agent icons. Each state signal has 
 The mood is calm, precise, and utilitarian. The density is high but ordered: small type (13px
 body), tight controls (28px), and a strict three-column field. The page must read at a glance after
 hours of use, so it uses no decorative graphics. It is never a marketing dashboard: no decorative
-gradients, no charts, no hero graphics. The board shows nothing of one product. Only the folder
+gradients, no charts, no hero graphics. The one exception is the trend tile of Home: a small line with
+no axes, no fill, and no gradient. The board shows nothing of one product. Only the folder
 name of the checkout appears in the sidebar (and the phone top bar), so the same look fits any repository.
 
 The board follows the light or dark theme of the OS until the maintainer picks Light or Dark with
@@ -322,7 +323,7 @@ the Agents list keeps a line for the cards below the fold.
   box down to Home and Operations, so the foot keeps its place; below that height the sidebar
   scrolls inside itself.
 - **Rail:** from 720px to 1099px the sidebar is an 88px icon rail. Each item is an icon above an
-  11px label, 50px high, and the badge of Operations sits at the top right of its icon. The foot
+  11px label, 50px high, and the badges of Home and Operations sit at the top right of its icon. The foot
   does not show. The mark of the Control item keeps its 8px dot, at the top right of its icon,
   in the same colors.
 - **Phone:** below 720px the sidebar is a slim top bar of 56px that stays in view (the logo, the
@@ -355,7 +356,16 @@ the Agents list keeps a line for the cards below the fold.
   text otherwise. The status rows of `Board status` (the tracker read, `herdr`, and the daemon) are
   full-width rows of a dot and words with no ellipsis, above Refresh. The section `Agents` shows the
   agent order as an inline list (see "Agent order").
-- **Placeholder screens:** Home and Throughput show a centred 600 title and one 12.5px Ink Faint
+- **Home:** a scrolling screen with a 20px pad (12px on a phone) and a 12px gap. From the top: the
+  600 14px title `Home`; the row of trend tiles; then the panel `Needs you` (2fr) beside a column
+  of `Agents now` and `System` (1fr). A panel is a Card Slate section with a hairline, a 12px
+  radius, Raise, and a 12px 14px pad, with a 14px 600 Ink heading. Below 1200px the tiles take two
+  columns and below 1100px the panels stack; below 720px the tiles take one column, and the order is
+  the title, Needs you, the tiles, Agents now, System. A row is 44px high at least,
+  apart from the next by a hairline: the title in 13px Ink, and a 12px Geist Mono line in Beacon
+  Orange (Needs you) or Current Blue (Agents now). The `Open` button is a primary button. The facts
+  of `System` are rows of a 13px Ink Faint name and an Ink value at the end.
+- **Placeholder screens:** Throughput shows a centred 600 title and one 12.5px Ink Faint
   line in a Console Grey region with a hairline and a 16px radius.
 - **Rhythm:** gaps of 6, 8, 10, and 14px. Cards stack with a 10px gap; parts inside a card with 8px.
 
@@ -477,6 +487,28 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
 - **Column:** Console Grey, a hairline border, a 16px radius, and a 46px head with a state glyph and
   a count.
 
+### Trend tile
+
+The tile of Home. It is a card with no action: no hover change, no tooltip, no focus stop.
+
+- **Shape:** Card Slate, a 1px hairline, a 12px radius, Raise, and 12px 14px padding. Four tiles
+  sit in one row; they take two columns below 1200px and one column below 720px.
+- **Parts, top to bottom:** the label (600, 14px, Ink); a row with the value at the left and the line
+  at the right; the unit; the change; the window. The unit, the change, and the window are 12px. The
+  window is Ink Faint; the unit and the change are Ink Muted.
+- **Value:** Geist Mono, 24px, 600, Ink. A median shows its unit as `d` after the number.
+- **Line:** an SVG of 96×32px with no axes, no fill, and no gradient. The stroke is Ink Muted at
+  1.5px with round joins and caps. The y scale runs from the smallest to the largest point; equal
+  points give a flat line in the middle. A null point breaks the line. The dot (radius 2.5, Ink) sits
+  on the last point that is not null, and the last value follows the line in Geist Mono, 11px, Ink
+  Muted. The line and the last value are `aria-hidden`; the tile has `role="group"` and an
+  `aria-label` with the label, value, unit, change, window, and source.
+- **Change:** an arrow icon (16px) for a larger or smaller value, and no arrow for no change. No
+  signal color marks a good or a bad change; the words say `faster`, `slower`, `more`, or `fewer`.
+- **States:** a state text in Ink Faint replaces the line: `Too few samples yet`,
+  `Too few landings yet`, `Reading the history`, or `The history read failed`. After a failed
+  read with a good line, the line stays and the window says `last read <time>`.
+
 ### Inputs / Fields
 
 - **Search field:** a Veil field with a hairline border and an 8px radius, a 32px row of the sidebar
@@ -491,23 +523,23 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
   a Veil field with a 1px hairline, an 8px radius, and the key hint `⌘K` in Ink Faint. A destination
   is a 34px row with a 16px icon and a 12.5px label in Ink Muted; it turns Ink on a Veil fill on
   hover. The current destination has a Veil Strong fill, a 1px hairline, and Ink text, and it
-  carries `aria-current="page"`. Operations carries the badge at the right end of its row. On the
+  carries `aria-current="page"`. Home and Operations carry the badge at the right end of their rows. On the
   rail each item is an icon above an 11px label, 50px high, with the badge at the top right of the
   icon. The focus ring of a destination sits inside its row, because the destinations can scroll.
 - **Bottom bar:** below 720px only, a 70px bar fixed to the bottom edge, with a top hairline and the
-  page background, and no hide on scroll. It has five items of 56px: Chat, Agents, New intake in
-  the center (a little wider), Control, and More. Each item is an 18px icon above an 11px label.
-  The current Chat, Agents, or Control, and More while its menu is open or while the current area
-  is Home or Throughput, has a Veil Strong pill behind its icon and Ink text; the other items are
+  page background, and no hide on scroll. It has six items of 56px: Home, Chat, Agents, New intake
+  (a little wider), Control, and More. Each item is an 18px icon above an 11px label.
+  The current Home, Chat, Agents, or Control, and More while its menu is open or while the current
+  area is Throughput, has a Veil Strong pill behind its icon and Ink text; the other items are
   Ink Faint.
   New intake is the only item with a Veil Strong fill and a strong hairline; while it is
   unavailable it loses the fill, and its reason shows as a small Card Slate label above the bar.
   Chat carries the coordinator mark (a 7px mark at the top right of its icon, in the shape and
   color of the Chat button), Agents carries the badge, and Control carries the mark of the
-  controls (an 8px dot at the top right of its icon). More holds Home and Throughput. The bar sits
+  controls (an 8px dot at the top right of its icon). More holds Throughput. The bar sits
   below the panels and above the page, and a toast sits above it.
 - **Badge:** a Beacon Orange pill with Ink On text, 18px high, 18px wide at least, with 5px of
-  side padding and a 600 11px tabular count. The badge of Operations counts the full `need you`
+  side padding and a 600 11px tabular count. The badge of Home counts the cards of Needs you. The badge of Operations counts the full `need you`
   count (issue work, human sessions, and the coordinator dialog); the badge of Agents, on its tab
   and on the bottom bar, counts issue work and human sessions. A badge hides at 0 and has a box in
   each area, pane, and width.
@@ -644,7 +676,8 @@ rises in over 0.24s. It names the failed press above the server line.
 ### Don't:
 
 - **Don't** add decorative gradients, charts, illustrations, or hero graphics. The board is not a
-  marketing dashboard.
+  marketing dashboard. The one exception is the trend tile of Home: a small line with no axes, no
+  fill, and no gradient.
 - **Don't** fill a button or a card with a solid signal color.
 - **Don't** add a shadow other than Raise and Float.
 - **Don't** load a font, an icon, or a script from the network.

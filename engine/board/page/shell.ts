@@ -19,7 +19,7 @@ const member = <T extends string>(list: readonly T[], value: string | null): T |
 export const readShell = (stored: { area: string | null; tab: string | null }): Shell => {
   const tab = member(TABS, stored.tab);
   return {
-    area: member(AREAS, stored.area) ?? 'operations',
+    area: member(AREAS, stored.area) ?? 'home',
     tab: tab === undefined || tab === 'pipeline' ? 'agents' : tab,
     details: null,
     pane: 'chat',

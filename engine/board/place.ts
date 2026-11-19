@@ -44,6 +44,7 @@ import type {
   Placement,
   QuotaState,
   Session,
+  Trends,
   VisualState,
 } from './types.ts';
 import { gateOf } from './view.ts';
@@ -391,6 +392,7 @@ export const createPlacement = ({
   status,
   coordinator,
   facts,
+  trends,
   exec,
   now,
 }: {
@@ -400,6 +402,7 @@ export const createPlacement = ({
   status: () => Promise<DaemonStatus>;
   coordinator: CoordinatorReads;
   facts: () => CoordinatorFacts | null;
+  trends: () => Trends;
   exec: Exec;
   now: () => number;
 }): Placer => {
@@ -587,6 +590,7 @@ export const createPlacement = ({
       coordinator: coordinatorView,
       source: { readAt: reads.readAt, error: readError() },
       repo: basename(main),
+      trends: trends(),
     };
   };
 

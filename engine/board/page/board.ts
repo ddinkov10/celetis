@@ -50,6 +50,7 @@ import {
 import { createAgentPicker, OrderConflict } from './agent-picker.ts';
 import { drawControl } from './control.ts';
 import { setupCoordinator } from './coordinator.ts';
+import { drawHome } from './home.ts';
 import { closeMenu, openMenu, openPalette, setupMenu, setupPalette } from './palette.ts';
 import { drawPanel } from './panel.ts';
 import { drawQueue, setQueueOpen, setupQueue } from './queue.ts';
@@ -1204,10 +1205,11 @@ const drawShell = () => {
   ops.toggleAttribute('data-details', details !== null);
   for (const node of document.querySelectorAll<HTMLElement>('.dest'))
     markCurrent(node, !isPhone && node.dataset.area === area);
+  markCurrent($('pb-home'), isPhone && area === 'home');
   markCurrent($('pb-chat'), isPhone && isOps && pane === 'chat');
   markCurrent($('pb-agents'), isPhone && isOps && pane === 'agents');
   markCurrent($('pb-control'), isPhone && area === 'control');
-  markCurrent($('board-more'), isPhone && (area === 'home' || area === 'throughput'));
+  markCurrent($('board-more'), isPhone && area === 'throughput');
   for (const node of document.querySelectorAll<HTMLElement>('.tab')) {
     const isSelected = node.dataset.tab === tab;
     node.setAttribute('aria-selected', String(isSelected));
@@ -1626,7 +1628,8 @@ const drawBadge = (badge: HTMLElement, owner: HTMLElement, name: string, count: 
   owner.setAttribute('aria-label', count === 0 ? name : `${name}, ${count} need you`);
 };
 
-const drawNow = (all: number, work: number): void => {
+const drawNow = (all: number, work: number, home: number): void => {
+  drawBadge($('home-badge'), $('home-badge').closest('button') as HTMLElement, 'Home', home);
   drawBadge($('ops-badge'), $('ops-badge').closest('button') as HTMLElement, 'Operations', all);
   drawBadge($('agents-badge'), $('tab-agents'), 'Agents', work);
   drawBadge($('now-badge'), $('pb-agents'), 'Agents', work);
@@ -1665,7 +1668,8 @@ const drawBoard = (next: Board) => {
   $('dirty').hidden = !next.noRun;
   const banner = next.noRun ?? '';
   if ($('dirty').textContent !== banner) $('dirty').textContent = banner;
-  drawNow(waiting.length, waiting.filter(isCard).length);
+  drawNow(waiting.length, waiting.filter(isCard).length, next.columns.needs.length);
+  drawHome(next, { open: openDetails });
   if (shell.tab === 'history') drawHistory();
   const board = $('columns');
   board.dataset.view = boardView();
@@ -1822,6 +1826,8 @@ const render = (canMove = true) => {
     next.queue,
     next.coordinator.state,
     next.daemon.auto,
+    next.terminal.ok,
+    next.trends,
     next.columns.human.map((card) => [card.sessionId, card.turn, isYourTurn(card, seenTurn)]),
     [...startFailures],
     [...asides.keys()],
@@ -2079,7 +2085,7 @@ const boardActions = (): MenuEntry[] => [
 ];
 
 const phoneMenu = (): MenuEntry[] =>
-  (['home', 'throughput'] as const).map((area) => ({
+  (['throughput'] as const).map((area) => ({
     label: AREA_NAMES[area],
     icon: AREA_ICONS[area],
     key: '',
@@ -2460,6 +2466,8 @@ for (const area of AREAS) {
     if (area === 'operations' && !$('ops-badge').hidden) focusNeed();
   });
 }
+$('pb-home').prepend(icon('home'));
+$('pb-home').addEventListener('click', () => setArea('home'));
 $('pb-chat').addEventListener('click', showChat);
 $('pb-agents').prepend(icon('board'));
 $('pb-agents').addEventListener('click', () => setPane('agents'));

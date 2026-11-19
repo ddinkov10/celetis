@@ -15,6 +15,7 @@ export type Folder = Readonly<{ path: string; rule: FolderRule }>;
 export type LockName =
   | 'queue'
   | 'agents'
+  | 'trends'
   | 'usage'
   | 'recovery'
   | 'epic'
@@ -53,6 +54,7 @@ export function stateOutcome(error: unknown): StateError | null {
 const policies: Readonly<Record<LockName, Readonly<{ wait: number; line: (path: string) => string }>>> = {
   queue: { wait: 10_000, line: (path) => `queue: ${path}: the write lock is busy after 10 seconds; try again` },
   agents: { wait: 10_000, line: (path) => `agents: ${path}: the write lock is busy after 10 seconds; try again` },
+  trends: { wait: 10_000, line: (path) => `trends: ${path}: the write lock is busy after 10 seconds; try again` },
   usage: { wait: 10_000, line: (path) => `usage: ${path}: the write lock is busy after 10 seconds; try again` },
   recovery: {
     wait: 10_000,
@@ -115,6 +117,9 @@ export function repositoryLayout(common: string) {
     queueLock: lockAt('queue', join(root.path, 'queue-write.lock'), [root]),
     agents: join(root.path, 'agents.json'),
     agentsLock: lockAt('agents', join(root.path, 'agents-write.lock'), [root]),
+    trendSamples: join(root.path, 'trend-samples.jsonl'),
+    trendCache: join(root.path, 'trend-cache.jsonl'),
+    trendsLock: lockAt('trends', join(root.path, 'trends-write.lock'), [root]),
     sessions,
     session: (issue: number) => join(sessions.path, `${issue}.json`),
     sessionArchive,

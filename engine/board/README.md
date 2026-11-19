@@ -250,7 +250,25 @@ with the long name and the menu label of each agent, in the registry order (`cla
 picker, the queue agent control, and the agent marks of the cards from it, and keeps no list of agents
 of its own. Each placement also reads the status object of the daemon once through the adapter,
 in the process, and the reply adds `daemon`: `{pid, auto}`, with the PID of the daemon and its auto
-mode (`on`, `off`, or `stopping`). These reads do not wait for GitHub.
+mode (`on`, `off`, or `stopping`). The reply also adds `trends` (`createTrends` of
+`engine/board/trends.ts`): `live` holds `needs` and `working`, 24 hourly points each (the clock hours
+of the board's time zone, the highest sample of an hour, `null` for an hour with no sample), with
+`readAt` and `error`; `delivery` holds `windows` (8 windows of 7 days that end now, each with the
+number of landings and the median days from issue creation to landing, or `null` with no landing),
+with `readAt` and `error`. A sampler writes one line `{at, needs, working}` every 5 minutes to
+`trend-samples.jsonl` in `<git common dir>/celetis/`, while the board runs, with no page open. The
+counts are the lengths of the Needs you and Running columns of a local placement, and both are
+`null` before the first document or after a failed full read. The board prunes samples older than 7
+days at its start and every 24 hours. The delivery read (`readDelivery` of
+`engine/lib/board-read.ts`) starts at the board start, when the trunk head of the document
+differs from the head of the last started read, and when the last good read is more than 1 hour
+old, so the windows end now also in a period with no landing. After a failed read, that hour
+counts from its start, so a failing read starts at most once an hour from this cause. The sample
+tick and `view()` check the head and the hour. One read runs at a time: a new head during a read
+marks one more read for its end. A read ends at 60 seconds with `the trend read did not end in 60
+seconds`, and at the board stop. A failed read sets `delivery.error` and keeps the last `windows`;
+it does not change `source.error`. `view()` never waits for a read, so `windows` is `null` and
+`error` is `null` until the first read ends. These reads do not wait for GitHub.
 The tables below give the value of each field and the rule that gives each row its state.
 
 A full read lists the open issues and the open PRs with REST. It reads the timelines of the open
@@ -394,21 +412,50 @@ fills the space between the top bar and the bottom bar, and the More menu has no
 A full read, or a selected read that finds at least one closed issue, calls `readHistory` of
 `engine/lib/board-read.ts` once. Other selected reads retain History. `readHistory` reads the remote
 repository metadata and captures the default branch head in GraphQL. It walks
-100-commit pages pinned to that SHA, each with the associated PRs of its commits in the same
-GraphQL query, until it finds 20 distinct issues or exhausts history. It reads the candidate
-issues of a page in one GraphQL batch, at most as many as the entries that are still missing. It
-keeps traversal order and each issue's newest occurrence, with no closure-time cutoff. A direct
+100-commit pages pinned to that SHA, with no PR fields, until it finds 20 distinct issues or
+exhausts history. It maps all commits of each page to issues with one call of `issuesOf`, the
+commit-to-issue function that it shares with the delivery walk. `issuesOf` takes the issue of a
+commit from the trend cache (`<git common dir>/celetis/trend-cache.jsonl`, `engine/lib/trends.ts`)
+when the cache has its SHA. It reads the associated PRs of the other commits in chunks of at most
+50, one GraphQL query of `object(oid:)` aliases per chunk, so one `gh` argument stays far below
+the Windows command-line limit of 32,767 characters, and reads a further PR page of one commit by
+its cursor. A commit with no PR whose issue suffix the cache does not hold as an issue gets its
+cache line only when its number answers as an issue in the same read. When the number answers as
+a PR, the cache gets neither the commit nor the number, so the next read asks both again: GitHub
+can list no PR for a new merge commit for a short time. A commit whose number the read does not
+ask stays out of the cache too. Apart from the issue batch, a cold page of 100 commits costs three
+queries, and a cached page costs one. It reads the candidate issues of a page in one GraphQL batch
+with `createdAt`, at most as many as the entries that are still missing. It keeps
+traversal order and each issue's newest occurrence, with no closure-time cutoff. After each chunk,
+and after the issue batch of a page, it appends the new commit and issue lines to the cache, so
+an aborted walk keeps the chunks that it read; a failed request appends nothing of its chunk. A cache line that does not
+parse counts as absent. A direct
 Celetis Conventional Commit has an issue suffix. For a PR landing, the commit must match a merged
 lane PR's merge SHA, base branch, and repository identities. The lane issue number must agree
 with its `Closes #<n>` body reference. A nonempty PR association never falls back to the subject's
 suffix. Ambiguous or unsupported associations are omitted; request and malformed-data failures
 fail the entire read. Issue responses that represent PRs cannot become history entries.
 
+`readDelivery` of `engine/lib/board-read.ts` reads the delivery numbers. It captures the default
+branch head and walks its 100-commit pages with `since` 56 days before now. It keeps each commit
+whose `committedDate` is in those 56 days, because the boundary of `since` is not documented. It
+maps the commits with `issuesOf`, in chunks of 50 for the commits that the cache does not hold,
+and counts each issue once, at its newest commit of the walk. After each chunk it reads `createdAt`
+of the issues of that chunk that the cache does not hold, in one batch; an answer that is not an
+issue with the same number caches no time and drops that landing. A number of the walk that does
+not exist fails the delivery read, which keeps the last good trends and does not fail the board
+document. It appends the new cache lines after each chunk and its batch, so a failed or aborted
+read keeps the chunks that it read; a failed request throws and appends nothing of its chunk. The
+result is 8 windows of 7 days that end
+now, oldest first. Each window holds the count of its landings and the median of their intent to
+landing time (landing commit time minus issue creation time) in days, or null with no landing.
+
 `History` contains `trunk`, its history `url`, the captured full `head`, and `entries`. Each
 `LandedIssue` contains `number`, issue `title` and `url`, full commit `sha`, `commitUrl`, and
 `committedAt`. The snapshot's history is null until the first successful document. It shares the
 existing refresh, abort signal, timeout, and last-good-document failure behavior with active work.
-No extra poller or workflow state exists. Display links allow only absolute HTTP(S) URLs without
+No extra poller or workflow state exists for History (the trend sampler and the delivery read of
+`trends` have their own schedule). Display links allow only absolute HTTP(S) URLs without
 credentials or control characters. Titles and branch names remain text.
 
 Rows expose issue and commit links, a short SHA with its full accessible identity, and commit
@@ -1113,8 +1160,9 @@ process. Twelve rules hold for the server and the page:
    The `git diff` of a session runs with `--no-optional-locks`, so it writes nothing. Update
    workers also validate the native plugin and engine installations.
 10. Open shell refuses a path that is not under `.claude/worktrees/` of the main checkout.
-11. The server writes nothing in a product working tree. An approved update changes only the
-    validated native plugin and engine installations.
+11. The server writes nothing in a product working tree. The trend sampler and the delivery read write
+    only `trend-samples.jsonl` and `trend-cache.jsonl` in `<git common dir>/celetis/`. An approved
+    update changes only the validated native plugin and engine installations.
 12. The page writes each text of the data, of a terminal screen, and of an error as text, never as HTML. Its
     Content-Security-Policy allows its own files (the page, its two scripts, `theme.js` and `board.js`, its stylesheet, and
     its two fonts) and `data:` images (the tab icon) only. A visual page at `/visual/<sha>` is
@@ -1205,7 +1253,7 @@ These files enforce the rules. They are the trust files of the board:
 | 8 (no shell) | `engine/board/perimeter.ts` (`run`), `engine/lib/process.ts` (`run` of the issue and status reads), `engine/lib/codex-app-server.ts` (`createCodexClient`) |
 | 9 (`git` only in the repository, `--no-optional-locks`; update workers validate the installations) | `engine/lib/board-read.ts` (`isInside`, `readDiff`), `engine/board/update-worker.ts`, `engine/lib/updater.ts` |
 | 10 (Open shell under `.claude/worktrees/`) | `engine/board/presses.ts`, `engine/lib/board-read.ts` (`isInside`) |
-| 11 (no write in a product working tree) | No one file: each module of the board; the read model only reads |
+| 11 (no write in a product working tree; the trend files only in the git common dir) | No one file: each module of the board; the read model reads, and only `engine/board/trends.ts` through `engine/lib/trends.ts` and the History read through the trend cache write, in `<git common dir>/celetis/` |
 | 12 (text as text, the Content-Security-Policies, the visual page) | `engine/board/perimeter.ts`, `engine/lib/fields.ts` (`isCommit`), `engine/lib/board-read.ts` (`readVisualPage`), `engine/lib/visual.ts` (`hasPage`), the page modules |
 | Start rule 1 (the engine read) | `engine/board/adapter.ts`, `engine/lib/installation.ts` (`readEngine`) |
 | Start rule 2 (fixed argvs and requests) | `engine/board/adapter.ts`, `engine/lib/terminal.ts` (`openTab`), `engine/lib/codex-app-server.ts` (`createCodexClient`) |
@@ -1237,11 +1285,27 @@ loads nothing from the network.
   Home and Operations, so the foot keeps its place; below that height the sidebar scrolls. Exactly
   one destination is current, and it has `aria-current="page"`. A press on a destination shows its
   area and sends nothing. The work area is `main`, named `Work area`, with one container for each
-  area: `area-home`, `area-operations`, `area-control`, and `area-throughput`. Home and Throughput
-  show a title and one line that say that the area is not built yet and what it will hold. The
-  page has no header row and no status bar. The title of the browser tab is
+  area: `area-home`, `area-operations`, `area-control`, and `area-throughput`. Throughput shows a
+  title and one line that say that the area is not built yet and what it will hold.
+  The page has no header row and no status bar. The title of the browser tab is
   `(<n>) <folder> · Agent board` while `<n>` cards or sessions need you, and the tab icon has an orange dot
   then; it has a blue dot while an agent of an issue works and nothing needs you.
+- Home is the screen that a load shows. Its title is `Home`. It shows in this order the row of
+  the trend tiles (`home-tiles`), then the panel `Needs you` beside a column of the panels
+  `Agents now` and `System`. Each panel is a card with a heading. `Needs you` has one row for each
+  card of the column Needs you, in its order: the title, the line `#<n> · <state>` (the reason when
+  the card has no state, and no `#<n> · ` when the card has no number), and the button `Open`, named
+  `Open #<n> <title>`, which shows the details of the card in Operations. `Agents now` has one row for
+  each card of the column Running: the button `#<n> <title>` over the line of the step, the agent
+  name, and the state, which shows the details in the same way. A list with no row shows
+  `No issue needs you.` or `No agent works now.` in its place. `System` reads four facts from the
+  document and sends nothing: `Auto mode` (`on`, `off`, or `stopping`), `Queue` (`empty` or
+  `<n> issues`), `Agents` (the names of the available agents, or `none`), and `Herdr` (`up`,
+  `down`, or `checking`). Home has no control. The tiles are at 4 columns from 1200 px, 2 columns
+  below that, and 1 column below 720 px; below 1100 px the panels stack. Below 720 px the order is
+  the title, Needs you, the tiles, Agents now, and System; the Tab order of its controls follows
+  it. The Home item of the sidebar carries a badge with the length of the column Needs you, which
+  hides at 0.
 - Control holds each control of the product. Its title is `Control`, and it has five sections in
   this order, each with a heading, one line that says what the section does, and its body:
   `Agents` (the agent order), `Automation` (the state of auto mode and the command that changes
@@ -1264,12 +1328,12 @@ loads nothing from the network.
   while the wide Pipeline with no details takes the place of the chat. On a phone the link of the
   pane that does not show is hidden.
 - Below 720 px the sidebar is a slim top bar with the logo, the folder name, and Search, and the
-  bottom bar follows the work area: a `nav` named `Panes`, fixed to the bottom edge, with Chat,
+  bottom bar follows the work area: a `nav` named `Panes`, fixed to the bottom edge, with Home, Chat,
   Agents, New intake, Control, and More, each with an icon and its label. One pane of Operations
   shows at a time: Chat (the chat or the details) or Agents (the tabs of the right pane). A load
-  shows Chat. Chat or Agents is current while its pane shows, also with the details open in Chat;
-  Control is current in Control, and More is current in Home and Throughput. More holds the rows
-  `Home` and `Throughput`. Chat carries the coordinator mark, Agents carries a badge with the
+  shows Home, and Operations then opens on Chat. Chat or Agents is current while its pane shows, also with the details open in Chat;
+  Home is current in Home, Control is current in Control, and More is current in Throughput. More
+  holds the row `Throughput`. Chat carries the coordinator mark, Agents carries a badge with the
   `need you` count, which hides at 0, and Control carries the mark of the controls.
   The bottom bar does not hide on scroll. The details and the chat keep the top bar and the bottom
   bar visible.
@@ -1606,10 +1670,10 @@ loads nothing from the network.
   the tracker (`Issues` before the first good read; `<tracker>: cannot read: <line>` in Caution
   Amber), whether herdr-core answers (the item `herdr`), the state of the master daemon (the item
   `Daemon`), and Refresh, at each width. The banner of a failed read still shows above the board.
-  The board menu More on a phone has the rows `Home` and `Throughput`. It has no row for the queue
+  The board menu More on a phone has the row `Throughput`. It has no row for the queue
   or History, because the tabs of the Agents pane hold them, no row for Coordinator, because the
-  Chat button of the bottom bar shows it, and no row for Control, because the bottom bar has its
-  item. Search has, at each width, `Go to Home`, `Go to Operations`, `Go to Control`, and `Go to
+  Chat button of the bottom bar shows it, and no row for Home or Control, because the bottom bar has
+  their items. Search has, at each width, `Go to Home`, `Go to Operations`, `Go to Control`, and `Go to
   Throughput`; the queue, History, and theme commands; and `Start the coordinator session` while
   no session lives. It has no command to show or hide the coordinator, because the chat always
   shows in Operations. The foot of the sidebar shows the keys of the focused card (from 1100 px;
@@ -1660,10 +1724,10 @@ loads nothing from the network.
 - The right pane has a bounded width beside the chat. Below 720 px one pane shows at a time.
 - The page keeps six choices in the storage of the browser: the area, the tab of the right pane,
   the Notify switch, the switch of the single-key shortcuts, the open epic groups, and the theme
-  (Light or Dark; System stores nothing). A load restores the area and the tab: an unknown or
-  missing area gives Operations, and an unknown or missing tab gives Agents. A stored Pipeline
+  (Light or Dark; System stores nothing). A load restores the area and the tab: a missing or
+  unknown area gives Home, and an unknown or missing tab gives Agents. A stored Pipeline
   also gives Agents, so a load never starts with the wide Pipeline over the chat, and below 720 px
-  a load shows the Chat pane. A load shows no details. It also keeps the last ended turn of the
+  Operations opens on the Chat pane. A load shows no details. It also keeps the last ended turn of the
   coordinator session that the chat showed, and the last ended turn of each human session that you
   saw, by terminal and hc `turn`; an entry leaves the storage at the next good read that lists no
   such session, and a failed read removes none. The open epic groups, the theme, and the seen turns of human sessions follow a

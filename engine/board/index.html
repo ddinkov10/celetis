@@ -22,7 +22,7 @@
   <div class="intake-control"><button type="button" class="btn ghost" id="intake" aria-describedby="intake-reason"><span class="label">New intake</span></button><span id="intake-reason" class="intake-reason" hidden></span></div>
   <button type="button" class="find" id="find" aria-label="Search or run a step: the cards, history, and commands" aria-keyshortcuts="Control+K Meta+K /"><span class="find-text">Search</span><kbd>⌘K</kbd></button>
   <ul class="dests" id="dests">
-    <li><button type="button" class="dest" data-area="home"><span class="label">Home</span></button></li>
+    <li><button type="button" class="dest" data-area="home"><span class="label">Home</span><span class="dest-badge" id="home-badge" hidden></span></button></li>
     <li><button type="button" class="dest" data-area="operations"><span class="label">Operations</span><span class="dest-badge" id="ops-badge" hidden></span></button></li>
     <li><button type="button" class="dest" data-area="control"><span class="label">Control</span></button></li>
     <li><button type="button" class="dest" data-area="throughput"><span class="label">Throughput</span></button></li>
@@ -31,12 +31,33 @@
     <span class="hints" id="hints" aria-hidden="true"></span>
   </div>
 </nav>
-<main class="work" id="work" tabindex="-1" aria-label="Work area" data-area="operations">
+<main class="work" id="work" tabindex="-1" aria-label="Work area" data-area="home">
   <div class="banners">
     <p class="banner warn" id="dirty" role="alert" hidden></p>
     <p class="banner" id="stale" role="alert" hidden>The board read failed. The cards and history show the last good read.</p>
   </div>
-  <section class="area-screen" id="area-home" aria-labelledby="area-home-title" hidden><div class="area-empty"><h2 id="area-home-title">Home is not built yet.</h2><p>Home will show what needs you, the agents now, and the trends of the work.</p></div></section>
+  <section class="area-screen" id="area-home" aria-labelledby="area-home-title" hidden>
+    <h2 id="area-home-title">Home</h2>
+    <div class="home-tiles" id="home-tiles"></div>
+    <div class="home-lists">
+      <section class="home-panel" id="home-needs" aria-labelledby="home-needs-title">
+        <h3 id="home-needs-title">Needs you</h3>
+        <ul class="home-list" id="home-needs-list"></ul>
+        <p class="home-empty" id="home-needs-empty" hidden>No issue needs you.</p>
+      </section>
+      <div class="home-side">
+        <section class="home-panel" id="home-agents" aria-labelledby="home-agents-title">
+          <h3 id="home-agents-title">Agents now</h3>
+          <ul class="home-list" id="home-agents-list"></ul>
+          <p class="home-empty" id="home-agents-empty" hidden>No agent works now.</p>
+        </section>
+        <section class="home-panel" id="home-system" aria-labelledby="home-system-title">
+          <h3 id="home-system-title">System</h3>
+          <dl class="home-facts" id="home-system-facts"></dl>
+        </section>
+      </div>
+    </div>
+  </section>
   <section class="area-screen" id="area-control" aria-labelledby="area-control-title" hidden>
     <h2 id="area-control-title">Control</h2>
     <section class="ctl-section" id="ctl-agents" tabindex="-1" aria-labelledby="ctl-agents-title">
@@ -120,6 +141,7 @@
   </div>
 </main>
 <nav class="bar" id="bar" aria-label="Panes">
+  <button type="button" class="dock-item" id="pb-home"><span class="label">Home</span></button>
   <button type="button" class="dock-item co-open" id="pb-chat"><span class="label">Chat</span><i class="co-mark" aria-hidden="true"></i></button>
   <button type="button" class="dock-item" id="pb-agents"><span class="label">Agents</span><span class="dock-badge" id="now-badge" hidden></span></button>
   <button type="button" class="dock-item" id="pb-control"><span class="label">Control</span></button>

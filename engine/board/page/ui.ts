@@ -36,6 +36,8 @@ const ICONS: Record<string, [string, Record<string, string | number>][]> = {
       },
     ],
   ],
+  'trend-up': [['path', { d: 'M8 13V3M4 7l4-4 4 4' }]],
+  'trend-down': [['path', { d: 'M8 3v10M4 9l4 4 4-4' }]],
   pin: [['path', { d: 'M5.5 2h5l-.8 4.2 2.3 2.3v1H8.6V14h-1.2V9.5H4v-1l2.3-2.3z', class: 'fill' }]],
   spark: [['path', { d: 'M8 2.25 9.3 6.7 13.75 8 9.3 9.3 8 13.75 6.7 9.3 2.25 8 6.7 6.7Z' }]],
   wrench: [

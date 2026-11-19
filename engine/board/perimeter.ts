@@ -1,6 +1,7 @@
 import type { ExecFileOptions } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import type { DeliveryWindow } from '../lib/board-read-types.ts';
 import type { Adapter } from './adapter.ts';
 import type { BoardRuntime, Document, UpdateRestartResponse } from './types.ts';
 import type { UpdateController } from './updates.ts';
@@ -22,6 +23,7 @@ import { createPlacement } from './place.ts';
 import { createPressBook, createPresses } from './presses.ts';
 import { createReads } from './reads.ts';
 import { firstLine, POSTS, parseRequest, Refusal } from './requests.ts';
+import { createTrends } from './trends.ts';
 
 const HERE = import.meta.dirname;
 const FILES: Record<string, [string, string]> = {
@@ -68,6 +70,8 @@ export const createBoard = ({
   read,
   readTargets,
   hints,
+  common,
+  readDelivery,
   adapter,
   updates,
   runtime,
@@ -78,6 +82,8 @@ export const createBoard = ({
   read: (signal: AbortSignal) => Promise<Document>;
   readTargets: (numbers: readonly number[], previous: Document, signal: AbortSignal) => Promise<Document>;
   hints: () => Promise<ReadonlyMap<string, number> | null>;
+  common: string;
+  readDelivery: (signal: AbortSignal) => Promise<DeliveryWindow[]>;
   adapter: Adapter;
   updates: () => UpdateController;
   runtime: BoardRuntime;
@@ -94,7 +100,19 @@ export const createBoard = ({
     status: () => adapter.status(),
     coordinator,
     facts: () => adapter.coordinator(),
+    trends: () => trends.view(),
     exec,
+    now,
+  });
+  const trends = createTrends({
+    common,
+    count: async () => {
+      if (reads.document === null || reads.fullError !== null) return null;
+      const { columns } = await placer.placement({ isLocal: true });
+      return { needs: columns.needs.length, working: columns.running.length };
+    },
+    head: () => reads.document?.history.head ?? null,
+    readDelivery,
     now,
   });
   const presses = createPresses({ main, reads, book, placer, adapter, exec, now });
@@ -249,11 +267,18 @@ export const createBoard = ({
     });
   });
   let updateResponse = Promise.resolve();
-  server.on('listening', () => reads.start());
-  server.on('close', reads.stop);
+  const stopReads = () => {
+    reads.stop();
+    trends.stop();
+  };
+  server.on('listening', () => {
+    reads.start();
+    trends.start();
+  });
+  server.on('close', stopReads);
   return Object.assign(server, {
     drainUpdateResponse: () => updateResponse,
-    stopReads: reads.stop,
+    stopReads,
     closeCoordinator: coordinator.close,
   });
 };
