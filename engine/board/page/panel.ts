@@ -1,5 +1,5 @@
-import type { RowSource, StartPair } from '../../lib/effort.ts';
-import type { Registry } from '../../lib/host-names.ts';
+import type { Registry } from '../../lib/host/names.ts';
+import type { RowSource, StartPair } from '../../lib/workflow/effort.ts';
 import type { Action, Card, DaemonView, Flow } from '../types.ts';
 import {
   agentOf,

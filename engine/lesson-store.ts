@@ -1,10 +1,10 @@
 import { lstat, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { readConfig } from './lib/config.ts';
-import { type ExitCode, exits, usage } from './lib/contract.ts';
-import { HostError } from './lib/errors.ts';
-import { installRecorder, markDefect } from './lib/events.ts';
-import { hostChoices } from './lib/host-names.ts';
+import { HostError } from './lib/command/errors.ts';
+import { commandInput, createOperation, locateCheckouts } from './lib/command/operation.ts';
+import { readConfig } from './lib/config/config.ts';
+import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
+import { hostChoices } from './lib/host/names.ts';
 import {
   LessonError,
   type LessonSnapshot,
@@ -13,15 +13,15 @@ import {
   validateCapture,
   validateReviewRequest,
   validateReviewSnapshot,
-} from './lib/lesson-record.ts';
+} from './lib/lesson/record.ts';
 import {
   applyLessonReview,
   captureLesson,
   previewLessonReview,
   readLessons,
   recoverLessons,
-} from './lib/lesson-store.ts';
-import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
+} from './lib/lesson/store.ts';
+import { installRecorder, markDefect } from './lib/state/events.ts';
 
 export async function main(argv: string[]): Promise<ExitCode> {
   try {

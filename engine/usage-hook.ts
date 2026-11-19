@@ -1,5 +1,5 @@
-import { type ExitCode, exits } from './lib/contract.ts';
-import { receiveClaudeUsage } from './lib/usage-claude.ts';
+import { type ExitCode, exits } from './lib/contract/contract.ts';
+import { receiveClaudeUsage } from './lib/host/claude/usage.ts';
 
 async function main(args: string[]): Promise<ExitCode> {
   const [directory, attemptId] = args;

@@ -1,21 +1,21 @@
 import { dirname } from 'node:path';
-import { type ExitCode, exits, usage, usageLine } from './lib/contract.ts';
-import type { Level, Model } from './lib/effort.ts';
-import { versionFolderGone } from './lib/version-folder.ts';
+import { type ExitCode, exits, usage, usageLine } from './lib/contract/contract.ts';
+import { versionFolderGone } from './lib/install/version-folder.ts';
+import type { Level, Model } from './lib/workflow/effort.ts';
 
 const removed = 'the engine version of this command was removed after an update; run the command again';
 
 export async function main(argv: string[]): Promise<ExitCode> {
   const unavailable = await versionFolderGone(dirname(import.meta.dir));
-  if (!unavailable) (await import('./lib/events.ts')).installRecorder('run');
+  if (!unavailable) (await import('./lib/state/events.ts')).installRecorder('run');
   let explicit: string | undefined;
   if (!unavailable) {
     try {
-      const input = (await import('./lib/operation.ts')).commandInput(argv);
+      const input = (await import('./lib/command/operation.ts')).commandInput(argv);
       argv = input.args;
       explicit = input.explicit;
     } catch (error) {
-      const { HostError } = await import('./lib/errors.ts');
+      const { HostError } = await import('./lib/command/errors.ts');
       if (!(error instanceof HostError)) throw error;
       if (error.message) console.error(error.message);
       return error.code;
@@ -34,7 +34,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
     mode = 'resume';
     numbers = [(argv[1] ?? '').replace(/^#/, '')];
   } else {
-    const effort = unavailable ? null : await import('./lib/effort.ts');
+    const effort = unavailable ? null : await import('./lib/workflow/effort.ts');
     const take = <T>(flag: string, valid: ((value: unknown) => value is T) | undefined): T | undefined => {
       const at = argv.indexOf(flag);
       const value = argv[at + 1];
@@ -55,10 +55,10 @@ export async function main(argv: string[]): Promise<ExitCode> {
     console.error(mode === 'number' ? `run: #${numbers[0]}: ${removed}` : `run: ${removed}`);
     return exits.prerequisite;
   }
-  const { HostError } = await import('./lib/errors.ts');
-  const { requireBun } = await import('./lib/host.ts');
-  const { askDaemon, requestSelection, sendRun } = await import('./lib/daemon-client.ts');
-  const { locateCheckouts } = await import('./lib/operation.ts');
+  const { HostError } = await import('./lib/command/errors.ts');
+  const { requireBun } = await import('./lib/host/host.ts');
+  const { askDaemon, requestSelection, sendRun } = await import('./lib/daemon/client.ts');
+  const { locateCheckouts } = await import('./lib/command/operation.ts');
   try {
     requireBun();
     const checkout = await locateCheckouts(process.cwd());

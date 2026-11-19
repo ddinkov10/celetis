@@ -1,4 +1,4 @@
-import type { Host } from '../../lib/config-core.ts';
+import type { Host } from '../../lib/config/core.ts';
 import type { MenuEntry, PaletteItem } from '../types.ts';
 import { filterItems } from '../view.ts';
 import { $, AGENT_ICONS, el, icon } from './ui.ts';

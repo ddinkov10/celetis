@@ -1,10 +1,10 @@
-import { type ExitCode, exits, usage } from './lib/contract.ts';
-import { HostError } from './lib/errors.ts';
-import { installRecorder } from './lib/events.ts';
-import { hostAdapter } from './lib/hosts.ts';
-import { lineOf } from './lib/lines.ts';
-import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
-import { nextIssue, nextOpen } from './lib/resolver.ts';
+import { HostError } from './lib/command/errors.ts';
+import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/command/operation.ts';
+import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
+import { hostAdapter } from './lib/host/hosts.ts';
+import { lineOf } from './lib/resolver/lines.ts';
+import { nextIssue, nextOpen } from './lib/resolver/resolver.ts';
+import { installRecorder } from './lib/state/events.ts';
 
 function request(args: string[]): { arg: string; n: string } | null {
   const arg = args[0] ?? '';

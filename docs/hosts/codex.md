@@ -27,7 +27,7 @@ its procedure, under its `Codex` part ("The module index").
 
 ## The daemon and `developer_instructions`
 
-`stepArguments` of `engine/lib/host-codex.ts` reads the effective `developer_instructions` with
+`stepArguments` of `engine/lib/host/codex/adapter.ts` reads the effective `developer_instructions` with
 `config/read`, keeps that text, and appends the step text: the facts header (`stepHeader`) and
 `step-prompt.md` at the plugin root of the header. It passes the result as one quoted
 `developer_instructions=<JSON string>` value after `-c`, then the prompt above. `specify` gets no
@@ -49,9 +49,9 @@ For each step, `specify` too, `stepArguments` also reads the session model: `mod
 ([The start of a step](../../engine/README.md#the-start-of-a-step)) does not reach Codex: the
 session keeps the model of the config. The pair gives only the chosen level. A level of the pair
 with the source `pinned` or `override` is the chosen level as it is. Else `tierRaise` of
-`engine/lib/host-codex.ts` raises the level by the tier of the model of the pair: 0 levels for
+`engine/lib/host/codex/adapter.ts` raises the level by the tier of the model of the pair: 0 levels for
 `haiku` and `sonnet`, 1 for `opus`, and 2 for `fable`, at most `max`. `selectCodexEffort` of
-`engine/lib/host-codex.ts` takes the supported levels of the session model
+`engine/lib/host/codex/adapter.ts` takes the supported levels of the session model
 (`supportedReasoningEfforts[].reasoningEffort`), keeps the five levels of Celetis, and applies the
 highest one at or below the chosen level, else the lowest one.
 The daemon passes it as `-c model_reasoning_effort="<level>"` before the prompt and saves it in the
@@ -60,8 +60,8 @@ A model that `model/list` does not list, a model with none of the five levels, o
 stops the start with a message.
 
 The plugin root of the header is the result of `installedRoot('codex', …)` in
-`engine/lib/plugin-metadata.ts`, resolved with `realpath`, which `requireContract` of
-`engine/lib/contract-check.ts` returns. The lookup uses `skills/list` on a short-lived app-server
+`engine/lib/plugin/metadata.ts`, resolved with `realpath`, which `requireContract` of
+`engine/lib/contract/check.ts` returns. The lookup uses `skills/list` on a short-lived app-server
 connection, with no thread or model turn.
 
 ## The sandbox
@@ -80,7 +80,7 @@ connection, with no thread or model turn.
 ## Dispatch
 
 The engine does not intercept a native child call, and Codex needs no hook or trust change for the
-task loop. A task-loop report is agent-reported evidence: `engine/lib/dispatch-record.ts` validates
+task loop. A task-loop report is agent-reported evidence: `engine/lib/capability/dispatch-record.ts` validates
 it against the issued action and cannot prove a consistent report true (ADR-0041; independent
 native enforcement is #151). The observed follow-up tool has no model or effort control, so the
 engine stops a changed pair before a resume. The native trace encrypts the message fields, so it

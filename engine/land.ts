@@ -1,14 +1,14 @@
 import { constants } from 'node:os';
-import { classOf, type ExitClass, type ExitCode, exits, signalExit, usage } from './lib/contract.ts';
-import { requestSelection, requireDaemon, unanswered } from './lib/daemon-client.ts';
-import { daemonSocket, landingSubject, parseAnswer, parseLandingRecord } from './lib/daemon-types.ts';
-import { HostError } from './lib/errors.ts';
-import { installRecorder, markDefect, recordedElsewhere, writeUnrecorded } from './lib/events.ts';
-import { isIssueNumber } from './lib/fields.ts';
-import { isHost } from './lib/host-names.ts';
-import { requireCan } from './lib/hosts.ts';
-import { commandInput, locateCheckouts } from './lib/operation.ts';
-import { run } from './lib/process.ts';
+import { HostError } from './lib/command/errors.ts';
+import { commandInput, locateCheckouts } from './lib/command/operation.ts';
+import { classOf, type ExitClass, type ExitCode, exits, signalExit, usage } from './lib/contract/contract.ts';
+import { requestSelection, requireDaemon, unanswered } from './lib/daemon/client.ts';
+import { daemonSocket, landingSubject, parseAnswer, parseLandingRecord } from './lib/daemon/types.ts';
+import { requireCan } from './lib/host/hosts.ts';
+import { isHost } from './lib/host/names.ts';
+import { run } from './lib/process/process.ts';
+import { installRecorder, markDefect, recordedElsewhere, writeUnrecorded } from './lib/state/events.ts';
+import { isIssueNumber } from './lib/state/fields.ts';
 
 export async function main(argv: string[]): Promise<ExitCode> {
   try {

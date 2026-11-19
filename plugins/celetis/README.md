@@ -609,7 +609,7 @@ for reconciliation instead of blindly creating another issue.
 A product project runs each command through the installed engine `celetis` ("First install").
 `celetis help` prints the commands that a person types:
 
-<!-- scripts/build.ts writes this block from engine/lib/contract.ts. Edit that file, then run scripts/build.ts. -->
+<!-- scripts/build.ts writes this block from engine/lib/contract/contract.ts. Edit that file, then run scripts/build.ts. -->
 ```text
 usage: celetis [--agent <host>] <command> [<argument>...]
 
@@ -653,7 +653,7 @@ Each skill call names its host with `--agent claude` or `--agent codex` before t
 the table shows. In a terminal, a person can omit `--agent <host>` ("Agent selection and model
 setup"):
 
-<!-- scripts/build.ts writes the command table from engine/lib/contract.ts. Edit that file, then run scripts/build.ts. -->
+<!-- scripts/build.ts writes the command table from engine/lib/contract/contract.ts. Edit that file, then run scripts/build.ts. -->
 | Command | What it does |
 |---|---|
 | `celetis --agent <host> lesson-store read main\|active` | Returns validated lesson records, exact file contents, digests, and the resolved checkout as JSON. `main` returns the live files of the checkout that runs it with the pending and rejected data of the main checkout, and `root` names the main checkout. Rejected records appear in `history` with `status: pending-review`; they are not past guidance. `active` reads the live files of the task checkout and ignores its pending folder. A leftover `.celetis/lessons/INDEX.md` fails both reads. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
@@ -688,7 +688,7 @@ setup"):
 
 Each command gives the exit code of its class. The `Exit status:` list of a row names the classes that the command declares; the table of the classes follows:
 
-<!-- scripts/build.ts writes the exit-class table from engine/lib/contract.ts. Edit that file, then run scripts/build.ts. -->
+<!-- scripts/build.ts writes the exit-class table from engine/lib/contract/contract.ts. Edit that file, then run scripts/build.ts. -->
 | Code | Class | Meaning |
 |---|---|---|
 | 0 | done | The act completed, or it had no change to make. |
@@ -724,7 +724,7 @@ These programs are not commands of the engine. Each gives its own exit codes:
   described in `docs/configuration.md`. A missing tool or invalid installation
   stops with a setup action. Codex commands require no Claude binary. The current metadata must
   explicitly mark the installation enabled; missing fields are not an old-format fallback.
-- An unknown command is each name that `engine/lib/contract.ts` does not declare, also the name
+- An unknown command is each name that `engine/lib/contract/contract.ts` does not declare, also the name
   of a file of `engine/` or `scripts/` that no declared command names (for example `launcher`,
   `usage-hook`, `build`, `verify`, `install-tools`). The development scripts run only with `bun`
   (`AGENTS.md`, "Verify gate"). An unknown command prints a line that names it and a line that points to `celetis help`. A usage line and an unknown command end with
@@ -749,7 +749,7 @@ source and the ref of the part; or a skipped part with its reason, or the first 
 
 Before it asks anything, it checks the contract pair of the targets. It reads
 `plugins/celetis/contract.json` at the target of each plugin and
-`engine/lib/contract-versions.json` at the target of the engine. It reads them from the Git
+`engine/lib/contract/versions.json` at the target of the engine. It reads them from the Git
 source of the part, with one shallow fetch of each source and revision into a temporary folder,
 and it runs no code of a target. A part that is at its target uses the file of its installed
 folder. Then it stops with no change at the first of these:
@@ -767,6 +767,13 @@ folder. Then it stops with no change at the first of these:
    says below.
 
 It exits 6 at the first stop, and 3 at each other stop.
+
+An engine installed before the feature folders of the engine (#340) reads
+`engine/lib/contract-versions.json` at the target of the engine, and the target has the file at
+`engine/lib/contract/versions.json`. So, by the code of its updater, `celetis update` of such an
+engine stops at stop 4 with
+`update: the engine at <target> declares no served contract versions; nothing changed; …`, and
+changes nothing. Run "First install" once to cross the change (ADR-0114).
 
 The parts can be at different revisions when their contract versions match. After a stop of the
 pair, set one compatible source and ref for the parts. The source and the ref of a plugin are the

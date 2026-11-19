@@ -1,5 +1,7 @@
 import { readFile } from 'node:fs/promises';
-import type { Host } from './lib/config-core.ts';
+import { HostError } from './lib/command/errors.ts';
+import { commandInput, createOperation, locateCheckouts } from './lib/command/operation.ts';
+import type { Host } from './lib/config/core.ts';
 import {
   type ExitClass,
   type ExitCode,
@@ -12,18 +14,16 @@ import {
   type Label,
   marker,
   usageText,
-} from './lib/contract.ts';
-import { decidable, effortMarker, isLevel, isModel } from './lib/effort.ts';
-import { completeEpic, readEpic, writeEpicDefinition } from './lib/epic.ts';
-import { parseEpicAcceptance, parseEpicSubmission } from './lib/epic-acceptance.ts';
-import { HostError } from './lib/errors.ts';
-import { installRecorder, markDefect } from './lib/events.ts';
-import { isIssueNumber } from './lib/fields.ts';
-import { hostAdapter } from './lib/hosts.ts';
-import { lineOf } from './lib/lines.ts';
-import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
-import { writeRefreshHint } from './lib/refresh-hints.ts';
-import { type Edit, GitHubError, github } from './lib/tracker.ts';
+} from './lib/contract/contract.ts';
+import { parseEpicAcceptance, parseEpicSubmission } from './lib/epic/acceptance.ts';
+import { completeEpic, readEpic, writeEpicDefinition } from './lib/epic/epic.ts';
+import { hostAdapter } from './lib/host/hosts.ts';
+import { lineOf } from './lib/resolver/lines.ts';
+import { installRecorder, markDefect } from './lib/state/events.ts';
+import { isIssueNumber } from './lib/state/fields.ts';
+import { writeRefreshHint } from './lib/tracker/refresh-hints.ts';
+import { type Edit, GitHubError, github } from './lib/tracker/tracker.ts';
+import { decidable, effortMarker, isLevel, isModel } from './lib/workflow/effort.ts';
 import {
   type Decision,
   decide,
@@ -37,7 +37,7 @@ import {
   laneOf,
   lanes,
   specified,
-} from './lib/workflow.ts';
+} from './lib/workflow/workflow.ts';
 
 type Context = Readonly<{
   host: Host;

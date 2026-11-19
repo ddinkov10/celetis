@@ -229,24 +229,24 @@ shows at the next read ("The data").
 
 ## The data
 
-The board reads its issue data in the process of the daemon (`engine/lib/board-read.ts`). Each read
+The board reads its issue data in the process of the daemon (`engine/lib/board-read/board-read.ts`). Each read
 creates a fresh operation of the main checkout with no host selection, so the `CELETIS_AGENT` of the
 daemon selects no host. So each read validates the main `.celetis.yaml` again, and it takes `gates`
 from it. The read then gets the typed rows of the resolver (`nextBoard` of
-`engine/lib/resolver.ts`). The resolver gives each row its whole state, `starting`, `aside`, and
+`engine/lib/resolver/resolver.ts`). The resolver gives each row its whole state, `starting`, `aside`, and
 `stuck` included, and reads for it the issue locks and the no-progress record of the daemon
-(`engine/lib/locks.ts`, which the daemon also uses), and the set-aside record
-(`engine/lib/set-aside.ts`). It builds one typed document (`Document` of
-`engine/lib/board-read-types.ts`) with the rows as `issues` and `noRun` of the resolver, and it adds
+(`engine/lib/state/locks.ts`, which the daemon also uses), and the set-aside record
+(`engine/lib/queue/set-aside.ts`). It builds one typed document (`Document` of
+`engine/lib/board-read/types.ts`) with the rows as `issues` and `noRun` of the resolver, and it adds
 `tracker`, `agents`, `flow`, `history`, and `queue`. Each `GET /api/board` also reads the local
 agent order, the usage records, and the usage-limit recovery records again (`readAgentState` of
-`engine/lib/board-read.ts`), and its reply adds `picker` (the order, the usage blocks, the hosts of
+`engine/lib/board-read/board-read.ts`), and its reply adds `picker` (the order, the usage blocks, the hosts of
 live sessions, the live usage-limit waits, and a read error), `next` (the decision of a new
 default start), and `starts` (the same decision for each step of `flow.steps`, with the preferred
-agent of the step). The reply also adds `registry`: the agent registry of `engine/lib/host-names.ts`,
+agent of the step). The reply also adds `registry`: the agent registry of `engine/lib/host/names.ts`,
 with the long name and the menu label of each agent, in the registry order (`claude`, `codex`,
 `opencode`). The order with no record is `claude`, `codex` (`readAgentOrder` of
-`engine/lib/agent-order.ts`), so OpenCode starts excluded from default work. The page builds the agent
+`engine/lib/agent/order.ts`), so OpenCode starts excluded from default work. The page builds the agent
 picker, the queue agent control, and the agent marks of the cards from it, and keeps no list of agents
 of its own. Each placement also reads the status object of the daemon once through the adapter,
 in the process, and the reply adds `daemon`: `{pid, auto}`, with the PID of the daemon and its auto
@@ -260,7 +260,7 @@ with `readAt` and `error`. A sampler writes one line `{at, needs, working}` ever
 counts are the lengths of the Needs you and Running columns of a local placement, and both are
 `null` before the first document or after a failed full read. The board prunes samples older than 7
 days at its start and every 24 hours. The delivery read (`readDelivery` of
-`engine/lib/board-read.ts`) starts at the board start, when the trunk head of the document
+`engine/lib/board-read/board-read.ts`) starts at the board start, when the trunk head of the document
 differs from the head of the last started read, and when the last good read is more than 1 hour
 old, so the windows end now also in a period with no landing. After a failed read, that hour
 counts from its start, so a failing read starts at most once an hour from this cause. The sample
@@ -330,7 +330,7 @@ actions until a full read succeeds. A selected-read error alone does not disable
 queue-specific restrictions still apply. Failed reads preserve the last good list.
 
 The board puts these values in the fields of its document (`Document` of
-`engine/lib/board-read-types.ts`):
+`engine/lib/board-read/types.ts`):
 
 | Field | Value |
 |---|---|
@@ -342,7 +342,7 @@ The board puts these values in the fields of its document (`Document` of
 | `flow.steps.<step>.hint` | A hint that says the step lands the change when the build is done, for `implement`, `chore`, and `hotfix`. No other step has a hint. |
 | `noRun` | A text that names the dirty path and tells to commit or stash first, while the main checkout is dirty, else `null`. |
 | `daemon` | Read at each response, not in the refresh: `{pid, auto}` of the status object of the daemon that serves the board, with `auto` `on`, `off`, or `stopping`. |
-| `agents` | One entry for each agent of the registry (`engine/lib/host-names.ts`). Each has `available: true` and `cause: null` when its executable is on the `PATH` of the board, else `available: false` and a `cause` that says the agent is not on `PATH`. This checks only executable presence: sign-in, trust, and plugin discovery need their own checks. |
+| `agents` | One entry for each agent of the registry (`engine/lib/host/names.ts`). Each has `available: true` and `cause: null` when its executable is on the `PATH` of the board, else `available: false` and a `cause` that says the agent is not on `PATH`. This checks only executable presence: sign-in, trust, and plugin discovery need their own checks. |
 | `history` | The remote trunk name, history URL, captured full head SHA, and up to 20 distinct landed issues. Each entry holds the issue number/title/URL and commit SHA/URL/committer time. |
 | `queue` | A `QueueView` with the schema-3 record, live owner, resolver result, error, and Add/Edit/Continue/Retry permissions. A null record means no saved queue yet. |
 | `issues` | One row for each open issue. An issue whose line of the resolver is the epic line or the `wontfix` line has no row. |
@@ -366,7 +366,7 @@ and the earliest future reset, from the local order and with no step preference.
 the same shape. It is the choice of the daemon for a fresh default start of that step: the preferred
 agent of the step goes first when the local order includes it, only the agents that can run the step
 stay, and the first of them with no active usage limit starts (`selectAgent` of
-`engine/lib/agent-usage.ts` with `effectiveOrder` and `capableOrder`). The `starts` of the reply is
+`engine/lib/agent/usage.ts` with `effectiveOrder` and `capableOrder`). The `starts` of the reply is
 `null` while the agent state cannot be read. A press (`readAgentState` of `presses.ts`) needs only `next`
 and passes no steps.
 
@@ -410,12 +410,12 @@ finds landed issue numbers and titles. On a phone the tab History is in the Agen
 fills the space between the top bar and the bottom bar, and the More menu has no History row.
 
 A full read, or a selected read that finds at least one closed issue, calls `readHistory` of
-`engine/lib/board-read.ts` once. Other selected reads retain History. `readHistory` reads the remote
+`engine/lib/board-read/board-read.ts` once. Other selected reads retain History. `readHistory` reads the remote
 repository metadata and captures the default branch head in GraphQL. It walks
 100-commit pages pinned to that SHA, with no PR fields, until it finds 20 distinct issues or
 exhausts history. It maps all commits of each page to issues with one call of `issuesOf`, the
 commit-to-issue function that it shares with the delivery walk. `issuesOf` takes the issue of a
-commit from the trend cache (`<git common dir>/celetis/trend-cache.jsonl`, `engine/lib/trends.ts`)
+commit from the trend cache (`<git common dir>/celetis/trend-cache.jsonl`, `engine/lib/board-read/trends.ts`)
 when the cache has its SHA. It reads the associated PRs of the other commits in chunks of at most
 50, one GraphQL query of `object(oid:)` aliases per chunk, so one `gh` argument stays far below
 the Windows command-line limit of 32,767 characters, and reads a further PR page of one commit by
@@ -436,7 +436,7 @@ with its `Closes #<n>` body reference. A nonempty PR association never falls bac
 suffix. Ambiguous or unsupported associations are omitted; request and malformed-data failures
 fail the entire read. Issue responses that represent PRs cannot become history entries.
 
-`readDelivery` of `engine/lib/board-read.ts` reads the delivery numbers. It captures the default
+`readDelivery` of `engine/lib/board-read/board-read.ts` reads the delivery numbers. It captures the default
 branch head and walks its 100-commit pages with `since` 56 days before now. It keeps each commit
 whose `committedDate` is in those 56 days, because the boundary of `since` is not documented. It
 maps the commits with `issuesOf`, in chunks of 50 for the commits that the cache does not hold,
@@ -572,7 +572,7 @@ daemon, has no last view. The page then keeps the state that it shows, marked no
 layout, the keys, and the errors"). The master daemon reads the coordinator record before it opens
 the board ([The start](../README.md#the-master-daemon)), so no read sees a live session with no
 record during the takeover. The daemon checks the same table before each act, so the view only
-mirrors that check (`permittedActions` of `engine/lib/coordinator-types.ts`).
+mirrors that check (`permittedActions` of `engine/lib/coordinator/types.ts`).
 
 The state of a session wins over the state of its issue, and an issue with a session has no card of
 its own. Two sessions of one issue make two cards. A session card shows the title, the type, the
@@ -739,7 +739,7 @@ answer of the daemon; a message can wait up to 90 seconds for a draft of the tab
 
 **The argv of a press.** At each press of New intake, Assist, or Make visual, and at each queue
 wake, the adapter reads the installed `celetis` engine
-(`readEngine` of `engine/lib/installation.ts`). Its command is `<base>/.local/bin/celetis`, or
+(`readEngine` of `engine/lib/install/installation.ts`). Its command is `<base>/.local/bin/celetis`, or
 `<base>\.local\bin\celetis.cmd` on Windows, where `<base>` is `CELETIS_HOME` or the home folder.
 On Windows, the read checks that command, but the argv does not run it (see below).
 The read refuses an entry that is not the file `engine/celetis` of a version folder, so the
@@ -778,7 +778,7 @@ program that fails leaves the tab open with its message and an interactive shell
 
 On Windows, the argv starts with the Bun of the board, its isolation flags, and the engine entry
 of the read, in place of the command: `<bun> <flags> <entry> intake`. The new terminal starts
-no shell. It starts the tab wrapper `tabWrapper` of `engine/lib/terminal.ts` with `bun -e` and
+no shell. It starts the tab wrapper `tabWrapper` of `engine/lib/terminal/terminal.ts` with `bun -e` and
 the isolation flags, and the wrapper starts the argv with no shell. The wrapper sets
 `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0` and `DO_NOT_TRACK=1` in the environment of the program.
 `hc run --rm` follows the rule of macOS. A program that exits 0 closes the tab. A program that
@@ -962,7 +962,7 @@ coordinator record once, and the state of `view` comes from it as in "The cards"
   other state, `dialog` is `null`.
 
 `chat` holds the `session`, a `revision`, and the `entries` of the conversation
-(`engine/board/chat.ts`). The server keeps each event of the record by its kind and ID, for one
+(`engine/board/chat/chat.ts`). The server keeps each event of the record by its kind and ID, for one
 session ID; an event with the same kind and ID replaces the kept one. A read that adds or changes
 an event, or a change into or out of `dialog`, gives a new `revision`: a random prefix of the start
 of the server, a dot, and a counter. A request whose `since` is the current revision gets
@@ -1151,7 +1151,7 @@ process. Twelve rules hold for the server and the page:
    itself. Resume, Assist, Make visual, and Set aside take only the issue number.
 7. An id of an answer of `hc` or `herdr-app` (a terminal, a space, a tab) goes into a command only
    when it has letters, digits, `_`, `:`, `.`, and `-`, and does not start with `-` (`isSafeId` of
-   `engine/lib/terminal.ts`). An id that is absent goes into no command.
+   `engine/lib/terminal/terminal.ts`). An id that is absent goes into no command.
 8. The server starts `hc`, `herdr-app`, `git`, and the `codex` app-server of the coordinator read
    with no shell. The issue read starts `gh`,
    `git`, and, on macOS and Linux, `ps`, and the status read of a placement starts `ps`, each with
@@ -1247,23 +1247,23 @@ These files enforce the rules. They are the trust files of the board:
 | --- | --- |
 | 1 (listen on `127.0.0.1`) | `engine/board/start.ts` |
 | 2, 3, 4 (the `Host`, the POST `Origin` and content type, `Origin: null` first) | `engine/board/perimeter.ts` |
-| 5 (digits, a session of the repository, five levels) | `engine/board/requests.ts`, `engine/lib/fields.ts`, `engine/board/presses.ts` (Go, Stop), `engine/lib/effort.ts` (`isLevel`) |
+| 5 (digits, a session of the repository, five levels) | `engine/board/requests.ts`, `engine/lib/state/fields.ts`, `engine/board/presses.ts` (Go, Stop), `engine/lib/workflow/effort.ts` (`isLevel`) |
 | 6 (what the page sends) | `engine/board/requests.ts`, the page modules of `engine/board/page/` |
-| 7 (`isSafeId`) | `engine/lib/terminal.ts` |
-| 8 (no shell) | `engine/board/perimeter.ts` (`run`), `engine/lib/process.ts` (`run` of the issue and status reads), `engine/lib/codex-app-server.ts` (`createCodexClient`) |
-| 9 (`git` only in the repository, `--no-optional-locks`; update workers validate the installations) | `engine/lib/board-read.ts` (`isInside`, `readDiff`), `engine/board/update-worker.ts`, `engine/lib/updater.ts` |
-| 10 (Open shell under `.claude/worktrees/`) | `engine/board/presses.ts`, `engine/lib/board-read.ts` (`isInside`) |
-| 11 (no write in a product working tree; the trend files only in the git common dir) | No one file: each module of the board; the read model reads, and only `engine/board/trends.ts` through `engine/lib/trends.ts` and the History read through the trend cache write, in `<git common dir>/celetis/` |
-| 12 (text as text, the Content-Security-Policies, the visual page) | `engine/board/perimeter.ts`, `engine/lib/fields.ts` (`isCommit`), `engine/lib/board-read.ts` (`readVisualPage`), `engine/lib/visual.ts` (`hasPage`), the page modules |
-| Start rule 1 (the engine read) | `engine/board/adapter.ts`, `engine/lib/installation.ts` (`readEngine`) |
-| Start rule 2 (fixed argvs and requests) | `engine/board/adapter.ts`, `engine/lib/terminal.ts` (`openTab`), `engine/lib/codex-app-server.ts` (`createCodexClient`) |
-| Start rule 3 (only validated values) | `engine/board/requests.ts`, `engine/lib/fields.ts`, `engine/lib/host-names.ts` (`isHost`), `engine/board/adapter.ts`, `engine/lib/queue.ts` (`parseQueueAction`) |
-| Start rule 4 (the data comes from the engine) | `engine/lib/board-read.ts`, `engine/board/adapter.ts`, `engine/lib/daemon-types.ts` (`parseAnswer`, `parseQueueAnswer`) |
-| Start rule 5 (a clean `PATH`) | `engine/lib/process.ts` (`childEnv`) |
-| Coordinator rules 1, 2 (what the page sends, the exact shapes) | `engine/board/requests.ts`, `engine/board/perimeter.ts` (the body limit), `engine/lib/coordinator-types.ts` (`coordinatorKeys`), `engine/lib/coordinator.ts` (the check of an act), the page modules |
-| Coordinator rules 3, 4, 5 (the one target, the argvs, the state first) | `engine/lib/coordinator.ts`, `engine/lib/terminal.ts` (`isSafeId`, `sendText`, `pressKeys`) |
-| Coordinator rule 6 (no socket path) | `engine/lib/daemon-server.ts`, `engine/board/adapter.ts` |
-| Coordinator rules 7, 8 (text as data, the one record, no GET acts) | `engine/board/perimeter.ts`, `engine/board/coordinator.ts`, `engine/board/chat.ts`, `engine/board/chat-claude.ts`, `engine/board/chat-codex.ts`, `engine/lib/fields.ts` (`isSessionId`), the page modules |
+| 7 (`isSafeId`) | `engine/lib/terminal/terminal.ts` |
+| 8 (no shell) | `engine/board/perimeter.ts` (`run`), `engine/lib/process/process.ts` (`run` of the issue and status reads), `engine/lib/host/codex/app-server.ts` (`createCodexClient`) |
+| 9 (`git` only in the repository, `--no-optional-locks`; update workers validate the installations) | `engine/lib/board-read/board-read.ts` (`isInside`, `readDiff`), `engine/board/update/worker.ts`, `engine/lib/update/updater.ts` |
+| 10 (Open shell under `.claude/worktrees/`) | `engine/board/presses.ts`, `engine/lib/board-read/board-read.ts` (`isInside`) |
+| 11 (no write in a product working tree; the trend files only in the git common dir) | No one file: each module of the board; the read model reads, and only `engine/board/trends.ts` through `engine/lib/board-read/trends.ts` and the History read through the trend cache write, in `<git common dir>/celetis/` |
+| 12 (text as text, the Content-Security-Policies, the visual page) | `engine/board/perimeter.ts`, `engine/lib/state/fields.ts` (`isCommit`), `engine/lib/board-read/board-read.ts` (`readVisualPage`), `engine/lib/workflow/visual.ts` (`hasPage`), the page modules |
+| Start rule 1 (the engine read) | `engine/board/adapter.ts`, `engine/lib/install/installation.ts` (`readEngine`) |
+| Start rule 2 (fixed argvs and requests) | `engine/board/adapter.ts`, `engine/lib/terminal/terminal.ts` (`openTab`), `engine/lib/host/codex/app-server.ts` (`createCodexClient`) |
+| Start rule 3 (only validated values) | `engine/board/requests.ts`, `engine/lib/state/fields.ts`, `engine/lib/host/names.ts` (`isHost`), `engine/board/adapter.ts`, `engine/lib/queue/queue.ts` (`parseQueueAction`) |
+| Start rule 4 (the data comes from the engine) | `engine/lib/board-read/board-read.ts`, `engine/board/adapter.ts`, `engine/lib/daemon/types.ts` (`parseAnswer`, `parseQueueAnswer`) |
+| Start rule 5 (a clean `PATH`) | `engine/lib/process/process.ts` (`childEnv`) |
+| Coordinator rules 1, 2 (what the page sends, the exact shapes) | `engine/board/requests.ts`, `engine/board/perimeter.ts` (the body limit), `engine/lib/coordinator/types.ts` (`coordinatorKeys`), `engine/lib/coordinator/coordinator.ts` (the check of an act), the page modules |
+| Coordinator rules 3, 4, 5 (the one target, the argvs, the state first) | `engine/lib/coordinator/coordinator.ts`, `engine/lib/terminal/terminal.ts` (`isSafeId`, `sendText`, `pressKeys`) |
+| Coordinator rule 6 (no socket path) | `engine/lib/daemon/server.ts`, `engine/board/adapter.ts` |
+| Coordinator rules 7, 8 (text as data, the one record, no GET acts) | `engine/board/perimeter.ts`, `engine/board/coordinator.ts`, `engine/board/chat/chat.ts`, `engine/board/chat/claude.ts`, `engine/board/chat/codex.ts`, `engine/lib/state/fields.ts` (`isSessionId`), the page modules |
 
 A Run press types a run form in the repository of the board, and the daemon run follows the
 `.celetis.yaml` of its main checkout. Do not start the daemon in a repository that you do not trust.
@@ -1820,7 +1820,7 @@ the texts are `Open the issue` and `Read the issues again`.
 
 The browser sources are the files of `page/`. They also import `view.ts` and `types.ts`, which server code shares,
 so those two stay free of the DOM. The pinned Bun 1.4.4 build program, `scripts/build.ts`, bundles `page/board.ts`
-into `board.js` and `page/theme.ts` into the classic script `theme.js`, which `index.html` loads in
+into `board.js` and `page/theme/theme.ts` into the classic script `theme.js`, which `index.html` loads in
 `<head>` before the style sheet, and refuses a bundle input outside `engine/board/`.
 It compiles every target before it writes any output. Plugin users run no build.
 

@@ -1,5 +1,5 @@
-import { appendSample, hourlySeries, pruneTrends, readSamples } from '../lib/board-read.ts';
-import type { DeliveryWindow, Sample, Trends } from '../lib/board-read-types.ts';
+import { appendSample, hourlySeries, pruneTrends, readSamples } from '../lib/board-read/board-read.ts';
+import type { DeliveryWindow, Sample, Trends } from '../lib/board-read/types.ts';
 import { firstLine } from './requests.ts';
 
 const SAMPLE_MS = 300_000;

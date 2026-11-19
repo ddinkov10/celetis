@@ -62,14 +62,14 @@ read, also a code that is no exit class, is an unknown outcome. The rows of `run
 answer.
 
 **A start with one number** asks the daemon for a run of the issue. The daemon run reads the
-decision of the issue from the in-process resolver (`nextIssue` of `engine/lib/resolver.ts`), a Run of a step or a stop, and starts the step
+decision of the issue from the in-process resolver (`nextIssue` of `engine/lib/resolver/resolver.ts`), a Run of a step or a stop, and starts the step
 of a Run, whatever its gate. When the session ends, it reads the decision again and starts each
 next step whose gate is `auto`. It ends the issue at the first of these, in this order: a stop,
 the same step again ("no progress"), a refused skip, or a `manual` gate. With the default gates, each
 next step is a `manual` step.
 
 **The model and the effort level.** The daemon resolves one start pair, a model and an effort
-level, for each session that it starts (`startPair` of `engine/lib/effort.ts`). Each value is the
+level, for each session that it starts (`startPair` of `engine/lib/workflow/effort.ts`). Each value is the
 first that is present, from the strongest: the override of this start, the `sessions` pin of the
 step in the `.celetis.yaml` of the main checkout
 ([Fields and defaults](../plugins/celetis/docs/configuration.md#fields-and-defaults)), the
@@ -151,7 +151,7 @@ hosts and manual resume share the issue lock.
 A landing in the master daemon holds the lock ref `land-<n>`, with the daemon as its owner and no
 session ([A landing](../plugins/celetis/docs/workflow.md#a-landing)). The `no-progress` file in `<git common dir>/celetis/` has one row for each step that ended with no progress, and one row for
 each step that the script refused as a skip. Auto mode and the board read it. An
-explicit issue start can start that step. `engine/lib/locks.ts` of the engine owns the lock refs,
+explicit issue start can start that step. `engine/lib/state/locks.ts` of the engine owns the lock refs,
 the owner records, the liveness check of an owner, and the record; the daemon and the board use it.
 The `set-aside` file in the same folder holds one issue number per line, for each issue that the
 maintainer set aside. It is keyed by the issue only, so it holds across a step change. Auto mode
@@ -167,14 +167,14 @@ no issue in that pass. An explicit start also fails then: its removal at the adm
 the file, so the run ends with that error before a session starts. A run of auto mode reads the file
 again after it takes the issue lock. When the issue is in the file, or the read fails, the run
 prints the cause, ends with the outcome `stopped` (no failure), releases the lock, and starts
-nothing. `engine/lib/set-aside.ts` owns the file.
+nothing. `engine/lib/queue/set-aside.ts` owns the file.
 
 **The arguments of a session.** `stepArguments` of the adapter of each host builds the arguments
 of a step session from the start pair: [Claude Code](../docs/hosts/claude-code.md#the-daemon) and
 [Codex](../docs/hosts/codex.md#the-daemon-and-developer_instructions) give them, with the Codex
 prompt. Claude Code gets `--model <model>` and `--effort <level>` of the pair. Codex keeps the model
 of its config and gets only a level: a level with the source `pinned` or `override` as it is, else
-the level raised by the tier of the model of the pair (`tierRaise` of `engine/lib/host-codex.ts`):
+the level raised by the tier of the model of the pair (`tierRaise` of `engine/lib/host/codex/adapter.ts`):
 0 levels for `haiku` and `sonnet`, 1 for `opus`, and 2 for `fable`, at most `max`. Then the
 supported levels of the Codex model apply. A failed model read of Codex starts no session and
 writes no session record. No document content is evaluated as shell code. After it builds the
@@ -291,7 +291,7 @@ installation adoption remain outside this runtime-state exception (ADR-0070).
 
 The master daemon is one long-lived process for one repository, the Git common folder of its
 working folder. It runs many issue runs at the same time, with the run engine
-(`engine/lib/run-engine.ts`), runs each landing of `celetis --agent <host> land` in the daemon
+(`engine/lib/run/engine.ts`), runs each landing of `celetis --agent <host> land` in the daemon
 process, one at a time ([A landing](../plugins/celetis/docs/workflow.md#a-landing)), and serves requests over HTTP on a Unix socket
 ([ADR-0072](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0072-one-master-daemon-runs-every-issue-run.md)). Its process is
 `engine/daemon.ts --daemon` (a successor adds `--after <pid> <start>`, "The restart"), so the
@@ -309,7 +309,7 @@ and the exit codes of each form.
   Else it spawns `engine/daemon.ts --daemon` in the main checkout. The spawn is detached, with
   stdin closed and stdout and stderr appended to `daemon/daemon.log` (0600). It polls the status
   for at most 30 seconds. Another daemon that wins a race is printed as a running daemon.
-  On Windows, `start` calls `CreateProcessW` (`createDetachedProcess` of `engine/lib/windows.ts`)
+  On Windows, `start` calls `CreateProcessW` (`createDetachedProcess` of `engine/lib/process/windows.ts`)
   with a console that has no window (`CREATE_NO_WINDOW`, so its console children share it and open no window), a new process group, and the flag that lets the daemon break away from the
   job of its terminal, so the daemon runs after that terminal closes. When the innermost job of
   the terminal does not allow breakaway, the call fails with error 5 and `start` calls again
@@ -493,9 +493,9 @@ Three files hold it:
 
 | File | Holds |
 | --- | --- |
-| `engine/lib/run-machine.ts` | The types `State`, `Event`, `Effect`, `Own`, `Accepts`, `Targets`, and `Table`, the table `on`, and its pure helpers. It does no I/O and does not name the I/O context. |
-| `engine/lib/run-activities.ts` | The I/O context `Io`, the ledger of the resources that the cleanup releases, the activities, and `perform` for the effects. |
-| `engine/lib/run-engine.ts` | The driver in `begin()`, `createRun`, `autoLoop`, `requireSetup`, and the exported types. |
+| `engine/lib/run/machine.ts` | The types `State`, `Event`, `Effect`, `Own`, `Accepts`, `Targets`, and `Table`, the table `on`, and its pure helpers. It does no I/O and does not name the I/O context. |
+| `engine/lib/run/activities.ts` | The I/O context `Io`, the ledger of the resources that the cleanup releases, the activities, and `perform` for the effects. |
+| `engine/lib/run/engine.ts` | The driver in `begin()`, `createRun`, `autoLoop`, `requireSetup`, and the exported types. |
 
 Each state has one activity. The activity does I/O, waits, and returns one event. A table entry for
 a state and an event is a pure function: it returns the next state and an ordered list of effects,
@@ -775,7 +775,7 @@ for the resolver and entry of each run. Numbered starts, auto-mode starts, and l
 The form `run resume` keeps its no-update behavior and saved identity.
 Before a step starts, the daemon checks that the entry of its version folder, `engine/celetis`, is still a file.
 [Updates](../plugins/celetis/README.md#updates) gives the contract check of the plugin before each
-new step session (`requireContract` of `engine/lib/contract-check.ts`): the engine must serve the
+new step session (`requireContract` of `engine/lib/contract/check.ts`): the engine must serve the
 contract version that the plugin of the session's host needs. When it does not, the daemon also
 writes no session record. So the skills, the step text, and the engine of a step session share one
 contract version.
@@ -794,7 +794,7 @@ its updater mutex and deadline, and native cache replacement. A restart of the d
 
 For each session, also an exact resume, the daemon opens a new hc terminal
 with a tab in the space of the repository in the Herdr app (`openTab` of
-`engine/lib/terminal.ts`): `hc run --bg --no-parent --no-notify` in the main checkout, with the
+`engine/lib/terminal/terminal.ts`): `hc run --bg --no-parent --no-notify` in the main checkout, with the
 labels `herdr.space=<id>` and `celetis.link=#<n> <step>`, and the tab name `#<n> <step>`
 (`herdr-app do tab.rename`). The space is the space with the name of the folder of the main
 checkout. When that space is missing, the terminal gets a new id in `herdr.space`, the Herdr app
@@ -809,7 +809,7 @@ Linux, the tab runs through a login shell of `$SHELL` (`"$@"; exec "$0" -li`), s
 after the barrier exits, and the entry replaces its process with `daemon.ts --session-start …`
 under the same PID. The barrier record and the board read that process after the replace: with
 the job control of the login shell, the barrier leads the foreground process group of the tab.
-On Windows, the tab runs through the tab wrapper `tabWrapper` of `engine/lib/terminal.ts`. The
+On Windows, the tab runs through the tab wrapper `tabWrapper` of `engine/lib/terminal/terminal.ts`. The
 wrapper is `bun -e` with the isolation flags. It sets `BUN_RUNTIME_TRANSPILER_CACHE_PATH=0`,
 `DO_NOT_TRACK=1`, and the other variables of the tab, starts the engine entry with no shell, and
 holds the tab after the program exits, with the line `<program> exited <code>. Press Enter to
@@ -1185,7 +1185,7 @@ the event `attempt-signalled`. The name is the executable name only. A flag that
 drops the record and closes the held job. A second Stop while the flag is set changes nothing. While
 the flag is set, the state stays `stopping` until `ending`. The flag wins over each session end:
 when the session ends (any exit code) or the usage watch reports a block, the run proves the end of
-the session and its delegated work with `endOwnedAttempt` of `engine/lib/attempt-end.ts` (step 2 of
+the session and its delegated work with `endOwnedAttempt` of `engine/lib/run/attempt-end.ts` (step 2 of
 [Usage-limit recovery](#usage-limit-recovery)), and writes no recovery record. A proven end
 removes the start folder, adds the issue to the `set-aside` file, records no no-progress row,
 starts no next step, and ends the run with the outcome `stopped` and the line
@@ -1212,10 +1212,10 @@ end; when the flag clears first, the run handles the block as a usage-limit reco
 
 At each start, the daemon reads the local order, the main config, and
 the per-host usage records again. It computes the effective order of the step
-(`effectiveOrder` of `engine/lib/agent-order.ts`): when the `agents` field names a preferred agent
+(`effectiveOrder` of `engine/lib/agent/order.ts`): when the `agents` field names a preferred agent
 for the step and the local order includes it, that agent comes first, then the other agents of the
 local order in their order; otherwise the effective order is the local order. It passes that order
-to `selectAgent` of `engine/lib/agent-usage.ts`. The default choice takes the first included host
+to `selectAgent` of `engine/lib/agent/usage.ts`. The default choice takes the first included host
 with no active block; an explicit choice keeps its host and ignores the preference. The preflight
 and the contract check of the selected host run after this selection. A missing executable
 or another setup error of a preferred agent stops the start, and no next agent is tried; the
@@ -1235,7 +1235,7 @@ agent starts. After a confirmed refusal of the default host, the daemon:
 
 1. Saves the block, writes `<git common dir>/celetis/recovery/<n>.json` (schema 2, with the key `daemon`) with the state
    `recovering`, and stops the job of the step end.
-2. Ends only its own attempt (`endOwnedAttempt` of `engine/lib/attempt-end.ts`). The barrier
+2. Ends only its own attempt (`endOwnedAttempt` of `engine/lib/run/attempt-end.ts`). The barrier
    gives the host `CELETIS_ATTEMPT=<attempt id>`, and each child inherits it. A resume session
    also gets an attempt ID, which its run record keeps, so a Stop proves its end the same way.
    Codex has no proved
@@ -1523,7 +1523,7 @@ The workflow and board entries, by `name`:
 | --- | --- |
 | `no-progress` | The daemon stops a step that gave no progress. `issue` is set |
 | `step-skip` | The daemon stops a step that skips a step of the lane. `issue` is set |
-| `startup-error` | A session does not start (`startupError` in `engine/lib/session.ts`). `issue` is set |
+| `startup-error` | A session does not start (`startupError` in `engine/lib/run/session.ts`). `issue` is set |
 | `step-end-write` | The daemon cannot write a step-end record and continues. `issue` is set |
 | `exit-request` | The daemon cannot ask a session to exit. `issue` is set |
 | `exit-signal` | The daemon sends SIGTERM to a Claude host that does not exit within 10 seconds of its exit request; on Windows, it ends the host process. `issue` is set |
@@ -1547,7 +1547,7 @@ fingerprint:
 
 - The board checks for an update when it starts and 10 minutes after each check ends. An update
   that a person starts stops this timer. Each check starts the update worker, and the worker
-  starts one `engine/lib/updater.ts --inspect <host>` child for each host that it inspects. Each of
+  starts one `engine/lib/update/updater.ts --inspect <host>` child for each host that it inspects. Each of
   these processes records its own failed exit. A child that fails, for example because the update
   source cannot be reached, gives one refusal entry (`command` `update`) at each check. The worker
   exits 0 when it reports a failed check, so it records nothing then. A failure that the worker

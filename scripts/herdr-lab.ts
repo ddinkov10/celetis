@@ -5,8 +5,7 @@ import { lstat, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promise
 import { createConnection } from 'node:net';
 import { constants, tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
-import { bunArgs, childEnv, run } from '../engine/lib/process.ts';
-import { privateMode } from '../engine/lib/state.ts';
+import { bunArgs, childEnv, run } from '../engine/lib/process/process.ts';
 import {
   createJob,
   type Job,
@@ -16,7 +15,8 @@ import {
   privateFolderProblem,
   terminateWindowsProcess,
   windowsProcess,
-} from '../engine/lib/windows.ts';
+} from '../engine/lib/process/windows.ts';
+import { privateMode } from '../engine/lib/state/state.ts';
 
 const usage = 'usage: herdr-lab.ts up | run <id> <command> [<argument>...] | down <id>';
 const timeout = 30_000;
@@ -403,7 +403,7 @@ async function herdrApps(): Promise<number[]> {
 }
 
 async function keep(id: LabId, env: NodeJS.ProcessEnv): Promise<void> {
-  const library = new URL('../engine/lib/windows.ts', import.meta.url).href;
+  const library = new URL('../engine/lib/process/windows.ts', import.meta.url).href;
   const script = `const { openJob } = await import(${JSON.stringify(library)}); if (!openJob(${JSON.stringify(jobName(id))})) process.exit(1); console.log('ready'); setInterval(() => {}, 1 << 30);`;
   // A job name ends with its last handle, also while its members run; the keeper holds one until down.
   const keeper = Bun.spawn([process.execPath, ...bunArgs('-e', [script])], {

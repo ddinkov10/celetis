@@ -170,376 +170,8 @@ completion criterion of a skill.
   checkout. \`opencode session list --format json --standalone\` in the main checkout lists the
   session IDs. An unknown session ID is a setup gap.
 `;
-// engine/lib/contract.ts
-var exitClasses = [
-  { code: 0, name: "done", meaning: "The act completed, or it had no change to make." },
-  {
-    code: 1,
-    name: "internal",
-    meaning: "An unexpected failure, for example an uncaught error; the message names it."
-  },
-  { code: 2, name: "usage", meaning: "Bad arguments, or an input file or value that the command refuses." },
-  {
-    code: 3,
-    name: "prerequisite",
-    meaning: "The current state does not permit the act: an unmet prerequisite, a busy lock, stale input, no daemon, or missing wiring."
-  },
-  {
-    code: 4,
-    name: "repair",
-    meaning: "The session repairs the lane, then runs the command again: a conflict with the trunk, or a branch or a checkout that moved."
-  },
-  { code: 5, name: "checks", meaning: "A check of the change is not green." },
-  {
-    code: 6,
-    name: "blocked",
-    meaning: "A system outside the command failed or did not answer (GitHub, git, the host, the file system, access); a write can be partial."
-  },
-  { code: 7, name: "cleanup", meaning: "The change landed, and its cleanup stopped." },
-  { code: 8, name: "stop", meaning: "The engine stops the task; the session escalates." },
-  { code: "128+n", name: "signal", meaning: "The signal n ended the command." }
-];
-var brand = (code) => code;
-var exits = Object.fromEntries(exitClasses.flatMap(({ code, name }) => typeof code === "number" ? [[name, brand(code)]] : []));
-var required = (name, value) => ({
-  name,
-  ...value ? { value } : {},
-  optional: false
-});
-var optional = (name, value) => ({ name, ...value ? { value } : {}, optional: true });
-var form = (words, flags = [], extra = {}) => ({ words: typeof words === "string" ? words.split(" ") : words, flags, ...extra });
-var helped = (order, summary) => ({ help: { order, summary } });
-var sessionCode = "the exit code of the host session";
-var profileFlags = [optional("--profile", "FILE"), optional("--runtime-models", "FILE")];
-var setupOptions = [
-  required("--hosts", "claude|codex|claude,codex|codex,claude"),
-  required("--landing", "pr|merge"),
-  optional("--suite", "<file>"),
-  optional("--setup-file", "<file>"),
-  optional("--ignore", "<line>"),
-  optional("--baseline-file", "<file>")
-];
-var issueActs = {
-  route: {
-    words: ["route", "feature|bug|chore|hotfix"],
-    flags: [],
-    argument: "lane",
-    prerequisite: "open; not an epic",
-    writes: "the label of the lane; it removes the other lane labels and `needs-triage`"
-  },
-  effort: {
-    words: ["effort", "<step>", "<model>", "<level>", "<file>"],
-    flags: [],
-    argument: "effort",
-    prerequisite: "open",
-    writes: 'an `Effort: <step> <model> <level>` comment ("What lives on the issue", "Effort"); no label change'
-  },
-  create: {
-    words: ["create", "<file>"],
-    flags: [],
-    argument: "file",
-    numbered: false,
-    prerequisite: "none; it takes no issue number",
-    writes: "a new issue with the title from the first line `# Intent: <title>`, the whole file as its body, and `needs-triage`; it prints the URL of the new issue first"
-  },
-  comment: {
-    words: ["comment", "<file>"],
-    flags: [optional("--attach", "<file>#<alt>")],
-    argument: "file",
-    prerequisite: "an issue, open or closed; not a pull request",
-    writes: "the file as a comment, with each `--attach` file uploaded (the flag repeats, at most 50 times); it refuses a first line that is a lifecycle heading or the effort marker"
-  },
-  epic: {
-    words: ["epic", "<file>"],
-    flags: [],
-    argument: "file",
-    prerequisite: "open feature or epic; valid declaration and current child references",
-    writes: "the complete parent body, then adds `epic` and removes `enhancement` as needed; clears no hold"
-  },
-  "epic-state": {
-    words: ["epic-state"],
-    flags: [],
-    argument: "none",
-    prerequisite: "readable parent and complete children",
-    writes: 'nothing; the JSON snapshot of "Epic acceptance submission"'
-  },
-  "complete-epic": {
-    words: ["complete-epic", "[file]"],
-    flags: [],
-    argument: "optional-file",
-    prerequisite: '"Epic completion and repair"',
-    writes: "an accepted record, then closes as completed; an already closed parent has no write"
-  },
-  "needs-info": {
-    words: ["needs-info", "<file>"],
-    flags: [],
-    argument: "file",
-    prerequisite: "open",
-    writes: "the file as a comment, then `needs-info`"
-  },
-  wontfix: {
-    words: ["wontfix", "<file>"],
-    flags: [],
-    argument: "file",
-    prerequisite: "open",
-    writes: "the file as a comment, then `wontfix`, then the close as not planned"
-  },
-  spec: {
-    words: ["spec", "<file>"],
-    flags: [],
-    argument: "file",
-    prerequisite: "open; lane `feature`",
-    writes: "the body: `Spec: YYYY-MM-DD` (the local date), a blank line, then the file"
-  },
-  "root-cause": {
-    words: ["root-cause", "<file>"],
-    flags: [],
-    argument: "file",
-    prerequisite: "open; lane `bug` or `hotfix`",
-    writes: "a `## Root cause` comment"
-  },
-  plan: {
-    words: ["plan", "<file>"],
-    flags: [],
-    argument: "file",
-    prerequisite: "open; a `feature` with a spec, or a `bug` with a `## Root cause` comment",
-    writes: "a `## Plan` comment; then `ready-for-agent` with no human hold, else keeps `ready-for-human` and removes `ready-for-agent`"
-  },
-  built: {
-    words: ["built"],
-    flags: [],
-    argument: "none",
-    prerequisite: "the resolver line is `implement` of a planned change",
-    writes: "a `## Built` comment, then removes `ready-for-agent` when present"
-  },
-  "before-landing": {
-    words: ["before-landing", "<file>"],
-    flags: [optional("--during-the-build")],
-    argument: "file",
-    prerequisite: "the resolver line is the step that lands the lane (`implement`, `chore`, `hotfix`)",
-    writes: 'a `## Before landing` comment with the marker of its kind ("Completing a human precondition"), then it adds `ready-for-human`, and removes `ready-for-agent` when it is on'
-  },
-  "landing-refused": {
-    words: ["landing-refused", "<file>"],
-    flags: [],
-    argument: "file",
-    prerequisite: "as `before-landing`",
-    writes: "a `## Landing refused` comment"
-  },
-  stopped: {
-    words: ["stopped", "<file>"],
-    flags: [],
-    argument: "file",
-    prerequisite: "open",
-    writes: "a `## Stopped` comment, then adds `ready-for-human` and removes `ready-for-agent` when present"
-  },
-  "ready-for-human": {
-    words: ["ready-for-human"],
-    flags: [],
-    argument: "none",
-    prerequisite: "open",
-    writes: "adds or retains `ready-for-human`, then removes `ready-for-agent` when present"
-  },
-  assisted: {
-    words: ["assisted", "<file>"],
-    flags: [],
-    argument: "file",
-    prerequisite: "open; has `needs-info`, `ready-for-human`, or a current open human precondition",
-    writes: "a `## Human steps done` comment with assistance-agent attribution, then removes present `needs-info` and `ready-for-human`; adds no label"
-  },
-  state: {
-    words: ["state"],
-    flags: [],
-    argument: "none",
-    prerequisite: "none",
-    writes: "nothing"
-  }
-};
-var flagText = ({ name, value, optional }) => {
-  const text = value ? `${name} ${value}` : name;
-  return optional ? `[${text}]` : text;
-};
-var formText = ({ words, flags }) => [...words, ...flags.map(flagText)].join(" ");
-var issueActList = Object.values(issueActs).filter(({ words }) => words[0] !== "epic-state" && words[0] !== "state").map((act) => `\`${formText(act)}\``).join(", ");
-var dispatchForms = [
-  form("dispatch next <n> <task> implementer|reviewer J V B N S X", [required("--bias", "N"), ...profileFlags]),
-  form("dispatch report <dispatch-id> <report-file>"),
-  form("dispatch gate <n> <task> pass|fail <gate> <report>", profileFlags),
-  form("dispatch review <n> <task> findings|blocked", profileFlags),
-  form("dispatch close <n> <task>"),
-  form("dispatch show")
-];
-var base = ["done", "internal", "usage", "prerequisite", "blocked"];
-var hosted = ["internal", "usage", "prerequisite", "blocked"];
-var worktreeExits = ["done", "internal", "usage", "prerequisite", "repair", "blocked"];
-var entry = (command, agent, forms, description, exitList = base, internal) => ({ command, forms, description, exits: exitList, agent, ...internal ? { internal } : {} });
-var commands = [
-  entry("lesson-store", true, [form("lesson-store read main|active", [], helped(20, "Reads validated lessons; requires explicit --agent."))], "Returns validated lesson records, exact file contents, digests, and the resolved checkout as JSON. `main` returns the live files of the checkout that runs it with the pending and rejected data of the main checkout, and `root` names the main checkout. Rejected records appear in `history` with `status: pending-review`; they are not past guidance. `active` reads the live files of the task checkout and ignores its pending folder. A leftover `.celetis/lessons/INDEX.md` fails both reads"),
-  entry("lesson-store", true, [form("lesson-store capture FILE", [], helped(21, "Saves a pending proposal; requires explicit --agent."))], "Reads typed `{schema:1,candidate,expected,name,description,tags,date,source,incidents,body}` JSON and builds the pending record; `expected` is the pending SHA-256 or null for creation. An extension keeps the stored incidents and reviews. Validates the store of `read main` and saves pending evidence in the main checkout only. Equal incident replays are unchanged; stale updates are refused"),
-  entry("lesson-store", true, [form("lesson-store preview FILE", [], helped(22, "Prepares an exact lesson review; requires explicit --agent."))], "Reads a review request and returns its exact before/after contents of the store of `read main`, watched digests, and snapshot digest without lesson writes. Select pending UUIDs and complete resulting documents as defined in [the lesson format](references/procedures/lesson-format.md)"),
-  entry("lesson-store", true, [
-    form("lesson-store apply SNAPSHOT DIGEST", [], helped(23, "Applies a reviewed snapshot and commits it in a linked checkout; requires explicit --agent."))
-  ], `Recomputes the review and applies exactly the approved snapshot under the lock. Changed input or snapshot bytes are stale. Replaying the same review is unchanged; conflicting reuse of its ID is invalid. The digest identifies a version, not its reviewer. In a linked checkout, a live change needs a clean checkout on a branch and becomes one local commit \`docs(lessons): <decision> <names>\` with a \`Lesson-Transaction\` trailer, made with the project's hooks; the proposals leave the queue only after that commit. When Git fails but the lesson commit exists, the apply completes. When the lane is still at its old HEAD, the apply restores the before bytes of the live paths, also a hook rewrite, and their index entries, and exits ${exits.blocked}. When HEAD moved without the commit, the journal stays (exit ${exits.blocked}), and the line names the repair: \`git -C <lane> reset --soft <recorded HEAD>\`, then \`recover\``),
-  entry("lesson-store", true, [
-    form("lesson-store recover", [], helped(24, "Completes or rolls back an interrupted lesson write; requires explicit --agent."))
-  ], `Completes or rolls back the one journal under the lesson lock, from any checkout of the repository. A lane journal completes when its lesson commit exists and rolls back when the lane is still at the recorded HEAD; a lane HEAD that moved without the commit blocks it until \`git -C <lane> reset --soft <recorded HEAD>\`. These commands require Git and an explicit host, but no issue, run, or configuration file. Only a lane apply and its recovery change the Git index. It exits ${exits.usage} for invalid input or store, ${exits.prerequisite} when the input is stale or a lock is busy, and ${exits.blocked} for an access, I/O, or recovery block`),
-  entry("run", true, [
-    form("run <n>", [], helped(9, "Asks the daemon to start the next step of one issue and follow its auto gates; returns at once.")),
-    form("run resume <n>", [], helped(11, "Asks the daemon to open the session of a step with no progress again.")),
-    form("run retry <n> <wait-id>", [], helped(12, "Asks the daemon to wake the quota waiter of an issue for one attempt cycle."))
-  ], `Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. \`run <n>\` starts the next step of the issue, \`run resume <n>\` opens the saved session of a step with no progress again, and \`run retry <n> <wait-id>\` wakes the quota waiter of the issue for one attempt cycle. Each session tab of a run, also of \`run resume\` and of \`run retry\`, opens in the background: the focus of the Herdr app does not move. An accepted start prints \`run: #<n>: accepted as run <run id> of the daemon PID <pid>; read its progress: celetis daemon status\`, and an accepted Retry prints \`run: #<n>: Retry requested; the waiting run starts one bounded attempt cycle\`; both exit ${exits.done}. A refusal prints the line of the daemon, on stdout for code ${exits.done} and on stderr otherwise, and exits with its code: ${exits.prerequisite} for a busy issue lock, ${exits.blocked} for a failed GitHub read of the issue, ${exits.done} for each other end before the first session. With no daemon, it exits ${exits.prerequisite} and starts nothing. It exits ${exits.prerequisite} when the daemon runs another revision of the engine or an update removed this engine version, and ${exits.blocked} when the daemon does not answer or the outcome is unknown. Any other form exits ${exits.usage} with the usage line`),
-  entry("run", true, [
-    form("run <n>", [required("--effort", "<level>"), optional("--model", "<model>")], helped(10, "Asks the daemon to start the next step of one issue at another effort level, for its first session only.")),
-    form("run <n>", [required("--model", "<model>"), optional("--effort", "<level>")], helped(10, "Asks the daemon to start the next step of one issue on another model, for its first session only."))
-  ], `Asks the daemon to start the next step of the issue with \`--effort\` at \`low\`, \`medium\`, \`high\`, \`xhigh\`, or \`max\`, with \`--model\` on \`haiku\`, \`sonnet\`, \`opus\`, or \`fable\`, or with both, in either order. Each flag replaces the decided, pinned, or default value of the first session of this start only, and the request carries it. Each later step uses its own pair, and neither flag writes a decision. It needs exactly one issue number; any other form exits ${exits.usage} with the usage line`),
-  entry("queue", true, [
-    form(["queue", "action", "'<QueueAction JSON>'"], [], helped(13, "Saves a queue action; asks the daemon to run its authorized wake.")),
-    form("queue status", [], helped(14, "Reads the current queue and its allowed actions."))
-  ], `\`status\` prints the view of the queue as JSON. \`action\` saves one validated action and prints the view; when the action gives a wake, it then sends that wake to the master daemon and prints the answer as \`run\` does, with the prefix \`queue:\`. An Add to an empty queue, a Continue, and a Retry exit ${exits.prerequisite} with no daemon and save nothing. Each session tab of the wake opens in the background. It exits ${exits.usage} for another form, an agent that differs from the agent choice of the queue, or a queue record that is not valid, ${exits.prerequisite} for a refused action (for example a stale \`expected\`), and ${exits.blocked} when GitHub or the queue record cannot be read`),
-  entry("daemon", true, [
-    form("daemon start", [], helped(15, "Starts the master daemon of this repository, detached, waits until it answers, and prints the board URL.")),
-    form("daemon status", [], helped(16, "Shows the daemon, the board URL, its auto mode, and its runs.")),
-    form("daemon stop", [], helped(17, "Stops the daemon and waits until its process ends.")),
-    form("daemon auto on|off", [], helped(18, "Turns auto mode of the daemon on or off, and prints its state."))
-  ], `Starts, reads, and stops the master daemon of the repository of the current folder (\`engine/README.md\`, "The master daemon"); \`auto on|off\` turns auto mode of the daemon on or off and prints \`daemon: auto mode <state>\`. For \`start\`, \`status\`, and \`stop\` the optional \`--agent\` selects nothing; for \`auto\` it selects the host of the auto steps. \`start\` spawns the daemon detached, which serves the board (\`engine/board/README.md\`), and exits ${exits.done} when it answers, or when a daemon already runs; it then prints \`daemon: board http://127.0.0.1:<port>\`, except for a daemon of another revision. It exits ${exits.prerequisite} when \`gh\`, \`hc\`, or the Herdr app is missing, and ${exits.blocked} when the hc server or the Herdr app does not answer, or when the daemon ends or stays silent for 30 seconds, for example when its board port cannot open. \`status\` prints the daemon, the board URL, its auto mode, and one line per run; it exits ${exits.prerequisite} when no daemon runs or the daemon runs another revision of the engine. \`stop\` exits ${exits.done} when the process ended or no daemon runs. \`auto\` exits ${exits.done} with the state, ${exits.prerequisite} when no daemon runs or the daemon runs another revision of the engine, the code of a refusal, or ${exits.blocked} when the outcome is unknown. Each form exits ${exits.blocked} when a daemon is known but its process or socket does not answer; \`stop\` exits ${exits.blocked} too when the process stays for 60 seconds. On Windows, \`start\` gives the socket folder an access list for only the current user, SYSTEM, and the administrators, before it spawns the daemon; it exits ${exits.prerequisite} when another user owns the folder, the folder denies the current user access, the folder is a reparse point, or another user can still reach it, and ${exits.blocked} when Windows refuses the change. Each form exits ${exits.prerequisite} when a daemon runs and another user can reach that folder, and ${exits.blocked} when its access list cannot be read. Any other form exits ${exits.usage}`),
-  entry("coordinator", true, [
-    form("coordinator", [], helped(19, "Opens the coordinator session of the daemon in a tab, or brings its tab to the front.")),
-    form("coordinator status"),
-    form("coordinator read <n>"),
-    form("coordinator send <n> <file>", [required("--as", "maintainer|coordinator")])
-  ], `Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. \`coordinator\` opens one interactive session with the skill \`coordinate\` in a tab \`Coordinator\`, or brings the tab of the live session to the front; \`--agent\` selects the host of a new session as \`assist\` does. \`coordinator status\` prints the status object of the daemon as one JSON line; each run row holds \`attention\`, the state that needs a decision (\`dialog\`, \`turn-ended\`, or \`quota-wait\`) or null. \`coordinator read <n>\` prints the screen and 200 history lines of the live session of the run of issue <n> on stdout and exits ${exits.done}; when hc gave only the visible screen, it also prints \`coordinator: #<n>: hc gave only the visible screen\` on stderr, with \` (the session is <why>)\` after it when hc gave a reason. It exits ${exits.prerequisite} with \`coordinator: #<n> has no live run session\` when the run has no live session, and ${exits.blocked} with \`coordinator: cannot read the screen of the tab <tab>\` when the read fails. \`coordinator send <n> <file> --as maintainer|coordinator\` asks the daemon to type one message into the session of the live run of issue <n>: a header line with the authority and the time, then the text of the file with one final newline removed; it prints \`coordinator: sent to #<n> as <authority>\` and exits ${exits.done}. It sends only from the coordinator session (\`CELETIS_COORDINATOR\`). It exits ${exits.usage} when the file cannot be read, is not valid UTF-8, or holds an empty text, a text of more than 4096 characters, or a control character other than a newline or a tab; ${exits.prerequisite} when the caller is not the coordinator session, the issue has no live run with a released session, the run starts, waits for a usage limit, ends, or gets its exit request, or the session shows a dialog; and ${exits.blocked} when the hc status cannot be read or the outcome of the send is unknown. An open prints \`coordinator: opened the coordinator session of the daemon PID <pid> in the tab Coordinator\`, and an open while the session runs prints \`coordinator: a coordinator session runs; its tab Coordinator is at the front\`; both exit ${exits.done}. A refusal prints the line of the daemon on stderr and exits with its code: ${exits.prerequisite} when the plugin of the host needs a contract version that this engine does not serve or has no coordinator skill, and ${exits.blocked} when the process of the session cannot be read, its tab cannot come to the front, or the start barrier of a new tab does not report. With no daemon, it exits ${exits.prerequisite} and starts nothing. It exits ${exits.prerequisite} when the daemon runs another revision of the engine, and ${exits.blocked} when the daemon does not answer or the outcome is unknown. Any other form exits ${exits.usage} with the usage line. \`engine/README.md\`, "The coordinator session", gives the rules`),
-  entry("intake", true, [
-    form("intake", [], {
-      ...helped(6, "Starts a fresh session that asks for your request before intake."),
-      passThrough: sessionCode
-    })
-  ], `Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters \`celetis:intake\` with that request. It creates no issue before the answer and does not start a run. Before the start, it checks that this engine serves the contract version that the plugin of the selected host needs, and it exits ${exits.prerequisite} with the line of that check when it does not`, hosted),
-  entry("assist", true, [
-    form("assist <n>", [], {
-      ...helped(7, "Starts fresh interactive assistance for an issue in the main checkout."),
-      passThrough: sessionCode
-    })
-  ], `Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses \`issue <n> assisted <file>\` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume a run or land. Before the start, it checks that this engine serves the contract version that the plugin of the selected host needs, and it exits ${exits.prerequisite} with the line of that check when it does not`, hosted),
-  entry("visual", true, [
-    form("visual <n> <sha>", [], {
-      ...helped(8, "Starts a fresh session that makes the visual of a landed commit."),
-      passThrough: sessionCode
-    })
-  ], "Starts a fresh interactive session in the main checkout that makes the `visual-explainer` diff review of the landed commit `<sha>` of the issue `<n>`. It fetches the trunk from `origin` and refuses a commit that is not on it, and a commit whose page exists. The host writes `docs/superpowers/visuals/<sha>.html` and opens it, changes no other file, and makes no commit. A host with no `visual-explainer` skill says so in the tab and writes no file. The board's Make visual starts this command", hosted),
-  entry("worktree", true, [form("worktree <n>")], "Makes the lane worktree and the branch of the issue, or enters the one that is there and brings it up to the trunk, and prints its path", worktreeExits),
-  entry("worktree", true, [form("worktree --remove <n>")], "Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first", worktreeExits),
-  entry("land", true, [form("land <n> '<subject>'")], `Lands the change of the issue by the \`landing\` field of \`.celetis.yaml\`. It is the one landing path of an agent. The master daemon of the repository runs the landing, and \`land\` prints its output and exits with its status; with no daemon, or a daemon of another revision, it exits ${exits.prerequisite}, when the daemon does not answer ${exits.blocked}, and for another refusal of the request by the daemon it exits with the code of that refusal. It refuses an issue that is not ready to land. It exits ${exits.cleanup} when the change landed and its cleanup stopped; run it again`, ["done", "internal", "usage", "prerequisite", "repair", "checks", "blocked", "cleanup", "signal"]),
-  entry("issue", true, Object.values(issueActs).map((act) => form("numbered" in act ? ["issue", ...act.words] : ["issue", "<n>", ...act.words], act.flags)), `Makes each issue write of a session in the repository of the checkout: ${issueActList}. The acts other than \`create\` and \`comment\` are the workflow writes that the engine reads. \`create\` prints the URL of the new issue before any other write: a URL on stdout means that the issue exists, also on a nonzero exit. \`comment\` refuses a file whose first line is a lifecycle heading or the effort marker, and names the act for that write. The assistance act records an attributed \`## Human steps done\` report before removing present blocking labels; it adds no label and preserves build state. Lifecycle acts write the comment heading before label changes. Each act refuses unmet prerequisites. \`state\` writes nothing and prints lifecycle facts. \`epic-state\` writes nothing and prints the current declaration, child snapshot, history, and holds. Epic definition writes preserve the complete parent body; guarded completion publishes its accepted record before closing and leaves readiness labels unchanged. \`docs/issue-tracker.md\`, "Conventions", gives each act`),
-  entry("next-step", true, [form("next-step <n>"), form("next-step", [required("--open")])], "The resolver: the next step of one issue, or of each open issue"),
-  entry("events", true, [form("events", [optional("--after", "<id>")])], `Prints each kept entry of the event record of the user as one JSON line, oldest first; \`--after <id>\` prints only the entries after that entry. \`engine/README.md\`, "The event record", gives the record. It exits ${exits.usage} for a relative \`CELETIS_HOME\`, ${exits.prerequisite} when the record lock is busy, and ${exits.blocked} for an unsafe folder or lock file`),
-  entry("config", true, [form("config <checkout> <plugin>")], `The reader of \`.celetis.yaml\` for the agent. It first checks that \`<plugin>\` is a Celetis plugin: a folder whose \`.claude-plugin/plugin.json\` has \`"name": "celetis"\`. It then validates the whole file of \`<checkout>\`, and checks each \`custom\` key against \`<plugin>/skills/<key>/SKILL.md\`, a regular file with no symbolic link. It prints the configuration as one compact JSON line. \`--agent\` selects nothing. It exits ${exits.usage} for another form, a folder that is not a Celetis plugin, or a missing or invalid file; the line names the field or the plugin folder`),
-  entry("capscore", true, [
-    form("capscore J V B N S X", [
-      optional("--json"),
-      optional("--bias", "N"),
-      optional("--attempt", "N"),
-      optional("--reviewer"),
-      optional("--profile", "FILE"),
-      optional("--runtime-models", "FILE")
-    ])
-  ], "Resolves the six digits. `--json` gives the score of the selected host and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null"),
-  entry("dispatch", true, dispatchForms, `Acts: ${dispatchForms.map(({ words }) => `\`${words[1]}\``).join(", ")}. The task loop applies each returned pair and reports exact native arguments/results. Evidence is agent-reported, not independently checked. Records: \`/tmp/celetis-<uid>/dispatch/<host>-<session>.json\` on macOS and Linux; \`<os.tmpdir()>/celetis/dispatch/<host>-<session>.json\` on Windows. It exits ${exits.done} for a ready, reported, or closed result (also \`show\`), ${exits.usage} for bad usage or an invalid \`.celetis.yaml\`, ${exits.prerequisite} for a refusal or a busy dispatch lock, ${exits.blocked} for a setup failure, and ${exits.stop} when the engine stops the task`, ["done", "internal", "usage", "prerequisite", "blocked", "stop"]),
-  entry("install", false, [form("install")], 'Installs the revision of the clean checkout that it runs from as the engine ("First install"); takes no arguments'),
-  entry("setup", true, [
-    form("setup check"),
-    form("setup write", setupOptions),
-    form("setup try", setupOptions, { passThrough: "the exit code of the worktree setup script" }),
-    form("setup try", [required("--remove")]),
-    form("setup lane <path>"),
-    form("setup push")
-  ], "The deterministic part of `/celetis:setup`: validated saved answers from `check`, bounded owned refresh and removal in `write`, the test lane (`try` makes it and runs the worktree setup there, and `try --remove` removes it), the run of the worktree setup in a lane that exists (`lane`), and the commit of planned paths, including deletions, with the push. Every setup run calls the engine; no product launcher is written"),
-  entry("setup", true, [
-    form("setup status", [], helped(3, "Reports each part of the required wiring that this checkout lacks; writes nothing."))
-  ], `Reports the required wiring of the active checkout for the selected host, also from a subfolder or a lane worktree: \`origin\`, \`.celetis.yaml\` and its configured files, the Celetis block, the Claude imports and settings or the Codex restriction, the ignore and attribute lines, the record of setup, and the workflow labels. It writes nothing, runs no product file, and fetches nothing. An incomplete report ends with \`Run /celetis:setup in the main checkout: <path>\`. It exits ${exits.done} when the wiring is complete, ${exits.prerequisite} when it is missing, invalid, or different, and ${exits.blocked} when an observation is blocked`),
-  entry("agents", false, [
-    form("agents read", [], helped(4, "Reads the local ordered agent preference and its version.")),
-    form(["agents", "replace", "'<JSON>'"], [], helped(5, "Replaces the local order using order and expectedVersion."))
-  ], `Reads the local ordered preference, or replaces it with exactly \`order\` and \`expectedVersion\`. It shares the Git common directory across worktrees and requires no YAML. It exits ${exits.usage} for a replacement that is not JSON or not a valid order, and for an \`agents.json\` that does not validate. It exits ${exits.prerequisite} for a stale-edit conflict, and returns the latest order; a busy write lock also exits ${exits.prerequisite}, with no JSON. It exits ${exits.blocked} for an unsafe or unreadable record. Repeating the current order succeeds`),
-  entry("update", false, [
-    form("update", [], helped(1, "Updates the engine and the plugin of each host; asks once.")),
-    form("update check", [], helped(2, "Shows the installed and the available revision of each part."))
-  ], `Updates the engine and the plugin of each host, and asks once in an interactive terminal. \`check\` is read-only: it prints one JSON array of the parts. \`plugins/celetis/README.md\`, "Updates", gives the steps. Any other form exits ${exits.usage} with the usage line`),
-  entry("root", false, [form("root", [], helped(25, "Prints the version folder that holds the running engine."))], "Prints the version folder that holds the running engine. It takes no argument and runs in each folder"),
-  entry("daemon", false, [form(["daemon", "--daemon"])], "The detached master daemon process of `daemon start`.", [...base, "signal"], true),
-  entry("daemon", false, [
-    form(["daemon", "--session-start", "<dir>", "<daemon-pid>", "<host>", "<attempt>", "<recovery>", "<host-args>"], [], {
-      passThrough: sessionCode
-    })
-  ], "The waiting session of a daemon run.", hosted, true),
-  entry("daemon", false, [form("daemon --prepare-state queue"), form("daemon --prepare-state session <n>")], "The state preparation of the daemon.", base, true)
-];
-var launcherForms = [
-  form([]),
-  form("help", [], helped(27, "Prints this list.")),
-  form("--help"),
-  form("-h"),
-  form("--version", [], helped(26, "Prints the revision of the engine."))
-];
-var helpRows = [...commands.filter(({ internal }) => !internal).flatMap(({ forms }) => forms), ...launcherForms].flatMap((each) => each.help ? [
-  {
-    order: each.help.order,
-    summary: each.help.summary,
-    text: `celetis ${formText({ ...each, flags: each.flags.filter(({ optional }) => !optional) })}`
-  }
-] : []).sort((a, b) => a.order - b.order);
-var helpWidth = Math.max(...helpRows.map(({ text }) => text.length));
-var helpText = [
-  "usage: celetis [--agent <host>] <command> [<argument>...]",
-  "",
-  ...helpRows.map(({ text, summary }) => `  ${text.padEnd(helpWidth)}  ${summary}`),
-  "",
-  "In a terminal, --agent claude|codex|opencode is optional. CELETIS_AGENT is an explicit choice too.",
-  "With neither, the local agent order applies; its initial order is claude, codex.",
-  'The skills run the other commands. plugins/celetis/README.md, "The commands", in the folder that celetis root',
-  "prints, lists all of them."
-].join(`
-`);
-var hinted = new Set([
-  "assist",
-  "capscore",
-  "coordinator",
-  "events",
-  "install",
-  "intake",
-  "issue",
-  "land",
-  "next-step",
-  "run",
-  "setup",
-  "update",
-  "visual",
-  "worktree"
-]);
 
-// engine/lib/workflow.ts
-var lanes = {
-  feature: { label: "enhancement", prefix: "feat", steps: ["triage", "specify", "plan", "implement"] },
-  bug: { label: "bug", prefix: "bugfix", steps: ["triage", "bug", "plan", "implement"] },
-  chore: { label: "chore", prefix: "chore", steps: ["triage", "chore"] },
-  hotfix: { label: "hotfix", prefix: "hotfix", steps: ["triage", "hotfix"] }
-};
-var laneNames = Object.keys(lanes);
-var autoLaneNames = ["triage", ...laneNames];
-var stepsOf = (lane) => lanes[lane].steps;
-var steps = [...new Set(laneNames.flatMap(stepsOf))];
-var stageNames = ["Triage", "Define", "Plan", "Implement"];
-var stages = stageNames.map((name, position) => ({
-  name,
-  steps: [...new Set(laneNames.flatMap((lane) => stepsOf(lane).slice(position, position + 1)))]
-}));
-
-// engine/lib/effort.ts
-var levels = ["low", "medium", "high", "xhigh", "max"];
-var reviewerLevels = levels.filter((level) => level !== "max");
-var models = ["haiku", "sonnet", "opus", "fable"];
-var decidable = steps.filter((step) => step !== "triage");
-
-// engine/lib/host-names.ts
+// engine/lib/host/names.ts
 var registry = Object.freeze({
   claude: { name: "Claude Code", short: "Claude" },
   codex: { name: "Codex", short: "Codex" },
@@ -6808,8 +6440,376 @@ function parseAllDocuments(source, options = {}) {
     return docs;
   return Object.assign([], { empty: true }, composer.streamInfo());
 }
+// engine/lib/contract/contract.ts
+var exitClasses = [
+  { code: 0, name: "done", meaning: "The act completed, or it had no change to make." },
+  {
+    code: 1,
+    name: "internal",
+    meaning: "An unexpected failure, for example an uncaught error; the message names it."
+  },
+  { code: 2, name: "usage", meaning: "Bad arguments, or an input file or value that the command refuses." },
+  {
+    code: 3,
+    name: "prerequisite",
+    meaning: "The current state does not permit the act: an unmet prerequisite, a busy lock, stale input, no daemon, or missing wiring."
+  },
+  {
+    code: 4,
+    name: "repair",
+    meaning: "The session repairs the lane, then runs the command again: a conflict with the trunk, or a branch or a checkout that moved."
+  },
+  { code: 5, name: "checks", meaning: "A check of the change is not green." },
+  {
+    code: 6,
+    name: "blocked",
+    meaning: "A system outside the command failed or did not answer (GitHub, git, the host, the file system, access); a write can be partial."
+  },
+  { code: 7, name: "cleanup", meaning: "The change landed, and its cleanup stopped." },
+  { code: 8, name: "stop", meaning: "The engine stops the task; the session escalates." },
+  { code: "128+n", name: "signal", meaning: "The signal n ended the command." }
+];
+var brand = (code) => code;
+var exits = Object.fromEntries(exitClasses.flatMap(({ code, name }) => typeof code === "number" ? [[name, brand(code)]] : []));
+var required = (name, value) => ({
+  name,
+  ...value ? { value } : {},
+  optional: false
+});
+var optional = (name, value) => ({ name, ...value ? { value } : {}, optional: true });
+var form = (words, flags = [], extra = {}) => ({ words: typeof words === "string" ? words.split(" ") : words, flags, ...extra });
+var helped = (order, summary) => ({ help: { order, summary } });
+var sessionCode = "the exit code of the host session";
+var profileFlags = [optional("--profile", "FILE"), optional("--runtime-models", "FILE")];
+var setupOptions = [
+  required("--hosts", "claude|codex|claude,codex|codex,claude"),
+  required("--landing", "pr|merge"),
+  optional("--suite", "<file>"),
+  optional("--setup-file", "<file>"),
+  optional("--ignore", "<line>"),
+  optional("--baseline-file", "<file>")
+];
+var issueActs = {
+  route: {
+    words: ["route", "feature|bug|chore|hotfix"],
+    flags: [],
+    argument: "lane",
+    prerequisite: "open; not an epic",
+    writes: "the label of the lane; it removes the other lane labels and `needs-triage`"
+  },
+  effort: {
+    words: ["effort", "<step>", "<model>", "<level>", "<file>"],
+    flags: [],
+    argument: "effort",
+    prerequisite: "open",
+    writes: 'an `Effort: <step> <model> <level>` comment ("What lives on the issue", "Effort"); no label change'
+  },
+  create: {
+    words: ["create", "<file>"],
+    flags: [],
+    argument: "file",
+    numbered: false,
+    prerequisite: "none; it takes no issue number",
+    writes: "a new issue with the title from the first line `# Intent: <title>`, the whole file as its body, and `needs-triage`; it prints the URL of the new issue first"
+  },
+  comment: {
+    words: ["comment", "<file>"],
+    flags: [optional("--attach", "<file>#<alt>")],
+    argument: "file",
+    prerequisite: "an issue, open or closed; not a pull request",
+    writes: "the file as a comment, with each `--attach` file uploaded (the flag repeats, at most 50 times); it refuses a first line that is a lifecycle heading or the effort marker"
+  },
+  epic: {
+    words: ["epic", "<file>"],
+    flags: [],
+    argument: "file",
+    prerequisite: "open feature or epic; valid declaration and current child references",
+    writes: "the complete parent body, then adds `epic` and removes `enhancement` as needed; clears no hold"
+  },
+  "epic-state": {
+    words: ["epic-state"],
+    flags: [],
+    argument: "none",
+    prerequisite: "readable parent and complete children",
+    writes: 'nothing; the JSON snapshot of "Epic acceptance submission"'
+  },
+  "complete-epic": {
+    words: ["complete-epic", "[file]"],
+    flags: [],
+    argument: "optional-file",
+    prerequisite: '"Epic completion and repair"',
+    writes: "an accepted record, then closes as completed; an already closed parent has no write"
+  },
+  "needs-info": {
+    words: ["needs-info", "<file>"],
+    flags: [],
+    argument: "file",
+    prerequisite: "open",
+    writes: "the file as a comment, then `needs-info`"
+  },
+  wontfix: {
+    words: ["wontfix", "<file>"],
+    flags: [],
+    argument: "file",
+    prerequisite: "open",
+    writes: "the file as a comment, then `wontfix`, then the close as not planned"
+  },
+  spec: {
+    words: ["spec", "<file>"],
+    flags: [],
+    argument: "file",
+    prerequisite: "open; lane `feature`",
+    writes: "the body: `Spec: YYYY-MM-DD` (the local date), a blank line, then the file"
+  },
+  "root-cause": {
+    words: ["root-cause", "<file>"],
+    flags: [],
+    argument: "file",
+    prerequisite: "open; lane `bug` or `hotfix`",
+    writes: "a `## Root cause` comment"
+  },
+  plan: {
+    words: ["plan", "<file>"],
+    flags: [],
+    argument: "file",
+    prerequisite: "open; a `feature` with a spec, or a `bug` with a `## Root cause` comment",
+    writes: "a `## Plan` comment; then `ready-for-agent` with no human hold, else keeps `ready-for-human` and removes `ready-for-agent`"
+  },
+  built: {
+    words: ["built"],
+    flags: [],
+    argument: "none",
+    prerequisite: "the resolver line is `implement` of a planned change",
+    writes: "a `## Built` comment, then removes `ready-for-agent` when present"
+  },
+  "before-landing": {
+    words: ["before-landing", "<file>"],
+    flags: [optional("--during-the-build")],
+    argument: "file",
+    prerequisite: "the resolver line is the step that lands the lane (`implement`, `chore`, `hotfix`)",
+    writes: 'a `## Before landing` comment with the marker of its kind ("Completing a human precondition"), then it adds `ready-for-human`, and removes `ready-for-agent` when it is on'
+  },
+  "landing-refused": {
+    words: ["landing-refused", "<file>"],
+    flags: [],
+    argument: "file",
+    prerequisite: "as `before-landing`",
+    writes: "a `## Landing refused` comment"
+  },
+  stopped: {
+    words: ["stopped", "<file>"],
+    flags: [],
+    argument: "file",
+    prerequisite: "open",
+    writes: "a `## Stopped` comment, then adds `ready-for-human` and removes `ready-for-agent` when present"
+  },
+  "ready-for-human": {
+    words: ["ready-for-human"],
+    flags: [],
+    argument: "none",
+    prerequisite: "open",
+    writes: "adds or retains `ready-for-human`, then removes `ready-for-agent` when present"
+  },
+  assisted: {
+    words: ["assisted", "<file>"],
+    flags: [],
+    argument: "file",
+    prerequisite: "open; has `needs-info`, `ready-for-human`, or a current open human precondition",
+    writes: "a `## Human steps done` comment with assistance-agent attribution, then removes present `needs-info` and `ready-for-human`; adds no label"
+  },
+  state: {
+    words: ["state"],
+    flags: [],
+    argument: "none",
+    prerequisite: "none",
+    writes: "nothing"
+  }
+};
+var flagText = ({ name, value, optional }) => {
+  const text = value ? `${name} ${value}` : name;
+  return optional ? `[${text}]` : text;
+};
+var formText = ({ words, flags }) => [...words, ...flags.map(flagText)].join(" ");
+var issueActList = Object.values(issueActs).filter(({ words }) => words[0] !== "epic-state" && words[0] !== "state").map((act) => `\`${formText(act)}\``).join(", ");
+var dispatchForms = [
+  form("dispatch next <n> <task> implementer|reviewer J V B N S X", [required("--bias", "N"), ...profileFlags]),
+  form("dispatch report <dispatch-id> <report-file>"),
+  form("dispatch gate <n> <task> pass|fail <gate> <report>", profileFlags),
+  form("dispatch review <n> <task> findings|blocked", profileFlags),
+  form("dispatch close <n> <task>"),
+  form("dispatch show")
+];
+var base = ["done", "internal", "usage", "prerequisite", "blocked"];
+var hosted = ["internal", "usage", "prerequisite", "blocked"];
+var worktreeExits = ["done", "internal", "usage", "prerequisite", "repair", "blocked"];
+var entry = (command, agent, forms, description, exitList = base, internal) => ({ command, forms, description, exits: exitList, agent, ...internal ? { internal } : {} });
+var commands = [
+  entry("lesson-store", true, [form("lesson-store read main|active", [], helped(20, "Reads validated lessons; requires explicit --agent."))], "Returns validated lesson records, exact file contents, digests, and the resolved checkout as JSON. `main` returns the live files of the checkout that runs it with the pending and rejected data of the main checkout, and `root` names the main checkout. Rejected records appear in `history` with `status: pending-review`; they are not past guidance. `active` reads the live files of the task checkout and ignores its pending folder. A leftover `.celetis/lessons/INDEX.md` fails both reads"),
+  entry("lesson-store", true, [form("lesson-store capture FILE", [], helped(21, "Saves a pending proposal; requires explicit --agent."))], "Reads typed `{schema:1,candidate,expected,name,description,tags,date,source,incidents,body}` JSON and builds the pending record; `expected` is the pending SHA-256 or null for creation. An extension keeps the stored incidents and reviews. Validates the store of `read main` and saves pending evidence in the main checkout only. Equal incident replays are unchanged; stale updates are refused"),
+  entry("lesson-store", true, [form("lesson-store preview FILE", [], helped(22, "Prepares an exact lesson review; requires explicit --agent."))], "Reads a review request and returns its exact before/after contents of the store of `read main`, watched digests, and snapshot digest without lesson writes. Select pending UUIDs and complete resulting documents as defined in [the lesson format](references/procedures/lesson-format.md)"),
+  entry("lesson-store", true, [
+    form("lesson-store apply SNAPSHOT DIGEST", [], helped(23, "Applies a reviewed snapshot and commits it in a linked checkout; requires explicit --agent."))
+  ], `Recomputes the review and applies exactly the approved snapshot under the lock. Changed input or snapshot bytes are stale. Replaying the same review is unchanged; conflicting reuse of its ID is invalid. The digest identifies a version, not its reviewer. In a linked checkout, a live change needs a clean checkout on a branch and becomes one local commit \`docs(lessons): <decision> <names>\` with a \`Lesson-Transaction\` trailer, made with the project's hooks; the proposals leave the queue only after that commit. When Git fails but the lesson commit exists, the apply completes. When the lane is still at its old HEAD, the apply restores the before bytes of the live paths, also a hook rewrite, and their index entries, and exits ${exits.blocked}. When HEAD moved without the commit, the journal stays (exit ${exits.blocked}), and the line names the repair: \`git -C <lane> reset --soft <recorded HEAD>\`, then \`recover\``),
+  entry("lesson-store", true, [
+    form("lesson-store recover", [], helped(24, "Completes or rolls back an interrupted lesson write; requires explicit --agent."))
+  ], `Completes or rolls back the one journal under the lesson lock, from any checkout of the repository. A lane journal completes when its lesson commit exists and rolls back when the lane is still at the recorded HEAD; a lane HEAD that moved without the commit blocks it until \`git -C <lane> reset --soft <recorded HEAD>\`. These commands require Git and an explicit host, but no issue, run, or configuration file. Only a lane apply and its recovery change the Git index. It exits ${exits.usage} for invalid input or store, ${exits.prerequisite} when the input is stale or a lock is busy, and ${exits.blocked} for an access, I/O, or recovery block`),
+  entry("run", true, [
+    form("run <n>", [], helped(9, "Asks the daemon to start the next step of one issue and follow its auto gates; returns at once.")),
+    form("run resume <n>", [], helped(11, "Asks the daemon to open the session of a step with no progress again.")),
+    form("run retry <n> <wait-id>", [], helped(12, "Asks the daemon to wake the quota waiter of an issue for one attempt cycle."))
+  ], `Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. \`run <n>\` starts the next step of the issue, \`run resume <n>\` opens the saved session of a step with no progress again, and \`run retry <n> <wait-id>\` wakes the quota waiter of the issue for one attempt cycle. Each session tab of a run, also of \`run resume\` and of \`run retry\`, opens in the background: the focus of the Herdr app does not move. An accepted start prints \`run: #<n>: accepted as run <run id> of the daemon PID <pid>; read its progress: celetis daemon status\`, and an accepted Retry prints \`run: #<n>: Retry requested; the waiting run starts one bounded attempt cycle\`; both exit ${exits.done}. A refusal prints the line of the daemon, on stdout for code ${exits.done} and on stderr otherwise, and exits with its code: ${exits.prerequisite} for a busy issue lock, ${exits.blocked} for a failed GitHub read of the issue, ${exits.done} for each other end before the first session. With no daemon, it exits ${exits.prerequisite} and starts nothing. It exits ${exits.prerequisite} when the daemon runs another revision of the engine or an update removed this engine version, and ${exits.blocked} when the daemon does not answer or the outcome is unknown. Any other form exits ${exits.usage} with the usage line`),
+  entry("run", true, [
+    form("run <n>", [required("--effort", "<level>"), optional("--model", "<model>")], helped(10, "Asks the daemon to start the next step of one issue at another effort level, for its first session only.")),
+    form("run <n>", [required("--model", "<model>"), optional("--effort", "<level>")], helped(10, "Asks the daemon to start the next step of one issue on another model, for its first session only."))
+  ], `Asks the daemon to start the next step of the issue with \`--effort\` at \`low\`, \`medium\`, \`high\`, \`xhigh\`, or \`max\`, with \`--model\` on \`haiku\`, \`sonnet\`, \`opus\`, or \`fable\`, or with both, in either order. Each flag replaces the decided, pinned, or default value of the first session of this start only, and the request carries it. Each later step uses its own pair, and neither flag writes a decision. It needs exactly one issue number; any other form exits ${exits.usage} with the usage line`),
+  entry("queue", true, [
+    form(["queue", "action", "'<QueueAction JSON>'"], [], helped(13, "Saves a queue action; asks the daemon to run its authorized wake.")),
+    form("queue status", [], helped(14, "Reads the current queue and its allowed actions."))
+  ], `\`status\` prints the view of the queue as JSON. \`action\` saves one validated action and prints the view; when the action gives a wake, it then sends that wake to the master daemon and prints the answer as \`run\` does, with the prefix \`queue:\`. An Add to an empty queue, a Continue, and a Retry exit ${exits.prerequisite} with no daemon and save nothing. Each session tab of the wake opens in the background. It exits ${exits.usage} for another form, an agent that differs from the agent choice of the queue, or a queue record that is not valid, ${exits.prerequisite} for a refused action (for example a stale \`expected\`), and ${exits.blocked} when GitHub or the queue record cannot be read`),
+  entry("daemon", true, [
+    form("daemon start", [], helped(15, "Starts the master daemon of this repository, detached, waits until it answers, and prints the board URL.")),
+    form("daemon status", [], helped(16, "Shows the daemon, the board URL, its auto mode, and its runs.")),
+    form("daemon stop", [], helped(17, "Stops the daemon and waits until its process ends.")),
+    form("daemon auto on|off", [], helped(18, "Turns auto mode of the daemon on or off, and prints its state."))
+  ], `Starts, reads, and stops the master daemon of the repository of the current folder (\`engine/README.md\`, "The master daemon"); \`auto on|off\` turns auto mode of the daemon on or off and prints \`daemon: auto mode <state>\`. For \`start\`, \`status\`, and \`stop\` the optional \`--agent\` selects nothing; for \`auto\` it selects the host of the auto steps. \`start\` spawns the daemon detached, which serves the board (\`engine/board/README.md\`), and exits ${exits.done} when it answers, or when a daemon already runs; it then prints \`daemon: board http://127.0.0.1:<port>\`, except for a daemon of another revision. It exits ${exits.prerequisite} when \`gh\`, \`hc\`, or the Herdr app is missing, and ${exits.blocked} when the hc server or the Herdr app does not answer, or when the daemon ends or stays silent for 30 seconds, for example when its board port cannot open. \`status\` prints the daemon, the board URL, its auto mode, and one line per run; it exits ${exits.prerequisite} when no daemon runs or the daemon runs another revision of the engine. \`stop\` exits ${exits.done} when the process ended or no daemon runs. \`auto\` exits ${exits.done} with the state, ${exits.prerequisite} when no daemon runs or the daemon runs another revision of the engine, the code of a refusal, or ${exits.blocked} when the outcome is unknown. Each form exits ${exits.blocked} when a daemon is known but its process or socket does not answer; \`stop\` exits ${exits.blocked} too when the process stays for 60 seconds. On Windows, \`start\` gives the socket folder an access list for only the current user, SYSTEM, and the administrators, before it spawns the daemon; it exits ${exits.prerequisite} when another user owns the folder, the folder denies the current user access, the folder is a reparse point, or another user can still reach it, and ${exits.blocked} when Windows refuses the change. Each form exits ${exits.prerequisite} when a daemon runs and another user can reach that folder, and ${exits.blocked} when its access list cannot be read. Any other form exits ${exits.usage}`),
+  entry("coordinator", true, [
+    form("coordinator", [], helped(19, "Opens the coordinator session of the daemon in a tab, or brings its tab to the front.")),
+    form("coordinator status"),
+    form("coordinator read <n>"),
+    form("coordinator send <n> <file>", [required("--as", "maintainer|coordinator")])
+  ], `Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. \`coordinator\` opens one interactive session with the skill \`coordinate\` in a tab \`Coordinator\`, or brings the tab of the live session to the front; \`--agent\` selects the host of a new session as \`assist\` does. \`coordinator status\` prints the status object of the daemon as one JSON line; each run row holds \`attention\`, the state that needs a decision (\`dialog\`, \`turn-ended\`, or \`quota-wait\`) or null. \`coordinator read <n>\` prints the screen and 200 history lines of the live session of the run of issue <n> on stdout and exits ${exits.done}; when hc gave only the visible screen, it also prints \`coordinator: #<n>: hc gave only the visible screen\` on stderr, with \` (the session is <why>)\` after it when hc gave a reason. It exits ${exits.prerequisite} with \`coordinator: #<n> has no live run session\` when the run has no live session, and ${exits.blocked} with \`coordinator: cannot read the screen of the tab <tab>\` when the read fails. \`coordinator send <n> <file> --as maintainer|coordinator\` asks the daemon to type one message into the session of the live run of issue <n>: a header line with the authority and the time, then the text of the file with one final newline removed; it prints \`coordinator: sent to #<n> as <authority>\` and exits ${exits.done}. It sends only from the coordinator session (\`CELETIS_COORDINATOR\`). It exits ${exits.usage} when the file cannot be read, is not valid UTF-8, or holds an empty text, a text of more than 4096 characters, or a control character other than a newline or a tab; ${exits.prerequisite} when the caller is not the coordinator session, the issue has no live run with a released session, the run starts, waits for a usage limit, ends, or gets its exit request, or the session shows a dialog; and ${exits.blocked} when the hc status cannot be read or the outcome of the send is unknown. An open prints \`coordinator: opened the coordinator session of the daemon PID <pid> in the tab Coordinator\`, and an open while the session runs prints \`coordinator: a coordinator session runs; its tab Coordinator is at the front\`; both exit ${exits.done}. A refusal prints the line of the daemon on stderr and exits with its code: ${exits.prerequisite} when the plugin of the host needs a contract version that this engine does not serve or has no coordinator skill, and ${exits.blocked} when the process of the session cannot be read, its tab cannot come to the front, or the start barrier of a new tab does not report. With no daemon, it exits ${exits.prerequisite} and starts nothing. It exits ${exits.prerequisite} when the daemon runs another revision of the engine, and ${exits.blocked} when the daemon does not answer or the outcome is unknown. Any other form exits ${exits.usage} with the usage line. \`engine/README.md\`, "The coordinator session", gives the rules`),
+  entry("intake", true, [
+    form("intake", [], {
+      ...helped(6, "Starts a fresh session that asks for your request before intake."),
+      passThrough: sessionCode
+    })
+  ], `Starts a fresh interactive session in the main checkout. It asks “What would you like to work on?” and waits. After an answer, it enters \`celetis:intake\` with that request. It creates no issue before the answer and does not start a run. Before the start, it checks that this engine serves the contract version that the plugin of the selected host needs, and it exits ${exits.prerequisite} with the line of that check when it does not`, hosted),
+  entry("assist", true, [
+    form("assist <n>", [], {
+      ...helped(7, "Starts fresh interactive assistance for an issue in the main checkout."),
+      passThrough: sessionCode
+    })
+  ], `Starts fresh interactive assistance for the issue in the main checkout. It completes permitted work for the current block and uses \`issue <n> assisted <file>\` for verified completion and hold removal. It asks for missing human contributions, then reports the actual next step. It does not start or resume a run or land. Before the start, it checks that this engine serves the contract version that the plugin of the selected host needs, and it exits ${exits.prerequisite} with the line of that check when it does not`, hosted),
+  entry("visual", true, [
+    form("visual <n> <sha>", [], {
+      ...helped(8, "Starts a fresh session that makes the visual of a landed commit."),
+      passThrough: sessionCode
+    })
+  ], "Starts a fresh interactive session in the main checkout that makes the `visual-explainer` diff review of the landed commit `<sha>` of the issue `<n>`. It fetches the trunk from `origin` and refuses a commit that is not on it, and a commit whose page exists. The host writes `docs/superpowers/visuals/<sha>.html` and opens it, changes no other file, and makes no commit. A host with no `visual-explainer` skill says so in the tab and writes no file. The board's Make visual starts this command", hosted),
+  entry("worktree", true, [form("worktree <n>")], "Makes the lane worktree and the branch of the issue, or enters the one that is there and brings it up to the trunk, and prints its path", worktreeExits),
+  entry("worktree", true, [form("worktree --remove <n>")], "Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first", worktreeExits),
+  entry("land", true, [form("land <n> '<subject>'")], `Lands the change of the issue by the \`landing\` field of \`.celetis.yaml\`. It is the one landing path of an agent. The master daemon of the repository runs the landing, and \`land\` prints its output and exits with its status; with no daemon, or a daemon of another revision, it exits ${exits.prerequisite}, when the daemon does not answer ${exits.blocked}, and for another refusal of the request by the daemon it exits with the code of that refusal. It refuses an issue that is not ready to land. It exits ${exits.cleanup} when the change landed and its cleanup stopped; run it again`, ["done", "internal", "usage", "prerequisite", "repair", "checks", "blocked", "cleanup", "signal"]),
+  entry("issue", true, Object.values(issueActs).map((act) => form("numbered" in act ? ["issue", ...act.words] : ["issue", "<n>", ...act.words], act.flags)), `Makes each issue write of a session in the repository of the checkout: ${issueActList}. The acts other than \`create\` and \`comment\` are the workflow writes that the engine reads. \`create\` prints the URL of the new issue before any other write: a URL on stdout means that the issue exists, also on a nonzero exit. \`comment\` refuses a file whose first line is a lifecycle heading or the effort marker, and names the act for that write. The assistance act records an attributed \`## Human steps done\` report before removing present blocking labels; it adds no label and preserves build state. Lifecycle acts write the comment heading before label changes. Each act refuses unmet prerequisites. \`state\` writes nothing and prints lifecycle facts. \`epic-state\` writes nothing and prints the current declaration, child snapshot, history, and holds. Epic definition writes preserve the complete parent body; guarded completion publishes its accepted record before closing and leaves readiness labels unchanged. \`docs/issue-tracker.md\`, "Conventions", gives each act`),
+  entry("next-step", true, [form("next-step <n>"), form("next-step", [required("--open")])], "The resolver: the next step of one issue, or of each open issue"),
+  entry("events", true, [form("events", [optional("--after", "<id>")])], `Prints each kept entry of the event record of the user as one JSON line, oldest first; \`--after <id>\` prints only the entries after that entry. \`engine/README.md\`, "The event record", gives the record. It exits ${exits.usage} for a relative \`CELETIS_HOME\`, ${exits.prerequisite} when the record lock is busy, and ${exits.blocked} for an unsafe folder or lock file`),
+  entry("config", true, [form("config <checkout> <plugin>")], `The reader of \`.celetis.yaml\` for the agent. It first checks that \`<plugin>\` is a Celetis plugin: a folder whose \`.claude-plugin/plugin.json\` has \`"name": "celetis"\`. It then validates the whole file of \`<checkout>\`, and checks each \`custom\` key against \`<plugin>/skills/<key>/SKILL.md\`, a regular file with no symbolic link. It prints the configuration as one compact JSON line. \`--agent\` selects nothing. It exits ${exits.usage} for another form, a folder that is not a Celetis plugin, or a missing or invalid file; the line names the field or the plugin folder`),
+  entry("capscore", true, [
+    form("capscore J V B N S X", [
+      optional("--json"),
+      optional("--bias", "N"),
+      optional("--attempt", "N"),
+      optional("--reviewer"),
+      optional("--profile", "FILE"),
+      optional("--runtime-models", "FILE")
+    ])
+  ], "Resolves the six digits. `--json` gives the score of the selected host and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null"),
+  entry("dispatch", true, dispatchForms, `Acts: ${dispatchForms.map(({ words }) => `\`${words[1]}\``).join(", ")}. The task loop applies each returned pair and reports exact native arguments/results. Evidence is agent-reported, not independently checked. Records: \`/tmp/celetis-<uid>/dispatch/<host>-<session>.json\` on macOS and Linux; \`<os.tmpdir()>/celetis/dispatch/<host>-<session>.json\` on Windows. It exits ${exits.done} for a ready, reported, or closed result (also \`show\`), ${exits.usage} for bad usage or an invalid \`.celetis.yaml\`, ${exits.prerequisite} for a refusal or a busy dispatch lock, ${exits.blocked} for a setup failure, and ${exits.stop} when the engine stops the task`, ["done", "internal", "usage", "prerequisite", "blocked", "stop"]),
+  entry("install", false, [form("install")], 'Installs the revision of the clean checkout that it runs from as the engine ("First install"); takes no arguments'),
+  entry("setup", true, [
+    form("setup check"),
+    form("setup write", setupOptions),
+    form("setup try", setupOptions, { passThrough: "the exit code of the worktree setup script" }),
+    form("setup try", [required("--remove")]),
+    form("setup lane <path>"),
+    form("setup push")
+  ], "The deterministic part of `/celetis:setup`: validated saved answers from `check`, bounded owned refresh and removal in `write`, the test lane (`try` makes it and runs the worktree setup there, and `try --remove` removes it), the run of the worktree setup in a lane that exists (`lane`), and the commit of planned paths, including deletions, with the push. Every setup run calls the engine; no product launcher is written"),
+  entry("setup", true, [
+    form("setup status", [], helped(3, "Reports each part of the required wiring that this checkout lacks; writes nothing."))
+  ], `Reports the required wiring of the active checkout for the selected host, also from a subfolder or a lane worktree: \`origin\`, \`.celetis.yaml\` and its configured files, the Celetis block, the Claude imports and settings or the Codex restriction, the ignore and attribute lines, the record of setup, and the workflow labels. It writes nothing, runs no product file, and fetches nothing. An incomplete report ends with \`Run /celetis:setup in the main checkout: <path>\`. It exits ${exits.done} when the wiring is complete, ${exits.prerequisite} when it is missing, invalid, or different, and ${exits.blocked} when an observation is blocked`),
+  entry("agents", false, [
+    form("agents read", [], helped(4, "Reads the local ordered agent preference and its version.")),
+    form(["agents", "replace", "'<JSON>'"], [], helped(5, "Replaces the local order using order and expectedVersion."))
+  ], `Reads the local ordered preference, or replaces it with exactly \`order\` and \`expectedVersion\`. It shares the Git common directory across worktrees and requires no YAML. It exits ${exits.usage} for a replacement that is not JSON or not a valid order, and for an \`agents.json\` that does not validate. It exits ${exits.prerequisite} for a stale-edit conflict, and returns the latest order; a busy write lock also exits ${exits.prerequisite}, with no JSON. It exits ${exits.blocked} for an unsafe or unreadable record. Repeating the current order succeeds`),
+  entry("update", false, [
+    form("update", [], helped(1, "Updates the engine and the plugin of each host; asks once.")),
+    form("update check", [], helped(2, "Shows the installed and the available revision of each part."))
+  ], `Updates the engine and the plugin of each host, and asks once in an interactive terminal. \`check\` is read-only: it prints one JSON array of the parts. \`plugins/celetis/README.md\`, "Updates", gives the steps. Any other form exits ${exits.usage} with the usage line`),
+  entry("root", false, [form("root", [], helped(25, "Prints the version folder that holds the running engine."))], "Prints the version folder that holds the running engine. It takes no argument and runs in each folder"),
+  entry("daemon", false, [form(["daemon", "--daemon"])], "The detached master daemon process of `daemon start`.", [...base, "signal"], true),
+  entry("daemon", false, [
+    form(["daemon", "--session-start", "<dir>", "<daemon-pid>", "<host>", "<attempt>", "<recovery>", "<host-args>"], [], {
+      passThrough: sessionCode
+    })
+  ], "The waiting session of a daemon run.", hosted, true),
+  entry("daemon", false, [form("daemon --prepare-state queue"), form("daemon --prepare-state session <n>")], "The state preparation of the daemon.", base, true)
+];
+var launcherForms = [
+  form([]),
+  form("help", [], helped(27, "Prints this list.")),
+  form("--help"),
+  form("-h"),
+  form("--version", [], helped(26, "Prints the revision of the engine."))
+];
+var helpRows = [...commands.filter(({ internal }) => !internal).flatMap(({ forms }) => forms), ...launcherForms].flatMap((each) => each.help ? [
+  {
+    order: each.help.order,
+    summary: each.help.summary,
+    text: `celetis ${formText({ ...each, flags: each.flags.filter(({ optional }) => !optional) })}`
+  }
+] : []).sort((a, b) => a.order - b.order);
+var helpWidth = Math.max(...helpRows.map(({ text }) => text.length));
+var helpText = [
+  "usage: celetis [--agent <host>] <command> [<argument>...]",
+  "",
+  ...helpRows.map(({ text, summary }) => `  ${text.padEnd(helpWidth)}  ${summary}`),
+  "",
+  "In a terminal, --agent claude|codex|opencode is optional. CELETIS_AGENT is an explicit choice too.",
+  "With neither, the local agent order applies; its initial order is claude, codex.",
+  'The skills run the other commands. plugins/celetis/README.md, "The commands", in the folder that celetis root',
+  "prints, lists all of them."
+].join(`
+`);
+var hinted = new Set([
+  "assist",
+  "capscore",
+  "coordinator",
+  "events",
+  "install",
+  "intake",
+  "issue",
+  "land",
+  "next-step",
+  "run",
+  "setup",
+  "update",
+  "visual",
+  "worktree"
+]);
 
-// engine/lib/config-core.ts
+// engine/lib/workflow/workflow.ts
+var lanes = {
+  feature: { label: "enhancement", prefix: "feat", steps: ["triage", "specify", "plan", "implement"] },
+  bug: { label: "bug", prefix: "bugfix", steps: ["triage", "bug", "plan", "implement"] },
+  chore: { label: "chore", prefix: "chore", steps: ["triage", "chore"] },
+  hotfix: { label: "hotfix", prefix: "hotfix", steps: ["triage", "hotfix"] }
+};
+var laneNames = Object.keys(lanes);
+var autoLaneNames = ["triage", ...laneNames];
+var stepsOf = (lane) => lanes[lane].steps;
+var steps = [...new Set(laneNames.flatMap(stepsOf))];
+var stageNames = ["Triage", "Define", "Plan", "Implement"];
+var stages = stageNames.map((name, position) => ({
+  name,
+  steps: [...new Set(laneNames.flatMap((lane) => stepsOf(lane).slice(position, position + 1)))]
+}));
+
+// engine/lib/workflow/effort.ts
+var levels = ["low", "medium", "high", "xhigh", "max"];
+var reviewerLevels = levels.filter((level) => level !== "max");
+var models = ["haiku", "sonnet", "opus", "fable"];
+var decidable = steps.filter((step) => step !== "triage");
+
+// engine/lib/config/core.ts
 class ConfigError extends Error {
   ioCode;
   field;
@@ -7147,7 +7147,7 @@ async function checkSkills(config, plugin, isFile) {
   }
 }
 
-// engine/lib/entry-text.ts
+// engine/lib/contract/entry-text.ts
 function entryParts(text) {
   function heading(title, after) {
     const index = text.indexOf(`

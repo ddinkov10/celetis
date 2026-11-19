@@ -1,16 +1,22 @@
 import { resolve } from 'node:path';
-import { AgentOrderConflict } from '../lib/agent-order.ts';
-import { commonDir, isInside, readAgentState } from '../lib/board-read.ts';
-import type { AgentChoice, AgentOrder, Host } from '../lib/config-core.ts';
-import type { CoordinatorAct } from '../lib/coordinator-types.ts';
-import type { DaemonStatus } from '../lib/daemon-types.ts';
-import type { Level } from '../lib/effort.ts';
-import { hostAvailability } from '../lib/host.ts';
-import { isHost } from '../lib/host-names.ts';
-import { requireQueueChoice } from '../lib/queue.ts';
-import type { QueueAction, QueueView } from '../lib/queue-types.ts';
-import { type Exec, focusTerminal, listTerminals, type OpenTab, openTab as openTerminalTab } from '../lib/terminal.ts';
-import { visualLink } from '../lib/visual.ts';
+import { AgentOrderConflict } from '../lib/agent/order.ts';
+import { commonDir, isInside, readAgentState } from '../lib/board-read/board-read.ts';
+import type { AgentChoice, AgentOrder, Host } from '../lib/config/core.ts';
+import type { CoordinatorAct } from '../lib/coordinator/types.ts';
+import type { DaemonStatus } from '../lib/daemon/types.ts';
+import { hostAvailability } from '../lib/host/host.ts';
+import { isHost } from '../lib/host/names.ts';
+import { requireQueueChoice } from '../lib/queue/queue.ts';
+import type { QueueAction, QueueView } from '../lib/queue/types.ts';
+import {
+  type Exec,
+  focusTerminal,
+  listTerminals,
+  type OpenTab,
+  openTab as openTerminalTab,
+} from '../lib/terminal/terminal.ts';
+import type { Level } from '../lib/workflow/effort.ts';
+import { visualLink } from '../lib/workflow/visual.ts';
 import type { Adapter } from './adapter.ts';
 import { agentCause, type LaunchFeedback, launchMatches, type Placer, type PressView, type place } from './place.ts';
 import type { Reads } from './reads.ts';

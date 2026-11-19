@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
-import { type ExitCode, exits, usage } from './lib/contract.ts';
-import { HostError } from './lib/errors.ts';
-import { requireBun } from './lib/host.ts';
-import { commandInput } from './lib/operation.ts';
-import { checkFolder, eventLayout, stateOutcome, withLockSync } from './lib/state.ts';
+import { HostError } from './lib/command/errors.ts';
+import { commandInput } from './lib/command/operation.ts';
+import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
+import { requireBun } from './lib/host/host.ts';
+import { checkFolder, eventLayout, stateOutcome, withLockSync } from './lib/state/state.ts';
 
 function parse(argv: string[]): string | null {
   const { args } = commandInput(argv);

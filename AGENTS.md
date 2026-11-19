@@ -79,16 +79,16 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
   a check or an explicit role in `scripts/verify.ts`.
 - Author each first-party program in TypeScript. Bun 1.4.4 or later runs commands.
   `scripts/build.ts` uses exactly Bun 1.4.4 to generate browser assets, native hook modules,
-  the generated blocks of `plugins/celetis/README.md` and `plugins/celetis/docs/issue-tracker.md` from `engine/lib/contract.ts`,
+  the generated blocks of `plugins/celetis/README.md` and `plugins/celetis/docs/issue-tracker.md` from `engine/lib/contract/contract.ts`,
   and `docs/adr/index.md` from the records of `docs/adr/`. `--check` compares bytes, and modes on macOS and Linux, without
   writes. The vendor parser stays unchanged; update it only as `engine/lib/vendor/README.md` says.
 - Strict types have three environments: runtime commands and server modules;
   browser DOM modules; and the native hook API and its actual globals.
 
 The gate refuses a tree whose plugin (`plugins/celetis/contract.json`) needs a contract version that the
-engine does not serve (`engine/lib/contract-versions.json`). It also refuses a change of the declarations
-of `engine/lib/contract.ts` that keeps the digest of the newest served version. The fix is a new version:
-add the printed digest to `engine/lib/contract-versions.json`. At each raise, the maintainer chooses
+engine does not serve (`engine/lib/contract/versions.json`). It also refuses a change of the declarations
+of `engine/lib/contract/contract.ts` that keeps the digest of the newest served version. The fix is a new version:
+add the printed digest to `engine/lib/contract/versions.json`. At each raise, the maintainer chooses
 whether the old version stays served (the old plugin text still runs with the new engine) or goes (it
 cannot). Raise `plugins/celetis/contract.json` too when the plugin text needs the new version. The
 digest covers no prose field (`description`, `help`, `meaning`, `prerequisite`, `writes`).
@@ -185,7 +185,7 @@ tracked Markdown file in `plugins/celetis/`; a repeated heading gets `-1`, `-2`,
 no target (R10). The labels in parentheses name cases of the probe in the plan of #264
 (https://github.com/ddinkov10/celetis/issues/264#issuecomment-6737386356).
 
-`checkContract` in `scripts/verify.ts` checks the same files against `engine/lib/contract.ts`
+`checkContract` in `scripts/verify.ts` checks the same files against `engine/lib/contract/contract.ts`
 (ADR-0079). Each code span or fenced line that starts with `celetis` must match a declared form.
 Each exit code in prose must be a class of a command that its block names. The block is its
 paragraph, heading, or table row, or its list item with its lead: the paragraph just before the
@@ -198,9 +198,9 @@ The same pass refuses a restated policy (ADR-0084), with a message that names th
 and tells the author to name the act and the outcome that the agent acts on. It has two forms. The first is a sentence with
 one of the verbs `adds`, `added`, `removes`, `removed`, `keeps`, `kept`, `retains`, `retained`,
 `restores`, `restored`, `clears`, or `cleared`, followed in the same sentence by a code span that
-is a label of `labels` in `engine/lib/contract.ts`. A cell, a paragraph of an item, and a code
+is a label of `labels` in `engine/lib/contract/contract.ts`. A cell, a paragraph of an item, and a code
 block each end a sentence. The second is a code span or prose with a lane branch prefix of `lanes`
-in `engine/lib/workflow.ts` (or a `|`-list of them) followed by `/<` or by `/` and a digit. Fenced
+in `engine/lib/workflow/workflow.ts` (or a `|`-list of them) followed by `/<` or by `/` and a digit. Fenced
 code lines are not checked. The probe of #263 observed the limits below, and ADR-0084 lists each
 limit with its case. Other words pass: `It sets the label` with a label span gives no error (L1).
 A true sentence in a third-person form is refused: `The maintainer removes` with a label span
@@ -230,13 +230,15 @@ For installation changes, follow `plugins/celetis/README.md`, "Updates".
 
 - Keep the trust boundaries of the trust files: `engine/board/perimeter.ts`,
   `engine/board/requests.ts`, `engine/board/presses.ts`, the fixed adapter `engine/board/adapter.ts`,
-  `engine/board/coordinator.ts`, `engine/board/chat.ts`, `engine/board/chat-claude.ts`,
-  `engine/board/chat-codex.ts`, `engine/board/update-worker.ts`, `engine/board/start.ts`, the page
-  modules of `engine/board/page/`, `engine/lib/board-read.ts`, `engine/lib/visual.ts`,
-  `engine/lib/fields.ts`, `engine/lib/host-names.ts`, `engine/lib/terminal.ts`, `engine/lib/effort.ts`,
-  `engine/lib/process.ts`, `engine/lib/updater.ts`, `engine/lib/installation.ts`, `engine/lib/queue.ts`,
-  `engine/lib/coordinator.ts`, `engine/lib/coordinator-types.ts`, `engine/lib/codex-app-server.ts`,
-  `engine/lib/daemon-server.ts`, and `engine/lib/daemon-types.ts`.
+  `engine/board/coordinator.ts`, `engine/board/chat/chat.ts`, `engine/board/chat/claude.ts`,
+  `engine/board/chat/codex.ts`, `engine/board/update/worker.ts`, `engine/board/start.ts`, the page
+  modules of `engine/board/page/`, `engine/lib/board-read/board-read.ts`,
+  `engine/lib/workflow/visual.ts`, `engine/lib/state/fields.ts`, `engine/lib/host/names.ts`,
+  `engine/lib/terminal/terminal.ts`, `engine/lib/workflow/effort.ts`, `engine/lib/process/process.ts`,
+  `engine/lib/update/updater.ts`, `engine/lib/install/installation.ts`, `engine/lib/queue/queue.ts`,
+  `engine/lib/coordinator/coordinator.ts`, `engine/lib/coordinator/types.ts`,
+  `engine/lib/host/codex/app-server.ts`, `engine/lib/daemon/server.ts`, and
+  `engine/lib/daemon/types.ts`.
   `engine/board/README.md`, "The trust boundary", maps each file to its rules.
 - Check a UI change in Chromium at desktop width and at 375×812.
 
@@ -253,6 +255,24 @@ A look decision of the board uses these two facts:
   view, and the control Coordinator shows `no session`. The server reads its page files from its own folder
   (`HERE` in `engine/board/perimeter.ts`), so the variants show with the live issues and sessions.
   After an edit of a page module, `scripts/build.ts` writes `engine/board/board.js` in that checkout.
+
+## The engine layout
+
+Put a new file of the engine library or the board in a feature folder (ADR-0114):
+
+- `engine/lib/` holds only feature folders and `vendor/`. A file directly in `engine/lib/` goes
+  into the folder of its feature.
+- Name a folder by a noun of the engine (`daemon/`, `run/`, `host/`), never by the kind of code
+  (`types/`, `utils/`). A folder nests one more level for a sub-feature or one peer of a set
+  (`host/claude/`).
+- The head file of a folder has the name of the folder (`queue/queue.ts`). The other files drop
+  the prefix that the folder states (`queue/actions.ts`).
+- Two `.ts` files of one folder of `engine/lib/` or `engine/board/`, at any depth, never share the
+  part before the first hyphen (`x-a.ts` and `x-b.ts`, or `x.ts` and `x-a.ts`): give them a folder.
+- Each import names the real file; the engine has no `index.ts` or `mod.ts`.
+
+`checkLayout` of `scripts/verify.ts` refuses a file directly in `engine/lib/` and a pair of the
+fourth rule, outside `engine/lib/vendor/`. The other rules have no check.
 
 ## Decision records
 
@@ -283,13 +303,13 @@ do not state its fact, and a line goes when its fact stops being true (ADR-0006)
   installed engine separately.
 - **A script file keeps its name.** `engine/<name>.ts` keeps the same sub-command basename.
   Skills, product instructions, board commands, and personal landing rules refer to that command.
-  On macOS and Linux, one basename also identifies a lock owner: `engine/lib/locks.ts` accepts a
+  On macOS and Linux, one basename also identifies a lock owner: `engine/lib/state/locks.ts` accepts a
   daemon only when its process command line contains `daemon.ts`. A rename makes a live owner
   look stale. The daemon can then end a session during a landing, or two daemons can take one
   issue. On Windows, owners match by PID and creation time instead (ADR-0034).
 - **The skills table of `plugins/celetis/README.md` is written by hand.** A new skill or a removed skill also changes
   the README, and no check fails when it does not. A new command, form, act, or exit class goes into
-  `engine/lib/contract.ts`; `scripts/build.ts` writes from it the help block, the command table, and
+  `engine/lib/contract/contract.ts`; `scripts/build.ts` writes from it the help block, the command table, and
   the exit-class table of `plugins/celetis/README.md`, and the act table of
   `plugins/celetis/docs/issue-tracker.md`.
 - **The skill `writing-for-agents` is vendored** from `mattpocock/skills`

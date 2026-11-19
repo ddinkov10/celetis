@@ -1,9 +1,9 @@
 import { realpath } from 'node:fs/promises';
-import { AgentOrderConflict, validateAgentOrder } from '../lib/agent-order.ts';
-import type { AgentChoice, AgentOrder, Host } from '../lib/config-core.ts';
-import { exits } from '../lib/contract.ts';
-import { unknownOutcome } from '../lib/coordinator.ts';
-import type { CoordinatorAct, CoordinatorFacts } from '../lib/coordinator-types.ts';
+import { AgentOrderConflict, validateAgentOrder } from '../lib/agent/order.ts';
+import type { AgentChoice, AgentOrder, Host } from '../lib/config/core.ts';
+import { exits } from '../lib/contract/contract.ts';
+import { unknownOutcome } from '../lib/coordinator/coordinator.ts';
+import type { CoordinatorAct, CoordinatorFacts } from '../lib/coordinator/types.ts';
 import {
   type DaemonRequest,
   type DaemonStatus,
@@ -11,15 +11,15 @@ import {
   parseCoordinatorAnswer,
   parseQueueAnswer,
   type Selection,
-} from '../lib/daemon-types.ts';
-import type { Level } from '../lib/effort.ts';
-import { isCommit, orderVersion } from '../lib/fields.ts';
-import { commonDir } from '../lib/git.ts';
-import { isHost } from '../lib/host-names.ts';
-import { type Engine, readEngine } from '../lib/installation.ts';
-import { bunArgs, run } from '../lib/process.ts';
-import type { QueueAction, QueueView } from '../lib/queue-types.ts';
-import { fromChild, repositoryLayout } from '../lib/state.ts';
+} from '../lib/daemon/types.ts';
+import { isHost } from '../lib/host/names.ts';
+import { type Engine, readEngine } from '../lib/install/installation.ts';
+import { commonDir } from '../lib/process/git.ts';
+import { bunArgs, run } from '../lib/process/process.ts';
+import type { QueueAction, QueueView } from '../lib/queue/types.ts';
+import { isCommit, orderVersion } from '../lib/state/fields.ts';
+import { fromChild, repositoryLayout } from '../lib/state/state.ts';
+import type { Level } from '../lib/workflow/effort.ts';
 
 export type BoardDaemon = Readonly<{
   send(

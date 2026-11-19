@@ -69,10 +69,10 @@ agent that waits.
   loads its CDN fonts and libraries, and it runs in a sandbox with an opaque origin.
 - The trust files of the board are trust boundaries: `engine/board/perimeter.ts`,
   `engine/board/requests.ts`, `engine/board/presses.ts`, the fixed adapter `engine/board/adapter.ts`,
-  `engine/board/update-worker.ts`, `engine/board/start.ts`, the page modules of `engine/board/page/`,
-  `engine/lib/board-read.ts`, `engine/lib/visual.ts`, `engine/lib/fields.ts`, `engine/lib/host-names.ts`,
-  `engine/lib/terminal.ts`, `engine/lib/effort.ts`, `engine/lib/process.ts`, `engine/lib/updater.ts`,
-  `engine/lib/installation.ts`, `engine/lib/queue.ts`, and `engine/lib/daemon-types.ts`.
+  `engine/board/update/worker.ts`, `engine/board/start.ts`, the page modules of `engine/board/page/`,
+  `engine/lib/board-read/board-read.ts`, `engine/lib/workflow/visual.ts`, `engine/lib/state/fields.ts`, `engine/lib/host/names.ts`,
+  `engine/lib/terminal/terminal.ts`, `engine/lib/workflow/effort.ts`, `engine/lib/process/process.ts`, `engine/lib/update/updater.ts`,
+  `engine/lib/install/installation.ts`, `engine/lib/queue/queue.ts`, and `engine/lib/daemon/types.ts`.
   `engine/board/README.md`, "The trust boundary", maps each file to its rules. UI work must not
   widen them, including the Content-Security-Policy of the board page. ADR-0065 records the one
   sandboxed route.

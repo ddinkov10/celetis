@@ -1,7 +1,7 @@
 import { dirname } from 'node:path';
-import { type ExitCode, exits, usage } from './lib/contract.ts';
-import type { QueueAction, QueueRecord } from './lib/queue-types.ts';
-import { versionFolderGone } from './lib/version-folder.ts';
+import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
+import { versionFolderGone } from './lib/install/version-folder.ts';
+import type { QueueAction, QueueRecord } from './lib/queue/types.ts';
 
 type Status = { command: 'status' };
 type QueueShape = Status | { command: 'action'; json: string };
@@ -18,15 +18,15 @@ function shapeOf(argv: string[]): QueueShape | null {
 
 export async function main(argv: string[]): Promise<ExitCode> {
   const unavailable = await versionFolderGone(dirname(import.meta.dir));
-  if (!unavailable) (await import('./lib/events.ts')).installRecorder('queue');
+  if (!unavailable) (await import('./lib/state/events.ts')).installRecorder('queue');
   let explicit: string | undefined;
   if (!unavailable) {
     try {
-      const input = (await import('./lib/operation.ts')).commandInput(argv);
+      const input = (await import('./lib/command/operation.ts')).commandInput(argv);
       argv = input.args;
       explicit = input.explicit;
     } catch (error) {
-      const { HostError } = await import('./lib/errors.ts');
+      const { HostError } = await import('./lib/command/errors.ts');
       if (!(error instanceof HostError)) throw error;
       if (error.message) console.error(error.message);
       return error.code;
@@ -43,19 +43,19 @@ export async function main(argv: string[]): Promise<ExitCode> {
   }
   let form: QueueForm;
   try {
-    const { parseQueueAction } = await import('./lib/queue.ts');
+    const { parseQueueAction } = await import('./lib/queue/queue.ts');
     form = 'json' in shape ? { command: shape.command, action: parseQueueAction(JSON.parse(shape.json)) } : shape;
   } catch {
     console.error(usage('queue'));
     return exits.usage;
   }
-  const { markDefect } = await import('./lib/events.ts');
-  const { HostError } = await import('./lib/errors.ts');
-  const { requireBun } = await import('./lib/host.ts');
-  const { requestSelection, requireDaemon, sendRun } = await import('./lib/daemon-client.ts');
-  const { createOperation, locateCheckouts } = await import('./lib/operation.ts');
-  const { queueSelection, readQueue, readQueueView } = await import('./lib/queue.ts');
-  const { admitQueue } = await import('./lib/queue-actions.ts');
+  const { markDefect } = await import('./lib/state/events.ts');
+  const { HostError } = await import('./lib/command/errors.ts');
+  const { requireBun } = await import('./lib/host/host.ts');
+  const { requestSelection, requireDaemon, sendRun } = await import('./lib/daemon/client.ts');
+  const { createOperation, locateCheckouts } = await import('./lib/command/operation.ts');
+  const { queueSelection, readQueue, readQueueView } = await import('./lib/queue/queue.ts');
+  const { admitQueue } = await import('./lib/queue/actions.ts');
   try {
     requireBun();
     const checkout = await locateCheckouts(process.cwd());

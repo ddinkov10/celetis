@@ -1,11 +1,17 @@
 import { randomUUID } from 'node:crypto';
-import { commonDir, readBoard, readBoardTargets, readDelivery, readRefreshHints } from '../lib/board-read.ts';
-import { exits } from '../lib/contract.ts';
-import { HostError } from '../lib/errors.ts';
-import { type Engine, installedEngine } from '../lib/installation.ts';
+import {
+  commonDir,
+  readBoard,
+  readBoardTargets,
+  readDelivery,
+  readRefreshHints,
+} from '../lib/board-read/board-read.ts';
+import { HostError } from '../lib/command/errors.ts';
+import { exits } from '../lib/contract/contract.ts';
+import { type Engine, installedEngine } from '../lib/install/installation.ts';
 import type { Adapter } from './adapter.ts';
 import { createBoard, run } from './perimeter.ts';
-import { createUpdates, type UpdateController } from './updates.ts';
+import { createUpdates, type UpdateController } from './update/updates.ts';
 
 export type BoardStart = Readonly<{
   env: NodeJS.ProcessEnv;

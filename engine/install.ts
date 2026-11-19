@@ -1,11 +1,11 @@
 import { delimiter, dirname, resolve } from 'node:path';
-import { type ExitCode, exits, usage } from './lib/contract.ts';
-import { HostError } from './lib/errors.ts';
-import { installRecorder } from './lib/events.ts';
-import { requireBun } from './lib/host.ts';
-import { enginePaths, engineSource, installEngine } from './lib/installation.ts';
-import { commandInput } from './lib/operation.ts';
-import { childEnv } from './lib/process.ts';
+import { HostError } from './lib/command/errors.ts';
+import { commandInput } from './lib/command/operation.ts';
+import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
+import { requireBun } from './lib/host/host.ts';
+import { enginePaths, engineSource, installEngine } from './lib/install/installation.ts';
+import { childEnv } from './lib/process/process.ts';
+import { installRecorder } from './lib/state/events.ts';
 
 export async function main(argv: string[]): Promise<ExitCode> {
   try {

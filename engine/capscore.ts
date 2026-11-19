@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { readBinding } from './lib/capability/binding.ts';
 import {
   bindingMode,
   type Pair,
@@ -7,15 +8,14 @@ import {
   resolveScore,
   ScoreError,
   scoreLabel,
-} from './lib/capability.ts';
-import { readBinding } from './lib/capability-binding.ts';
-import { type ExitCode, exits, updateHint, usage } from './lib/contract.ts';
-import { levels } from './lib/effort.ts';
-import { HostError } from './lib/errors.ts';
-import { installRecorder } from './lib/events.ts';
-import { isHost } from './lib/host-names.ts';
-import { type Need, requireCan } from './lib/hosts.ts';
-import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
+} from './lib/capability/capability.ts';
+import { HostError } from './lib/command/errors.ts';
+import { commandInput, createOperation, locateCheckouts } from './lib/command/operation.ts';
+import { type ExitCode, exits, updateHint, usage } from './lib/contract/contract.ts';
+import { type Need, requireCan } from './lib/host/hosts.ts';
+import { isHost } from './lib/host/names.ts';
+import { installRecorder } from './lib/state/events.ts';
+import { levels } from './lib/workflow/effort.ts';
 
 const flagLines = [
   '--bias N                 effort bias (CAP_EFFORT_BIAS; default 0)',

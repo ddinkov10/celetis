@@ -1,4 +1,4 @@
-import type { CoordinatorKey, CoordinatorState } from '../../lib/coordinator-types.ts';
+import type { CoordinatorKey, CoordinatorState } from '../../lib/coordinator/types.ts';
 import type { ChatBlock, ChatCall, ChatEntry, ChatInline, ChatText } from '../types.ts';
 import { clock } from '../view.ts';
 import { el, icon, link } from './ui.ts';

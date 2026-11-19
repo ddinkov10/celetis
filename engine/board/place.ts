@@ -8,8 +8,8 @@ import {
   readDiff,
   readQueueState,
   readStepEnds,
-} from '../lib/board-read.ts';
-import type { CoordinatorFacts } from '../lib/coordinator-types.ts';
+} from '../lib/board-read/board-read.ts';
+import type { CoordinatorFacts } from '../lib/coordinator/types.ts';
 import {
   codexStopLine,
   type DaemonStatus,
@@ -17,15 +17,15 @@ import {
   type RunRow,
   stopKeptLine,
   unprovedStopAct,
-} from '../lib/daemon-types.ts';
-import { isHost, registry } from '../lib/host-names.ts';
-import { bunArgs } from '../lib/process.ts';
-import { daemonScript } from '../lib/process-identity.ts';
-import type { QueueView } from '../lib/queue-types.ts';
-import { stateOutcome } from '../lib/state.ts';
-import { type Exec, LINK, listTerminals, readScreen, terminalState } from '../lib/terminal.ts';
-import type { Terminal, TerminalStatus } from '../lib/terminal-types.ts';
-import { visualLink } from '../lib/visual.ts';
+} from '../lib/daemon/types.ts';
+import { isHost, registry } from '../lib/host/names.ts';
+import { daemonScript } from '../lib/process/identity.ts';
+import { bunArgs } from '../lib/process/process.ts';
+import type { QueueView } from '../lib/queue/types.ts';
+import { stateOutcome } from '../lib/state/state.ts';
+import { type Exec, LINK, listTerminals, readScreen, terminalState } from '../lib/terminal/terminal.ts';
+import type { Terminal, TerminalStatus } from '../lib/terminal/types.ts';
+import { visualLink } from '../lib/workflow/visual.ts';
 import type { CoordinatorReads } from './coordinator.ts';
 import type { Reads } from './reads.ts';
 import { firstLine, refused } from './requests.ts';

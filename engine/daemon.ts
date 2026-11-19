@@ -1,6 +1,8 @@
 import { lstat, readFile, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
-import { type ExitCode, exits, usage } from './lib/contract.ts';
+import { HostError } from './lib/command/errors.ts';
+import { commandInput, locateCheckouts } from './lib/command/operation.ts';
+import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
 import {
   askDaemon,
   type Found,
@@ -11,21 +13,14 @@ import {
   sendRequest,
   shortRevision,
   socketFolderRefusal,
-} from './lib/daemon-client.ts';
-import { startDetached } from './lib/daemon-start.ts';
-import { type DaemonIdentity, type DaemonStatus, daemonPaths, type RunRow } from './lib/daemon-types.ts';
-import { HostError } from './lib/errors.ts';
-import { installRecorder, passOn } from './lib/events.ts';
-import { isIssueNumber } from './lib/fields.ts';
-import { engineRevision } from './lib/git.ts';
-import { hostAvailability, requireBun } from './lib/host.ts';
-import { isHost } from './lib/host-names.ts';
-import type { LockOwner } from './lib/locks.ts';
-import { commandInput, locateCheckouts } from './lib/operation.ts';
-import { bunArgs, childEnv } from './lib/process.ts';
-import { daemonScript, processAlive, processStart, processState } from './lib/process-identity.ts';
-import { daemonSockets, ensureFolder, repositoryLayout, startFiles, writeAtomic } from './lib/state.ts';
-import { requireTerminals, TerminalError } from './lib/terminal.ts';
+} from './lib/daemon/client.ts';
+import { startDetached } from './lib/daemon/start.ts';
+import { type DaemonIdentity, type DaemonStatus, daemonPaths, type RunRow } from './lib/daemon/types.ts';
+import { hostAvailability, requireBun } from './lib/host/host.ts';
+import { isHost } from './lib/host/names.ts';
+import { engineRevision } from './lib/process/git.ts';
+import { daemonScript, processAlive, processStart, processState } from './lib/process/identity.ts';
+import { bunArgs, childEnv } from './lib/process/process.ts';
 import {
   createJob,
   type Detached,
@@ -33,7 +28,12 @@ import {
   makePrivateFolder,
   privateFolderProblem,
   sessionJobName,
-} from './lib/windows.ts';
+} from './lib/process/windows.ts';
+import { installRecorder, passOn } from './lib/state/events.ts';
+import { isIssueNumber } from './lib/state/fields.ts';
+import type { LockOwner } from './lib/state/locks.ts';
+import { daemonSockets, ensureFolder, repositoryLayout, startFiles, writeAtomic } from './lib/state/state.ts';
+import { requireTerminals, TerminalError } from './lib/terminal/terminal.ts';
 
 const noDaemon = 'daemon: no daemon runs for this repository';
 const root = dirname(import.meta.dir);
@@ -244,7 +244,7 @@ async function prepareState(argv: string[]): Promise<ExitCode> {
     const checkout = await locateCheckouts(process.cwd());
     if (checkout.main === null || checkout.common === null)
       throw new HostError('state preparation: need a Git checkout', exits.usage);
-    owner = (await import('./lib/locks.ts')).createLockOwner(checkout.main);
+    owner = (await import('./lib/state/locks.ts')).createLockOwner(checkout.main);
     if (session) {
       const name = `issue-${argv[2]}`;
       const holder = await owner.take(name);
@@ -253,8 +253,13 @@ async function prepareState(argv: string[]): Promise<ExitCode> {
           `session: ${repositoryLayout(checkout.common).session(Number(argv[2]))}: target schema 2: busy ${name} ownership (PID ${holder}); retry after the owner exits`,
           exits.prerequisite,
         );
-      await (await import('./lib/session.ts')).prepareSession(checkout.main, Number(argv[2]), checkout.common, owner);
-    } else await (await import('./lib/queue.ts')).prepareQueue(checkout.main, checkout.common, owner);
+      await (await import('./lib/run/session.ts')).prepareSession(
+        checkout.main,
+        Number(argv[2]),
+        checkout.common,
+        owner,
+      );
+    } else await (await import('./lib/queue/queue.ts')).prepareQueue(checkout.main, checkout.common, owner);
     return exits.done;
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
@@ -295,8 +300,8 @@ async function waitingSession(args: string[]): Promise<ExitCode> {
     !(recovery === '-' || (recovery === 'recovery' && attempt !== '-'))
   )
     return exits.usage;
-  const adapter = (await import('./lib/hosts.ts')).hostAdapter(host);
-  const { spawnConsumer } = await import('./lib/update-lock.ts');
+  const adapter = (await import('./lib/host/hosts.ts')).hostAdapter(host);
+  const { spawnConsumer } = await import('./lib/update/lock.ts');
   const files = startFiles(dir);
   await writeAtomic(files.pid, `${JSON.stringify({ pid: process.pid, start: await processStart(process.pid) })}\n`);
   while (!(await stat(files.go).catch(() => null))?.isFile()) {
@@ -333,7 +338,7 @@ async function waitingSession(args: string[]): Promise<ExitCode> {
 if (import.meta.main) {
   const form = process.argv[2];
   if (form === '--daemon')
-    process.exit(await (await import('./lib/daemon-server.ts')).runDaemon(process.argv.slice(3)));
+    process.exit(await (await import('./lib/daemon/server.ts')).runDaemon(process.argv.slice(3)));
   if (form === '--session-start') process.exitCode = await waitingSession(process.argv.slice(3));
   else if (form === '--prepare-state') process.exitCode = await prepareState(process.argv.slice(2));
   else {

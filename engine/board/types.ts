@@ -7,15 +7,15 @@ import type {
   QuotaState,
   QuotaWait,
   Trends,
-} from '../lib/board-read-types.ts';
-import type { AgentChoice, AgentDecision, AgentOrder, Host, UsageBlock } from '../lib/config-core.ts';
-import type { CoordinatorAction, CoordinatorKey, CoordinatorState } from '../lib/coordinator-types.ts';
-import type { Level, RowSource, StartPair } from '../lib/effort.ts';
-import type { PluginHost, Registry } from '../lib/host-names.ts';
-import type { QueueAction, QueueView } from '../lib/queue-types.ts';
-import type { IssueRow, ParentEpic, Pull } from '../lib/resolver-types.ts';
-import type { DialogKind, TerminalStatus } from '../lib/terminal-types.ts';
-import type { UpdateStage } from '../lib/update-types.ts';
+} from '../lib/board-read/types.ts';
+import type { AgentChoice, AgentDecision, AgentOrder, Host, UsageBlock } from '../lib/config/core.ts';
+import type { CoordinatorAction, CoordinatorKey, CoordinatorState } from '../lib/coordinator/types.ts';
+import type { PluginHost, Registry } from '../lib/host/names.ts';
+import type { QueueAction, QueueView } from '../lib/queue/types.ts';
+import type { IssueRow, ParentEpic, Pull } from '../lib/resolver/types.ts';
+import type { DialogKind, TerminalStatus } from '../lib/terminal/types.ts';
+import type { UpdateStage } from '../lib/update/types.ts';
+import type { Level, RowSource, StartPair } from '../lib/workflow/effort.ts';
 
 export type {
   Diff,

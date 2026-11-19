@@ -1,5 +1,5 @@
-import type { AgentOrder, Host } from '../../lib/config-core.ts';
-import type { Level, RowSource, StartPair } from '../../lib/effort.ts';
+import type { AgentOrder, Host } from '../../lib/config/core.ts';
+import type { Level, RowSource, StartPair } from '../../lib/workflow/effort.ts';
 import type {
   Action,
   AgentReplaceConflict,
@@ -66,7 +66,7 @@ import {
   type Tab,
 } from './shell.ts';
 import { dialogOpen, openStopDialog } from './stop-dialog.ts';
-import { applyTheme, readTheme, THEME_KEY, THEMES, type Theme, writeTheme } from './theme-choice.ts';
+import { applyTheme, readTheme, THEME_KEY, THEMES, type Theme, writeTheme } from './theme/choice.ts';
 import {
   $,
   actionButton,

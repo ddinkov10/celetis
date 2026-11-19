@@ -1,6 +1,6 @@
-import type { Host } from '../../lib/host-names.ts';
-import type { QueueAction, QueueRecord, QueueView } from '../../lib/queue-types.ts';
-import type { Step } from '../../lib/workflow.ts';
+import type { Host } from '../../lib/host/names.ts';
+import type { QueueAction, QueueRecord, QueueView } from '../../lib/queue/types.ts';
+import type { Step } from '../../lib/workflow/workflow.ts';
 import type { Board } from '../types.ts';
 import { knownAgent, stateLabel } from '../view.ts';
 import { $, announce, el, iconButton, toast } from './ui.ts';

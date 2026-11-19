@@ -1,12 +1,12 @@
 import { lstat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { readConfig } from './lib/config.ts';
-import { ConfigError, checkSkills, formatConfigError } from './lib/config-core.ts';
-import { type ExitCode, exits, usage } from './lib/contract.ts';
-import { HostError } from './lib/errors.ts';
-import { installRecorder } from './lib/events.ts';
-import { commandInput } from './lib/operation.ts';
-import { jsonFile } from './lib/plugin-metadata.ts';
+import { HostError } from './lib/command/errors.ts';
+import { commandInput } from './lib/command/operation.ts';
+import { readConfig } from './lib/config/config.ts';
+import { ConfigError, checkSkills, formatConfigError } from './lib/config/core.ts';
+import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
+import { jsonFile } from './lib/plugin/metadata.ts';
+import { installRecorder } from './lib/state/events.ts';
 
 const isFile = (path: string) =>
   lstat(path).then(

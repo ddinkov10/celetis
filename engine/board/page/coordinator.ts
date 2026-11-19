@@ -1,4 +1,4 @@
-import type { CoordinatorKey, CoordinatorState } from '../../lib/coordinator-types.ts';
+import type { CoordinatorKey, CoordinatorState } from '../../lib/coordinator/types.ts';
 import type { ChatEntry, CoordinatorChat, CoordinatorView } from '../types.ts';
 import { clock } from '../view.ts';
 import { createChat, KEYS } from './chat.ts';
@@ -33,7 +33,7 @@ const IN_FLIGHT: Record<Act, string> = {
   interrupt: 'The interrupt is in flight.',
   end: 'The exit request is in flight.',
 };
-// Copies of unknownOutcome (engine/lib/coordinator.ts) and the open line (engine/board/adapter.ts): the bundle takes no engine/lib code.
+// Copies of unknownOutcome (engine/lib/coordinator/coordinator.ts) and the open line (engine/board/adapter.ts): the bundle takes no engine/lib code.
 const UNKNOWN: Record<Act, string> = {
   open: 'coordinator: the outcome of the open is unknown; press Coordinator again to open or show the session',
   say: 'coordinator: the outcome of the message is unknown; read the log of the panel before you send again',

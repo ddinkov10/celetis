@@ -1,10 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { bindingMode, resolvePair, ScoreError } from './lib/capability.ts';
-import { readBinding } from './lib/capability-binding.ts';
-import type { Host } from './lib/config-core.ts';
-import { type ExitCode, exits, updateHint, usageLine } from './lib/contract.ts';
+import { readBinding } from './lib/capability/binding.ts';
+import { bindingMode, resolvePair, ScoreError } from './lib/capability/capability.ts';
 import {
   type Context,
   closeTask,
@@ -20,13 +18,15 @@ import {
   requestNext,
   validateExecutionReport,
   validateRecord,
-} from './lib/dispatch-record.ts';
-import { HostError } from './lib/errors.ts';
-import { installRecorder, markDefect } from './lib/events.ts';
-import { hostAdapter, requireCan } from './lib/hosts.ts';
-import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
-import { dispatchRecord, ensureFolder, privateState, stateOutcome, withLock, writeAtomic } from './lib/state.ts';
-import { commitMigration, readLocalRecord } from './lib/state-migration.ts';
+} from './lib/capability/dispatch-record.ts';
+import { HostError } from './lib/command/errors.ts';
+import { commandInput, createOperation, locateCheckouts } from './lib/command/operation.ts';
+import type { Host } from './lib/config/core.ts';
+import { type ExitCode, exits, updateHint, usageLine } from './lib/contract/contract.ts';
+import { hostAdapter, requireCan } from './lib/host/hosts.ts';
+import { installRecorder, markDefect } from './lib/state/events.ts';
+import { commitMigration, readLocalRecord } from './lib/state/migration.ts';
+import { dispatchRecord, ensureFolder, privateState, stateOutcome, withLock, writeAtomic } from './lib/state/state.ts';
 
 class UsageError extends Error {}
 class SetupError extends Error {

@@ -4,19 +4,18 @@ import { access, lstat, mkdir, mkdtemp, readFile, rm, stat, unlink, writeFile } 
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { initializeAgentOrder, readAgentOrder, validateAgentOrder } from './lib/agent-order.ts';
-import { readConfig } from './lib/config.ts';
-import { type Config, ConfigError, formatConfigError, type Host, validateWorktreeSetup } from './lib/config-core.ts';
-import { type ExitCode, exits, type Label, labels, usage } from './lib/contract.ts';
-import { HostError } from './lib/errors.ts';
-import { installRecorder, markDefect, passOn } from './lib/events.ts';
-import { hostAdapter, type Need, requireCan } from './lib/hosts.ts';
-import { editJSON, jsonStyle, layoutJSON } from './lib/json-layout.ts';
-import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/operation.ts';
-import { checkClaudePolicy } from './lib/plugin-policy.ts';
-import { childEnv, run } from './lib/process.ts';
-import { parseSetupRecord, type SetupEntry, type WiringRecord } from './lib/setup-record.ts';
-import { setupStatus } from './lib/setup-status.ts';
+import { initializeAgentOrder, readAgentOrder, validateAgentOrder } from './lib/agent/order.ts';
+import { HostError } from './lib/command/errors.ts';
+import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/command/operation.ts';
+import { readConfig } from './lib/config/config.ts';
+import { type Config, ConfigError, formatConfigError, type Host, validateWorktreeSetup } from './lib/config/core.ts';
+import { type ExitCode, exits, type Label, labels, usage } from './lib/contract/contract.ts';
+import { hostAdapter, type Need, requireCan } from './lib/host/hosts.ts';
+import { checkClaudePolicy } from './lib/plugin/policy.ts';
+import { childEnv, run } from './lib/process/process.ts';
+import { editJSON, jsonStyle, layoutJSON } from './lib/setup/json-layout.ts';
+import { parseSetupRecord, type SetupEntry, type WiringRecord } from './lib/setup/record.ts';
+import { setupStatus } from './lib/setup/status.ts';
 import {
   ambiguousJSON,
   attribute,
@@ -36,11 +35,12 @@ import {
   settingsForm,
   trackingProblem,
   wiring,
-} from './lib/setup-wiring.ts';
-import { laneFolder, laneFolderName } from './lib/state.ts';
-import { GitHubError, github } from './lib/tracker.ts';
+} from './lib/setup/wiring.ts';
+import { installRecorder, markDefect, passOn } from './lib/state/events.ts';
+import { laneFolder, laneFolderName } from './lib/state/state.ts';
+import { GitHubError, github } from './lib/tracker/tracker.ts';
 import { CST, Parser, type SourceToken } from './lib/vendor/yaml.mjs';
-import { markerOf, removeCheckout, runSetup, setupFile, worktrees } from './lib/worktree.ts';
+import { markerOf, removeCheckout, runSetup, setupFile, worktrees } from './lib/workflow/worktree.ts';
 
 const subject = 'chore(celetis): wire the project for the celetis lanes';
 const setupPaths = [

@@ -1,5 +1,7 @@
 import { readFile, realpath } from 'node:fs/promises';
 import { dirname, join, posix } from 'node:path';
+import { HostError } from '../engine/lib/command/errors.ts';
+import { commandInput, createOperation, locateCheckouts } from '../engine/lib/command/operation.ts';
 import {
   type CommandName,
   capPrefix,
@@ -27,14 +29,12 @@ import {
   updateHint,
   usageText,
   worktreePathLine,
-} from '../engine/lib/contract.ts';
-import { entryParts } from '../engine/lib/entry-text.ts';
-import { HostError } from '../engine/lib/errors.ts';
-import { hostAdapter } from '../engine/lib/hosts.ts';
-import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
-import { type Job, printJobs, runJobs } from '../engine/lib/parallel.ts';
-import { bunArgs, childEnv, run } from '../engine/lib/process.ts';
-import { lanes } from '../engine/lib/workflow.ts';
+} from '../engine/lib/contract/contract.ts';
+import { entryParts } from '../engine/lib/contract/entry-text.ts';
+import { hostAdapter } from '../engine/lib/host/hosts.ts';
+import { type Job, printJobs, runJobs } from '../engine/lib/process/parallel.ts';
+import { bunArgs, childEnv, run } from '../engine/lib/process/process.ts';
+import { lanes } from '../engine/lib/workflow/workflow.ts';
 import { findTools, toolPins } from './install-tools.ts';
 
 const root = dirname(import.meta.dir);
@@ -308,9 +308,17 @@ const readSide: ReadonlySet<string> = new Set(
     (name) => `engine/board/${name}.ts`,
   ),
 );
-const engineState: ReadonlySet<string> = new Set(
-  'resolver tracker operation quota-recovery agent-usage step-end refresh-hints git workflow'.split(' '),
-);
+const engineState: ReadonlySet<string> = new Set([
+  'resolver/resolver',
+  'tracker/tracker',
+  'command/operation',
+  'run/quota-recovery',
+  'agent/usage',
+  'run/step-end',
+  'tracker/refresh-hints',
+  'process/git',
+  'workflow/workflow',
+]);
 
 export function checkImports(files: ReadonlyMap<string, string>): string[] {
   const errors: string[] = [];
@@ -347,10 +355,32 @@ export function checkImports(files: ReadonlyMap<string, string>): string[] {
         start--;
       if (before?.text !== '(' && list[start + 1]?.text === 'type' && list[start + 2]?.text !== 'from') continue;
       errors.push(
-        `${file}:${token.line}: A read-side board module reads engine state through engine/lib/board-read.ts, not engine/lib/${state}.ts (ADR-0087).`,
+        `${file}:${token.line}: A read-side board module reads engine state through engine/lib/board-read/board-read.ts, not engine/lib/${state}.ts (ADR-0087).`,
       );
     }
   }
+  return errors;
+}
+
+export function checkLayout(paths: readonly string[]): string[] {
+  const errors: string[] = [];
+  const folders = new Map<string, Map<string, string[]>>();
+  for (const path of paths) {
+    const folder = posix.dirname(path);
+    if (folder === 'engine/lib')
+      errors.push(`${path}: A file sits directly in engine/lib/; move it into a feature folder (rule 1, ADR-0114).`);
+    if (!/^engine\/(?:lib|board)\/.+\.ts$/.test(path) || path.startsWith('engine/lib/vendor/')) continue;
+    const word = posix.basename(path, '.ts').split('-')[0] ?? '';
+    const words = folders.get(folder) ?? new Map<string, string[]>();
+    words.set(word, [...(words.get(word) ?? []), path]);
+    folders.set(folder, words);
+  }
+  for (const words of folders.values())
+    for (const [word, group] of words)
+      if (group.length > 1)
+        errors.push(
+          `${group.join(', ')}: These files of one folder share the first word ${word}; give them a folder of their own (rule 5, ADR-0114).`,
+        );
   return errors;
 }
 
@@ -707,7 +737,7 @@ export function checkContractVersion(files: ReadonlyMap<string, string>): string
   const digest = contractDigest();
   if (served.get(newest) !== digest)
     errors.push(
-      `verify: contract version: the declarations of engine/lib/contract.ts changed, and contract ${newest} records another digest; raise the contract version: add { "contract": ${newest + 1}, "digest": "${digest}" } to ${servedContractsFile}, and set ${pluginFile} to ${newest + 1} when the plugin text needs it`,
+      `verify: contract version: the declarations of engine/lib/contract/contract.ts changed, and contract ${newest} records another digest; raise the contract version: add { "contract": ${newest + 1}, "digest": "${digest}" } to ${servedContractsFile}, and set ${pluginFile} to ${newest + 1} when the plugin text needs it`,
     );
   return errors;
 }
@@ -778,6 +808,7 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
       ...checkCitations(texts),
       ...checkContract(texts),
       ...checkImports(texts),
+      ...checkLayout(files),
       ...checkContractVersion(texts),
     ];
     for (const line of textErrors) console.error(line);

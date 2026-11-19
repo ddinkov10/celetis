@@ -1,14 +1,14 @@
 import { readFile } from 'node:fs/promises';
-import { type ExitCode, exits, usage } from './lib/contract.ts';
-import { askCoordinator, readStatus, requestSelection, requireDaemon } from './lib/daemon-client.ts';
-import { isAuthority, parseAnswer, parseCoordinatorAnswer, parseScreenAnswer } from './lib/daemon-types.ts';
-import { HostError } from './lib/errors.ts';
-import { installRecorder, markDefect } from './lib/events.ts';
-import { uuid } from './lib/fields.ts';
-import { requireBun } from './lib/host.ts';
-import { isHost } from './lib/host-names.ts';
-import { requireCan } from './lib/hosts.ts';
-import { commandInput, locateCheckouts } from './lib/operation.ts';
+import { HostError } from './lib/command/errors.ts';
+import { commandInput, locateCheckouts } from './lib/command/operation.ts';
+import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
+import { askCoordinator, readStatus, requestSelection, requireDaemon } from './lib/daemon/client.ts';
+import { isAuthority, parseAnswer, parseCoordinatorAnswer, parseScreenAnswer } from './lib/daemon/types.ts';
+import { requireBun } from './lib/host/host.ts';
+import { requireCan } from './lib/host/hosts.ts';
+import { isHost } from './lib/host/names.ts';
+import { installRecorder, markDefect } from './lib/state/events.ts';
+import { uuid } from './lib/state/fields.ts';
 
 export async function main(argv: string[]): Promise<ExitCode> {
   try {

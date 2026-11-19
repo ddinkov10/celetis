@@ -1,8 +1,8 @@
-import { AgentOrderConflict, readAgentOrder, replaceAgentOrder } from './lib/agent-order.ts';
-import { type ExitCode, exits, usage } from './lib/contract.ts';
-import { HostError } from './lib/errors.ts';
-import { installRecorder } from './lib/events.ts';
-import { commandInput, locateCheckouts } from './lib/operation.ts';
+import { AgentOrderConflict, readAgentOrder, replaceAgentOrder } from './lib/agent/order.ts';
+import { HostError } from './lib/command/errors.ts';
+import { commandInput, locateCheckouts } from './lib/command/operation.ts';
+import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
+import { installRecorder } from './lib/state/events.ts';
 
 export async function main(argv: string[]): Promise<ExitCode> {
   try {

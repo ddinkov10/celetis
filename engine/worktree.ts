@@ -1,17 +1,17 @@
 import { stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import type { Config } from './lib/config-core.ts';
-import { type ExitCode, exits, usage, worktreePathLine } from './lib/contract.ts';
-import { HostError } from './lib/errors.ts';
-import { installRecorder, markDefect } from './lib/events.ts';
-import { hostAdapter } from './lib/hosts.ts';
-import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
-import { run } from './lib/process.ts';
-import { RecoveryError, validateRecovery } from './lib/quota-recovery.ts';
-import { laneFolder } from './lib/state.ts';
-import { GitHubError, github } from './lib/tracker.ts';
-import { branchGlobs, branchPattern, laneOf, lanes } from './lib/workflow.ts';
-import { checkoutOf, markerOf, removeCheckout, removeLane, runSetup, updateLane } from './lib/worktree.ts';
+import { HostError } from './lib/command/errors.ts';
+import { commandInput, createOperation, locateCheckouts } from './lib/command/operation.ts';
+import type { Config } from './lib/config/core.ts';
+import { type ExitCode, exits, usage, worktreePathLine } from './lib/contract/contract.ts';
+import { hostAdapter } from './lib/host/hosts.ts';
+import { run } from './lib/process/process.ts';
+import { RecoveryError, validateRecovery } from './lib/run/quota-recovery.ts';
+import { installRecorder, markDefect } from './lib/state/events.ts';
+import { laneFolder } from './lib/state/state.ts';
+import { GitHubError, github } from './lib/tracker/tracker.ts';
+import { branchGlobs, branchPattern, laneOf, lanes } from './lib/workflow/workflow.ts';
+import { checkoutOf, markerOf, removeCheckout, removeLane, runSetup, updateLane } from './lib/workflow/worktree.ts';
 
 const recoveryLine =
   'the quota recovery keeps the dirty lane; trunk integration waits until the lane is clean. Inspect the existing changes and the issue before you edit.';

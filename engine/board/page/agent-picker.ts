@@ -1,5 +1,5 @@
-import type { AgentOrder, Host } from '../../lib/config-core.ts';
-import type { Registry } from '../../lib/host-names.ts';
+import type { AgentOrder, Host } from '../../lib/config/core.ts';
+import type { Registry } from '../../lib/host/names.ts';
 import type { AgentPickerView, MenuEntry, QuotaWait } from '../types.ts';
 import { clock } from '../view.ts';
 import { closeMenu, openMenu, placeMenu } from './palette.ts';

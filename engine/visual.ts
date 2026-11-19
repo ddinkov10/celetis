@@ -1,15 +1,15 @@
 import { mkdir, rm } from 'node:fs/promises';
-import { type ExitCode, exits, usage } from './lib/contract.ts';
-import { HostError, unsupported } from './lib/errors.ts';
-import { installRecorder, markDefect, passOn } from './lib/events.ts';
-import { isCommit, isIssueNumber } from './lib/fields.ts';
-import { requireBun } from './lib/host.ts';
-import type { Host } from './lib/host-names.ts';
-import { type Need, requireCan } from './lib/hosts.ts';
-import { interactiveHost, runInteractive } from './lib/interactive.ts';
-import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
-import { childEnv, run } from './lib/process.ts';
-import { hasPage, partialPage, visualFolder, visualLink, visualPage } from './lib/visual.ts';
+import { HostError, unsupported } from './lib/command/errors.ts';
+import { commandInput, createOperation, locateCheckouts } from './lib/command/operation.ts';
+import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
+import { requireBun } from './lib/host/host.ts';
+import { type Need, requireCan } from './lib/host/hosts.ts';
+import { interactiveHost, runInteractive } from './lib/host/interactive.ts';
+import type { Host } from './lib/host/names.ts';
+import { childEnv, run } from './lib/process/process.ts';
+import { installRecorder, markDefect, passOn } from './lib/state/events.ts';
+import { isCommit, isIssueNumber } from './lib/state/fields.ts';
+import { hasPage, partialPage, visualFolder, visualLink, visualPage } from './lib/workflow/visual.ts';
 
 const claudeInstall =
   '/plugin marketplace add nicobailon/visual-explainer, then /plugin install visual-explainer@visual-explainer-marketplace';

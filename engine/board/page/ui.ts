@@ -1,5 +1,5 @@
-import type { Host, Registry } from '../../lib/host-names.ts';
-import type { Pull } from '../../lib/resolver-types.ts';
+import type { Host, Registry } from '../../lib/host/names.ts';
+import type { Pull } from '../../lib/resolver/types.ts';
 import type { Action, Card, DaemonView } from '../types.ts';
 import { age, agentOf, clock, knownAgent, prFacts } from '../view.ts';
 

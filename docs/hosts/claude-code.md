@@ -22,7 +22,7 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
   hook makes its own permission-checked `Read` of the `.git` boundary and of `.celetis.yaml`. A
   main loop starts from the session root, and a child agent from its cwd. The hook uses no
   `$.fs.read`, because its permission semantics are not documented. It parses and validates the
-  text of the `Read` with `parseConfigText` and `validateConfig` of `engine/lib/config-core.ts`,
+  text of the `Read` with `parseConfigText` and `validateConfig` of `engine/lib/config/core.ts`,
   the full validation of the reader CLI. After the validation, it stats
   `<plugin>/skills/<key>/SKILL.md` for each `custom` key with `$.fs.stat`. It stops the entry when
   that path is not a regular file with no symlink. Then it puts its block in place of the entry
@@ -44,7 +44,7 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
   The block holds no host manual and no raw YAML. Custom text comes only after its marker line,
   so it cannot change a facts line. An empty string is `- custom: none`.
 - **The contract** comes from `plugins/celetis/references/procedures/entry.md` at build time: `engine/hooks/entry.ts`
-  imports the file as text, so the bundle holds it. `entryParts` of `engine/lib/entry-text.ts` takes
+  imports the file as text, so the bundle holds it. `entryParts` of `engine/lib/contract/entry-text.ts` takes
   "The entry line" and "The contract" up to its `### Codex` part. The hook, `scripts/build.ts`, and
   `checkCitations` use that one parser, so a missing or renamed heading fails the build and the verify
   gate. There is no runtime read of plugin text: the check of the `custom` keys stats each skill
@@ -68,7 +68,7 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
 
 ## The daemon
 
-`stepArguments` of `engine/lib/host-claude.ts` starts a step as
+`stepArguments` of `engine/lib/host/claude/adapter.ts` starts a step as
 `claude --permission-mode auto --model <model> --effort <level> -n '#<n> <step>' --append-system-prompt <step text> '/celetis:<command> #<n>'`.
 The step text is the facts header (`stepHeader`) and `step-prompt.md` at the plugin root of the
 header. `specify` gets no step text. For each step, the daemon puts `--session-id <uuid>` first.
@@ -80,12 +80,12 @@ step ([The start of a step](../../engine/README.md#the-start-of-a-step)). Claude
 the model. A resume runs `claude --resume <id> --effort <level>` with the level of the session
 record and no `--model`; on the Anthropic API, Claude Code keeps the model of the transcript,
 unless `ANTHROPIC_MODEL` is set in the environment of the daemon ([Limits](../../engine/README.md#limits)).
-`stepEnv` of `engine/lib/host-claude.ts` removes `CLAUDE_CODE_EFFORT_LEVEL` from the environment
+`stepEnv` of `engine/lib/host/claude/adapter.ts` removes `CLAUDE_CODE_EFFORT_LEVEL` from the environment
 of the session and of a resume, because Claude Code ranks that variable above `--effort`. A
 settings `env` value of that variable, `maxEffortLevel`, and an organization cap stay with Claude
 Code ([Limits](../../engine/README.md#limits)). The plugin root of the header is the result of
-`installedRoot('claude', …)` in `engine/lib/plugin-metadata.ts`, resolved with `realpath`, which
-`requireContract` of `engine/lib/contract-check.ts` returns
+`installedRoot('claude', …)` in `engine/lib/plugin/metadata.ts`, resolved with `realpath`, which
+`requireContract` of `engine/lib/contract/check.ts` returns
 (`plugins/celetis/docs/workflow.md`, "How a step runs").
 
 ## Permissions
@@ -99,7 +99,7 @@ Code ([Limits](../../engine/README.md#limits)). The plugin root of the header is
 ## Dispatch
 
 The engine does not intercept a native child call. A task-loop report is agent-reported evidence:
-`engine/lib/dispatch-record.ts` validates it against the issued action and cannot prove a
+`engine/lib/capability/dispatch-record.ts` validates it against the issued action and cannot prove a
 consistent report true (ADR-0041; independent native enforcement is #151). The observed follow-up
 tool has no model or effort control, so the engine stops a changed pair before a resume. In the
 checks of #104, native results exposed no applied effort to the calling agent.

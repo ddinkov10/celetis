@@ -1,12 +1,20 @@
 import { chmod, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
-import { bunFloor } from '../engine/lib/config-core.ts';
-import { commands, type Entry, exitClasses, exits, formText, helpText, issueActs } from '../engine/lib/contract.ts';
-import { entryParts } from '../engine/lib/entry-text.ts';
-import { HostError } from '../engine/lib/errors.ts';
-import { hostAdapter } from '../engine/lib/hosts.ts';
-import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
-import { engineEntry } from '../engine/lib/process.ts';
+import { HostError } from '../engine/lib/command/errors.ts';
+import { commandInput, createOperation, locateCheckouts } from '../engine/lib/command/operation.ts';
+import { bunFloor } from '../engine/lib/config/core.ts';
+import {
+  commands,
+  type Entry,
+  exitClasses,
+  exits,
+  formText,
+  helpText,
+  issueActs,
+} from '../engine/lib/contract/contract.ts';
+import { entryParts } from '../engine/lib/contract/entry-text.ts';
+import { hostAdapter } from '../engine/lib/host/hosts.ts';
+import { engineEntry } from '../engine/lib/process/process.ts';
 
 const root = dirname(import.meta.dir);
 const nativeTargets = [
@@ -14,15 +22,15 @@ const nativeTargets = [
 ] as const;
 const browserTargets = [
   { entry: 'engine/board/page/board.ts', output: 'engine/board/board.js', mode: 0o644, format: 'esm' },
-  { entry: 'engine/board/page/theme.ts', output: 'engine/board/theme.js', mode: 0o644, format: 'iife' },
+  { entry: 'engine/board/page/theme/theme.ts', output: 'engine/board/theme.js', mode: 0o644, format: 'iife' },
 ] as const;
 const marks = (name: string) => ({
-  begin: `<!-- scripts/build.ts writes the ${name} from engine/lib/contract.ts. Edit that file, then run scripts/build.ts. -->`,
+  begin: `<!-- scripts/build.ts writes the ${name} from engine/lib/contract/contract.ts. Edit that file, then run scripts/build.ts. -->`,
   end: `<!-- The end of the ${name} that scripts/build.ts writes. -->`,
 });
 const helpMarks = {
   begin:
-    '<!-- scripts/build.ts writes this block from engine/lib/contract.ts. Edit that file, then run scripts/build.ts. -->',
+    '<!-- scripts/build.ts writes this block from engine/lib/contract/contract.ts. Edit that file, then run scripts/build.ts. -->',
   end: '<!-- The end of the block that scripts/build.ts writes. -->',
 };
 const unlisted = new Set(['launcher.ts', 'usage-hook.ts']);

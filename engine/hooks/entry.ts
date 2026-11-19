@@ -6,8 +6,8 @@ import {
   parseConfigText,
   skillName,
   validateConfig,
-} from '../lib/config-core.ts';
-import { entryParts } from '../lib/entry-text.ts';
+} from '../lib/config/core.ts';
+import { entryParts } from '../lib/contract/entry-text.ts';
 import type {
   Delivery,
   FileResult,

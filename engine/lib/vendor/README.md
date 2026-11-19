@@ -1,7 +1,7 @@
 # Vendored `yaml`
 
 `yaml.mjs` is the npm package [`yaml`](https://github.com/eemeli/yaml) 2.9.1, bundled into one readable ES module, so
-that `../config.ts` needs no install step. `yaml.LICENSE` is the ISC license of the package, unchanged.
+that `../config/config.ts` needs no install step. `yaml.LICENSE` is the ISC license of the package, unchanged.
 
 - npm integrity of `yaml-2.9.1.tgz`:
   `sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==`
@@ -22,7 +22,7 @@ The `openssl` line must print the integrity above, after `sha512-`, before `tar`
 its path from the build folder, so run `bun build` in the folder that holds `package/`. The entry is the browser ES
 module build: the CommonJS `dist/index.js` gives `__commonJS` wrappers and `import.meta.require` calls.
 
-`yaml.d.mts` is written by hand. It declares only the API that `../config.ts` calls.
+`yaml.d.mts` is written by hand. It declares only the API that `../config/config.ts` calls.
 
 Rules:
 

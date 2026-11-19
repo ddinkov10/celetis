@@ -1,11 +1,11 @@
-import { coordinatorKeys } from '../lib/coordinator-types.ts';
-import { textLimit } from '../lib/daemon-types.ts';
-import { isLevel, levels } from '../lib/effort.ts';
-import { isIssueField, orderVersion, uuid } from '../lib/fields.ts';
-import { hostChoices, isHost } from '../lib/host-names.ts';
-import { parseQueueAction } from '../lib/queue.ts';
-import type { QueueAction } from '../lib/queue-types.ts';
-import { isSafeId, TerminalError } from '../lib/terminal.ts';
+import { coordinatorKeys } from '../lib/coordinator/types.ts';
+import { textLimit } from '../lib/daemon/types.ts';
+import { hostChoices, isHost } from '../lib/host/names.ts';
+import { parseQueueAction } from '../lib/queue/queue.ts';
+import type { QueueAction } from '../lib/queue/types.ts';
+import { isIssueField, orderVersion, uuid } from '../lib/state/fields.ts';
+import { isSafeId, TerminalError } from '../lib/terminal/terminal.ts';
+import { isLevel, levels } from '../lib/workflow/effort.ts';
 import type { BoardRequest } from './types.ts';
 
 export const POSTS: ReadonlySet<string> = new Set([

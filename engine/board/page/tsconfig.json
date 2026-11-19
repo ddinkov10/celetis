@@ -1,6 +1,6 @@
 {
   "extends": "../../../tsconfig.runtime.json",
-  "include": ["*.ts"],
+  "include": ["**/*.ts"],
   "exclude": [],
   "compilerOptions": { "lib": ["ESNext", "DOM", "DOM.Iterable"], "types": [] }
 }

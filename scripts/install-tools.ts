@@ -13,11 +13,11 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { bunFloor } from '../engine/lib/config-core.ts';
-import { HostError } from '../engine/lib/errors.ts';
-import { hostAdapter } from '../engine/lib/hosts.ts';
-import { commandInput, createOperation, locateCheckouts } from '../engine/lib/operation.ts';
-import { bunArgs, run } from '../engine/lib/process.ts';
+import { HostError } from '../engine/lib/command/errors.ts';
+import { commandInput, createOperation, locateCheckouts } from '../engine/lib/command/operation.ts';
+import { bunFloor } from '../engine/lib/config/core.ts';
+import { hostAdapter } from '../engine/lib/host/hosts.ts';
+import { bunArgs, run } from '../engine/lib/process/process.ts';
 
 const actionlintVersion = '1.7.12';
 const hashes: Record<string, string> = {

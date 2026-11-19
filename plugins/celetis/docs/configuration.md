@@ -191,7 +191,7 @@ then limits each value. Non-finite numbers are not accepted. Instruction strings
 Setup references use the lexical rules above.
 Plain `yes` and `on` are strings under YAML 1.2.
 
-`engine/lib/config-core.ts` of the engine owns parsing, validation, types, and diagnostics. It has
+`engine/lib/config/core.ts` of the engine owns parsing, validation, types, and diagnostics. It has
 no `node:` import and no `Bun` global, so the native entry hook bundles it. `parseConfigText(text)`
 checks the characters and the source structure of one text. `validateHost(value)` defines accepted
 host inputs. `validateConfig(source)` checks the full schema and returns a deeply frozen `Config`
@@ -204,7 +204,7 @@ the field, and `formatConfigError` renders the selected path, field, and message
 keeps its filesystem code (`ioCode`), so `setup status` reports an absent file as missing and a
 denied read as blocked.
 
-`engine/lib/config.ts` of the engine owns byte access. Importing it starts no installation
+`engine/lib/config/config.ts` of the engine owns byte access. Importing it starts no installation
 discovery or setup. `readSnapshot(file)` reads the bytes of one regular file with no
 symlink. `readConfigSource(CHECKOUT)` checks the Bun floor, reads that checkout's `.celetis.yaml`
 once, decodes it as strict UTF-8, and parses it. `readConfig(CHECKOUT)` combines the source read
@@ -255,7 +255,7 @@ waits, and exits with its status. The command consumes the forwarded `--agent`, 
 arguments, and creates its operation. `daemon.ts` retains its process identity for lock-owner
 checks.
 
-`locateCheckouts(cwd)` in `engine/lib/operation.ts` resolves canonical active, main, and common
+`locateCheckouts(cwd)` in `engine/lib/command/operation.ts` resolves canonical active, main, and common
 Git paths. A subfolder has its checkout's identity. When the Git directory equals the common
 directory, the active top level identifies main, including a checkout with a separate Git directory.
 For a linked worktree, Git's first worktree record must resolve to a main top level whose own Git

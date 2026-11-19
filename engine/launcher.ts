@@ -1,12 +1,12 @@
 import { dirname, join } from 'node:path';
-import { commands, type ExitCode, exits, helpText, launcherForms, updateHint } from './lib/contract.ts';
-import { HostError } from './lib/errors.ts';
-import { installRecorder, passOn } from './lib/events.ts';
-import { engineRevision } from './lib/git.ts';
-import { requireBun } from './lib/host.ts';
-import { commandInput } from './lib/operation.ts';
-import { bunArgs, childEnv } from './lib/process.ts';
-import { execConsumer } from './lib/update-lock.ts';
+import { HostError } from './lib/command/errors.ts';
+import { commandInput } from './lib/command/operation.ts';
+import { commands, type ExitCode, exits, helpText, launcherForms, updateHint } from './lib/contract/contract.ts';
+import { requireBun } from './lib/host/host.ts';
+import { engineRevision } from './lib/process/git.ts';
+import { bunArgs, childEnv } from './lib/process/process.ts';
+import { installRecorder, passOn } from './lib/state/events.ts';
+import { execConsumer } from './lib/update/lock.ts';
 
 const helpWords = launcherForms.flatMap(({ words: [word] }) => (word && word !== '--version' ? [word] : []));
 

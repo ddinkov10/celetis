@@ -3269,7 +3269,7 @@ var openStopDialog = ({ title, stop, done }) => {
   dialog.showModal();
 };
 
-// engine/board/page/theme-choice.ts
+// engine/board/page/theme/choice.ts
 var THEMES = ["system", "light", "dark"];
 var THEME_KEY = "celetis:theme";
 var readTheme = () => {

@@ -1,14 +1,14 @@
 # OpenCode
 
 A maintainer document: how the engine runs OpenCode as a host of a step session. No session reads
-it at entry, and no skill or module cites it. `engine/lib/host-opencode.ts` is the adapter of the
+it at entry, and no skill or module cites it. `engine/lib/host/opencode/adapter.ts` is the adapter of the
 host (ADR-0088).
 
 ## Skills and the entry
 
 - OpenCode has no plugin manager that Celetis can pin. The engine version folder holds
   `plugins/celetis` of the same revision as the engine, and that folder is the plugin root
-  (`installedRoot('opencode', …)` of `engine/lib/plugin-metadata.ts`). So OpenCode has no plugin
+  (`installedRoot('opencode', …)` of `engine/lib/plugin/metadata.ts`). So OpenCode has no plugin
   install, no plugin update, and no plugin revision check.
 - The session gets the skills through the configuration document of the session: its `skills`
   entry is `<plugin root>/skills`. OpenCode registers an explicit `skills` entry last, so in that
@@ -25,7 +25,7 @@ host (ADR-0088).
 
 ## The daemon
 
-`stepArguments` of `engine/lib/host-opencode.ts` starts a step as
+`stepArguments` of `engine/lib/host/opencode/adapter.ts` starts a step as
 `opencode --standalone --auto -s <id> --prompt <prompt>`. Each `opencode` call of the engine passes
 `--standalone`: OpenCode then runs a private server (`opencode serve --stdio --port 0`, a child
 of the TUI) and does not start or use the background service of the maintainer.

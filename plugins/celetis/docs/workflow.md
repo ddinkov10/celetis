@@ -28,7 +28,7 @@ These records hold the reasons:
   [ADR-0073](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0073-the-runner-commands-are-clients-of-the-master-daemon.md):
   each `run` and `queue` command sends one request to it and returns.
 
-`engine/lib/workflow.ts` of the engine is the one definition of the workflow: the lanes, with the
+`engine/lib/workflow/workflow.ts` of the engine is the one definition of the workflow: the lanes, with the
 label, the branch prefix, and the steps in order of each lane; the stages; the command of each step;
 the default gate `manual`; the decision of an issue; and the skip rule. A product project cannot change
 it.
@@ -137,7 +137,7 @@ Celetis step session
 ```
 
 The plugin root is the host-installed plugin folder that holds the loaded skills, not the version
-folder of the engine: `requireContract` of `engine/lib/contract-check.ts` returns the resolved
+folder of the engine: `requireContract` of `engine/lib/contract/check.ts` returns the resolved
 `installedRoot` of the host. The step text compares it with the `<plugin>` of the skill entry, and a
 difference after the resolution of both paths stops the step for setup. The header holds no custom
 text (ADR-0032).
@@ -390,7 +390,7 @@ not close the epic.
 
 Before each push, PR, re-run of a check, and merge, `land` reads the issue again, as it reads the
 Git state again, and the refusal gives the resolver line of the issue
-(`landable` in `engine/lib/workflow.ts` of the engine). A change that is already on the trunk (its
+(`landable` in `engine/lib/workflow/workflow.ts` of the engine). A change that is already on the trunk (its
 merge tree is the tree of the trunk, or a merged PR into the trunk has the lane tip as its head)
 skips this check, so a second run after a stopped cleanup completes the cleanup on the closed
 issue.

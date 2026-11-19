@@ -1,14 +1,14 @@
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { type ExitCode, exits, usage } from './lib/contract.ts';
-import { requireContract } from './lib/contract-check.ts';
-import { HostError, unsupported } from './lib/errors.ts';
-import { installRecorder, markDefect, passOn } from './lib/events.ts';
-import { requireBun } from './lib/host.ts';
-import type { Host } from './lib/host-names.ts';
-import { interactiveHost, runInteractive } from './lib/interactive.ts';
-import { commandInput, createOperation, locateCheckouts } from './lib/operation.ts';
-import { childEnv } from './lib/process.ts';
+import { HostError, unsupported } from './lib/command/errors.ts';
+import { commandInput, createOperation, locateCheckouts } from './lib/command/operation.ts';
+import { requireContract } from './lib/contract/check.ts';
+import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
+import { requireBun } from './lib/host/host.ts';
+import { interactiveHost, runInteractive } from './lib/host/interactive.ts';
+import type { Host } from './lib/host/names.ts';
+import { childEnv } from './lib/process/process.ts';
+import { installRecorder, markDefect, passOn } from './lib/state/events.ts';
 
 const skillSentence: Record<Host, (plugin: string) => string> = {
   claude: () => 'Invoke the Skill tool with celetis:intake and the user request as its arguments.',

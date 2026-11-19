@@ -1,5 +1,5 @@
-import type { Level, RowSource, StartPair } from '../lib/effort.ts';
-import type { Host, Registry } from '../lib/host-names.ts';
+import type { Host, Registry } from '../lib/host/names.ts';
+import type { Level, RowSource, StartPair } from '../lib/workflow/effort.ts';
 import type { Board, Card, Column, CoordinatorView, Diff, Flow, ParentEpic, Pull } from './types.ts';
 export const COLUMNS: { key: Column; name: string; note: string; empty: [string, string] }[] = [
   {

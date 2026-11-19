@@ -1,4 +1,4 @@
-import type { QueueView } from '../lib/queue-types.ts';
+import type { QueueView } from '../lib/queue/types.ts';
 import { firstLine } from './requests.ts';
 import type { Document } from './types.ts';
 

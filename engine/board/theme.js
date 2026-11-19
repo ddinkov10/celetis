@@ -1,5 +1,5 @@
 (() => {
-  // engine/board/page/theme-choice.ts
+  // engine/board/page/theme/choice.ts
   var THEME_KEY = "celetis:theme";
   var readTheme = () => {
     try {
@@ -15,6 +15,6 @@
     root.theme = theme !== "system" ? theme : matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
   };
 
-  // engine/board/page/theme.ts
+  // engine/board/page/theme/theme.ts
   applyTheme(readTheme());
 })();
