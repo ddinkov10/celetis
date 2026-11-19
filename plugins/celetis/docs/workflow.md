@@ -515,6 +515,10 @@ gap. An observed version is no minimum version.
   skill, the build task with no network, and the child agent), blocked by a usage limit of the
   Codex account; a lane with the user-scope install of the maintainer. Evidence:
   [#338](https://github.com/ddinkov10/celetis/issues/338).
+- **The end of the processes of an attempt (#343).** partial. Hosts: hc 0.1.21, herdr-app 0.1.16,
+  Bun 1.4.4, macOS 26.4.1, synthetic Claude hosts. Open: native Windows (the job end of a Stop and
+  of a recovery); native Linux; a real Claude host. Evidence:
+  [#343](https://github.com/ddinkov10/celetis/issues/343).
 - **Model and effort of a step session (#290).** partial. Hosts: Claude Code 2.1.322, Codex CLI
   0.167.0, Bun 1.4.4. Open: a real `fable` start in a tab at the consent prompt of usage credits; a
   provider other than the Anthropic API; a real Codex step start with the tier rule. Evidence:

@@ -313,8 +313,8 @@ export function lockFile(fd: number, shared: boolean): boolean {
 }
 
 export interface Job {
-  terminate(): void;
-  terminateOthers(): void;
+  terminate(): boolean;
+  terminateOthers(spare?: number): number[];
   close(): void;
   members(): number[] | null;
 }
@@ -324,17 +324,24 @@ const jobHandles = new WeakMap<Job, Pointer | bigint>();
 function jobOf(api: ReturnType<typeof kernelBinding>, handle: Pointer | bigint): Job {
   const job: Job = {
     terminate() {
-      api.symbols.TerminateJobObject(handle, 1);
+      return api.symbols.TerminateJobObject(handle, 1) !== 0;
     },
-    terminateOthers() {
+    terminateOthers(spare) {
+      const ended: number[] = [];
       for (const pid of job.members() ?? []) {
-        if (pid === process.pid) continue;
+        if (pid === process.pid || pid === spare) continue;
         const target = api.symbols.OpenProcess(0x0001 | 0x1000, 0, pid);
         if (!target) continue;
         const inside = new Int32Array(1);
-        if (api.symbols.IsProcessInJob(target, handle, inside) && inside[0]) api.symbols.TerminateProcess(target, 1);
+        if (
+          api.symbols.IsProcessInJob(target, handle, inside) &&
+          inside[0] &&
+          api.symbols.TerminateProcess(target, 1) !== 0
+        )
+          ended.push(pid);
         api.symbols.CloseHandle(target);
       }
+      return ended;
     },
     close() {
       api.symbols.CloseHandle(handle);

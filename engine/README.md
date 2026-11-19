@@ -1172,10 +1172,20 @@ of one run of the daemon. The daemon refuses with 409, code 3, and one line, in 
 
 A refused Stop changes nothing. An accepted Stop sets the stop flag of the run (the key `stop` of
 the run record, with the terminal and the time), writes the record, marks the run `stopping`, and
-closes the tab (`hc kill`, then `hc rm`). A second Stop while the flag is set changes nothing. While
+closes the tab (`hc kill`, then `hc rm`). An accepted Stop records the members of the attempt (on
+Windows, opens its job and holds the handle) before it closes the tab. The proof of the session end
+then signals, after a grace of 5 s from the tab close, each member that still runs (SIGTERM, then
+SIGKILL 5 s later), and reads for at most 5 s more. A failed read of the process table reads again,
+for at most 20 s from the start of the proof; then the result is `unverified`. A process on the
+terminal that the proof first sees after the tab close is counted, never signalled, unless its
+environment carries the attempt marker. When the daemon signalled a process, it prints
+`#<n>: the daemon signalled <k> processes of the attempt (SIGTERM: <pid> <name>, …; SIGKILL: …)`
+(on Windows `#<n>: the daemon ended <k> processes of the attempt in its job (PIDs: …)`) and records
+the event `attempt-signalled`. The name is the executable name only. A flag that expires at 60 s
+drops the record and closes the held job. A second Stop while the flag is set changes nothing. While
 the flag is set, the state stays `stopping` until `ending`. The flag wins over each session end:
 when the session ends (any exit code) or the usage watch reports a block, the run proves the end of
-the session and its delegated work with `endOwnedAttempt` (step 2 of
+the session and its delegated work with `endOwnedAttempt` of `engine/lib/attempt-end.ts` (step 2 of
 [Usage-limit recovery](#usage-limit-recovery)), and writes no recovery record. A proven end
 removes the start folder, adds the issue to the `set-aside` file, records no no-progress row,
 starts no next step, and ends the run with the outcome `stopped` and the line
@@ -1225,20 +1235,32 @@ agent starts. After a confirmed refusal of the default host, the daemon:
 
 1. Saves the block, writes `<git common dir>/celetis/recovery/<n>.json` (schema 2, with the key `daemon`) with the state
    `recovering`, and stops the job of the step end.
-2. Ends only its own attempt (`endOwnedAttempt` of `engine/lib/quota-recovery.ts`). The barrier
+2. Ends only its own attempt (`endOwnedAttempt` of `engine/lib/attempt-end.ts`). The barrier
    gives the host `CELETIS_ATTEMPT=<attempt id>`, and each child inherits it. A resume session
    also gets an attempt ID, which its run record keeps, so a Stop proves its end the same way.
    Codex has no proved
    termination path on either platform, so its result is always `unverified`. On macOS and Linux,
-   for Claude, the daemon records three groups: the process tree under the barrier, each process
-   with that entry in its environment (not in its arguments), and each process on the tab's controlling terminal
-   outside the tab shell's own tree. It sends `/exit`. When the barrier still runs 10 seconds after
-   the start of that request, it sends SIGTERM once to the host process, the one child of the
-   barrier (as at the step end), so a native dialog of the host does not keep it alive. It reads
-   the groups again until the barrier and every recorded process are gone, for at most 20 seconds.
-   So a writer that left the tree, as with `cmd &` or `nohup`, still counts. A session with no
-   controlling terminal (`ps` shows none, `?`, or `??`), a missing marker, a failed process read,
-   or a process that still runs at the deadline is `unverified`, and the line names the running
+   for Claude, the daemon records the members of the attempt by PID and start time. A member that
+   the daemon can signal is a process of the tree under the barrier, a process with that entry in
+   its environment (not in its arguments), or a process on the tab's controlling terminal outside
+   the tab shell's own tree. A process whose two `ps` views differ and whose text holds the entry
+   is a member that the daemon only counts. The daemon, the tab shell and its processes outside
+   the barrier tree, the barrier (by its PID and start time), and PID 1 are never members. It
+   sends `/exit`. When the barrier
+   still runs 10 seconds after the start of that request, it sends SIGTERM once to the host
+   process, the one child of the barrier (as at the step end), so a native dialog of the host does
+   not keep it alive. It reads
+   the members again each 250 ms, and each read adds the new members. A grace of 5 seconds starts
+   at the earlier of the barrier end and the time when that host SIGTERM is due (10 seconds
+   after the start of the request, also when no SIGTERM is sent). Then the daemon sends
+   SIGTERM to each member that it can signal and that still runs, and SIGKILL 5 seconds later.
+   Right before each signal, it reads the member, and it signals only a member that runs with its
+   recorded start time; a failed read sends nothing. A final read waits at most 5 seconds more.
+   So a writer that left the tree, as with `cmd &` or `nohup`, still counts and ends. A session
+   with no controlling terminal (`ps` shows none, `?`, or `??`), a missing marker, or a failed
+   process read is `unverified`. A member that still runs after the final read (one that the
+   daemon only counts, or one that the signal did not end) gives `unverified` with the reason
+   `processes of the attempt still run after SIGKILL`, and the line names the running
    PIDs. The check cannot see a
    process that leaves the tree and the terminal (a new session) and whose environment `ps`
    cannot show: one that clears the entry, or a macOS platform binary such as `/bin/sh`. The check
@@ -1246,20 +1268,30 @@ agent starts. After a confirmed refusal of the default host, the daemon:
 
    On Windows, the barrier joins a named job before it starts the host
    ([The session tab](#the-session-tab)), and the proof is the member list of that job. The daemon
-   opens the job by its name and holds the handle to the end of the check. When the first read
-   holds no process other than the barrier, the attempt is quiescent. Else the daemon sends
-   `/exit`. When the barrier still runs 10 seconds after the start of that request, it ends the
-   host, the one child of the barrier, once with `TerminateProcess` and status 143. It reads the
-   members each 250 ms until no process other than the barrier remains, for at most 20 seconds.
-   A member with the PID of the barrier counts as running when the barrier does not run with its
-   start. A job that cannot be opened, a failed read of the members, a failed exit request, or a
-   member that still runs at the deadline is `unverified`, and the line names the running PIDs.
+   opens the job by its name and holds the handle to the end of the check. For a Stop, it opens
+   the job before it closes the tab. When the first read holds no process other than the barrier,
+   the attempt is quiescent. Else, for a recovery, the daemon sends `/exit`. When the barrier
+   still runs 10 seconds after the start of that request, it ends the host, the one child of the
+   barrier, once with `TerminateProcess` and status 143. A Stop sends no request, because the tab
+   is closed. The daemon reads the members each 250 ms. A grace of 5 seconds starts at the tab
+   close for a Stop, and for a recovery at the earlier of the barrier end and the time when that
+   host end is due. When a process other than the barrier remains after the grace, the daemon
+   ends each member other than a live barrier with `TerminateProcess`, or the whole job with
+   `TerminateJobObject` when the barrier has ended. A final read waits at most 5 seconds more
+   until no process other than the barrier remains. When the barrier does not run at the start of
+   a recovery check, the daemon ends no member: it reads the members until no process other than
+   the barrier remains, for at most 20 seconds after the request. A member with the PID of the
+   barrier counts as running when the barrier does not run with its start, and a failed read of
+   the barrier spares it. A job that cannot be opened, a failed read of the members, a failed exit
+   request, or a member that still runs after the final read or at the 20-second deadline is
+   `unverified`, and the line names the running PIDs. The reason after the job end is
+   `processes of the attempt still run after the job ended them`.
    The name of a job ends with its last handle, so after the barrier exits the job cannot be
    opened, and the proof reads the record of the barrier instead
    ([A session that ended while no daemon ran](#a-session-that-ended-while-no-daemon-ran)). The
    check cannot see a process that a broker starts outside the job, for example a scheduled task
    or a WMI process.
-3. On `unverified`, starts no other agent. The session stays in its tab and keeps the issue lock.
+3. On `unverified`, starts no other agent. The tab stays open, and the run keeps the issue lock.
    The daemon stops with a line that names the reason, the cause, the running PIDs, the tab, and
    the native resume command of the session from the main checkout.
 4. After proof, archives the session record ([Sessions](#sessions)), prints the native resume command, and
@@ -1290,12 +1322,15 @@ steps to a usage block that it reads after the session ended, with another proof
 barrier is gone, so the daemon sends no exit request, and the process tree under the barrier is
 gone with it. The run record keeps the PID of the tab shell and the terminal name of the barrier.
 The daemon starts a control child (Bun, alive until the proof ends) with a new `CELETIS_ATTEMPT`
-value and requires the environment read to show it. Then it reads two groups: each process with the
-attempt marker in its environment, and each process on the recorded terminal outside the tree of
-the tab shell. A failed process read, also the first read of the process table, reads again, for
-at most 20 seconds in total; then the result is `unverified`, with the cause that the process
-table could not be read. A group process that runs gives `unverified` with its PIDs;
-no such process gives `quiescent`. A record with no tab shell or terminal, a control child that the
+value and requires the environment read to show it. Then it reads the members: each process with
+the attempt marker in its environment, which the daemon can signal, and each process on the
+recorded terminal outside the tree of the tab shell, which it only counts, because that terminal
+name can belong to a new tab now. A failed process read, also the first read of the process
+table, reads again, for at most 20 seconds in total; then the result is `unverified`, with the
+cause that the process table could not be read. The grace of 5 seconds starts at the start of the
+proof, and the stages of step 2 follow: SIGTERM, SIGKILL 5 seconds later, and a final read of at
+most 5 seconds. A member that still runs after the final read gives `unverified` with its PIDs; no
+member that runs gives `quiescent`. A record with no tab shell or terminal, a control child that the
 read does not show, or a control child that ended before a read showed it gives `unverified`. The
 limits above stay: the proof cannot see a process that left the terminal and whose environment `ps`
 cannot show. When the barrier of a live refusal in the daemon ends before step 2 reads it, the

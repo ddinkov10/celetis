@@ -1,4 +1,5 @@
 import { constants } from 'node:os';
+import { basename } from 'node:path';
 import { signalExit } from './contract.ts';
 import { run } from './process.ts';
 import { terminateWindowsProcess, windowsChildren, windowsProcess } from './windows.ts';
@@ -113,7 +114,9 @@ export function descendantsOf(rows: readonly ProcessRow[], root: number): Proces
   return found;
 }
 
-export async function processesWithEnvironment(entry: string): Promise<Set<number> | null> {
+export async function processesWithEnvironment(
+  entry: string,
+): Promise<Readonly<{ proven: ReadonlySet<number>; unsure: ReadonlySet<number> }> | null> {
   if (process.platform === 'win32') return null;
   const env = { ...process.env, LC_ALL: 'C' };
   const [plain, full] = await Promise.all([
@@ -130,13 +133,28 @@ export async function processesWithEnvironment(entry: string): Promise<Set<numbe
     );
   const args = rows(plain.stdout);
   const pattern = new RegExp(`(^|\\s)${entry.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`);
-  const found = new Set<number>();
+  const proven = new Set<number>();
+  const unsure = new Set<number>();
   for (const [pid, text] of rows(full.stdout)) {
     const command = args.get(pid);
-    const environment = command !== undefined && text.startsWith(command) ? text.slice(command.length) : text;
-    if (pattern.test(environment)) found.add(pid);
+    if (command !== undefined && text.startsWith(command)) {
+      if (pattern.test(text.slice(command.length))) proven.add(pid);
+    } else if (pattern.test(text)) unsure.add(pid);
   }
-  return found;
+  return { proven, unsure };
+}
+
+export async function commandNames(pids: readonly number[]): Promise<Map<number, string>> {
+  const names = new Map<number, string>();
+  if (process.platform === 'win32' || pids.length === 0) return names;
+  const result = await run('ps', ['-o', 'pid=,comm=', '-p', pids.join(',')], {
+    env: { ...process.env, LC_ALL: 'C' },
+  });
+  for (const line of result.stdout.split('\n')) {
+    const row = /^\s*(\d+)\s+(\S.*\S|\S)\s*$/.exec(line);
+    if (row) names.set(Number(row[1]), basename(row[2] as string));
+  }
+  return names;
 }
 
 export async function processAlive(pid: number): Promise<ProcessState> {

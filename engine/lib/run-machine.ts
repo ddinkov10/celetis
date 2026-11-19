@@ -1,5 +1,6 @@
 import { effectiveOrder } from './agent-order.ts';
 import { selectAgent, type UsageState, type UsageTicket } from './agent-usage.ts';
+import type { AttemptEnd, Signalled } from './attempt-end.ts';
 import type { AgentChoice, Config, Host } from './config-core.ts';
 import { type ExitCode, exits } from './contract.ts';
 import { unprovedStopAct } from './daemon-types.ts';
@@ -11,7 +12,7 @@ import { describe, type Next } from './lines.ts';
 import type { Identity } from './locks.ts';
 import type { Operation } from './operation.ts';
 import type { QueueRecord } from './queue-types.ts';
-import type { AttemptEnd, QuotaBlock, QuotaRecovery, RecoveryAttempt, RecoveryAuthority } from './quota-recovery.ts';
+import type { QuotaBlock, QuotaRecovery, RecoveryAttempt, RecoveryAuthority } from './quota-recovery.ts';
 import type { Admission, RunEnd, RunInput, RunState } from './run-engine.ts';
 import type { RunRecord } from './run-record.ts';
 import type { SessionRecord } from './session.ts';
@@ -561,6 +562,24 @@ function unproved(
 }
 const unprovedAct = 'Stop the session and its tasks in its tab, then use Try again.';
 
+export function signalledLine(number: number, signalled: readonly Signalled[]): string | null {
+  if (signalled.length === 0) return null;
+  const k = new Set(signalled.map((each) => each.pid)).size;
+  const noun = k === 1 ? 'process' : 'processes';
+  if (signalled.some((each) => each.signal === 'job'))
+    return `#${number}: the daemon ended ${k} ${noun} of the attempt in its job (PIDs: ${signalled.map((each) => each.pid).join(', ')})`;
+  const list = (signal: Signalled['signal']) =>
+    signalled
+      .filter((each) => each.signal === signal)
+      .map((each) => (each.name === null ? `${each.pid}` : `${each.pid} ${each.name}`))
+      .join(', ') || 'none';
+  return `#${number}: the daemon signalled ${k} ${noun} of the attempt (SIGTERM: ${list('SIGTERM')}; SIGKILL: ${list('SIGKILL')})`;
+}
+const signalledSay = (number: number, ownership: AttemptEnd): Effect[] => {
+  const line = signalledLine(number, ownership.signalled);
+  return line ? [say(line, { name: 'attempt-signalled', issue: number })] : [];
+};
+
 function settle(
   state: IssueSession,
   fresh: boolean,
@@ -569,10 +588,12 @@ function settle(
   const { session, reason, ownership, resume } = event;
   const issue = played(state.issue, fresh, session, event.ended ? event.ended.code : state.issue.loop.exitCode);
   const { number } = issue;
-  if (event.detached) return fail(number, new HostError('', exits.prerequisite));
+  const signalled = signalledSay(number, ownership);
+  if (event.detached) return fail(number, new HostError('', exits.prerequisite), signalled);
   if (ownership.kind === 'unverified') {
     const line = `${unproved(number, reason, session.host, ownership)} The session stays in the tab ${state.tab}; its native resume from the main checkout: ${resume}`;
     return close(issue, 'stopped', line, unprovedAct, [
+      ...signalled,
       say(line),
       logged('quota-unverified', `daemon: ${line}`, number),
     ]);
@@ -584,6 +605,7 @@ function settle(
     retrying: true,
   };
   return proceed({ ...issue, loop }, state.wait, [
+    ...signalled,
     {
       kind: 'archive',
       issue: number,
@@ -605,15 +627,21 @@ const stoppedLine = (number: number) => `#${number}: stopped by the maintainer; 
 function halt(state: IssueSession | ResumeSession, event: EventOf<'halted'>): Step<'closing' | 'ending'> {
   const { ownership, host, resume } = event;
   const number = state.scope === 'issue' ? state.issue.number : state.number;
+  const signalled = signalledSay(number, ownership);
   if (ownership.kind === 'unverified') {
     const line = `${unproved(number, 'stopped by the maintainer.', host, ownership)} Its native resume from the main checkout: ${resume}. ${unprovedStopAct}`;
-    const effects = [{ kind: 'keep-lock' } as const, say(line), logged('stop-unverified', `daemon: ${line}`, number)];
+    const effects: Effect[] = [
+      ...signalled,
+      { kind: 'keep-lock' },
+      say(line),
+      logged('stop-unverified', `daemon: ${line}`, number),
+    ];
     return state.scope === 'issue'
       ? close(state.issue, 'stopped', line, unprovedStopAct, effects)
       : stopped(exits.done, line, effects);
   }
   const reason = stoppedLine(number);
-  const effects: Effect[] = [{ kind: 'set-aside', issue: number }, say(reason)];
+  const effects: Effect[] = [...signalled, { kind: 'set-aside', issue: number }, say(reason)];
   if (state.scope === 'resume') return stopped(exits.done, reason, effects);
   return close(state.issue, 'stopped', reason, null, [
     ...effects,

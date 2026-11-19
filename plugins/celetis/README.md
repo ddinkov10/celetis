@@ -474,10 +474,10 @@ daemon:
    each session start: the preferred agent of the step in `agents`, when the local order includes
    it, then the other hosts of the local order
    ([Agent selection and model setup](docs/configuration.md#agent-selection-and-model-setup)). After a
-   confirmed usage refusal, it ends only its own session and waits until no process of the
-   session's tree or with its attempt marker runs. It then starts the same step on
-   the next eligible host with the dirty lane kept. When it cannot prove that stop, as for Codex,
-   or a background task still runs, no other agent starts. When all
+   confirmed usage refusal, it ends only its own session: it ends each process of the attempt
+   that still runs (SIGTERM, then SIGKILL; on Windows, through the job of the attempt) and
+   waits until none runs. It then starts the same step on the next eligible host with the dirty
+   lane kept. When it cannot prove that end, as for Codex, no other agent starts. When all
    hosts are limited, it waits for the earliest supplied reset, or for
    `celetis run retry <n> <wait id>`
    ([Usage-limit recovery](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#usage-limit-recovery)).

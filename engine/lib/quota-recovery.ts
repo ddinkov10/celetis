@@ -1,7 +1,6 @@
-import { spawn } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
-import { lstat, open, readdir, readFile, readlink, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { lstat, open, readdir, readFile, readlink, realpath, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import type { AgentChoice, Host } from './config-core.ts';
 import { exits } from './contract.ts';
@@ -9,19 +8,9 @@ import { HostError } from './errors.ts';
 import { isSessionId, revision, uuid } from './fields.ts';
 import { commonDir } from './git.ts';
 import { isHost } from './host-names.ts';
-import { hostAdapter } from './hosts.ts';
 import { type LockOwner, lockHolder } from './locks.ts';
-import { bunArgs, childEnv, run } from './process.ts';
-import {
-  controllingTerminal,
-  daemonScript,
-  descendantsOf,
-  processesWithEnvironment,
-  processRunsScript,
-  processState,
-  processTable,
-  terminateChild,
-} from './process-identity.ts';
+import { run } from './process.ts';
+import { daemonScript, processRunsScript, processState } from './process-identity.ts';
 import { readSession, serializeSession } from './session.ts';
 import {
   checkFolder,
@@ -31,14 +20,10 @@ import {
   type RepositoryLayout,
   repositoryLayout,
   StateError,
-  startFiles,
   unsafe,
   withLock,
   writeAtomic,
 } from './state.ts';
-import { exitGraceMs, requestExit } from './terminal.ts';
-import type { UsageAttempt } from './usage-types.ts';
-import { type Job, openJob, sessionJobName } from './windows.ts';
 import { type Step, steps } from './workflow.ts';
 
 export type LaneBinding = Readonly<{ path: string; branch: string; tip: string; dirtySnapshotDigest: string }> | null;
@@ -66,14 +51,6 @@ export type QuotaRecovery = Readonly<{
   wake: string | null;
   blocked: readonly QuotaBlock[];
   nextResetAt: number | null;
-}>;
-export type OwnedSession = Readonly<{
-  pid: number;
-  start: string;
-  terminal: string;
-  shell: number | null;
-  tty: string | null;
-  folder: string | null;
 }>;
 declare const permitBrand: unique symbol;
 export type RecoveryPermit = Readonly<{ issue: number; step: Step; lane: string; attemptId: string }> & {
@@ -467,170 +444,4 @@ export async function archiveSession(
       throw new RecoveryError(`recovery: ${path}: an archived session differs`, exits.prerequisite);
     return { attemptId, host: record.host, sessionId: record.session_id };
   });
-}
-
-export type AttemptEnd = { kind: 'quiescent' } | { kind: 'unverified'; reason: string; running: readonly number[] };
-
-const attemptMarker = (attemptId: string) => `CELETIS_ATTEMPT=${attemptId}`;
-const unverified = (reason: string, running: readonly number[] = []): AttemptEnd => ({
-  kind: 'unverified',
-  reason,
-  running,
-});
-
-async function endedAttempt(attempt: UsageAttempt, shell: number, tty: string, deadline: number): Promise<AttemptEnd> {
-  const marker = randomUUID();
-  const life = Math.ceil(deadline - performance.now()) + 5000;
-  // ps shows no environment that it cannot read, so a control child must prove that the marker read sees one.
-  const control = spawn(process.execPath, bunArgs('-e', [`setTimeout(() => {}, ${life})`]), {
-    env: { ...childEnv(), CELETIS_ATTEMPT: marker },
-    stdio: 'ignore',
-  });
-  let ended = false;
-  control.on('error', () => {
-    ended = true;
-  });
-  control.on('exit', () => {
-    ended = true;
-  });
-  const spawned = performance.now();
-  try {
-    for (;;) {
-      const [rows, marked, controls] = await Promise.all([
-        processTable(),
-        processesWithEnvironment(attemptMarker(attempt.id)),
-        processesWithEnvironment(attemptMarker(marker)),
-      ]);
-      if (rows && marked && controls) {
-        if (control.pid !== undefined && controls.has(control.pid)) {
-          const tree = new Set([shell, ...descendantsOf(rows, shell).map((row) => row.pid)]);
-          const running: number[] = [];
-          for (const row of rows)
-            if (
-              row.pid !== control.pid &&
-              (marked.has(row.pid) || (row.tty === tty && !tree.has(row.pid))) &&
-              (await processState(row.pid, row.start)) !== 'gone'
-            )
-              running.push(row.pid);
-          return running.length ? unverified('processes of the attempt still run', running) : { kind: 'quiescent' };
-        }
-        if (ended) return unverified('the control process ended before the process table showed it');
-        if (performance.now() - spawned >= 1000)
-          return unverified('the process table shows no environment of a control process');
-      } else if (performance.now() >= deadline) return unverified('the process table could not be read');
-      await Bun.sleep(250);
-    }
-  } finally {
-    control.kill('SIGKILL');
-  }
-}
-
-async function endedJob(
-  attempt: UsageAttempt,
-  owned: OwnedSession,
-  limitMs: number,
-  open: (name: string) => Job | null,
-): Promise<AttemptEnd> {
-  const job = open(sessionJobName(attempt.id, ''));
-  if (!job) {
-    const folder = owned.folder;
-    const empty =
-      folder !== null &&
-      (await processState(owned.pid, owned.start)) === 'gone' &&
-      (await stat(startFiles(folder).jobEmpty).catch(() => null))?.isFile();
-    return empty ? { kind: 'quiescent' } : unverified('the job of the attempt could not be opened');
-  }
-  try {
-    const others = async (): Promise<number[] | null> => {
-      const members = job.members();
-      if (!members) return null;
-      // A member with the PID of an ended starter is another process.
-      const starter = members.includes(owned.pid) && (await processState(owned.pid, owned.start)) === 'runs';
-      return members.filter((pid) => !(starter && pid === owned.pid));
-    };
-    const first = await others();
-    if (!first) return unverified('the job of the attempt could not be read');
-    if (first.length === 0) return { kind: 'quiescent' };
-    const requested = performance.now();
-    if (!(await requestExit(owned.terminal, attempt.host))) return unverified('the exit request failed');
-    const deadline = performance.now() + limitMs;
-    let signalled = false;
-    for (;;) {
-      if (
-        !signalled &&
-        performance.now() - requested >= exitGraceMs &&
-        (await processState(owned.pid, owned.start)) === 'runs'
-      ) {
-        signalled = true;
-        await terminateChild(owned);
-      }
-      const running = await others();
-      if (!running) return unverified('the job of the attempt could not be read');
-      if (running.length === 0) return { kind: 'quiescent' };
-      if (performance.now() >= deadline) return unverified('processes of the attempt still run', running);
-      await Bun.sleep(250);
-    }
-  } finally {
-    job.close();
-  }
-}
-
-export async function endOwnedAttempt(
-  attempt: UsageAttempt,
-  owned: OwnedSession,
-  limitMs = 20_000,
-  open: (name: string) => Job | null = openJob,
-): Promise<AttemptEnd> {
-  if (!hostAdapter(attempt.host).terminatesAfterGrace)
-    return unverified(`no proved termination path for ${attempt.host} on ${process.platform}`);
-  if (process.platform === 'win32') return endedJob(attempt, owned, limitMs, open);
-  const readUntil = performance.now() + limitMs;
-  const recorded = owned.shell !== null && owned.tty !== null;
-  let rows = await processTable();
-  while (!rows && recorded && performance.now() < readUntil) {
-    await Bun.sleep(250);
-    rows = await processTable();
-  }
-  if (!rows && recorded) return unverified('the process table could not be read');
-  const first = rows?.find((row) => row.pid === owned.pid && row.start === owned.start);
-  if (rows && !first && owned.shell !== null && owned.tty !== null)
-    return endedAttempt(attempt, owned.shell, owned.tty, readUntil);
-  if (!first) return unverified('the session process could not be read');
-  if (!controllingTerminal(first.tty)) return unverified('the session has no controlling terminal');
-  const seen = new Map<number, string>();
-  const collect = async (barrierRuns: boolean): Promise<number | null> => {
-    const [rows, marked] = await Promise.all([processTable(), processesWithEnvironment(attemptMarker(attempt.id))]);
-    if (!rows || !marked) return null;
-    const shell = new Set([first.ppid, ...descendantsOf(rows, first.ppid).map((row) => row.pid)]);
-    const tree = barrierRuns ? new Set(descendantsOf(rows, owned.pid).map((row) => row.pid)) : new Set<number>();
-    // macOS ps hides the environment of platform binaries such as /bin/sh, so the terminal also identifies writers.
-    for (const row of rows)
-      if (
-        row.pid !== owned.pid &&
-        (tree.has(row.pid) || marked.has(row.pid) || (row.tty === first.tty && !shell.has(row.pid)))
-      )
-        seen.set(row.pid, row.start);
-    return [...marked].filter((pid) => pid !== owned.pid).length;
-  };
-  const marked = await collect(true);
-  if (marked === null) return unverified('the process table could not be read');
-  if (marked === 0) return unverified('no process carries the attempt marker');
-  const requested = performance.now();
-  if (!(await requestExit(owned.terminal, attempt.host))) return unverified('the exit request failed');
-  const deadline = performance.now() + limitMs;
-  let signalled = false;
-  for (;;) {
-    const barrier = await processState(owned.pid, owned.start);
-    if (barrier === 'runs' && !signalled && performance.now() - requested >= exitGraceMs) {
-      signalled = true;
-      await terminateChild(owned);
-    }
-    if ((await collect(barrier === 'runs')) === null) return unverified('the process table could not be read');
-    const running: number[] = [];
-    for (const [pid, start] of seen) if ((await processState(pid, start)) !== 'gone') running.push(pid);
-    if (barrier === 'gone' && running.length === 0) return { kind: 'quiescent' };
-    if (performance.now() >= deadline)
-      return unverified('processes of the attempt still run', barrier === 'gone' ? running : [owned.pid, ...running]);
-    await Bun.sleep(250);
-  }
 }

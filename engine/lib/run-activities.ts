@@ -5,6 +5,13 @@ import { constants } from 'node:os';
 import { setTimeout as pause } from 'node:timers/promises';
 import { readAgentOrder } from './agent-order.ts';
 import { beginUsageAttempt, readUsage, recordUsage, type UsageTicket } from './agent-usage.ts';
+import {
+  type AttemptEnd,
+  endOwnedAttempt,
+  type OwnedSession,
+  recordMembers,
+  type StopEvidence,
+} from './attempt-end.ts';
 import type { AgentChoice, Config, Host } from './config-core.ts';
 import { type ExitCode, exits, signalExit } from './contract.ts';
 import { requireContract } from './contract-check.ts';
@@ -32,10 +39,7 @@ import { explicitHost, readQueue, requireQueueChoice, updateQueue } from './queu
 import { emptyQueue } from './queue-actions.ts';
 import type { QueueRecord } from './queue-types.ts';
 import {
-  type AttemptEnd,
   archiveSession,
-  endOwnedAttempt,
-  type OwnedSession,
   permitHolds,
   type QuotaBlock,
   type QuotaRecovery,
@@ -97,6 +101,7 @@ import {
 import type { TerminalStatus } from './terminal-types.ts';
 import type { ObservedUsage, UsageAttempt } from './usage-types.ts';
 import { versionFolderGone } from './version-folder.ts';
+import { openJob, sessionJobName } from './windows.ts';
 import { type Run, type Step, sameResult } from './workflow.ts';
 
 export const removed = 'the engine version of this daemon was removed after an update; start the daemon again';
@@ -218,6 +223,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     turn: null,
   };
   let stop: NonNullable<RunRecord['stop']> | null = from?.stop ?? null;
+  let evidence: StopEvidence | null = null;
   let held: RunState = shown.state;
   let open = false;
   let claimed = false;
@@ -290,6 +296,8 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
       timer = setTimeout(expire, 250);
       return;
     }
+    evidence?.job?.close();
+    evidence = null;
     stop = null;
     kept.resolve();
     kept = Promise.withResolvers<void>();
@@ -329,7 +337,23 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
       throw error;
     }
     arm();
+    const session = fact?.session;
+    if (session?.owned && session.barrier && hostAdapter(session.owned.host).terminatesAfterGrace) {
+      const owned = ownedOf(session.barrier);
+      let members: StopEvidence['members'] = null;
+      let job: StopEvidence['job'] = null;
+      try {
+        if (process.platform === 'win32') job = openJob(sessionJobName(session.owned.id, ''));
+        else members = await recordMembers(session.owned.id, owned);
+      } catch {}
+      evidence = { members, job, closedAt: performance.now() };
+    }
     await closeTerminal(id);
+  };
+  const takeEvidence = () => {
+    const taken = evidence;
+    evidence = null;
+    return taken;
   };
   arm();
   const noteBarrier = async (barrier: Identity, startedMs: number, change: Partial<RunRecord> = {}) => {
@@ -1110,6 +1134,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     openStop,
     claimStop,
     requestStop,
+    takeEvidence,
     ownedOf,
     say,
     stopped,
@@ -1192,7 +1217,7 @@ function resumeOf(s: Steered): string {
 }
 
 async function halting(io: Io, s: Steered, barrier: Identity, tab: string): Promise<EventOf<'halted'>> {
-  const ownership = await endOwnedAttempt(s.ticket.attempt, io.ownedOf(barrier));
+  const ownership = await endOwnedAttempt(s.ticket.attempt, io.ownedOf(barrier), io.takeEvidence());
   return { kind: 'halted', ownership, host: s.host, tab, resume: resumeOf(s) };
 }
 
@@ -1203,8 +1228,8 @@ async function haltingResume(io: Io, barrier: Identity): Promise<EventOf<'halted
   const args = hostAdapter(host).resumeArguments({ ...record, session_id: record.session_id ?? '' });
   const resume = `${host} ${args.join(' ')}`;
   const ownership: AttemptEnd = owned
-    ? await endOwnedAttempt({ ...owned, main: io.place.main }, io.ownedOf(barrier))
-    : { kind: 'unverified', reason: 'the session has no attempt marker', running: [] };
+    ? await endOwnedAttempt({ ...owned, main: io.place.main }, io.ownedOf(barrier), io.takeEvidence())
+    : { kind: 'unverified', reason: 'the session has no attempt marker', running: [], signalled: [] };
   return { kind: 'halted', ownership, host, tab, resume };
 }
 
@@ -1851,6 +1876,7 @@ async function observing(at: StateOf<'observing'>, io: Io): Promise<EventOf<Own[
 async function ending(_at: StateOf<'ending'>, io: Io): Promise<EventOf<Own['ending']>> {
   const { mark, ledger, shared, detach, closeUnreleased, closeTabs, clearStepEnd, locks, handOff } = io;
   io.claimStop();
+  io.takeEvidence()?.job?.close();
   mark('ending');
   ledger.watch.watcher?.abort();
   await ledger.watch.watching;
