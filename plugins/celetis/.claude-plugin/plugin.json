@@ -1,5 +1,6 @@
 {
   "name": "celetis",
+  "version": "0.0.1",
   "description": "An issue-driven agent harness: lane skills, a daemon that runs steps, a landing script, and worktree setup.",
   "author": {
     "name": "ddinkov10"
