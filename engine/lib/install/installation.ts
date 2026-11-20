@@ -223,7 +223,7 @@ export async function installEngine(
           await git(['checkout', '--quiet', '--detach', wanted.revision], staging, slow);
         }
         if ((await lstat(join(staging, 'engine', 'celetis')).catch(() => null))?.isFile()) {
-          const dependencies = await installDependencies(staging);
+          const dependencies = await installDependencies(staging, 'user');
           if (dependencies.kind === 'no-lock')
             throw new HostError(
               `celetis: revision ${wanted.revision} has no engine/bun.lock file; the engine did not change`,

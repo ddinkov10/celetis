@@ -749,28 +749,36 @@ async function installedVersion(file: string): Promise<string | undefined> {
   }
 }
 
+const setupCommand =
+  'run bun --no-env-file --no-install --config=/dev/null --no-macros scripts/worktree-setup.ts "$PWD" (AGENTS.md, "Verify gate")';
+const relockCommands = 'run bun install --ignore-scripts and bun install --frozen-lockfile --ignore-scripts in engine/';
+const dependencyMaps = ['dependencies', 'devDependencies'] as const;
+type DependencyMaps = Partial<Record<(typeof dependencyMaps)[number], Record<string, string>>>;
+
+const platformPackage = (metadata: unknown) =>
+  typeof metadata === 'object' && metadata !== null && ('os' in metadata || 'cpu' in metadata);
+
 export async function checkDependencies(root: string): Promise<string[]> {
-  const install =
-    'run bun install --frozen-lockfile --production --ignore-scripts in engine/ (AGENTS.md, "Verify gate")';
   const errors: string[] = [];
-  const manifest: Record<string, unknown> & { dependencies?: Record<string, string> } = JSON.parse(
+  const manifest: Record<string, unknown> & DependencyMaps = JSON.parse(
     await readFile(join(root, 'engine/package.json'), 'utf8'),
   );
   const refuse = (detail: string) =>
     errors.push(
-      `verify: engine/package.json: ${detail}; keep only "name", "private": true, and "dependencies" with exact x.y.z versions, then run bun install --ignore-scripts and bun install --frozen-lockfile --production --ignore-scripts in engine/`,
+      `verify: engine/package.json: ${detail}; keep only "name", "private": true, "dependencies", and "devDependencies" with exact x.y.z versions, then ${relockCommands}`,
     );
-  const fields = ['name', 'private', 'dependencies'];
+  const fields = ['name', 'private', ...dependencyMaps];
   for (const key of Object.keys(manifest)) if (!fields.includes(key)) refuse(`unknown field ${key}`);
   for (const key of fields) if (!(key in manifest)) refuse(`missing field ${key}`);
   if ('private' in manifest && manifest.private !== true) refuse('private is not true');
-  const declared: Record<string, string | undefined> = manifest.dependencies ?? {};
-  for (const [name, version] of Object.entries(declared))
-    if (!exactVersion.test(version ?? '')) refuse(`${name} has the version ${version}, not an exact x.y.z version`);
+  for (const map of dependencyMaps)
+    for (const [name, version] of Object.entries(manifest[map] ?? {}))
+      if (!exactVersion.test(version ?? ''))
+        refuse(`${name} has the version ${version} in ${map}, not an exact x.y.z version`);
 
   type Lock = {
     packages?: Record<string, [string, ...unknown[]]>;
-    workspaces?: Record<string, { dependencies?: Record<string, string> }>;
+    workspaces?: Record<string, DependencyMaps>;
   };
   let lock: Lock;
   try {
@@ -781,33 +789,64 @@ export async function checkDependencies(root: string): Promise<string[]> {
     );
     return errors;
   }
-  const locked: Record<string, string | undefined> = lock.workspaces?.['']?.dependencies ?? {};
-  const names = [...new Set([...Object.keys(declared), ...Object.keys(locked)])].sort();
-  for (const name of names) {
-    const want = declared[name];
-    const have = locked[name];
-    if (want === have) continue;
-    const detail =
-      want === undefined
-        ? `${name} is only in engine/bun.lock`
-        : have === undefined
-          ? `${name} is only in engine/package.json`
-          : `${name} is ${want} in engine/package.json and ${have} in engine/bun.lock`;
-    errors.push(
-      `verify: engine/package.json disagrees with engine/bun.lock: ${detail}; run bun install --ignore-scripts in engine/, commit engine/bun.lock, then run bun install --frozen-lockfile --production --ignore-scripts in engine/`,
-    );
+  for (const map of dependencyMaps) {
+    const declared: Record<string, string | undefined> = manifest[map] ?? {};
+    const locked: Record<string, string | undefined> = lock.workspaces?.['']?.[map] ?? {};
+    const names = [...new Set([...Object.keys(declared), ...Object.keys(locked)])].sort();
+    for (const name of names) {
+      const want = declared[name];
+      const have = locked[name];
+      if (want === have) continue;
+      const detail =
+        want === undefined
+          ? `${name} is only in ${map} of engine/bun.lock`
+          : have === undefined
+            ? `${name} is only in ${map} of engine/package.json`
+            : `${name} is ${want} in ${map} of engine/package.json and ${have} in ${map} of engine/bun.lock`;
+      errors.push(
+        `verify: engine/package.json disagrees with engine/bun.lock: ${detail}; run bun install --ignore-scripts in engine/, commit engine/bun.lock, then run bun install --frozen-lockfile --ignore-scripts in engine/`,
+      );
+    }
   }
 
-  for (const [name, [spec]] of Object.entries(lock.packages ?? {})) {
+  for (const [name, [spec, , metadata]] of Object.entries(lock.packages ?? {})) {
+    if (platformPackage(metadata)) continue;
     const version = spec.slice(spec.lastIndexOf('@') + 1);
     const installed = await installedVersion(join(root, 'engine/node_modules', name, 'package.json'));
-    if (installed === undefined) errors.push(`verify: engine/node_modules/${name} is missing; ${install}`);
+    if (installed === undefined) errors.push(`verify: engine/node_modules/${name} is missing; ${setupCommand}`);
     else if (installed !== version)
       errors.push(
-        `verify: engine/node_modules/${name} has ${installed}, and engine/bun.lock locks ${version}; ${install}`,
+        `verify: engine/node_modules/${name} has ${installed}, and engine/bun.lock locks ${version}; ${setupCommand}`,
       );
   }
   return errors;
+}
+
+export async function checkBunTypes(root: string, floor: string): Promise<string[]> {
+  const manifest: DependencyMaps = JSON.parse(await readFile(join(root, 'engine/package.json'), 'utf8'));
+  const have = manifest.devDependencies?.['@types/bun'];
+  if (have === floor) return [];
+  return [
+    `verify: engine/package.json: @types/bun is ${have ?? 'missing'} in devDependencies, and bunFloor is ${floor} (engine/lib/config/core.ts); set @types/bun to ${floor}, then ${relockCommands}`,
+  ];
+}
+
+async function findTools(root: string) {
+  const actionlint = Bun.which('actionlint');
+  if (!actionlint)
+    throw new Error(
+      'verify: actionlint is missing: install it with scripts/install-tools.ts (AGENTS.md, "Verify gate")',
+    );
+  const packages = join(root, 'engine/node_modules');
+  const version = async (name: string) => (await installedVersion(join(packages, name, 'package.json'))) ?? '';
+  const entry = (bin: string) => ({ file: process.execPath, args: bunArgs(join(packages, bin), []) });
+  return {
+    actionlint,
+    tsc: { ...entry('typescript/bin/tsc'), version: await version('typescript') },
+    biome: { ...entry('@biomejs/biome/bin/biome'), version: await version('@biomejs/biome') },
+    typeRoots: join(packages, '@types'),
+    bunTypesVersion: await version('@types/bun'),
+  };
 }
 
 export async function main(argv: string[]): Promise<number> {
@@ -822,6 +861,10 @@ export async function main(argv: string[]): Promise<number> {
 
 async function execute(argv: string[]): Promise<number> {
   const dependencies = await checkDependencies(root);
+  if (!dependencies.length) {
+    const { bunFloor } = await import('../engine/lib/config/core.ts');
+    dependencies.push(...(await checkBunTypes(root, bunFloor)));
+  }
   if (dependencies.length) {
     for (const line of dependencies) console.error(line);
     console.log('verify: FAIL');
@@ -829,7 +872,7 @@ async function execute(argv: string[]): Promise<number> {
   }
   const { commandInput, createOperation, locateCheckouts } = await import('../engine/lib/command/operation.ts');
   const { hostAdapter } = await import('../engine/lib/host/hosts.ts');
-  const { findTools, toolPins } = await import('./install-tools.ts');
+  const { actionlintVersion } = await import('./install-tools.ts');
   const { args, explicit } = commandInput(argv);
   if (args.length) {
     console.error('usage: scripts/verify.ts');
@@ -846,22 +889,18 @@ async function execute(argv: string[]): Promise<number> {
   try {
     for (const name of ['git', 'claude'])
       if (!Bun.which(name)) throw new Error(`verify: ${name} is missing (plugins/celetis/README.md, "Requirements")`);
-    const tools = await findTools();
+    const tools = await findTools(root);
     const claude = await realpath(Bun.which('claude') as string);
-    const actionVersion = await run(tools.actionlint.file, ['--version']);
-    tools.actionlint.version = /\d+\.\d+\.\d+/.exec(actionVersion.stdout + actionVersion.stderr)?.[0] ?? '';
-    const versions: Record<string, string> = {
-      actionlint: tools.actionlint.version,
-      biome: tools.biome.version,
-      tsc: tools.tsc.version,
-      '@types/bun': tools.bunTypesVersion,
-    };
-    for (const pin of await toolPins()) {
-      const version = versions[pin.name] ?? '';
-      console.log(`== ${pin.name} ${version}`);
-      if (version !== pin.version)
-        console.log(`verify: warning: ${pin.name} ${version} is not the pin ${pin.version} (scripts/install-tools.ts)`);
-    }
+    const actionOutput = await run(tools.actionlint, ['--version']);
+    const actionVersion = /\d+\.\d+\.\d+/.exec(actionOutput.stdout + actionOutput.stderr)?.[0] ?? '';
+    console.log(`== actionlint ${actionVersion}`);
+    if (actionVersion !== actionlintVersion)
+      console.log(
+        `verify: warning: actionlint ${actionVersion} is not the pin ${actionlintVersion} (scripts/install-tools.ts)`,
+      );
+    console.log(`== biome ${tools.biome.version}`);
+    console.log(`== tsc ${tools.tsc.version}`);
+    console.log(`== @types/bun ${tools.bunTypesVersion}`);
     const listed = await run('git', ['ls-files', '-z']);
     if (listed.code) throw new Error(listed.stderr);
     const files = listed.stdout.split('\0').filter(Boolean);
@@ -906,7 +945,7 @@ async function execute(argv: string[]): Promise<number> {
         '--max-diagnostics=none',
         ...biome,
       ]),
-      job('actionlint', tools.actionlint.file, ['-shellcheck=', ...workflows]),
+      job('actionlint', tools.actionlint, ['-shellcheck=', ...workflows]),
       job('config', process.execPath, bunArgs(join(root, 'engine/config.ts'), [root, join(root, 'plugins/celetis')])),
       job('tsc runtime', tools.tsc.file, [
         ...tools.tsc.args,

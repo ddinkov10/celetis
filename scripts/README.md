@@ -3,10 +3,11 @@
 This folder holds the verify gate, the build, the pin installer, the worktree setup, and the Herdr
 lab. Run each one in a checkout of this repository. No check needs model credentials or tokens. A
 product project runs no build: each machine installs the engine one time
-(`plugins/celetis/README.md`, "First install"), and that install puts the locked packages of the
-engine into its version folder. `scripts/worktree-setup.ts` installs the same packages into
-`engine/node_modules` of a checkout of this repository. It installs into the checkout that holds it;
-the worktree setup passes the main checkout as an argument that the script does not read.
+(`plugins/celetis/README.md`, "First install"), and that install puts only the locked dependencies
+of the engine into its version folder. `scripts/worktree-setup.ts` installs the full lockfile, the
+gate tools of the devDependencies too, into `engine/node_modules` of a checkout of this repository.
+It installs into the checkout that holds it; the worktree setup passes the main checkout as an
+argument that the script does not read.
 [`AGENTS.md`](../AGENTS.md#verify-gate) gives the rules of the gate, the build, the worktree setup,
 and the pin installer for a change.
 
@@ -31,8 +32,9 @@ and the pin installer for a change.
 - The generated files of the build.
 
 Before the jobs, `checkDependencies` checks that `engine/package.json`, `engine/bun.lock`, and
-`engine/node_modules` agree. The gate installs nothing, so a stale install refuses with the install
-command, and the jobs do not start.
+`engine/node_modules` agree, in both `dependencies` and `devDependencies`, and `checkBunTypes`
+checks that `@types/bun` is `bunFloor`. The gate installs nothing, so a stale or production-only
+install refuses with the command of the worktree setup, and the jobs do not start.
 
 The jobs run in bounded workers. A passing run prints the success line of
 [`AGENTS.md`](../AGENTS.md#verify-gate). That section gives the command and the pinned tools.
@@ -50,13 +52,16 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
 
 ## The workflow
 
-The workflow has one job, `test`, on Linux. It installs the locked packages of the engine with
-`scripts/worktree-setup.ts`, then the pinned tools, then runs the verify gate.
+The workflow has one job, `test`, on Linux. It installs the locked packages of the engine, the gate
+tools too, with `scripts/worktree-setup.ts`, then `actionlint` and Claude Code with
+`scripts/install-tools.ts`, then runs the verify gate.
 
 ## The pin installer
 
-`scripts/install-tools.ts` installs the tool pins. The gate runs the JavaScript tool entries on the
-selected Bun. [`AGENTS.md`](../AGENTS.md#verify-gate) gives its command.
+`scripts/install-tools.ts` installs the native `actionlint` after a check of its hash, and with
+`--claude` Claude Code. Biome, TypeScript, and `@types/bun` are devDependencies of
+`engine/package.json`: the gate runs the JavaScript entries of Biome and TypeScript from
+`engine/node_modules` on the selected Bun. [`AGENTS.md`](../AGENTS.md#verify-gate) gives its command.
 
 ## The release
 

@@ -64,8 +64,9 @@ Add no test to the repository. The gate refuses a tracked test file (ADR-0029).
 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros scripts/verify.ts
 ```
 
-- Install the locked packages of the engine into `engine/node_modules` first, in a checkout with
-  no `engine/node_modules`, and again after a change of `engine/bun.lock`:
+- Install the locked packages of the engine, the gate tools of the devDependencies too, into
+  `engine/node_modules` first, in a checkout with no full install, and again after a change of
+  `engine/bun.lock`:
 
   ```sh
   bun --no-env-file --no-install --config=/dev/null --no-macros scripts/worktree-setup.ts "$PWD"
@@ -73,14 +74,16 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
 
   A new lane worktree runs it as its worktree setup (`worktreeSetup` in `.celetis.yaml`). It
   comes before the tool install, because `scripts/install-tools.ts` imports the engine.
-- Install the pinned tools into a private directory, then put its `bin` folder on `PATH`:
+- Install `actionlint`, and with `--claude` Claude Code, into a private directory, then put its
+  `bin` folder on `PATH`:
 
   ```sh
   bun --no-env-file --no-install --config=/dev/null --no-macros scripts/install-tools.ts /absolute/private-tools --claude
   ```
 
-  `scripts/install-tools.ts` owns the pins. On Windows, omit `--claude`: the installer refuses it. The installer checks the official native actionlint hash.
-  The gate resolves package and type paths from executable filesystem metadata. Checks install nothing.
+  `scripts/install-tools.ts` owns the pins of `actionlint` and Claude Code. On Windows, omit `--claude`: the installer refuses it. The installer checks the official native actionlint hash.
+  The gate finds Biome, TypeScript, and the type root in `engine/node_modules` of its checkout, and
+  `actionlint` on `PATH`. Checks install nothing.
   The `merge` landing runs the gate as its suite in the master daemon, with the environment of
   the shell of `celetis daemon start`, so start the daemon from a shell with that `bin` folder on
   `PATH`.
@@ -92,7 +95,9 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
   and `docs/adr/index.md` from the records of `docs/adr/`. `--check` compares bytes, and modes on macOS and Linux, without
   writes.
 - The packages of the engine are the exact pins of `engine/package.json`, locked in
-  `engine/bun.lock`. To change a pin, edit `engine/package.json`, run `bun install --ignore-scripts`
+  `engine/bun.lock`. Biome, TypeScript, and `@types/bun` are its devDependencies, which a user
+  installation does not get. The gate keeps `@types/bun` equal to `bunFloor` of
+  `engine/lib/config/core.ts`. To change a pin, edit `engine/package.json`, run `bun install --ignore-scripts`
   in `engine/`, and commit both files.
 - Strict types have three environments: runtime commands and server modules;
   browser DOM modules; and the native hook API and its actual globals.

@@ -86,12 +86,14 @@ async function release(version: string): Promise<string> {
     await addVersion(tree, version);
     await git(['commit', '-q', '-a', '-m', `release: ${tag}`], tree);
     const commit = await git(['rev-parse', 'HEAD'], tree);
-    const dependencies = await installDependencies(tree);
+    const dependencies = await installDependencies(tree, 'development');
     if (dependencies.kind === 'no-lock')
       throw refuse(`the release commit ${commit} has no engine/bun.lock; nothing was tagged`);
     if (dependencies.kind === 'failed') {
       process.stderr.write(dependencies.output);
-      throw refuse(`bun ${installArgs.join(' ')} failed in the release commit ${commit}; nothing was tagged`);
+      throw refuse(
+        `bun ${installArgs.development.join(' ')} failed in the release commit ${commit}; nothing was tagged`,
+      );
     }
     if (!(await gate(tree))) throw refuse(`the verify gate failed on the release commit ${commit}; nothing was tagged`);
     await git(['tag', '-a', tag, '-m', tag, commit], root);

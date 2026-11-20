@@ -1,25 +1,12 @@
 import { createHash } from 'node:crypto';
-import {
-  appendFile,
-  chmod,
-  lstat,
-  mkdir,
-  mkdtemp,
-  readFile,
-  realpath,
-  rename,
-  rm,
-  symlink,
-  writeFile,
-} from 'node:fs/promises';
+import { appendFile, chmod, lstat, mkdir, mkdtemp, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { HostError } from '../engine/lib/command/errors.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/command/operation.ts';
-import { bunFloor } from '../engine/lib/config/core.ts';
 import { hostAdapter } from '../engine/lib/host/hosts.ts';
-import { bunArgs, run } from '../engine/lib/process/process.ts';
+import { run } from '../engine/lib/process/process.ts';
 
-const actionlintVersion = '1.7.12';
+export const actionlintVersion = '1.7.12';
 const hashes: Record<string, string> = {
   darwin_amd64: '5b44c3bc2255115c9b69e30efc0fecdf498fdb63c5d58e17084fd5f16324c644',
   darwin_arm64: 'aba9ced2dee8d27fecca3dc7feb1a7f9a52caefa1eb46f3271ea66b6e0e6953f',
@@ -27,72 +14,6 @@ const hashes: Record<string, string> = {
   linux_arm64: '325e971b6ba9bfa504672e29be93c24981eeb1c07576d730e9f7c8805afff0c6',
   windows_amd64: '6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9',
 };
-
-export interface ToolPin {
-  name: string;
-  version: string;
-  installer: string;
-  package: string;
-}
-const pins: ToolPin[] = [
-  {
-    name: 'actionlint',
-    version: actionlintVersion,
-    installer: 'native',
-    package: `rhysd/actionlint@v${actionlintVersion}`,
-  },
-  { name: 'biome', version: '2.5.15', installer: 'bun', package: '@biomejs/biome@2.5.15' },
-  { name: 'tsc', version: '7.0.2', installer: 'bun', package: 'typescript@7.0.2' },
-  { name: '@types/bun', version: bunFloor, installer: 'bun', package: `@types/bun@${bunFloor}` },
-];
-export async function toolPins(): Promise<ToolPin[]> {
-  return pins;
-}
-
-async function packageOf(file: string, name: string): Promise<{ path: string; version: string }> {
-  let path = dirname(await realpath(file));
-  for (;;) {
-    const source = await readFile(join(path, 'package.json'), 'utf8').catch(() => null);
-    if (source) {
-      const value = JSON.parse(source) as { name?: string; version?: string };
-      if (value.name === name && value.version) return { path, version: value.version };
-    }
-    const parent = dirname(path);
-    if (parent === path) throw new Error(`verify: ${file} has no package metadata for ${name}`);
-    path = parent;
-  }
-}
-
-export async function findTools(path = process.env.PATH) {
-  const missing = (name: string) =>
-    new Error(
-      `verify: ${name} is missing: install the pinned tools with scripts/install-tools.ts (AGENTS.md, "Verify gate")`,
-    );
-  const actionlint = Bun.which('actionlint', { PATH: path });
-  if (!actionlint) throw missing('actionlint');
-  const packageEntry = (name: string, entry: string) =>
-    realpath(join(dirname(actionlint), '..', 'node_modules', entry)).catch(() => {
-      throw missing(name);
-    });
-  const tsc = await packageEntry('tsc', 'typescript/bin/tsc');
-  const biome = await packageEntry('biome', '@biomejs/biome/bin/biome');
-  const typescript = await packageOf(tsc, 'typescript');
-  const biomePackage = await packageOf(biome, '@biomejs/biome');
-  const packages = dirname(typescript.path);
-  const typesSource = await readFile(join(packages, '@types/bun/package.json'), 'utf8').catch(() => null);
-  if (!typesSource)
-    throw new Error(
-      `verify: @types/bun is missing from ${packages}: install @types/bun@${bunFloor} with scripts/install-tools.ts (AGENTS.md, "Verify gate")`,
-    );
-  const types = JSON.parse(typesSource) as { version: string };
-  return {
-    actionlint: { file: actionlint, args: [], version: '' },
-    tsc: { file: process.execPath, args: bunArgs(tsc, []), version: typescript.version },
-    biome: { file: process.execPath, args: bunArgs(biome, []), version: biomePackage.version },
-    typeRoots: join(packages, '@types'),
-    bunTypesVersion: types.version,
-  };
-}
 
 interface InstallOptions {
   platform?: string;
@@ -130,16 +51,16 @@ export async function installTools(destination: string, options: InstallOptions 
   const backup = `${stage}.previous`;
   let moved = false;
   try {
-    await writeFile(join(stage, 'package.json'), '{"private":true}\n');
-    const packages = (await toolPins()).filter((pin) => pin.installer === 'bun').map((pin) => pin.package);
-    if (options.claude) packages.push('@anthropic-ai/claude-code@2.1.302');
-    const installed = await execute(
-      process.execPath,
-      ['add', '--exact', '--ignore-scripts', '--no-progress', '--cwd', stage, ...packages],
-      { timeout: 120_000 },
-    );
-    if (installed.code)
-      throw new Error(`install-tools: package installation failed (exit ${installed.code})\n${installed.stderr}`);
+    if (options.claude) {
+      await writeFile(join(stage, 'package.json'), '{"private":true}\n');
+      const installed = await execute(
+        process.execPath,
+        ['add', '--exact', '--ignore-scripts', '--no-progress', '--cwd', stage, '@anthropic-ai/claude-code@2.1.302'],
+        { timeout: 120_000 },
+      );
+      if (installed.code)
+        throw new Error(`install-tools: package installation failed (exit ${installed.code})\n${installed.stderr}`);
+    }
     const archivePath = join(stage, `actionlint.${extension}`);
     await writeFile(archivePath, archive);
     const systemRoot = process.env.SystemRoot;
