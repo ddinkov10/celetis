@@ -37,8 +37,10 @@ Fidelity rules:
 
 ## A step with a record
 
-Read the issue with `gh issue view <n> --json body,comments`: in piped output, `--comments`
-omits the body. The record is the last comment whose first line is exactly `## Captured`. Only
+Read the issue body with `celetis --agent <host> issue <n> view`, and the record with
+`celetis --agent <host> issue <n> view --latest '## Captured'`: the record is the last comment
+whose first line is exactly `## Captured`. Exit 3 of the second read means no earlier record.
+Exit 6 of either read: report the `issue: blocked:` line and stop. Only
 that newest record counts, because a later capture carries forward each line that it did not
 change. Only the lines inside its three parts are answers.
 

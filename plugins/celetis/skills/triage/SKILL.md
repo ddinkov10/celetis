@@ -18,7 +18,7 @@ Only for when the type is unknown. If you already know the type, invoke the lane
 ## Input
 
 `#<n>` — an issue. Free text with no issue → run `/celetis:intake` first; it creates the issue and hands
-back here. Read `gh issue view <n> --comments` and classify from the intent's `Problem` and
+back here. Read `celetis --agent <host> issue <n> view` (its `history` holds the comments; exit 3 for a pull request, exit 6 for a read failure: show the line and stop) and classify from the intent's `Problem` and
 `Done when` plus the reporter's text. Run `celetis --agent <host> issue <n> state` and read its
 `lane:` line. A lane name or `epic` means that the issue is routed: name its lane and stop. `none`
 or `several` goes on to the classification. When the `state` read fails, show its output and stop.

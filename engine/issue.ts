@@ -16,13 +16,14 @@ import {
   usageText,
 } from './lib/contract/contract.ts';
 import { parseEpicAcceptance, parseEpicSubmission } from './lib/epic/acceptance.ts';
-import { completeEpic, readEpic, writeEpicDefinition } from './lib/epic/epic.ts';
+import { completeEpic, readEpic, withEpicLock, writeEpicDefinition } from './lib/epic/epic.ts';
 import { hostAdapter } from './lib/host/hosts.ts';
 import { lineOf } from './lib/resolver/lines.ts';
+import { services } from './lib/services/services.ts';
 import { installRecorder, markDefect } from './lib/state/events.ts';
 import { parseHandle } from './lib/tracker/key.ts';
 import { writeRefreshHint } from './lib/tracker/refresh-hints.ts';
-import { type Edit, GitHubError, github } from './lib/tracker/tracker.ts';
+import { type Edit, type Tracker, TrackerError } from './lib/tracker/tracker.ts';
 import { decidable, effortMarker, isLevel, isModel } from './lib/workflow/effort.ts';
 import {
   type Decision,
@@ -51,7 +52,10 @@ type Context = Readonly<{
 }>;
 type Writes = Readonly<{ comment?: string; add?: readonly Label[]; remove?: readonly Label[] }> & Edit;
 type Write = Readonly<{ send(): Promise<void>; flags: readonly string[]; close?: boolean }>;
-type EngineAct = Exclude<IssueAct, 'epic' | 'epic-state' | 'complete-epic' | 'create' | 'comment'>;
+type EngineAct = Exclude<
+  IssueAct,
+  'epic' | 'epic-state' | 'complete-epic' | 'create' | 'comment' | 'view' | 'list' | 'link'
+>;
 type Act = Readonly<{
   ready(context: Context): boolean;
   writes(context: Context): Writes;
@@ -192,10 +196,10 @@ async function createIssue(argv: string[], explicit: string | undefined): Promis
   if (!intent) die('usage', `${file}: the first line must be # Intent: <title>, with a title`);
   const title = `Intent: ${intent}`;
   const { main } = await enter(explicit);
-  const gh = github(main);
+  const gh = services(main).tracker;
   const issue = await gh.createIssue({ title, body, labels: ['needs-triage'] }).catch((error: unknown) => {
     const details = [gh.stderr(), error instanceof Error ? error.message : String(error)];
-    if (error instanceof GitHubError && error.stderr !== null && /\bHTTP 4\d\d\b/.test(error.stderr))
+    if (error instanceof TrackerError && error.refused)
       die('blocked', 'GitHub refused the create; no issue was written', ...details);
     die(
       'blocked',
@@ -235,7 +239,7 @@ async function commentIssue(argv: string[], explicit: string | undefined): Promi
       `${file} starts with ${owner[0]}; write that record with celetis --agent <host> issue <n> ${owner[1]}`,
     );
   await enter(explicit);
-  const gh = github(process.cwd());
+  const gh = services(process.cwd()).tracker;
   const issue = await gh.issue(n).catch(() => null);
   if (!issue) die('blocked', `cannot read #${n} from GitHub`, gh.stderr());
   if (issue.pull) die('prerequisite', `#${n} is a pull request; comment takes an issue`);
@@ -254,9 +258,94 @@ async function commentIssue(argv: string[], explicit: string | undefined): Promi
   return exits.done;
 }
 
+const unreadable = (gh: Tracker, what: string) => () => die('blocked', `cannot read ${what} from GitHub`, gh.stderr());
+
+async function listIssues(argv: string[], explicit: string | undefined): Promise<ExitCode> {
+  if (argv.length !== 1) die('usage', usageText('issue'));
+  const { main } = await enter(explicit);
+  const gh = services(main).tracker;
+  const issues = await gh.openIssues().catch(unreadable(gh, 'the open issues'));
+  const open = issues
+    .filter((issue) => !issue.pull)
+    .map(({ key, title, url, labels }) => ({ key, title, url, labels }));
+  console.log(JSON.stringify(open, null, 2));
+  process.stderr.write(gh.stderr());
+  return exits.done;
+}
+
+async function viewIssue(argv: string[], explicit: string | undefined): Promise<ExitCode> {
+  const [number = '', , flag, heading = ''] = argv;
+  const n = parseHandle(number);
+  const latest = argv.length === 4;
+  if (n === null || !(argv.length === 2 || (latest && flag === '--latest' && heading.startsWith('## '))))
+    die('usage', usageText('issue'));
+  const { main } = await enter(explicit);
+  const gh = services(main).tracker;
+  const issue = await gh.issue(n).catch(unreadable(gh, `#${n}`));
+  if (issue.pull) die('prerequisite', `#${n} is a pull request; view takes an issue`);
+  const history = await gh.history(n).catch(unreadable(gh, `#${n}`));
+  if (latest) {
+    const body = history
+      .flatMap((entry) =>
+        entry.kind === 'comment' && entry.body.split('\n')[0]?.trimEnd() === heading ? [entry.body] : [],
+      )
+      .at(-1);
+    if (body === undefined) {
+      process.stderr.write(gh.stderr());
+      throw new HostError(`issue: #${n} has no comment whose first line is ${heading}`, exits.prerequisite);
+    }
+    process.stdout.write(body);
+  } else {
+    const children = await gh.children(n).catch(unreadable(gh, `#${n}`));
+    const { key, title, url, state, labels, body, parent } = issue;
+    console.log(JSON.stringify({ key, title, url, state, labels, body, parent, children, history }, null, 2));
+  }
+  process.stderr.write(gh.stderr());
+  return exits.done;
+}
+
+async function linkIssue(argv: string[], explicit: string | undefined): Promise<ExitCode> {
+  const [number = '', , handle = ''] = argv;
+  const epic = parseHandle(number);
+  const child = parseHandle(handle);
+  if (epic === null || child === null || argv.length !== 3) die('usage', usageText('issue'));
+  if (epic === child) die('prerequisite', `#${epic} cannot be a sub-issue of itself`);
+  const { operation, main } = await enter(explicit);
+  const common = operation.checkout.common ?? die('usage', 'run the command inside a Git checkout');
+  await withEpicLock(common, epic, undefined, async (signal) => {
+    const gh = services(main, signal).tracker;
+    const parent = await gh.issue(epic).catch(unreadable(gh, `#${epic}`));
+    const sub = await gh.issue(child).catch(unreadable(gh, `#${child}`));
+    for (const issue of [parent, sub]) {
+      if (issue.pull) die('prerequisite', `#${issue.key} is a pull request; link takes an issue`);
+      if (issue.state !== 'open') die('prerequisite', `#${issue.key} is closed; link takes open issues`);
+    }
+    if (sub.parent === epic) {
+      process.stderr.write(gh.stderr());
+      return;
+    }
+    if (sub.parent !== null) die('prerequisite', `#${child} is a sub-issue of #${sub.parent}`);
+    await gh.link(epic, child).catch((error: unknown) => {
+      const details = [gh.stderr(), error instanceof Error ? error.message : String(error)];
+      if (error instanceof TrackerError && error.refused)
+        die('blocked', 'GitHub refused the link; nothing changed', ...details);
+      die(
+        'blocked',
+        `the link of #${child} to #${epic} has no readable answer; the link can exist, so run issue ${epic} link ${child} again (it writes nothing when the link exists) or read issue ${child} view before another write`,
+        ...details,
+      );
+    });
+    process.stderr.write(gh.stderr());
+  });
+  return exits.done;
+}
+
 async function execute(argv: string[], explicit: string | undefined): Promise<ExitCode> {
   if (argv[0] === 'create') return createIssue(argv, explicit);
+  if (argv[0] === 'list') return listIssues(argv, explicit);
   if (argv[1] === 'comment') return commentIssue(argv, explicit);
+  if (argv[1] === 'view') return viewIssue(argv, explicit);
+  if (argv[1] === 'link') return linkIssue(argv, explicit);
   const [number = '', name = '', argument = '', flag] = argv;
   const n = parseHandle(number);
   const known = Object.hasOwn(acts, name) ? (name as EngineAct) : undefined;
@@ -321,7 +410,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
     return exits.done;
   }
   if (!act) die('usage', usageText('issue'));
-  const gh = github(main);
+  const gh = services(main).tracker;
   const read = await gh.read(n).catch(() => null);
   if (!read) die('blocked', `cannot read #${n} from GitHub`, gh.stderr());
   const { data } = read;

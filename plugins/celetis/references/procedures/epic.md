@@ -51,18 +51,20 @@ start a parent run or replace explicit acceptance.
 ## The children
 
 Make each child from a one-line intent file whose first line is `# Intent: <title>`. `<child>`
-is the number of the URL that `issue create` prints. The sub-issues API takes the child's
-database ID, not its issue number. The route sets the lane label of the child:
+is the number of the URL that `issue create` prints. The route sets the lane label of the child:
 
 ```bash
 celetis --agent <host> issue create <child intent>
-cid=$(gh api "repos/{owner}/{repo}/issues/<child>" --jq .id)
-gh api --method POST "repos/{owner}/{repo}/issues/<epic>/sub_issues" -F sub_issue_id="$cid"
+celetis --agent <host> issue <epic> link <child>
 celetis --agent <host> issue <child> route feature
 ```
 
-- **List all children**: `gh api --paginate repos/{owner}/{repo}/issues/<epic>/sub_issues --jq '.[] | "\(.html_url) \(.state) \(.title)"'`.
-- **Find a child's parent**: `gh api repos/{owner}/{repo}/issues/<n>/parent --jq .number` (404 when standalone).
+`link` exits 3 for a child with another parent, a closed issue, or a pull request: report the
+line and stop. Exit 6: report the line and stop; when it says that the link can exist, run `link`
+again (it writes nothing when the link exists) or read `issue <child> view` before another write.
+
+- **List all children**: the `children` of `celetis --agent <host> issue <epic> view` (each has `key`, `title`, `url`, `state`).
+- **Find a child's parent**: the `parent` of `celetis --agent <host> issue <n> view` (the key, `null` when standalone).
 
 ## A partial write
 

@@ -4,6 +4,7 @@ import { effectiveOrder, readAgentOrder } from '../agent/order.ts';
 import { activeBlock, readUsage, selectAgent } from '../agent/usage.ts';
 import { createOperation, locateCheckouts } from '../command/operation.ts';
 import type { AgentDecision, AgentOrder, Host, UsageBlock } from '../config/core.ts';
+import { type Client, type Connection, chunks, client, drain, graphqlQuery } from '../github/github.ts';
 import { hostAvailability } from '../host/host.ts';
 import { capableOrder } from '../host/hosts.ts';
 import { hosts } from '../host/names.ts';
@@ -17,7 +18,6 @@ import { commit, isCommit } from '../state/fields.ts';
 import { laneFolder } from '../state/state.ts';
 import type { Exec } from '../terminal/terminal.ts';
 import { compareKeys, type IssueKey } from '../tracker/key.ts';
-import { type Connection, chunks, drain, type GitHub, github, graphqlQuery } from '../tracker/tracker.ts';
 import { levels } from '../workflow/effort.ts';
 import { hasPage, visualPage } from '../workflow/visual.ts';
 import {
@@ -78,7 +78,7 @@ async function readDocument(
     throw new Error(stderr.trim() || 'cannot read the issues from GitHub');
   }
   const common = operation.checkout.common as string;
-  const history = !target || data.closed ? await readHistory(github(main, signal), common) : target.previous.history;
+  const history = !target || data.closed ? await readHistory(client(main, signal), common) : target.previous.history;
   const flow: Flow = {
     lanes: Object.fromEntries(Object.entries(lanes).map(([lane, definition]) => [lane, [...definition.steps]])),
     stages: stages.map((stage) => ({ name: stage.name, steps: [...stage.steps] })),
@@ -205,7 +205,7 @@ async function loadCache(common: string): Promise<Cache> {
   return cache;
 }
 
-async function readTrunk(gh: Pick<GitHub, 'graphql'>, history: string) {
+async function readTrunk(gh: Pick<Client, 'graphql'>, history: string) {
   const repo = record(
     (
       await gh.graphql(
@@ -234,7 +234,7 @@ function commits(page: Connection): Commit[] {
 }
 
 async function commitObject(
-  gh: Pick<GitHub, 'graphql'>,
+  gh: Pick<Client, 'graphql'>,
   fields: string,
   oid: string,
   cursor: string,
@@ -247,7 +247,7 @@ async function commitObject(
 }
 
 async function readIssues(
-  gh: Pick<GitHub, 'graphql'>,
+  gh: Pick<Client, 'graphql'>,
   numbers: readonly IssueKey[],
   issues: Map<IssueKey, Landed | null>,
   cache: Cache,
@@ -316,7 +316,7 @@ function association(
 }
 
 async function issuesOf(
-  gh: Pick<GitHub, 'graphql'>,
+  gh: Pick<Client, 'graphql'>,
   repo: Repo,
   commits: readonly { sha: string; subject: string; committedAt: string }[],
   cache: Cache,
@@ -358,7 +358,7 @@ async function issuesOf(
 }
 
 async function answerIssues(
-  gh: Pick<GitHub, 'graphql'>,
+  gh: Pick<Client, 'graphql'>,
   numbers: readonly IssueKey[],
   issues: Map<IssueKey, Landed | null>,
   cache: Cache,
@@ -379,7 +379,7 @@ async function answerIssues(
   }
 }
 
-export async function readHistory(gh: Pick<GitHub, 'graphql'>, common: string): Promise<History> {
+export async function readHistory(gh: Pick<Client, 'graphql'>, common: string): Promise<History> {
   const { trunk, name, repoUrl, head, page: first } = await readTrunk(gh, historyOf(''));
   const url = `${link(repoUrl).replace(/\/$/, '')}/commits/${encodeURIComponent(trunk)}`;
   const cache = await loadCache(common);
@@ -428,7 +428,7 @@ export async function readDelivery(
   now: number,
   signal: AbortSignal,
 ): Promise<DeliveryWindow[]> {
-  const gh = github(main, signal);
+  const gh = client(main, signal);
   const from = now - walkDays * 86_400_000;
   const since = `, since: "${new Date(from).toISOString()}"`;
   const { trunk, name, head, page: first } = await readTrunk(gh, historyOf('', since));

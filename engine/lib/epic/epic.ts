@@ -1,9 +1,10 @@
 import { HostError } from '../command/errors.ts';
 import { exits } from '../contract/contract.ts';
+import { services } from '../services/services.ts';
 import { repositoryLayout, withLock } from '../state/state.ts';
 import type { IssueKey } from '../tracker/key.ts';
 import { writeRefreshHint } from '../tracker/refresh-hints.ts';
-import { type GitHub, github } from '../tracker/tracker.ts';
+import type { Tracker } from '../tracker/tracker.ts';
 import {
   type AcceptedEpic,
   type AcceptedEpicResult,
@@ -23,7 +24,7 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
 const passed: readonly number[] = [exits.usage, exits.prerequisite, exits.blocked];
 const nextAction = (n: IssueKey) => `/celetis:accept-epic #${n}`;
 
-async function snapshot(gh: GitHub, n: IssueKey): Promise<EpicSnapshot> {
+async function snapshot(gh: Tracker, n: IssueKey): Promise<EpicSnapshot> {
   try {
     return await gh.epic(n);
   } catch (error) {
@@ -32,10 +33,10 @@ async function snapshot(gh: GitHub, n: IssueKey): Promise<EpicSnapshot> {
 }
 
 export async function readEpic(main: string, n: IssueKey): Promise<EpicSnapshot> {
-  return snapshot(github(main), n);
+  return snapshot(services(main).tracker, n);
 }
 
-async function withEpicLock<T>(
+export async function withEpicLock<T>(
   common: string,
   n: IssueKey,
   signal: AbortSignal | undefined,
@@ -71,7 +72,7 @@ export async function writeEpicDefinition(main: string, common: string, n: Issue
   const declaration = parseEpicAcceptance(body);
   if (declaration.kind === 'unresolved') throw new HostError(`epic: ${declaration.reason}`, exits.usage);
   await withEpicLock(common, n, undefined, async (signal) => {
-    const gh = github(main, signal);
+    const gh = services(main, signal).tracker;
     const current = await snapshot(gh, n);
     const { data, children } = current;
     const lane = laneOf(data.labels);
@@ -175,7 +176,7 @@ export async function completeEpic(
 ): Promise<EpicCompletionResult> {
   const evidence = submission === undefined ? null : structuredClone(submission);
   return withEpicLock(common, n, signal, async (locked) => {
-    const gh = github(main, locked);
+    const gh = services(main, locked).tracker;
     const initial = await snapshot(gh, n);
     const decision = decideEpicCompletion({ snapshot: initial, submission: evidence });
     if (decision.kind === 'closed') return decision;

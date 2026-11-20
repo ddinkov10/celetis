@@ -1,26 +1,17 @@
 import { createHash } from 'node:crypto';
 import { readdir, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
+import { type Bucket, bucket, type Pull as CodeHostPull, type PullDetails } from '../code-host/code-host.ts';
 import type { Operation } from '../command/operation.ts';
 import type { Config } from '../config/core.ts';
 import { run as runProcess } from '../process/process.ts';
 import { readSetAside } from '../queue/set-aside.ts';
 import type { RecoveryAuthority } from '../run/quota-recovery.ts';
+import { services } from '../services/services.ts';
 import { isRecorded, issueLock, landLock, lockHolder } from '../state/locks.ts';
 import { laneFolder } from '../state/state.ts';
 import { compareKeys, type IssueKey } from '../tracker/key.ts';
-import {
-  type Bucket,
-  bucket,
-  type GitHub,
-  GitHubError,
-  github,
-  type Issue,
-  issueData,
-  type PullDetails,
-  parentKey,
-  type Pull as TrackerPull,
-} from '../tracker/tracker.ts';
+import { type Issue, issueData, type Tracker, TrackerError } from '../tracker/tracker.ts';
 import { decisionOf, type EffortDecision, startPair } from '../workflow/effort.ts';
 import {
   type Decision,
@@ -47,7 +38,7 @@ function checkResult(buckets: readonly Bucket[]): Pull['checks'] {
   return buckets.includes('pending') ? 'pending' : 'pass';
 }
 
-function branchPull(pr: TrackerPull, details: PullDetails | undefined): BranchPull {
+function branchPull(pr: CodeHostPull, details: PullDetails | undefined): BranchPull {
   if (details === undefined) throw new Error(`no details of PR #${pr.number}`);
   const latest = new Map<string | null, string>();
   for (const review of details.reviews)
@@ -70,11 +61,11 @@ const unreadable: Observed = { kind: 'observed', reason: 'unreadable' };
 
 function reader(operation: Operation, signal?: AbortSignal) {
   const checkout = operation.checkout.main as string;
-  const gh = github(checkout, signal);
+  const { tracker, codeHost } = services(checkout, signal);
 
   async function openIssues(): Promise<Fetched[]> {
-    const issues = (await gh.openIssues()).filter((issue) => !issue.pull);
-    const histories = await gh.timelines(issues);
+    const issues = (await tracker.openIssues()).filter((issue) => !issue.pull);
+    const histories = await tracker.timelines(issues);
     return issues.map((issue) => ({ issue, data: issueData(issue, histories.get(issue.key) ?? []) }));
   }
 
@@ -114,14 +105,14 @@ function reader(operation: Operation, signal?: AbortSignal) {
     try {
       const value = await work();
       signal?.throwIfAborted();
-      return { value, stderr: gh.stderr() };
+      return { value, stderr: tracker.stderr() };
     } catch (error) {
-      if (signal?.aborted) return { value: missing, stderr: gh.stderr() };
+      if (signal?.aborted) return { value: missing, stderr: tracker.stderr() };
       throw error;
     }
   }
 
-  return { checkout, gh, openIssues, dirty, lanes, observe, settle };
+  return { checkout, tracker, codeHost, openIssues, dirty, lanes, observe, settle };
 }
 
 type Keeps = (lane: string) => Promise<boolean>;
@@ -152,7 +143,7 @@ export async function nextIssue(
     const observed = await read.observe(n, await read.dirty(read.checkout), keeps);
     if (observed) return { next: observed, decided: null, authority: null };
     try {
-      const { data } = await read.gh.read(n);
+      const { data } = await read.tracker.read(n);
       const next = decide(data);
       return { next, decided: decisionOf(data, next), authority: authorityOf(data, next) };
     } catch {
@@ -188,22 +179,22 @@ export async function nextOpen(
 
 const asEpic = ({ key, title }: Issue): ParentEpic => ({ number: key, title });
 
-async function parentEpics(gh: GitHub, open: readonly Fetched[]): Promise<ReadonlyMap<string, ParentEpic>> {
-  const epics = new Map<string, ParentEpic>();
+async function parentEpics(tracker: Tracker, open: readonly Fetched[]): Promise<ReadonlyMap<IssueKey, ParentEpic>> {
+  const epics = new Map<IssueKey, ParentEpic>();
   const read = new Set<IssueKey>();
   for (const { issue } of open) {
-    const n = parentKey(issue);
+    const n = issue.parent;
     if (n === null || read.has(n)) continue;
     read.add(n);
     let parent: Issue;
     try {
-      parent = await gh.issue(n);
+      parent = await tracker.issue(n);
     } catch (error) {
-      if (error instanceof GitHubError && error.notFound) continue;
+      if (error instanceof TrackerError && error.notFound) continue;
       throw error;
     }
-    if (!parent.pull && parent.state === 'open' && parent.labels.includes('epic') && parent.apiUrl === issue.parentUrl)
-      epics.set(parent.apiUrl, asEpic(parent));
+    if (!parent.pull && parent.state === 'open' && parent.labels.includes('epic') && parent.key === n)
+      epics.set(parent.key, asEpic(parent));
   }
   return epics;
 }
@@ -274,9 +265,9 @@ export async function nextBoard(
         for (const key of selected) {
           let fetched: Fetched;
           try {
-            fetched = await read.gh.read(key);
+            fetched = await read.tracker.read(key);
           } catch (error) {
-            if (error instanceof GitHubError && error.endpoint === `issues/${key}` && error.notFound) continue;
+            if (error instanceof TrackerError && error.missing === key) continue;
             throw error;
           }
           if (fetched.issue.pull) continue;
@@ -284,10 +275,10 @@ export async function nextBoard(
           else open.push(fetched);
         }
       }
-      const pulls = (await read.gh.pulls({ state: 'open' })).filter((pr) =>
+      const pulls = (await read.codeHost.pulls({ state: 'open' })).filter((pr) =>
         selected === null ? holdsAnyKey(pr.head.ref) : [...selected].some((key) => holdsKey(pr.head.ref, key)),
       );
-      const details = await read.gh.pullDetails(pulls);
+      const details = await read.codeHost.pullDetails(pulls);
       const prs = pulls.map((pr) => branchPull(pr, details.get(pr.number)));
       const dirtyLanes: string[] = [];
       const paths =
@@ -297,12 +288,12 @@ export async function nextBoard(
       for (const path of paths) if (await read.dirty(path)) dirtyLanes.push(path);
       const epics =
         selected === null
-          ? new Map(open.filter((f) => f.issue.labels.includes('epic')).map((f) => [f.issue.apiUrl, asEpic(f.issue)]))
-          : await parentEpics(read.gh, open);
+          ? new Map(open.filter((f) => f.issue.labels.includes('epic')).map((f) => [f.issue.key, asEpic(f.issue)]))
+          : await parentEpics(read.tracker, open);
       const rows: Shown[] = [];
       for (const fetched of open.sort((a, b) => compareKeys(a.issue.key, b.issue.key))) {
-        const { parentUrl } = fetched.issue;
-        const epic = parentUrl === null ? null : (epics.get(parentUrl) ?? null);
+        const { parent } = fetched.issue;
+        const epic = parent === null ? null : (epics.get(parent) ?? null);
         const row = shownRow(fetched, prs, dirtyLanes, epic, operation.mainConfig);
         if (row !== null) rows.push(row);
       }

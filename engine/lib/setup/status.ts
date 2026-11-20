@@ -5,8 +5,9 @@ import type { Operation } from '../command/operation.ts';
 import { readConfig } from '../config/config.ts';
 import { type Config, ConfigError, type Host } from '../config/core.ts';
 import { type ExitCode, exits, labels, setupStatusClosing } from '../contract/contract.ts';
+import { loggedIn } from '../github/github.ts';
 import { run } from '../process/process.ts';
-import { github, loggedIn } from '../tracker/tracker.ts';
+import { services } from '../services/services.ts';
 import { parseSetupRecord, type WiringRecord } from './record.ts';
 import {
   ambiguousJSON,
@@ -334,9 +335,9 @@ class Status {
   }
 
   async tracker({ host, repository: name }: Origin): Promise<void> {
-    const tracker = github(this.root, undefined, { ...process.env, GH_HOST: host, GH_REPO: name });
+    const { tracker, codeHost } = services(this.root, undefined, { ...process.env, GH_HOST: host, GH_REPO: name });
     try {
-      await tracker.repository();
+      await codeHost.repository();
     } catch {
       this.add('blocked', name, 'cannot read the GitHub repository of origin with gh');
       return;

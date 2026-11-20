@@ -1,6 +1,6 @@
+import { bucket, type CheckRun, type Pull, runBucket, type WorkflowRun } from '../code-host/code-host.ts';
 import { HostError } from '../command/errors.ts';
 import { writeRefreshHint } from '../tracker/refresh-hints.ts';
-import { bucket, type CheckRun, type Pull, runBucket, type WorkflowRun } from '../tracker/tracker.ts';
 import { branchPattern, closesLine, keyedSubject } from '../workflow/workflow.ts';
 import type { LandingContext, Mechanism } from './landing.ts';
 
@@ -18,18 +18,21 @@ export function prMechanism(context: LandingContext): Mechanism {
     async check() {
       if (merging === undefined) return;
       const pr = merging;
-      if (!matches(await tracked((gh) => gh.pull(pr))))
+      if (!matches(await tracked(({ codeHost }) => codeHost.pull(pr))))
         die('repair', `the head or base of PR #${pr} changed; ${stale}`);
     },
     async land() {
       const merged = await checked(
-        (gh) => gh.pulls({ head: branch, state: 'closed' }),
+        ({ codeHost }) => codeHost.pulls({ head: branch, state: 'closed' }),
         `cannot list the PRs of ${branch} on GitHub`,
       );
       if (merged.some((pull) => pull.mergedAt && pull.base.ref === trunk && pull.head.sha === tip)) return;
       if ((await gitRaw(['merge-tree', '--write-tree', base, tip])).code !== 0)
         die('repair', `${branch} conflicts with ${trunk}; ${stale}`);
-      const open = await checked((gh) => gh.pulls({ state: 'open' }), 'cannot list the open PRs on GitHub');
+      const open = await checked(
+        ({ codeHost }) => codeHost.pulls({ state: 'open' }),
+        'cannot list the open PRs on GitHub',
+      );
       const lane = open.filter((pull) => branchPattern(n).test(pull.head.ref));
       for (const pull of lane) {
         if (pull.base.ref !== trunk)
@@ -59,7 +62,8 @@ export function prMechanism(context: LandingContext): Mechanism {
       } else {
         await preflight();
         url = await checked(
-          (gh) => gh.createPull({ base: trunk, head: branch, title: keyedSubject(subject, n), body: closesLine(n) }),
+          ({ codeHost }) =>
+            codeHost.createPull({ base: trunk, head: branch, title: keyedSubject(subject, n), body: closesLine(n) }),
           `cannot open the PR of ${branch}`,
         );
         await writeRefreshHint(main, n);
@@ -74,11 +78,13 @@ export function prMechanism(context: LandingContext): Mechanism {
       const rerunPick = async (): Promise<boolean> => {
         let red: CheckRun[], failed: boolean, runs: readonly WorkflowRun[];
         try {
-          red = (await tracked((gh) => gh.checkRuns(tip))).filter((check) =>
+          red = (await tracked(({ codeHost }) => codeHost.checkRuns(tip))).filter((check) =>
             ['fail', 'cancel'].includes(bucket(check)),
           );
-          failed = (await tracked((gh) => gh.statuses(tip))).some((status) => bucket(status) === 'fail');
-          runs = await tracked((gh) => gh.workflowRuns(tip));
+          failed = (await tracked(({ codeHost }) => codeHost.statuses(tip))).some(
+            (status) => bucket(status) === 'fail',
+          );
+          runs = await tracked(({ codeHost }) => codeHost.workflowRuns(tip));
         } catch (error) {
           emitError(error);
           return notGreen();
@@ -103,28 +109,28 @@ export function prMechanism(context: LandingContext): Mechanism {
         return true;
       };
       const green = async (): Promise<0 | 1 | 2> => {
-        const head = await tracked((gh) => gh.pull(pr), true).catch(() => null);
+        const head = await tracked(({ codeHost }) => codeHost.pull(pr), true).catch(() => null);
         if (!matches(head)) {
           buckets = `the PR head or base does not match ${branch} at ${tip} on ${trunk}`;
           return 1;
         }
         for (const id of reruns) {
-          const run = await tracked((gh) => gh.workflowRun(id), true).catch(() => null);
+          const run = await tracked(({ codeHost }) => codeHost.workflowRun(id), true).catch(() => null);
           if (!run || run.attempt < 2 || run.status !== 'completed') {
             buckets = 'the re-run is not done';
             return 1;
           }
         }
-        const runs = await tracked((gh) => gh.workflowRuns(tip), true).catch(() => null);
+        const runs = await tracked(({ codeHost }) => codeHost.workflowRuns(tip), true).catch(() => null);
         let checkRuns: readonly CheckRun[] = [];
         let red: readonly WorkflowRun[] = [];
         try {
-          checkRuns = await tracked((gh) => gh.checkRuns(tip), true);
+          checkRuns = await tracked(({ codeHost }) => codeHost.checkRuns(tip), true);
           const added = (runs ?? []).map((run) => ({ run, value: runBucket(run, checkRuns) }));
           red = added.filter(({ value }) => value === 'fail' || value === 'cancel').map(({ run }) => run);
           const values = [
             ...checkRuns.map(bucket),
-            ...(await tracked((gh) => gh.statuses(tip), true)).map(bucket),
+            ...(await tracked(({ codeHost }) => codeHost.statuses(tip), true)).map(bucket),
             ...added.flatMap(({ value }) => value ?? []),
           ];
           buckets = [...new Set(values)].sort().join(' ');
@@ -180,7 +186,7 @@ export function prMechanism(context: LandingContext): Mechanism {
         for (const id of reruns) {
           await preflight();
           await checked(
-            (gh) => gh.rerunFailedJobs(id),
+            ({ codeHost }) => codeHost.rerunFailedJobs(id),
             `GitHub refused the re-run of the failed checks of PR #${pr}: ${url}`,
           );
         }
@@ -196,7 +202,10 @@ export function prMechanism(context: LandingContext): Mechanism {
       if ((await green()) !== 0) notGreen();
       merging = pr;
       await preflight();
-      await checked((gh) => gh.mergePull(pr, tip), `cannot merge PR #${pr} at ${tip}; the PR stays open: ${url}`);
+      await checked(
+        ({ codeHost }) => codeHost.mergePull(pr, tip),
+        `cannot merge PR #${pr} at ${tip}; the PR stays open: ${url}`,
+      );
       await writeRefreshHint(main, n);
       for (const check of flaky)
         console.log(

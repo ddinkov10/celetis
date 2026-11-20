@@ -78,9 +78,13 @@ completion criterion of a skill.
   \`celetis --agent <host> issue <n> comment <file>\` for each other comment. \`issue create\` prints
   the URL of the new issue first. With a URL on stdout, the issue exists, also on a nonzero exit:
   continue with its key, and never create it again. With no URL on stdout, the exit line says
-  whether the issue can exist: when it can, read the open issues before a new create. Use \`gh\`
-  for reads, for the sub-issue link of an epic child, and for writes to another
-  repository (\`<plugin>/docs/issue-tracker.md\`, "Conventions", lists the acts and the \`gh\` forms).
+  whether the issue can exist: when it can, list the open issues with
+  \`celetis --agent <host> issue list\` before a new create. Read an issue with
+  \`celetis --agent <host> issue <n> view\`, or the newest comment with a given first line with
+  \`celetis --agent <host> issue <n> view --latest '<heading>'\`, and link a child to its epic with
+  \`celetis --agent <host> issue <epic> link <child>\`. On exit 6 of a read, report the
+  \`issue: blocked:\` line and stop. Use \`gh\` only for the code host and for another repository
+  (\`<plugin>/docs/issue-tracker.md\`, "Conventions", lists the acts).
 - **Skills.** Invoke a skill as the part of the host says. Each invocation is a new entry, with its
   own checkout and its own custom text: a same-session handoff and an invocation in a child agent
   too. Keep the invocation input across a handoff. A missing required Superpowers skill stops the
@@ -6364,6 +6368,28 @@ var issueActs = {
     prerequisite: "an issue, open or closed; not a pull request",
     writes: "the file as a comment, with each `--attach` file uploaded (the flag repeats, at most 50 times); it refuses a first line that is a lifecycle heading or the effort marker"
   },
+  view: {
+    words: ["view"],
+    flags: [optional("--latest", "<heading>")],
+    argument: "none",
+    prerequisite: "an issue, open or closed; not a pull request",
+    writes: "nothing; the JSON of the issue, or with `--latest` the body of the newest comment whose first line is the heading"
+  },
+  list: {
+    words: ["list"],
+    flags: [],
+    argument: "none",
+    numbered: false,
+    prerequisite: "none; it takes no issue key",
+    writes: "nothing; the JSON list of the open issues"
+  },
+  link: {
+    words: ["link", "<child>"],
+    flags: [],
+    argument: "key",
+    prerequisite: "two open issues, not pull requests; the child has no other parent",
+    writes: "the sub-issue link, then the refresh hint of each issue; no write when the link exists"
+  },
   epic: {
     words: ["epic", "<file>"],
     flags: [],
@@ -6475,7 +6501,7 @@ var flagText = ({ name, value, optional }) => {
   return optional ? `[${text}]` : text;
 };
 var formText = ({ words, flags }) => [...words, ...flags.map(flagText)].join(" ");
-var issueActList = Object.values(issueActs).filter(({ words }) => words[0] !== "epic-state" && words[0] !== "state").map((act) => `\`${formText(act)}\``).join(", ");
+var issueActList = Object.values(issueActs).filter(({ words }) => !["epic-state", "state", "view", "list"].includes(words[0])).map((act) => `\`${formText(act)}\``).join(", ");
 var dispatchForms = [
   form("dispatch next <n> <task> implementer|reviewer J V B N S X", [required("--bias", "N"), ...profileFlags]),
   form("dispatch report <dispatch-id> <report-file>"),
@@ -6544,7 +6570,7 @@ var commands = [
   entry("worktree", true, [form("worktree <n>")], "Makes the lane worktree and the branch of the issue, or enters the one that is there and brings it up to the trunk, and prints its path", worktreeExits),
   entry("worktree", true, [form("worktree --remove <n>")], "Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first", worktreeExits),
   entry("land", true, [form("land <n> '<subject>'")], `Lands the change of the issue by the \`landing\` field of \`.celetis.yaml\`. It is the one landing path of an agent. The master daemon of the repository runs the landing, and \`land\` prints its output and exits with its status; with no daemon, or a daemon of another revision, it exits ${exits.prerequisite}, when the daemon does not answer ${exits.blocked}, and for another refusal of the request by the daemon it exits with the code of that refusal. It refuses an issue that is not ready to land. It exits ${exits.cleanup} when the change landed and its cleanup stopped; run it again`, ["done", "internal", "usage", "prerequisite", "repair", "checks", "blocked", "cleanup", "signal"]),
-  entry("issue", true, Object.values(issueActs).map((act) => form("numbered" in act ? ["issue", ...act.words] : ["issue", "<n>", ...act.words], act.flags)), `Makes each issue write of a session in the repository of the checkout: ${issueActList}. The acts other than \`create\` and \`comment\` are the workflow writes that the engine reads. \`create\` prints the URL of the new issue before any other write: a URL on stdout means that the issue exists, also on a nonzero exit. \`comment\` refuses a file whose first line is a lifecycle heading or the effort marker, and names the act for that write. The assistance act records an attributed \`## Human steps done\` report before removing present blocking labels; it adds no label and preserves build state. Lifecycle acts write the comment heading before label changes. Each act refuses unmet prerequisites. \`state\` writes nothing and prints lifecycle facts. \`epic-state\` writes nothing and prints the current declaration, child snapshot, history, and holds. Epic definition writes preserve the complete parent body; guarded completion publishes its accepted record before closing and leaves readiness labels unchanged. \`docs/issue-tracker.md\`, "Conventions", gives each act`),
+  entry("issue", true, Object.values(issueActs).map((act) => form("numbered" in act ? ["issue", ...act.words] : ["issue", "<n>", ...act.words], act.flags)), `Makes each issue write of a session in the repository of the checkout: ${issueActList}. Its acts \`view\` and \`list\` read and write nothing: \`view\` prints the JSON of an issue, with its parent, its children, and its history, and \`view --latest\` prints the body of the newest comment whose first line is the heading; \`list\` prints the open issues as JSON. \`link\` makes the child a sub-issue of the epic under the epic lock, and writes nothing when the link exists. The acts other than the reads, \`create\`, \`comment\`, and \`link\` are the workflow writes that the engine reads. \`create\` prints the URL of the new issue before any other write: a URL on stdout means that the issue exists, also on a nonzero exit. \`comment\` refuses a file whose first line is a lifecycle heading or the effort marker, and names the act for that write. The assistance act records an attributed \`## Human steps done\` report before removing present blocking labels; it adds no label and preserves build state. Lifecycle acts write the comment heading before label changes. Each act refuses unmet prerequisites. \`state\` writes nothing and prints lifecycle facts. \`epic-state\` writes nothing and prints the current declaration, child snapshot, history, and holds. Epic definition writes preserve the complete parent body; guarded completion publishes its accepted record before closing and leaves readiness labels unchanged. \`docs/issue-tracker.md\`, "Conventions", gives each act`),
   entry("next-step", true, [form("next-step <n>"), form("next-step", [required("--open")])], "The resolver: the next step of one issue, or of each open issue"),
   entry("events", true, [form("events", [optional("--after", "<id>")])], `Prints each kept entry of the event record of the user as one JSON line, oldest first; \`--after <id>\` prints only the entries after that entry. \`engine/README.md\`, "The event record", gives the record. It exits ${exits.usage} for a relative \`CELETIS_HOME\`, ${exits.prerequisite} when the record lock is busy, and ${exits.blocked} for an unsafe folder or lock file`),
   entry("config", true, [form("config <checkout> <plugin>")], `The reader of \`.celetis.yaml\` for the agent. It first checks that \`<plugin>\` is a Celetis plugin: a folder whose \`.claude-plugin/plugin.json\` has \`"name": "celetis"\`. It then validates the whole file of \`<checkout>\`, and checks each \`custom\` key against \`<plugin>/skills/<key>/SKILL.md\`, a regular file with no symbolic link. It prints the configuration as one compact JSON line. \`--agent\` selects nothing. It exits ${exits.usage} for another form, a folder that is not a Celetis plugin, or a missing or invalid file; the line names the field or the plugin folder`),

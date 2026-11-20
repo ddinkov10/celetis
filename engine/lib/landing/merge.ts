@@ -2,8 +2,8 @@ import { join } from 'node:path';
 import { HostError } from '../command/errors.ts';
 import { exits } from '../contract/contract.ts';
 import { streamBun } from '../process/process.ts';
+import { services } from '../services/services.ts';
 import type { IssueKey } from '../tracker/key.ts';
-import { github } from '../tracker/tracker.ts';
 import { keyedSubject } from '../workflow/workflow.ts';
 import type { LandingContext, Mechanism } from './landing.ts';
 
@@ -11,7 +11,7 @@ export function mergeMechanism(context: LandingContext, suite: string): Mechanis
   const { n, subject, main, trunk, branch, tip, base, checkout, stale, signal } = context;
   const { git, gitRaw, tracked, die, interrupted, preflight, setCleanup } = context;
   const closeIssue = async (issue: IssueKey, body: string) => {
-    const gh = github(main, signal);
+    const gh = services(main, signal).tracker;
     await gh.comment(issue, body);
     await gh.edit(issue, { state: 'closed', state_reason: 'completed' });
     process.stderr.write(gh.stderr());
@@ -88,7 +88,7 @@ export function mergeMechanism(context: LandingContext, suite: string): Mechanis
         await git(['merge', '-q', '--ff-only', commit], undefined, main);
         setCleanup(open);
       }
-      const issue = await tracked((gh) => gh.issue(n));
+      const issue = await tracked(({ tracker }) => tracker.issue(n));
       if (issue.state !== 'closed') await closeIssue(n, `Landed on ${trunk}${commit ? ` in ${commit}` : ''}.`);
     },
     async after() {},

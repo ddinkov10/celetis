@@ -6,12 +6,13 @@ own completion and continuation rules.
 
 ## Resolve and work
 
-1. Read the current issue with `gh issue view <n> --comments`, then run
+1. Read the current issue with `celetis --agent <host> issue <n> view` (exit 6: report the
+   `issue: blocked:` line and stop), then run
    `celetis --agent <host> issue <n> state` and `celetis --agent <host> next-step <n>`.
    If the issue is closed or has no current assistance block, report that result and stop.
 2. Identify every current request affected by a completion report and removal of `needs-info`
    and `ready-for-human`. When scope or clearance is uncertain, read the ordered timeline with
-   `gh api --paginate 'repos/{owner}/{repo}/issues/<n>/timeline?per_page=100'` and
+   the `history` of `celetis --agent <host> issue <n> view` and
    `<plugin>/docs/issue-tracker.md`, "Completing a human precondition" and "Resolving an issue's
    state". The latest plan defines the current build; compare positions when timestamps match.
 3. State the block and available machine work in the first useful answer. Complete permitted

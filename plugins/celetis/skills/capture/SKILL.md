@@ -43,9 +43,10 @@ change. Input: `#<n>`, or the request in free text.
    Free text has no issue yet; it gets one at step 4, on the `run /celetis:triage` row.
 2. **Find the decided work.** Read this conversation and sort what it holds into the three parts
    of the record, per `<plugin>/references/procedures/capture.md`, "The record". For `#<n>`, read the
-   issue with `gh issue view <n> --json body,comments`, and carry into the new record each line
-   of the newest earlier `## Captured` comment that this chat did not change, so that the newest
-   record is always complete. With no decided work, stop and write nothing: name
+   issue with `celetis --agent <host> issue <n> view --latest '## Captured'`, and carry into the
+   new record each line of that newest earlier comment that this chat did not change, so that the
+   newest record is always complete. Exit 3 means no earlier record: write the first one. Exit 6:
+   report the `issue: blocked:` line and stop. With no decided work, stop and write nothing: name
    `/celetis:intake` for a new request, or the lane for a known type.
 3. **Confirm the record.** Show the whole record and ask whether it is what the person decided.
    On a correction, correct the record and show it again. Post nothing before the person's yes.

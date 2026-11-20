@@ -17,15 +17,16 @@ The skills use these forms:
 - **Create an issue**: `celetis --agent <host> issue create <file>`. The first line of the file
   is `# Intent: <title>`; the act takes the title from it, posts the whole file as the body, and
   sets `needs-triage`.
-- **Read an issue**: `gh issue view <n> --comments`; for structured output `--json number,title,body,labels,comments`.
-- **List issues**: `gh issue list --state open --json number,title,labels --jq '.[] | "#\(.number)\t\([.labels[].name] | join(","))\t\(.title)"'`, filtered with `--label` and `--state`.
+- **Read an issue**: `celetis --agent <host> issue <n> view` prints the JSON of the issue: `key`, `title`, `url`, `state`, `labels`, `body`, `parent`, `children`, and `history` (the ordered timeline; each comment has its `author`, `null` when GitHub gives no user). `view --latest '<heading>'` prints the body of the newest comment whose first line is the heading, and exits 3 when none matches. A pull request exits 3, and a read failure exits 6.
+- **List issues**: `celetis --agent <host> issue list` prints the open issues with no pull request as a JSON array of `{ key, title, url, labels }`.
+- **Link a sub-issue**: `celetis --agent <host> issue <epic> link <child>` makes the child a sub-issue of the epic; it writes nothing when the link exists.
 - **Comment**: `celetis --agent <host> issue <n> comment <file>`, with one
   `--attach '<file>#<alt text>'` for each image or video.
 
 Each issue write in the repository of the checkout goes through an act
 ([the entry](../references/procedures/entry.md#the-contract), **GitHub.**), so each write leaves
-the refresh hint that a running board reads. `gh` serves the reads, the sub-issue link of an epic
-child, and the writes to another repository. In this document, `issue <n> <act>` stands for
+the refresh hint that a running board reads. The acts `view`, `list`, and `link` serve the reads
+and the sub-issue link; `gh` serves the code host and the writes to another repository. In this document, `issue <n> <act>` stands for
 `celetis --agent <host> issue <n> <act>`, and `issue create <file>` for
 `celetis --agent <host> issue create <file>`, which takes no issue key. The command reads the issue
 once, checks the prerequisite of the act with the rules of the resolver, and then writes. Epic acts
@@ -38,6 +39,9 @@ also use the protected current-state reads in "Epic completion and repair":
 | `effort <step> <model> <level> <file>` | open | an `Effort: <step> <model> <level>` comment ("What lives on the issue", "Effort"); no label change |
 | `create <file>` | none; it takes no issue key | a new issue with the title from the first line `# Intent: <title>`, the whole file as its body, and `needs-triage`; it prints the URL of the new issue first |
 | `comment <file> [--attach <file>#<alt>]` | an issue, open or closed; not a pull request | the file as a comment, with each `--attach` file uploaded (the flag repeats, at most 50 times); it refuses a first line that is a lifecycle heading or the effort marker |
+| `view [--latest <heading>]` | an issue, open or closed; not a pull request | nothing; the JSON of the issue, or with `--latest` the body of the newest comment whose first line is the heading |
+| `list` | none; it takes no issue key | nothing; the JSON list of the open issues |
+| `link <child>` | two open issues, not pull requests; the child has no other parent | the sub-issue link, then the refresh hint of each issue; no write when the link exists |
 | `epic <file>` | open feature or epic; valid declaration and current child references | the complete parent body, then adds `epic` and removes `enhancement` as needed; clears no hold |
 | `epic-state` | readable parent and complete children | nothing; the JSON snapshot of "Epic acceptance submission" |
 | `complete-epic [file]` | "Epic completion and repair" | an accepted record, then closes as completed; an already closed parent has no write |
@@ -336,8 +340,8 @@ a comment with no marker, need both (below). The engine counts only a report or 
 comment of the current build (below). Label absence alone is not completion evidence: a label write
 can fail.
 
-The engine checks this evidence from the timeline of the issue,
-`gh api --paginate 'repos/{owner}/{repo}/issues/<n>/timeline?per_page=100'` (`factsOf` in
+The engine checks this evidence from the timeline of the issue, which the tracker port reads
+with `history` (the `history` of `issue <n> view`; `factsOf` in
 `engine/lib/workflow/workflow.ts` of the engine). "After" is a later position in the timeline, not a later
 time. The current build starts at the latest `## Plan` comment; for a lane with no `plan` step
 (`chore`, `hotfix`), it starts at the start of the issue. A `## Before landing` comment before that
@@ -369,9 +373,8 @@ authorship supplies no independent attestation. The engine checks shape and time
 
 ## Resolving an issue's state
 
-`gh issue view <n> --json state,labels,body`, and the timeline of the issue
-(`gh api --paginate 'repos/{owner}/{repo}/issues/<n>/timeline?per_page=100'`) for its comments and
-label changes in order.
+`issue <n> view` reads `state`, `labels`, and `body`, and its `history` (the timeline of the issue)
+holds the comments and the label changes in order.
 
 - **routed** — carries one lane label (`bug`, `enhancement`, `hotfix`, `chore`) or `epic`; unrouted, with neither → `/celetis:triage #<n>`.
 - **several lanes** — two or more lane labels: no step starts until you keep one lane label.

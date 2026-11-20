@@ -100,7 +100,10 @@ call libraries in `engine/lib/`, which holds only feature folders. These are the
 | --- | --- |
 | `engine/lib/workflow/` | `workflow.ts`, the one definition of the workflow: the lanes, the steps, the stages, the gates, and the skip rule. A product project cannot change it. |
 | `engine/lib/resolver/` | `resolver.ts`, which decides the next step of an issue (`nextIssue`, `nextOpen`). |
-| `engine/lib/tracker/` | `tracker.ts`, the one place that runs `gh` for GitHub data. |
+| `engine/lib/tracker/` | `tracker.ts`, the tracker port: the reads and writes of an issue, their types, and the error `TrackerError`. |
+| `engine/lib/code-host/` | `code-host.ts`, the code-host port: the repository, the PRs, the checks, and the error `CodeHostError`. |
+| `engine/lib/github/` | The GitHub adapter, the one place that runs `gh` for GitHub data: the client `github.ts` and the adapters of the two ports. |
+| `engine/lib/services/` | `services.ts`, which makes the two ports over one GitHub client. |
 | `engine/lib/landing/` | The landing of a change on the trunk. |
 | `engine/lib/daemon/` | The server, the client, and the landing of the master daemon. |
 | `engine/lib/run/` | The run machine of the daemon: `engine.ts`, `machine.ts`, and `activities.ts`. |
@@ -176,7 +179,8 @@ These rules hold in each part.
   and the next daemon takes them over
   ([ADR-0072](../../docs/adr/0072-one-master-daemon-runs-every-issue-run.md)).
 - No library module imports a command file. Each GitHub call of the engine goes through the tracker
-  port. The read side of the board reads engine state through `board-read.ts`.
+  port or the code-host port; only the History read of `board-read.ts` uses the GitHub client
+  directly. The read side of the board reads engine state through `board-read.ts`.
   `checkImports` in `scripts/verify.ts` checks the command-file rule and the read side of the
   board ([ADR-0081](../../docs/adr/0081-the-resolver-and-the-updater-are-libraries-and-no-library-imports-a-command.md),
   [ADR-0082](../../docs/adr/0082-every-github-call-goes-through-the-tracker-port.md),
@@ -207,9 +211,10 @@ a session share one contract version ([the engine document](../../engine/README.
 What crosses the line: the commands that skills call, in the forms that `engine/lib/contract/contract.ts`
 declares.
 
-**The engine and GitHub.** The engine logs in through `gh`. `engine/lib/tracker/tracker.ts` is the
-one place that runs `gh` for GitHub data. It parses each response into a domain type before a
-caller sees it, and a response that it refuses becomes the one error `GitHubError`
+**The engine and GitHub.** The engine logs in through `gh`. The GitHub adapter in
+`engine/lib/github/` is the one place that runs `gh` for GitHub data. It parses each response into
+a domain type before a caller sees it. A caller uses the tracker port or the code-host port, and
+catches the error of that port: `TrackerError` or `CodeHostError`
 ([ADR-0082](../../docs/adr/0082-every-github-call-goes-through-the-tracker-port.md)). A step session
 writes to an issue through the command `issue` (`engine/issue.ts`), which checks the prerequisite of
 each act against the history of the issue before it writes

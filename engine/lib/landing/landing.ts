@@ -1,4 +1,5 @@
 import { constants } from 'node:os';
+import { CodeHostError } from '../code-host/code-host.ts';
 import { HostError } from '../command/errors.ts';
 import { createOperation, type HostSelection, locateCheckouts } from '../command/operation.ts';
 import type { Config } from '../config/core.ts';
@@ -10,9 +11,10 @@ import { LessonError } from '../lesson/record.ts';
 import { readLessons } from '../lesson/store.ts';
 import { run } from '../process/process.ts';
 import { lineOf } from '../resolver/lines.ts';
+import { type Services, services } from '../services/services.ts';
 import type { IssueKey } from '../tracker/key.ts';
 import { writeRefreshHint } from '../tracker/refresh-hints.ts';
-import { type GitHub, GitHubError, github } from '../tracker/tracker.ts';
+import { TrackerError } from '../tracker/tracker.ts';
 import { branchGlobs, decide, landable } from '../workflow/workflow.ts';
 import { checkoutOf, removeLane } from '../workflow/worktree.ts';
 import { mergeMechanism } from './merge.ts';
@@ -35,8 +37,8 @@ export type LandingContext = Readonly<{
   signal: AbortSignal;
   git(args: string[], refusal?: readonly [ExitClass, string], at?: string): Promise<string>;
   gitRaw(args: string[], at?: string): Promise<{ code: number; stdout: string; stderr: string }>;
-  tracked<T>(call: (gh: GitHub) => Promise<T>, quiet?: boolean): Promise<T>;
-  checked<T>(call: (gh: GitHub) => Promise<T>, message: string): Promise<T>;
+  tracked<T>(call: (services: Services) => Promise<T>, quiet?: boolean): Promise<T>;
+  checked<T>(call: (services: Services) => Promise<T>, message: string): Promise<T>;
   die(outcome: ExitClass, message: string): never;
   interrupted(): void;
   stopped(): ExitCode;
@@ -105,22 +107,22 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
       process.stderr.write(result.stderr);
       return result.stdout.trimEnd();
     };
-    const tracked = async <T>(call: (gh: GitHub) => Promise<T>, quiet = false): Promise<T> => {
+    const tracked = async <T>(call: (services: Services) => Promise<T>, quiet = false): Promise<T> => {
       interrupted();
-      const gh = github(main, signal);
+      const gh = services(main, signal);
       let result: T;
       try {
         result = await call(gh);
       } catch (error) {
         interrupted();
-        if (!(error instanceof GitHubError)) throw error;
-        if (!quiet && error.stderr === null) process.stderr.write(gh.stderr());
+        if (!(error instanceof TrackerError || error instanceof CodeHostError)) throw error;
+        if (!quiet && error.stderr === null) process.stderr.write(gh.tracker.stderr());
         throw new HostError(error.text, exits.blocked);
       }
-      if (!quiet) process.stderr.write(gh.stderr());
+      if (!quiet) process.stderr.write(gh.tracker.stderr());
       return result;
     };
-    const checked = async <T>(call: (gh: GitHub) => Promise<T>, message: string): Promise<T> => {
+    const checked = async <T>(call: (services: Services) => Promise<T>, message: string): Promise<T> => {
       try {
         return await tracked(call);
       } catch (error) {
@@ -129,7 +131,7 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
         return die('blocked', message);
       }
     };
-    const repo = await checked((gh) => gh.repository(), 'cannot read the default branch from GitHub');
+    const repo = await checked(({ codeHost }) => codeHost.repository(), 'cannot read the default branch from GitHub');
     trunk = repo.defaultBranch;
     branch = await git(['branch', '--list', '--format=%(refname:lstrip=2)', ...branchGlobs(n)]);
     if (!branch) die('usage', `no lane branch matches #${n}; nothing to land`);
@@ -163,14 +165,15 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
         die('blocked', 'the landing mechanism changed; invoke landing again');
       if (fresh.checkout.main !== operation.checkout.main || fresh.checkout.common !== common)
         die('blocked', 'the checkout changed; invoke landing again');
-      const gh = github(main, signal);
+      const gh = services(main, signal).tracker;
       const read = await gh.read(n).catch(() => null);
       process.stderr.write(gh.stderr());
       interrupted();
       const decision = read ? decide(read.data) : die('blocked', `cannot read #${n} from GitHub`);
       if (!landable(decision)) die('prerequisite', `#${n} is not ready to land: ${lineOf(n, decision)}`);
       if (
-        (await checked((gh) => gh.repository(), 'cannot read the default branch from GitHub')).defaultBranch !== trunk
+        (await checked(({ codeHost }) => codeHost.repository(), 'cannot read the default branch from GitHub'))
+          .defaultBranch !== trunk
       )
         die('blocked', `the default branch changed from ${trunk}; invoke landing again`);
       await git(['fetch', '-q', 'origin', trunk], ['blocked', `cannot fetch ${trunk} from origin`]);
@@ -216,7 +219,7 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
       let parent: IssueKey;
       try {
         interrupted();
-        const found = await github(main, signal).parent(n);
+        const found = await services(main, signal).tracker.parent(n);
         parent = found.key;
         const repository = parseEpicRepository(found.url.slice(0, -`/issues/${parent}`.length));
         if (repository !== parseEpicRepository(repo.url)) {
@@ -226,9 +229,9 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
           return;
         }
       } catch (error) {
-        if (!(error instanceof GitHubError && error.notFound))
+        if (!(error instanceof TrackerError && error.notFound))
           console.log(
-            `land: warning: cannot read the parent of #${n}: ${error instanceof GitHubError ? error.text : errorText(error)}`,
+            `land: warning: cannot read the parent of #${n}: ${error instanceof TrackerError ? error.text : errorText(error)}`,
           );
         return;
       }

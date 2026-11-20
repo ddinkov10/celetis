@@ -308,6 +308,11 @@ const readSide: ReadonlySet<string> = new Set(
 const engineState: ReadonlySet<string> = new Set([
   'resolver/resolver',
   'tracker/tracker',
+  'code-host/code-host',
+  'github/github',
+  'github/tracker',
+  'github/code-host',
+  'services/services',
   'command/operation',
   'run/quota-recovery',
   'agent/usage',

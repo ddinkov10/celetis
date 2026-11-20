@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:p
 import { isDeepStrictEqual } from 'node:util';
 import { CST, Parser } from 'yaml';
 import { initializeAgentOrder, readAgentOrder, validateAgentOrder } from './lib/agent/order.ts';
+import { CodeHostError } from './lib/code-host/code-host.ts';
 import { HostError } from './lib/command/errors.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/command/operation.ts';
 import { readConfig } from './lib/config/config.ts';
@@ -15,6 +16,7 @@ import { hostAdapter, type Need, requireCan } from './lib/host/hosts.ts';
 import { checkClaudePolicy } from './lib/plugin/policy.ts';
 import { childEnv, run } from './lib/process/process.ts';
 import { engineRelease } from './lib/release/release.ts';
+import { services } from './lib/services/services.ts';
 import { editJSON, jsonStyle, layoutJSON } from './lib/setup/json-layout.ts';
 import { parseSetupRecord, type SetupEntry, type WiringRecord } from './lib/setup/record.ts';
 import { setupStatus } from './lib/setup/status.ts';
@@ -40,7 +42,7 @@ import {
 } from './lib/setup/wiring.ts';
 import { installRecorder, markDefect, passOn } from './lib/state/events.ts';
 import { laneFolder, laneFolderName } from './lib/state/state.ts';
-import { GitHubError, github } from './lib/tracker/tracker.ts';
+import { TrackerError } from './lib/tracker/tracker.ts';
 import { markerOf, removeCheckout, runSetup, setupFile, worktrees } from './lib/workflow/worktree.ts';
 
 const subject = 'chore(celetis): wire the project for the celetis lanes';
@@ -90,7 +92,7 @@ function fail(message: string, code: ExitCode = exits.prerequisite): never {
 }
 async function fromGitHub<T>(call: Promise<T>, message: string): Promise<T> {
   return call.catch((error: unknown) => {
-    if (!(error instanceof GitHubError)) throw error;
+    if (!(error instanceof TrackerError || error instanceof CodeHostError)) throw error;
     process.stderr.write(error.stderr ?? `${error.text}\n`);
     return fail(message, exits.blocked);
   });
@@ -359,7 +361,10 @@ class Setup {
   }
   async checkTrunk(): Promise<void> {
     await this.checkMain();
-    const repo = await fromGitHub(github(this.cwd).repository(), 'origin is not a GitHub repository that gh can read');
+    const repo = await fromGitHub(
+      services(this.cwd).codeHost.repository(),
+      'origin is not a GitHub repository that gh can read',
+    );
     this.trunk = repo.defaultBranch;
     const branch = await this.git(['branch', '--show-current']);
     if (branch !== this.trunk)
@@ -914,7 +919,7 @@ class Setup {
     return readFile(join(this.cwd, path));
   }
   async makeLabels(): Promise<void> {
-    const tracker = github(this.cwd);
+    const { tracker } = services(this.cwd);
     const names = await fromGitHub(tracker.labels(), 'cannot list the labels');
     for (const name of labels) {
       const [description, color] = labelStyles[name];

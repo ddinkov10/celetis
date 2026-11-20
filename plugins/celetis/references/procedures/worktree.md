@@ -39,7 +39,8 @@ conflict after its final review. In order:
 
 1. Enter the printed checkout (the part of the host below).
 2. Read the other side: the trunk commits after the merge base (`git log HEAD..origin/<trunk>`),
-   and each issue that their subjects name (`gh issue view <m>`).
+   and each issue that their subjects name (`celetis --agent <host> issue <m> view`; exit 3 means
+   a pull request, which needs no read; on exit 6 report the `issue: blocked:` line and stop).
 3. Merge `origin/<trunk>` with the subject `Merge origin/<trunk> into <branch> (#<n>)`. Resolve
    each conflict, and keep the behavior of both sides. Resolve a conflict on a path of
    `.celetis/lessons/` by `<plugin>/references/procedures/lesson-curation.md`, "Lesson conflicts".

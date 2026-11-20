@@ -99,9 +99,9 @@ One part of the engine decides the next step, and each other part asks it. `deci
 `engine/lib/workflow/workflow.ts` is a pure function. It takes the data of one issue and returns a
 typed decision: a Run of a step, or a Stop with a reason
 ([ADR-0033](../adr/0033-one-workflow-definition-and-the-skip-rule.md)).
-`engine/lib/tracker/tracker.ts` reads the issue and its timeline from GitHub, and `factsOf` computes
-the facts from that history. The resolver (`celetis next-step`), the daemon, the board, `land`, and
-the `issue` command all call the same functions
+The GitHub adapter of the tracker port (`engine/lib/github/tracker.ts`) reads the issue and its timeline from GitHub,
+and `factsOf` computes the facts from that history. The resolver (`celetis next-step`), the daemon,
+the board, `land`, and the `issue` command all call the same functions
 ([ADR-0036](../adr/0036-the-engine-enforces-the-lifecycle-and-the-landing.md)). ADR-0036 names the
 daemon "the runner". [ADR-0075](../adr/0075-the-names-of-the-workflow-the-daemon-and-a-run.md)
 renamed the old runner.

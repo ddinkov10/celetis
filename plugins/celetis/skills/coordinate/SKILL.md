@@ -53,7 +53,7 @@ did not act on it. For each note:
    - `quota-wait`, and an ended run (`ended, <outcome>, code <code>`): report it. Act only under an
      instruction of part 10.
    - An ended run whose issue has a hold (`needs-info` or `ready-for-human`): read the issue with
-     its comments (`gh issue view <n> --comments`), and report the hold and the act that its last
+     its comments (`celetis --agent <host> issue <n> view`, the `history` of its JSON; on exit 6 report the `issue: blocked:` line), and report the hold and the act that its last
      hold comment names, for example a `## Stopped` comment. The maintainer completes the hold, with
      the skill `celetis:assist`; you do not complete it.
 
