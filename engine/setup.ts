@@ -4,6 +4,7 @@ import { access, lstat, mkdir, mkdtemp, readFile, rm, stat, unlink, writeFile } 
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+import { CST, Parser } from 'yaml';
 import { initializeAgentOrder, readAgentOrder, validateAgentOrder } from './lib/agent/order.ts';
 import { HostError } from './lib/command/errors.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/command/operation.ts';
@@ -39,7 +40,6 @@ import {
 import { installRecorder, markDefect, passOn } from './lib/state/events.ts';
 import { laneFolder, laneFolderName } from './lib/state/state.ts';
 import { GitHubError, github } from './lib/tracker/tracker.ts';
-import { CST, Parser, type SourceToken } from './lib/vendor/yaml.mjs';
 import { markerOf, removeCheckout, runSetup, setupFile, worktrees } from './lib/workflow/worktree.ts';
 
 const subject = 'chore(celetis): wire the project for the celetis lanes';
@@ -125,7 +125,7 @@ function editConfig(source: string, updates: Map<string, string | undefined>): s
           ...(item.value && 'end' in item.value ? (item.value.end ?? []) : []),
           ...(item.value?.type === 'block-scalar'
             ? item.value.props.filter(
-                (token): token is SourceToken =>
+                (token): token is CST.SourceToken =>
                   token.type === 'comment' || token.type === 'space' || token.type === 'newline',
               )
             : []),
@@ -142,7 +142,7 @@ function editConfig(source: string, updates: Map<string, string | undefined>): s
       const token = [...new Parser().parse(`${JSON.stringify(key)}: ${JSON.stringify(value)}\n`)].find(
         (token) => token.type === 'document',
       );
-      if (token?.type !== 'document' || !token.value || !('items' in token.value) || !token.value.items[0])
+      if (token?.type !== 'document' || !token.value || token.value.type !== 'block-map' || !token.value.items[0])
         fail(`${configFile}: cannot add ${key}`);
       const addition = token.value.items[0];
       if (flow) {

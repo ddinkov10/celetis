@@ -1,5 +1,5 @@
+import { type Document, isAlias, isMap, isScalar, isSeq, parseAllDocuments } from 'yaml';
 import { type Host, hosts } from '../host/names.ts';
-import { type Document, isAlias, isMap, isScalar, isSeq, parseAllDocuments } from '../vendor/yaml.mjs';
 import { levels, models, type Pin, type ReviewerLevel, reviewerLevels } from '../workflow/effort.ts';
 import { type AutoLane, autoLaneNames, type Step, steps } from '../workflow/workflow.ts';
 
@@ -99,7 +99,7 @@ function checkCharacters(text: string): void {
   }
 }
 
-function parse(source: string): Document[] {
+function parse(source: string): Document.Parsed[] {
   return parseAllDocuments(source, { schema: 'core', merge: false, uniqueKeys: false, customTags: ['timestamp'] });
 }
 
@@ -110,7 +110,7 @@ function lastNode(node: unknown): unknown {
 }
 
 // When the file has no final line break, yaml 2.9.1 still ends the last block scalar with one; YAML 1.2 does not.
-function removeAddedBreak(doc: Document, source: string): void {
+function removeAddedBreak(doc: Document.Parsed, source: string): void {
   const node = lastNode(doc.contents);
   if (!isScalar(node) || !node.type?.startsWith('BLOCK') || typeof node.value !== 'string' || /[\r\n]$/.test(source)) {
     return;
@@ -119,7 +119,7 @@ function removeAddedBreak(doc: Document, source: string): void {
   if (!isScalar(before) || before.value !== node.value) node.value = node.value.replace(/\n$/, '');
 }
 
-function parseOne(source: string): Document {
+function parseOne(source: string): Document.Parsed {
   const docs = parse(source);
   for (const { errors } of docs) {
     const [error] = errors;
@@ -136,12 +136,12 @@ function parseOne(source: string): Document {
   return doc;
 }
 
-function plainTag(doc: Document, source: string): string {
+function plainTag(doc: Document.Parsed, source: string): string {
   const tag = doc.schema.tags.find((t) => t.default === true && !t.collection && t.test?.test(source));
   return tag?.tag ?? coreTag('str');
 }
 
-function collectNodes(doc: Document): NodeRecord[] {
+function collectNodes(doc: Document.Parsed): NodeRecord[] {
   const nodes: NodeRecord[] = [];
   const visit = (node: unknown, path: Path, key: boolean): void => {
     if (isAlias(node)) {

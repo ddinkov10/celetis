@@ -64,6 +64,15 @@ Add no test to the repository. The gate refuses a tracked test file (ADR-0029).
 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros scripts/verify.ts
 ```
 
+- Install the locked packages of the engine into `engine/node_modules` first, in a checkout with
+  no `engine/node_modules`, and again after a change of `engine/bun.lock`:
+
+  ```sh
+  bun --no-env-file --no-install --config=/dev/null --no-macros scripts/worktree-setup.ts "$PWD"
+  ```
+
+  A new lane worktree runs it as its worktree setup (`worktreeSetup` in `.celetis.yaml`). It
+  comes before the tool install, because `scripts/install-tools.ts` imports the engine.
 - Install the pinned tools into a private directory, then put its `bin` folder on `PATH`:
 
   ```sh
@@ -81,7 +90,10 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
   `scripts/build.ts` uses exactly Bun 1.4.4 to generate browser assets, native hook modules,
   the generated blocks of `plugins/celetis/README.md` and `plugins/celetis/docs/issue-tracker.md` from `engine/lib/contract/contract.ts`,
   and `docs/adr/index.md` from the records of `docs/adr/`. `--check` compares bytes, and modes on macOS and Linux, without
-  writes. The vendor parser stays unchanged; update it only as `engine/lib/vendor/README.md` says.
+  writes.
+- The packages of the engine are the exact pins of `engine/package.json`, locked in
+  `engine/bun.lock`. To change a pin, edit `engine/package.json`, run `bun install --ignore-scripts`
+  in `engine/`, and commit both files.
 - Strict types have three environments: runtime commands and server modules;
   browser DOM modules; and the native hook API and its actual globals.
 
@@ -233,9 +245,11 @@ For installation changes, follow `plugins/celetis/README.md`, "Updates".
   `engine/board/coordinator.ts`, `engine/board/chat/chat.ts`, `engine/board/chat/claude.ts`,
   `engine/board/chat/codex.ts`, `engine/board/update/worker.ts`, `engine/board/start.ts`, the page
   modules of `engine/board/page/`, `engine/lib/board-read/board-read.ts`,
-  `engine/lib/workflow/visual.ts`, `engine/lib/state/fields.ts`, `engine/lib/host/names.ts`,
+  `engine/lib/workflow/visual.ts`, `engine/lib/state/fields.ts`, `engine/lib/state/schemas.ts`,
+  `engine/lib/host/names.ts`,
   `engine/lib/terminal/terminal.ts`, `engine/lib/workflow/effort.ts`, `engine/lib/process/process.ts`,
-  `engine/lib/update/updater.ts`, `engine/lib/install/installation.ts`, `engine/lib/queue/queue.ts`,
+  `engine/lib/update/updater.ts`, `engine/lib/install/installation.ts`,
+  `engine/lib/install/dependencies.ts`, `engine/lib/queue/queue.ts`, `engine/lib/queue/types.ts`,
   `engine/lib/coordinator/coordinator.ts`, `engine/lib/coordinator/types.ts`,
   `engine/lib/host/codex/app-server.ts`, `engine/lib/daemon/server.ts`, and
   `engine/lib/daemon/types.ts`.
@@ -246,7 +260,8 @@ A look decision of the board uses these two facts:
 
 - The kind is web, with the default row of `prototype` (`plugins/celetis/references/procedures/ui.md`, "The platform
   rows").
-- A prototype board with live data starts in the prototype checkout. A throwaway script there calls
+- A prototype board with live data starts in the prototype checkout. That checkout first runs the
+  install command of "Verify gate", `scripts/worktree-setup.ts "$PWD"`. A throwaway script there calls
   `startBoard` of `engine/board/start.ts` with the main checkout, a port other than 4404, an
   adapter, and the context `{ env: process.env, revision, successor: false, versioned: false,
   restarting: () => false, restart: () => {} }`, and keeps its process alive. The
@@ -260,7 +275,7 @@ A look decision of the board uses these two facts:
 
 Put a new file of the engine library or the board in a feature folder (ADR-0114):
 
-- `engine/lib/` holds only feature folders and `vendor/`. A file directly in `engine/lib/` goes
+- `engine/lib/` holds only feature folders. A file directly in `engine/lib/` goes
   into the folder of its feature.
 - Name a folder by a noun of the engine (`daemon/`, `run/`, `host/`), never by the kind of code
   (`types/`, `utils/`). A folder nests one more level for a sub-feature or one peer of a set
@@ -272,7 +287,7 @@ Put a new file of the engine library or the board in a feature folder (ADR-0114)
 - Each import names the real file; the engine has no `index.ts` or `mod.ts`.
 
 `checkLayout` of `scripts/verify.ts` refuses a file directly in `engine/lib/` and a pair of the
-fourth rule, outside `engine/lib/vendor/`. The other rules have no check.
+fourth rule. The other rules have no check.
 
 ## Decision records
 

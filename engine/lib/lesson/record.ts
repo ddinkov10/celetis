@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
+import { isAlias, isMap, isScalar, isSeq, parseAllDocuments } from 'yaml';
 import { type ExitCode, exits } from '../contract/contract.ts';
-import { isAlias, isMap, isScalar, isSeq, parseAllDocuments } from '../vendor/yaml.mjs';
 
 export class LessonError extends Error {
   constructor(

@@ -1,11 +1,11 @@
 import { constants, type Stats } from 'node:fs';
 import { access, lstat, realpath, stat } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
+import { parseAllDocuments } from 'yaml';
 import { HostError } from '../command/errors.ts';
 import { exits } from '../contract/contract.ts';
 import { run } from '../process/process.ts';
 import { laneIgnore } from '../state/state.ts';
-import { parseAllDocuments } from '../vendor/yaml.mjs';
 
 export const wiring = '.claude/celetis/wiring.json';
 export const settings = '.claude/settings.json';

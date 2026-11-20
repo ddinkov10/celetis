@@ -1,5 +1,5 @@
+import { parseAllDocuments } from 'yaml';
 import { revision } from '../state/fields.ts';
-import { parseAllDocuments } from '../vendor/yaml.mjs';
 import type {
   AcceptedEpic,
   AcceptedEpicResult,

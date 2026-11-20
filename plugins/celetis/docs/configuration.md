@@ -334,8 +334,9 @@ apply to each requested operation.
 ## Install Bun
 
 Celetis commands need Bun 1.4.4 or later on `PATH`: the entry of the engine finds `bun` there.
-Celetis installs no package dependency. CI pins Bun 1.4.4. The YAML parser of the reader, the
-`yaml` package 2.9.1, comes with the engine in `engine/lib/vendor/`, so a read installs no package.
+CI pins Bun 1.4.4. The engine installs its locked dependencies, `zod` and `yaml`, into its version
+folder at each install and update. The YAML parser of the reader is the `yaml` package 2.9.1 of
+`engine/bun.lock`.
 
 Install Bun with Homebrew:
 

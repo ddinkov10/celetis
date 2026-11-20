@@ -1,7 +1,6 @@
 import { readFile, realpath } from 'node:fs/promises';
 import { dirname, join, posix } from 'node:path';
 import { HostError } from '../engine/lib/command/errors.ts';
-import { commandInput, createOperation, locateCheckouts } from '../engine/lib/command/operation.ts';
 import {
   type CommandName,
   capPrefix,
@@ -31,11 +30,9 @@ import {
   worktreePathLine,
 } from '../engine/lib/contract/contract.ts';
 import { entryParts } from '../engine/lib/contract/entry-text.ts';
-import { hostAdapter } from '../engine/lib/host/hosts.ts';
 import { type Job, printJobs, runJobs } from '../engine/lib/process/parallel.ts';
 import { bunArgs, childEnv, run } from '../engine/lib/process/process.ts';
 import { lanes } from '../engine/lib/workflow/workflow.ts';
-import { findTools, toolPins } from './install-tools.ts';
 
 const root = dirname(import.meta.dir);
 const plugin = 'plugins/celetis/';
@@ -47,9 +44,8 @@ export const generatedFiles = [
   'docs/adr/index.md',
 ];
 export const fileRoles: Record<string, string> = {
-  'engine/lib/vendor/yaml.mjs': 'unchanged vendored parser; checked by its SHA-256 and config type declarations',
-  'engine/lib/vendor/yaml.d.mts': 'vendored parser API; checked by strict runtime types',
-  'engine/lib/vendor/yaml.LICENSE': 'upstream licence; stays unchanged',
+  'engine/bun.lock':
+    'Bun lockfile; Bun writes it, and the gate compares it with engine/package.json and engine/node_modules',
   '.gitignore': 'Git reads this text',
   '.gitattributes': 'Git reads this text',
   '.editorconfig': 'Biome reads these editor settings',
@@ -369,7 +365,7 @@ export function checkLayout(paths: readonly string[]): string[] {
     const folder = posix.dirname(path);
     if (folder === 'engine/lib')
       errors.push(`${path}: A file sits directly in engine/lib/; move it into a feature folder (rule 1, ADR-0114).`);
-    if (!/^engine\/(?:lib|board)\/.+\.ts$/.test(path) || path.startsWith('engine/lib/vendor/')) continue;
+    if (!/^engine\/(?:lib|board)\/.+\.ts$/.test(path)) continue;
     const word = posix.basename(path, '.ts').split('-')[0] ?? '';
     const words = folders.get(folder) ?? new Map<string, string[]>();
     words.set(word, [...(words.get(word) ?? []), path]);
@@ -742,10 +738,80 @@ export function checkContractVersion(files: ReadonlyMap<string, string>): string
   return errors;
 }
 
+const exactVersion = /^\d+\.\d+\.\d+$/;
+
+async function installedVersion(file: string): Promise<string | undefined> {
+  try {
+    return JSON.parse(await readFile(file, 'utf8')).version;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function checkDependencies(root: string): Promise<string[]> {
+  const install =
+    'run bun install --frozen-lockfile --production --ignore-scripts in engine/ (AGENTS.md, "Verify gate")';
+  const errors: string[] = [];
+  const manifest: Record<string, unknown> & { dependencies?: Record<string, string> } = JSON.parse(
+    await readFile(join(root, 'engine/package.json'), 'utf8'),
+  );
+  const refuse = (detail: string) =>
+    errors.push(
+      `verify: engine/package.json: ${detail}; keep only "name", "private": true, and "dependencies" with exact x.y.z versions, then run bun install --ignore-scripts and bun install --frozen-lockfile --production --ignore-scripts in engine/`,
+    );
+  const fields = ['name', 'private', 'dependencies'];
+  for (const key of Object.keys(manifest)) if (!fields.includes(key)) refuse(`unknown field ${key}`);
+  for (const key of fields) if (!(key in manifest)) refuse(`missing field ${key}`);
+  if ('private' in manifest && manifest.private !== true) refuse('private is not true');
+  const declared: Record<string, string | undefined> = manifest.dependencies ?? {};
+  for (const [name, version] of Object.entries(declared))
+    if (!exactVersion.test(version ?? '')) refuse(`${name} has the version ${version}, not an exact x.y.z version`);
+
+  type Lock = {
+    packages?: Record<string, [string, ...unknown[]]>;
+    workspaces?: Record<string, { dependencies?: Record<string, string> }>;
+  };
+  let lock: Lock;
+  try {
+    lock = Bun.JSONC.parse(await readFile(join(root, 'engine/bun.lock'), 'utf8')) as Lock;
+  } catch (error) {
+    errors.push(
+      `verify: engine/bun.lock is missing or is not valid JSONC: ${(error as Error).message}; run bun install --ignore-scripts in engine/, then commit engine/bun.lock`,
+    );
+    return errors;
+  }
+  const locked: Record<string, string | undefined> = lock.workspaces?.['']?.dependencies ?? {};
+  const names = [...new Set([...Object.keys(declared), ...Object.keys(locked)])].sort();
+  for (const name of names) {
+    const want = declared[name];
+    const have = locked[name];
+    if (want === have) continue;
+    const detail =
+      want === undefined
+        ? `${name} is only in engine/bun.lock`
+        : have === undefined
+          ? `${name} is only in engine/package.json`
+          : `${name} is ${want} in engine/package.json and ${have} in engine/bun.lock`;
+    errors.push(
+      `verify: engine/package.json disagrees with engine/bun.lock: ${detail}; run bun install --ignore-scripts in engine/, commit engine/bun.lock, then run bun install --frozen-lockfile --production --ignore-scripts in engine/`,
+    );
+  }
+
+  for (const [name, [spec]] of Object.entries(lock.packages ?? {})) {
+    const version = spec.slice(spec.lastIndexOf('@') + 1);
+    const installed = await installedVersion(join(root, 'engine/node_modules', name, 'package.json'));
+    if (installed === undefined) errors.push(`verify: engine/node_modules/${name} is missing; ${install}`);
+    else if (installed !== version)
+      errors.push(
+        `verify: engine/node_modules/${name} has ${installed}, and engine/bun.lock locks ${version}; ${install}`,
+      );
+  }
+  return errors;
+}
+
 export async function main(argv: string[]): Promise<number> {
   try {
-    const { args, explicit } = commandInput(argv);
-    return await execute(args, explicit);
+    return await execute(argv);
   } catch (error) {
     if (!(error instanceof HostError)) throw error;
     if (error.message) console.error(error.message);
@@ -753,7 +819,17 @@ export async function main(argv: string[]): Promise<number> {
   }
 }
 
-async function execute(args: string[], explicit: string | undefined): Promise<number> {
+async function execute(argv: string[]): Promise<number> {
+  const dependencies = await checkDependencies(root);
+  if (dependencies.length) {
+    for (const line of dependencies) console.error(line);
+    console.log('verify: FAIL');
+    return 1;
+  }
+  const { commandInput, createOperation, locateCheckouts } = await import('../engine/lib/command/operation.ts');
+  const { hostAdapter } = await import('../engine/lib/host/hosts.ts');
+  const { findTools, toolPins } = await import('./install-tools.ts');
+  const { args, explicit } = commandInput(argv);
   if (args.length) {
     console.error('usage: scripts/verify.ts');
     return 2;
@@ -816,12 +892,6 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
       console.log('verify: FAIL');
       return 1;
     }
-    const vendor = await readFile('engine/lib/vendor/yaml.mjs');
-    if (
-      new Bun.CryptoHasher('sha256').update(vendor).digest('hex') !==
-      '4ff31df191fa26a9cf07ef43fd233964e554426bd0dd314009bd9e1a377f0bd7'
-    )
-      throw new Error('verify: the vendored parser differs from its recorded source');
     const job = (label: string, file: string, args: string[]): Job => ({ label, file, args, cwd: root });
     const validate = (label: string, folder: string) =>
       /\.(?:c?js|mjs)$/.test(claude)

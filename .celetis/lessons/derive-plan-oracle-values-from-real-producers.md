@@ -2,7 +2,7 @@
 {
   "schema": 1,
   "name": "derive-plan-oracle-values-from-real-producers",
-  "description": "Plan oracles gave hand-derived values, also gate results, probe inputs, and a flag of every browser process, that the real producers, including guards and unchanged gate jobs, do not produce",
+  "description": "Plan oracles gave hand-derived values, also gate results, probe inputs, a refusal line behind a failing import, and a flag of every browser process, that the real producers, including guards, the module load, and unchanged gate jobs, do not produce",
   "tags": [
     "test",
     "process",
@@ -12,8 +12,31 @@
   ],
   "date": "2026-11-11",
   "status": "active",
-  "source": "The implement session of ddinkov10/celetis#305 on Claude Code, Verify V2 run A, 2026-11-11\n\nImplement step session of ddinkov10/celetis#260, Task 1 Step 1 (red probe)\n\nTask 4 of ddinkov10/celetis#255\n\nTask 1 implementer report of ddinkov10/celetis#249 (subagent-driven build, commit 0fd8ed3)\n\nImplementation of ddinkov10/celetis#270, Task 2 and Verify corrections",
+  "source": "The implement session of #348 on Claude Code, Task 2 implementer report (INC-348-T2-1), 2026-11-19\n\nThe implement session of ddinkov10/celetis#305 on Claude Code, Verify V2 run A, 2026-11-11\n\nImplement step session of ddinkov10/celetis#260, Task 1 Step 1 (red probe)\n\nTask 4 of ddinkov10/celetis#255\n\nTask 1 implementer report of ddinkov10/celetis#249 (subagent-driven build, commit 0fd8ed3)\n\nImplementation of ddinkov10/celetis#270, Task 2 and Verify corrections",
   "incidents": [
+    {
+      "id": "INC-348-T2-1",
+      "date": "2026-11-19",
+      "action": "The plan of #348, Task 2 Step 1 case (a), stated that the verify gate of a checkout with engine/node_modules removed prints `verify: engine/node_modules/yaml is missing; ...`, the same line for zod, and `verify: FAIL`, with the lines added to textErrors of execute. The plan listed the guards of execute before the check (the tools, git, claude, the file roles, the text checks) but not the module load of scripts/verify.ts.",
+      "expected": "The oracle of a check that refuses a missing package derives from the module graph of the checking program: each static import that resolves the missing package runs before any code of the program.",
+      "observed": "The first GREEN run of case (a) gave `error: Cannot find package 'yaml'` and exit 1 before any `verify:` line, because scripts/verify.ts statically imports modules (operation.ts, hosts.ts, install-tools.ts) that reach engine/lib/config/core.ts, which imports yaml. The implementer moved checkDependencies into a preflight and made those three imports dynamic.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "case (a) first GREEN run: error: Cannot find package 'yaml' (exit 1); the brief's textErrors wiring cannot print case (a)",
+        "reference": "https://github.com/ddinkov10/celetis/issues/348"
+      },
+      "inference": "The plan applied the guard listing of derive-plan-oracle-values-from-real-producers to the run-time guards of execute only. Inferred cause: the rule text names guards, gate defaults, and lock-holder rules, and does not name the load of the program itself, so a load-time failure stayed outside the listing. Alternative: the plan session read the imports but did not connect core.ts to yaml after the Task 1 change; the evidence does not settle which.",
+      "diagnosis": [
+        "wrong-or-incomplete-rule"
+      ],
+      "revision": "ff511e52457b1b7aaecb073a8c8730b9cba3ab08",
+      "brief": "Task 2 Step 1 of the ## Plan comment of #348: \"Each case starts from a fresh copy, so a case reaches the dependency check only through the guards of execute before it (the tools, git, claude, the file roles, and the text checks), which the unchanged copy passes.\"",
+      "lesson": {
+        "name": "derive-plan-oracle-values-from-real-producers",
+        "revision": "50cb5a1e7327b480fdbf16947d956e8244d42889",
+        "digest": "5e9c62e236312d912d44539c0114319d5c6ebc2c310c3f3103a675b276e17c2b"
+      }
+    },
     {
       "id": "a9d1ac08-3cae-4df9-8913-225023e3b5b6",
       "date": "2026-11-11",
@@ -152,7 +175,7 @@
       }
     }
   ],
-  "recurrences": 5,
+  "recurrences": 6,
   "reviews": [
     {
       "id": "6b752a90-9785-461b-ae6b-5bab3892695f",
@@ -227,6 +250,21 @@
         "state": "not-needed",
         "detail": "No structural check is proposed: which process kind carries a property, and which values of an oracle are derived, are judgments of the plan that the gate cannot decide."
       }
+    },
+    {
+      "id": "26f3b26d-a954-4862-a7ca-e9654eaa52de",
+      "requestDigest": "cf8ddab03828317c005c4dd1c5229c92e91cdcd84667536fe23411e9fea58b81",
+      "date": "2026-11-20",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #348; claude child opus/high\n\nMerge under the reviewer rule for a proposal that states the rule of an active lesson. The incident is observed: the retained excerpt gives `error: Cannot find package 'yaml'` with exit 1 before any verify: line, and the lane code agrees with it: engine/lib/config/core.ts imports yaml, and scripts/verify.ts now runs checkDependencies before dynamic imports of operation.ts, hosts.ts, and install-tools.ts. The incident names derive-plan-oracle-values-from-real-producers as the examined lesson and diagnoses its rule as incomplete: the rule lists the guards of a producer before a check, and the module load of the program is such an earlier guard that it did not name. So the proposal states the same rule as the active lesson, for one more guard; this follows the earlier merges of the #249, #257, #260, and #305 curations into the same lesson. The survivor keeps the active name, tags, date, every incident, and every review; it adds the module load to the trigger, the import-path action, check, and detection signature of the proposal, and the #348 case to the observed facts and the inferred cause, with its unresolved alternative. The part that the change adds still comes from the requirement, so the rule stays compatible with the test-behavior-not-implementation principle of the plugin celetis. It widens no permission and weakens no check.",
+      "related": [
+        "trace-the-module-load-before-a-check-of-a-missing-package",
+        "derive-plan-oracle-values-from-real-producers"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "A plan review check that flags a derived oracle value with no producer or requirement reference, an oracle of a record write that names no guard that can refuse it, a planned gate result with a probe in place that names no job, a red probe input that names no earlier guard of its producer, and a planned refusal of a missing package that names no import path of the program; it needs separate authorization."
+      }
     }
   ]
 }
@@ -239,25 +277,30 @@ Four plans gave hand-derived oracle values that the existing producers do not gi
 
 In #305, the Verify phase of the plan (V2, run A) required `--headless` on each Chrome process in the tree of a check session. On a correct headless run, the Chrome main process had the flag, and its helper processes (`--type=` renderer, GPU, utility) had mixed flags; in the headed control (V4), no helper had the flag (tool output). The sampler matched the command by `/chrom/i`, which also caught three `md5sum` processes of a host plugin hook. So the literal oracle failed a correct run. The session corrected the oracle to the main process and selected processes by the executable path. The plan carried this lesson in its Verify lesson rules.
 
+In #348, the plan, Task 2 Step 1 case (a), expected the verify gate of a checkout with no `engine/node_modules` to print a `verify:` refusal line for each missing package and `verify: FAIL`. The plan listed the run-time guards of `execute` before the new check, not the module load of `scripts/verify.ts`. The first run of the case gave `error: Cannot find package 'yaml'` and exit 1 before any `verify:` line (tool output): `scripts/verify.ts` statically imported modules that reach `yaml` through `engine/lib/config/core.ts`. The implementer moved the dependency check into a preflight and made those imports dynamic.
+
 ## Root cause
 
 Inferred: the plans computed the values by hand, from their own data lists, from spec sentences, or from the change alone, and did not run the existing producers on the planned inputs. For #249, the unchanged producers were guards: a lock-holder liveness rule, an owner check, and a gate default. For #255, the unchanged producer was another job of the gate that the probe input also reached. For #260, the unchanged producer was the name guard of the launcher, before the file lookup under test. Uncertain: whether this lesson reached the #249, #255, and #260 plan sessions; none of these plans carries it in the affected task (the #255 plan carries it in its Verify section only), and the earlier rule named lists, counts, triggers, record writes, liveness results, and gate results, not the result of a command on a probe input. Alternative: independent slips.
 
 For #305, inferred: the plan extended a fact of the main process, from the design probe of the spec, to every process of the tree, with no launch of the real producer, although the plan carried this lesson. Alternative: "each Chrome process" was loose wording for the browser process.
 
+For #348, inferred: the plan applied the guard listing of this rule to the run-time guards of `execute` only. The rule named guards, gate defaults, and lock-holder rules, not the module load of the program, and a static import of a missing package fails before any statement of the program runs. Alternative: the plan session read the imports but did not connect `core.ts` to `yaml` after the Task 1 change; the evidence does not settle which.
+
 ## Fix
 
-Proposed prevention, not proven enforcement: when a plan writes an expected list, count, trigger, record write, liveness result, gate result, or command result on a probe input for a derived state, it computes the part that an existing producer gives, and that the change does not alter, from that producer (for example a probe that runs the placer, the signature, the guards of the call path, or the unchanged jobs of the gate on the planned data, fixture, or probe input), and records how. A guard, a gate default, a lock-holder rule, and a job of the gate of unchanged code are such producers; the plan names how its fixture makes a live owner, a planned gate result with a temporary probe names the job that gives it, or expects only the lines of the job under test, and a probe input that must reach one check passes each earlier guard of that producer on the base. The part that the change adds comes from the requirement, as the test-behavior-not-implementation principle of the plugin celetis says: an oracle computed from the code under change cannot fail when that code is wrong. A structural follow-up needs separate authorization: a plan review check that flags a derived oracle value with no producer or requirement reference, an oracle of a record write that names no guard that can refuse it, and a planned gate result with a probe in place that names no job. For a property of the processes that a program launches (a flag, a process type, a count), the plan lists the process kinds of one real launch (for Chrome: the main process with no `--type=`, its helpers, and other processes that match the name), states the oracle for the kind that carries the property, and selects processes by the executable path, not by a substring of the command. Judgment decides which values are derived, which guards apply, and which jobs a probe reaches, so the rule stays text.
+Proposed prevention, not proven enforcement: when a plan writes an expected list, count, trigger, record write, liveness result, gate result, or command result on a probe input for a derived state, it computes the part that an existing producer gives, and that the change does not alter, from that producer (for example a probe that runs the placer, the signature, the guards of the call path, or the unchanged jobs of the gate on the planned data, fixture, or probe input), and records how. A guard, a gate default, a lock-holder rule, and a job of the gate of unchanged code are such producers; the plan names how its fixture makes a live owner, a planned gate result with a temporary probe names the job that gives it, or expects only the lines of the job under test, and a probe input that must reach one check passes each earlier guard of that producer on the base. The module load of the program is such an earlier guard: for an input that removes, breaks, or changes a package or a module, the plan traces each static import path of the program to it, and the check runs before any such import (a dynamic import, or a check in a program that does not import it), or the plan states the load error as the oracle. The part that the change adds comes from the requirement, as the test-behavior-not-implementation principle of the plugin celetis says: an oracle computed from the code under change cannot fail when that code is wrong. A structural follow-up needs separate authorization: a plan review check that flags a derived oracle value with no producer or requirement reference, an oracle of a record write that names no guard that can refuse it, and a planned gate result with a probe in place that names no job. For a property of the processes that a program launches (a flag, a process type, a count), the plan lists the process kinds of one real launch (for Chrome: the main process with no `--type=`, its helpers, and other processes that match the name), states the oracle for the kind that carries the property, and selects processes by the executable path, not by a substring of the command. Judgment decides which values are derived, which guards apply, and which jobs a probe reaches, so the rule stays text.
 
 ## Detection signature
 
-A red probe step whose base run prints a refusal from an earlier guard in place of the planned red behavior. A check that fails its own oracle on a correct run, with helper processes or processes of other programs in the failing rows.
+A red probe step whose base run prints a refusal from an earlier guard in place of the planned red behavior. A check that fails its own oracle on a correct run, with helper processes or processes of other programs in the failing rows. `error: Cannot find package '<name>'` with no line of the program, on an input whose planned output is a refusal line of that program.
 
 ## Rule
 
-Applies when a plan or a brief states an expected value of a derived state (a list, an order, a count, a trigger, a record write, a liveness result, the result of a gate or a multi-job check on a probe input, the exit and output of a command on a probe input that must reach one check, or a property of the processes that a program launches) for a check, and an existing producer that the change does not alter gives part of that value, including each guard, gate default, or lock-holder rule on its call path and each unchanged job of the gate that the probe input reaches. Action: compute that part from the existing producer on the planned inputs and cite the producer; for a record write or a state, list each such guard from the call path and name how the fixture makes a live owner; for a gate result, run or read each unchanged job on the probe input and state the result of each job that the probe reaches, or expect only the lines of the job under test; for a probe input that must reach one check, list each guard of that producer before the check and choose an input that passes each one on the base; for a property of launched processes, list the process kinds of one real launch, state the oracle for the kind that carries the property (for Chrome, the main process with no `--type=`), and select processes by the executable path; derive the part that the change adds from the requirement. Check: each such oracle value names its producer or its requirement, a planned gate result names its jobs, and a run of the existing producer, with its guards, on the planned data or probe input reaches the check under test and gives the part that it covers, and a process oracle passes on a known-good launch and fails on a control launch that lacks the property.
+Applies when a plan or a brief states an expected value of a derived state (a list, an order, a count, a trigger, a record write, a liveness result, the result of a gate or a multi-job check on a probe input, the exit and output of a command on a probe input that must reach one check, or a property of the processes that a program launches) for a check, and an existing producer that the change does not alter gives part of that value, including each guard, gate default, or lock-holder rule on its call path, the module load of the program, and each unchanged job of the gate that the probe input reaches. Action: compute that part from the existing producer on the planned inputs and cite the producer; for a record write or a state, list each such guard from the call path and name how the fixture makes a live owner; for a gate result, run or read each unchanged job on the probe input and state the result of each job that the probe reaches, or expect only the lines of the job under test; for a probe input that must reach one check, list each guard of that producer before the check and choose an input that passes each one on the base; for an input that removes, breaks, or changes a package or a module that the program can import, list each static import path of the program that reaches it, and make the check run before any such import, or state the load error as the expected output; for a property of launched processes, list the process kinds of one real launch, state the oracle for the kind that carries the property (for Chrome, the main process with no `--type=`), and select processes by the executable path; derive the part that the change adds from the requirement. Check: each such oracle value names its producer or its requirement, a planned gate result names its jobs, and a run of the existing producer, with its guards, on the planned data or probe input reaches the check under test and gives the part that it covers, an input that removes a package reaches the check and prints its line or the plan names the load error as the oracle, and a process oracle passes on a known-good launch and fails on a control launch that lacks the property.
 
 ## Related lessons
 
 [[derive-fixture-state-from-real-producers]]
 [[check-refusal-contract-across-earlier-guards]]
+

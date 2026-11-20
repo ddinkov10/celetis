@@ -2,7 +2,7 @@
   "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
   "javascript": { "formatter": { "quoteStyle": "single" } },
   "files": {
-    "includes": ["**", "!engine/lib/vendor"]
+    "includes": ["**"]
   },
   "linter": { "rules": { "suspicious": { "noImportCycles": "error" } } },
   "overrides": [

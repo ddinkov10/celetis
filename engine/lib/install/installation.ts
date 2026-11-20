@@ -10,6 +10,7 @@ import { git } from '../process/git.ts';
 import { run } from '../process/process.ts';
 import { revision as fullRevision } from '../state/fields.ts';
 import { installLock, withLock, writeAtomic } from '../state/state.ts';
+import { installDependencies } from './dependencies.ts';
 
 export type EnginePaths = Readonly<{
   data: string;
@@ -194,6 +195,21 @@ export async function installEngine(
         );
         await git(['remote', 'set-url', 'origin', wanted.source], staging, slow);
         await git(['checkout', '--quiet', '-B', wanted.branch, wanted.revision], staging, slow);
+        if ((await lstat(join(staging, 'engine', 'celetis')).catch(() => null))?.isFile()) {
+          const dependencies = await installDependencies(staging);
+          if (dependencies.kind === 'no-lock')
+            throw new HostError(
+              `celetis: revision ${wanted.revision} has no engine/bun.lock file; the engine did not change`,
+              exits.prerequisite,
+            );
+          if (dependencies.kind === 'failed') {
+            process.stderr.write(dependencies.output);
+            throw new HostError(
+              `celetis: bun install --frozen-lockfile --production --ignore-scripts failed in engine/ of revision ${wanted.revision} with status ${dependencies.status}; the engine did not change`,
+              exits.blocked,
+            );
+          }
+        }
         if (!(await holds(staging, wanted)))
           throw new HostError(
             `celetis: the clone of ${from} is not ${wanted.source} ${wanted.branch} at ${wanted.revision}`,

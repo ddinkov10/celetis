@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { HostError } from '../command/errors.ts';
 import { type HostSelection, locateCheckouts, type Operation } from '../command/operation.ts';
 import type { AgentChoice, Host } from '../config/core.ts';
@@ -7,37 +8,39 @@ import { isHost } from '../host/names.ts';
 import { lineOf, type Next } from '../resolver/lines.ts';
 import { nextIssue } from '../resolver/resolver.ts';
 import { readRecovery, recoveryOwner } from '../run/quota-recovery.ts';
-import { uuid } from '../state/fields.ts';
 import { type LockOwner, lockHolder } from '../state/locks.ts';
 import { commitMigration, type LocalRecord, readLocalRecord } from '../state/migration.ts';
 import { requestStatePreparation } from '../state/preparation.ts';
 import { ensureFolder, repositoryLayout, withLock, writeAtomic } from '../state/state.ts';
-import { lanes, type Run, type Step, steps } from '../workflow/workflow.ts';
-import type { QueueAction, QueueReceipt, QueueRecord, QueueView } from './types.ts';
+import {
+  agentChoice,
+  type QueueAction,
+  type QueueReceipt,
+  type QueueRecord,
+  type QueueView,
+  queueAction,
+  queueReceipt,
+  queueRecord,
+  sameChoice,
+  queueView as viewSchema,
+} from './types.ts';
 
 export type { QueueAction, QueueRecord, QueueView } from './types.ts';
+export { sameChoice };
 
-const object = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value);
-const keys = (value: Record<string, unknown>, names: string) => Object.keys(value).sort().join(',') === names;
-const positive = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) > 0;
-const step = (value: unknown): value is Step => typeof value === 'string' && steps.includes(value as Step);
-const identity = (value: Record<string, unknown>) =>
-  typeof value.id === 'string' && uuid.test(value.id) && positive(value.revision);
-const numbers = (value: unknown): value is number[] =>
-  Array.isArray(value) && Array.from(value).every(positive) && new Set(value).size === value.length;
-const text = (value: unknown) => value === null || typeof value === 'string';
+const versioned = z.looseObject({ schema: z.unknown().optional() });
+const versionOf = (value: unknown) => {
+  const parsed = versioned.safeParse(value);
+  return parsed.success ? { schema: parsed.data.schema } : null;
+};
+const schemaText = (value: unknown) => {
+  const version = versionOf(value);
+  return version ? String(version.schema) : 'unknown';
+};
 
 export function choice(value: unknown): value is AgentChoice {
-  return (
-    object(value) &&
-    ((value.kind === 'default' && keys(value, 'kind')) ||
-      (value.kind === 'explicit' && keys(value, 'host,kind') && isHost(value.host)))
-  );
+  return agentChoice.safeParse(value).success;
 }
-
-export const sameChoice = (a: AgentChoice, b: AgentChoice) =>
-  a.kind === b.kind && (a.kind === 'default' || (b.kind === 'explicit' && a.host === b.host));
 
 export const explicitHost = (value: AgentChoice | null | undefined): Host | null =>
   value?.kind === 'explicit' ? value.host : null;
@@ -68,210 +71,68 @@ export function queueSelection(
   return host === null ? {} : { saved: host };
 }
 
-function run(value: unknown): value is Run | null {
-  return (
-    value === null ||
-    (object(value) &&
-      keys(value, 'kind,lane,state,step') &&
-      value.kind === 'run' &&
-      step(value.step) &&
-      (value.lane === null || (typeof value.lane === 'string' && Object.hasOwn(lanes, value.lane))) &&
-      typeof value.state === 'string' &&
-      ['unrouted', 'unspecified', 'undiagnosed', 'chore', 'hotfix', 'defined', 'planned', 'built'].includes(
-        value.state,
-      ))
-  );
-}
-
 export function parseQueueAction(value: unknown): QueueAction {
-  if (object(value) && object(value.expected) && keys(value.expected, 'current,id,revision')) {
-    const expected = value.expected;
-    const valid =
-      expected.id === null
-        ? expected.revision === 0 && expected.current === null
-        : identity(expected) && (expected.current === null || positive(expected.current));
-    if (valid) {
-      if (
-        value.kind === 'add' &&
-        keys(value, 'expected,kind,number,step') &&
-        positive(value.number) &&
-        step(value.step)
-      )
-        return value as QueueAction;
-      if (
-        value.kind === 'move' &&
-        keys(value, 'direction,expected,kind,number') &&
-        positive(value.number) &&
-        (value.direction === 'up' || value.direction === 'down')
-      )
-        return value as QueueAction;
-      if (value.kind === 'remove' && keys(value, 'expected,kind,number') && positive(value.number))
-        return value as QueueAction;
-      if (
-        keys(value, 'expected,kind,step') &&
-        ((value.kind === 'continue' && step(value.step)) ||
-          (value.kind === 'retry' && (value.step === null || step(value.step))))
-      )
-        return value as QueueAction;
-    }
-  }
-  throw new HostError('queue: invalid action', exits.usage);
+  const parsed = queueAction.safeParse(value);
+  if (!parsed.success) throw new HostError('queue: invalid action', exits.usage);
+  return parsed.data;
 }
 
 function validate(value: unknown): QueueRecord {
-  const invalid = () => new Error('queue: invalid or obsolete record');
-  if (
-    !object(value) ||
-    !keys(value, 'act,activeHost,choice,current,id,last,launch,numbers,reason,revision,schema,state,waitId') ||
-    value.schema !== 3 ||
-    !identity(value) ||
-    !numbers(value.numbers) ||
-    !run(value.current) ||
-    !run(value.last) ||
-    !text(value.reason) ||
-    !text(value.act)
-  )
-    throw invalid();
-  if (value.state === 'empty') {
-    if (
-      value.numbers.length ||
-      [
-        value.choice,
-        value.activeHost,
-        value.waitId,
-        value.current,
-        value.last,
-        value.reason,
-        value.act,
-        value.launch,
-      ].some((item) => item !== null)
-    )
-      throw invalid();
-  } else {
-    if (
-      !value.numbers.length ||
-      !choice(value.choice) ||
-      !(value.activeHost === null || isHost(value.activeHost)) ||
-      !['starting', 'running', 'quota-wait', 'me-gate', 'error'].includes(String(value.state))
-    )
-      throw invalid();
-    if (
-      value.state === 'quota-wait'
-        ? typeof value.waitId !== 'string' || !uuid.test(value.waitId) || value.activeHost !== null
-        : value.waitId !== null
-    )
-      throw invalid();
-    if ((value.state === 'starting') !== (value.launch !== null)) throw invalid();
-    if (value.state === 'me-gate' && value.current === null) throw invalid();
-    if (value.launch !== null) {
-      const launch = value.launch;
-      if (
-        !object(launch) ||
-        !keys(launch, 'authorization,token') ||
-        typeof launch.token !== 'string' ||
-        !uuid.test(launch.token)
-      )
-        throw invalid();
-      const auth = launch.authorization;
-      if (
-        auth !== null &&
-        (!object(auth) ||
-          !keys(auth, 'number,retry,step') ||
-          auth.number !== value.numbers[0] ||
-          typeof auth.retry !== 'boolean' ||
-          !(step(auth.step) || (auth.retry && auth.step === null)))
-      )
-        throw invalid();
-    }
-  }
-  return value as QueueRecord;
+  const parsed = queueRecord.safeParse(value);
+  if (!parsed.success) throw new Error('queue: invalid or obsolete record');
+  return parsed.data;
 }
 
-function nextValue(value: unknown): boolean {
-  if (run(value)) return true;
-  if (!object(value)) return false;
-  if (value.kind === 'observed')
-    return value.reason === 'dirty'
-      ? keys(value, 'kind,path,reason') && typeof value.path === 'string'
-      : keys(value, 'kind,reason') && ['landing', 'unreadable'].includes(String(value.reason));
-  if (value.kind !== 'stop') return false;
-  if (value.reason === 'ready-for-human')
-    return keys(value, 'kind,reason,variant') && ['landing-refused', 'your-step'].includes(String(value.variant));
-  if (value.reason === 'human-step')
-    return keys(value, 'kind,reason,variant') && ['evidence', 'report', 'removal'].includes(String(value.variant));
-  if (value.reason === 'several-lanes')
-    return (
-      keys(value, 'kind,labels,reason') &&
-      Array.isArray(value.labels) &&
-      value.labels.every((item) => typeof item === 'string')
-    );
-  return (
-    keys(value, 'kind,reason') &&
-    ['wontfix', 'finished', 'needs-info', 'epic', 'land-by-hand'].includes(String(value.reason))
-  );
-}
+const viewShape = viewSchema.extend({ record: z.unknown() });
 
 export function parseQueueView(value: unknown): QueueView {
-  if (
-    !object(value) ||
-    !keys(value, 'actions,error,next,owner,record') ||
-    !text(value.owner) ||
-    !text(value.error) ||
-    !nextValue(value.next) ||
-    !object(value.actions) ||
-    !keys(value.actions, 'add,continue,edit,retry') ||
-    Object.values(value.actions).some((item) => typeof item !== 'boolean')
-  )
-    throw new Error('queue: invalid view');
-  if (value.record !== null) validate(value.record);
-  return value as QueueView;
+  if (!viewShape.safeParse(value).success) throw new Error('queue: invalid view');
+  const parsed = viewSchema.safeParse(value);
+  if (!parsed.success) throw new Error('queue: invalid or obsolete record');
+  return parsed.data;
 }
 
+const receiptShape = z.strictObject({ view: z.unknown(), wake: z.unknown() });
+
 export function parseQueueReceipt(value: unknown): QueueReceipt {
-  if (!object(value) || !keys(value, 'view,wake')) throw new Error('queue: invalid receipt');
-  const { record } = parseQueueView(value.view);
-  if (value.wake !== null) {
-    const wake = value.wake;
-    if (
-      !object(wake) ||
-      !keys(wake, 'choice,id,token') ||
-      !record?.launch ||
-      !record.choice ||
-      wake.id !== record.id ||
-      wake.token !== record.launch.token ||
-      !choice(wake.choice) ||
-      !sameChoice(wake.choice, record.choice)
-    )
-      throw new Error('queue: invalid receipt wake');
-  }
-  return value as QueueReceipt;
+  const shape = receiptShape.safeParse(value);
+  if (!shape.success) throw new Error('queue: invalid receipt');
+  parseQueueView(shape.data.view);
+  const parsed = queueReceipt.safeParse(value);
+  if (!parsed.success) throw new Error('queue: invalid receipt wake');
+  return parsed.data;
 }
+
+const { id, revision, numbers, current, last, reason, act } = queueRecord.shape;
+const historicalFields = { id, revision, numbers, current, last, reason, act };
+const historicalSchemas = {
+  1: z.strictObject({
+    ...historicalFields,
+    schema: z.literal(1),
+    host: z.unknown(),
+    position: z.unknown(),
+    results: z.unknown(),
+    state: z.unknown(),
+  }),
+  2: z.strictObject({
+    ...historicalFields,
+    schema: z.literal(2),
+    host: z.unknown(),
+    state: z.unknown(),
+    launch: z.unknown(),
+  }),
+};
 
 function historical(value: unknown, file: string): QueueRecord {
   const invalid = (cause: string): never => {
-    throw new HostError(
-      `queue: ${file}: schema ${object(value) ? String(value.schema) : 'unknown'} to 3: ${cause}`,
-      exits.usage,
-    );
+    throw new HostError(`queue: ${file}: schema ${schemaText(value)} to 3: ${cause}`, exits.usage);
   };
-  if (!object(value) || (value.schema !== 1 && value.schema !== 2)) invalid('unsupported schema');
-  const old = value as Record<string, unknown>;
-  if (
-    !keys(
-      old,
-      old.schema === 1
-        ? 'act,current,host,id,last,numbers,position,reason,results,revision,schema,state'
-        : 'act,current,host,id,last,launch,numbers,reason,revision,schema,state',
-    ) ||
-    !identity(old) ||
-    !numbers(old.numbers) ||
-    !run(old.current) ||
-    !run(old.last) ||
-    !text(old.reason) ||
-    !text(old.act)
-  )
-    invalid('invalid historical fields');
-  const originalNumbers = old.numbers as number[];
+  const version = versionOf(value)?.schema;
+  if (version !== 1 && version !== 2) return invalid('unsupported schema');
+  const fields = historicalSchemas[version].safeParse(value);
+  if (!fields.success) return invalid('invalid historical fields');
+  const old = fields.data;
+  const originalNumbers = old.numbers;
   if (old.schema === 1) {
     if (
       !isHost(old.host) ||
@@ -336,12 +197,14 @@ async function snapshot(common: string): Promise<LocalRecord | null> {
     );
   }
 }
-const oldSchema = (source: LocalRecord) =>
-  object(source.value) && (source.value.schema === 1 || source.value.schema === 2);
+const oldSchema = (source: LocalRecord) => {
+  const schema = versionOf(source.value)?.schema;
+  return schema === 1 || schema === 2;
+};
 const currentRecord = (source: LocalRecord): QueueRecord => {
-  if (!object(source.value) || source.value.schema !== 3)
+  if (versionOf(source.value)?.schema !== 3)
     throw new HostError(
-      `queue: ${source.path}: unsupported schema ${object(source.value) ? String(source.value.schema) : 'unknown'}; expected schema 3`,
+      `queue: ${source.path}: unsupported schema ${schemaText(source.value)}; expected schema 3`,
       exits.usage,
     );
   try {
@@ -370,7 +233,7 @@ export async function prepareQueue(_main: string, common: string, owner: LockOwn
     return;
   }
   const decided = historical(first.value, first.path);
-  const context = `queue: ${first.path}: schema ${object(first.value) ? first.value.schema : 'unknown'} to 3`;
+  const context = `queue: ${first.path}: schema ${schemaText(first.value)} to 3`;
   const issue = decided.numbers[0];
   if (!owner.owns('queue') && issue !== undefined && owner.owns(`issue-${issue}`))
     throw new Error(`${context}: cannot acquire queue ownership after issue-${issue}; retry after releasing the issue`);

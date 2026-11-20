@@ -1,5 +1,6 @@
 import { lstat, readFile, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
+import { z } from 'zod';
 import { HostError } from './lib/command/errors.ts';
 import { commandInput, locateCheckouts } from './lib/command/operation.ts';
 import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
@@ -269,17 +270,17 @@ async function prepareState(argv: string[]): Promise<ExitCode> {
   }
 }
 
+// z.record drops a __proto__ key with no issue, so the key is refused before the record parse.
+const sessionFile = z
+  .custom((value) => !Object.hasOwn(Object(value), '__proto__'))
+  .pipe(z.record(z.string(), z.string()));
+
 async function sessionEnv(files: ReturnType<typeof startFiles>): Promise<Readonly<Record<string, string>>> {
   const value: unknown = await readFile(files.env, 'utf8')
     .then((text) => JSON.parse(text))
     .catch(() => null);
-  if (
-    value !== null &&
-    typeof value === 'object' &&
-    !Array.isArray(value) &&
-    Object.values(value).every((each) => typeof each === 'string')
-  )
-    return value as Record<string, string>;
+  const parsed = sessionFile.safeParse(value);
+  if (parsed.success) return parsed.data;
   await writeAtomic(files.error, '');
   throw new HostError(
     `celetis: the session environment file ${files.env} is not valid; start the step again`,

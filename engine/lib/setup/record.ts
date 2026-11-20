@@ -1,9 +1,9 @@
+import { parseAllDocuments } from 'yaml';
 import { validateAgentOrder } from '../agent/order.ts';
 import { HostError } from '../command/errors.ts';
 import type { Host } from '../config/core.ts';
 import { exits } from '../contract/contract.ts';
 import { laneIgnore } from '../state/state.ts';
-import { parseAllDocuments } from '../vendor/yaml.mjs';
 
 export type SetupAnswers = { tracker?: 'github'; hosts?: readonly Host[] };
 export type SetupEntry =

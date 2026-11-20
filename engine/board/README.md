@@ -1251,13 +1251,13 @@ These files enforce the rules. They are the trust files of the board:
 | 6 (what the page sends) | `engine/board/requests.ts`, the page modules of `engine/board/page/` |
 | 7 (`isSafeId`) | `engine/lib/terminal/terminal.ts` |
 | 8 (no shell) | `engine/board/perimeter.ts` (`run`), `engine/lib/process/process.ts` (`run` of the issue and status reads), `engine/lib/host/codex/app-server.ts` (`createCodexClient`) |
-| 9 (`git` only in the repository, `--no-optional-locks`; update workers validate the installations) | `engine/lib/board-read/board-read.ts` (`isInside`, `readDiff`), `engine/board/update/worker.ts`, `engine/lib/update/updater.ts` |
+| 9 (`git` only in the repository, `--no-optional-locks`; update workers validate the installations) | `engine/lib/board-read/board-read.ts` (`isInside`, `readDiff`), `engine/board/update/worker.ts`, `engine/lib/update/updater.ts`, `engine/lib/install/dependencies.ts` |
 | 10 (Open shell under `.claude/worktrees/`) | `engine/board/presses.ts`, `engine/lib/board-read/board-read.ts` (`isInside`) |
 | 11 (no write in a product working tree; the trend files only in the git common dir) | No one file: each module of the board; the read model reads, and only `engine/board/trends.ts` through `engine/lib/board-read/trends.ts` and the History read through the trend cache write, in `<git common dir>/celetis/` |
 | 12 (text as text, the Content-Security-Policies, the visual page) | `engine/board/perimeter.ts`, `engine/lib/state/fields.ts` (`isCommit`), `engine/lib/board-read/board-read.ts` (`readVisualPage`), `engine/lib/workflow/visual.ts` (`hasPage`), the page modules |
 | Start rule 1 (the engine read) | `engine/board/adapter.ts`, `engine/lib/install/installation.ts` (`readEngine`) |
 | Start rule 2 (fixed argvs and requests) | `engine/board/adapter.ts`, `engine/lib/terminal/terminal.ts` (`openTab`), `engine/lib/host/codex/app-server.ts` (`createCodexClient`) |
-| Start rule 3 (only validated values) | `engine/board/requests.ts`, `engine/lib/state/fields.ts`, `engine/lib/host/names.ts` (`isHost`), `engine/board/adapter.ts`, `engine/lib/queue/queue.ts` (`parseQueueAction`) |
+| Start rule 3 (only validated values) | `engine/board/requests.ts`, `engine/lib/state/fields.ts`, `engine/lib/host/names.ts` (`isHost`), `engine/board/adapter.ts`, `engine/lib/queue/queue.ts` (`parseQueueAction`), `engine/lib/queue/types.ts` (`queueAction`), `engine/lib/state/schemas.ts` |
 | Start rule 4 (the data comes from the engine) | `engine/lib/board-read/board-read.ts`, `engine/board/adapter.ts`, `engine/lib/daemon/types.ts` (`parseAnswer`, `parseQueueAnswer`) |
 | Start rule 5 (a clean `PATH`) | `engine/lib/process/process.ts` (`childEnv`) |
 | Coordinator rules 1, 2 (what the page sends, the exact shapes) | `engine/board/requests.ts`, `engine/board/perimeter.ts` (the body limit), `engine/lib/coordinator/types.ts` (`coordinatorKeys`), `engine/lib/coordinator/coordinator.ts` (the check of an act), the page modules |

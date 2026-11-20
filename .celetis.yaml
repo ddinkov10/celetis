@@ -1,5 +1,6 @@
 landing: merge
 suite: scripts/verify.ts
+worktreeSetup: scripts/worktree-setup.ts
 gates:
   triage: auto
   specify: auto
