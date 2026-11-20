@@ -1,4 +1,5 @@
 import { headings, type Kind, type Label, marker } from '../contract/contract.ts';
+import { type IssueKey, keySource, parseKey } from '../tracker/key.ts';
 
 export const lanes = {
   feature: { label: 'enhancement', prefix: 'feat', steps: ['triage', 'specify', 'plan', 'implement'] },
@@ -33,8 +34,8 @@ export function command(step: Step): string {
   return step === 'specify' ? 'feature' : step;
 }
 
-export function invocation(step: Step, n: number): string {
-  return `/celetis:${command(step)} #${n}`;
+export function invocation(step: Step, key: IssueKey): string {
+  return `/celetis:${command(step)} #${key}`;
 }
 
 export function lands(step: Step): boolean {
@@ -45,12 +46,72 @@ export function stageOf(step: Step): number {
   return stepsOf(laneNames.find((lane) => stepsOf(lane).includes(step)) as Lane).indexOf(step);
 }
 
-export function branchGlobs(n: string): string[] {
-  return laneNames.map((lane) => `${lanes[lane].prefix}/${n}-*`);
+const prefixes = () => laneNames.map((lane) => lanes[lane].prefix).join('|');
+const captured = (match: RegExpExecArray | null) => (match ? parseKey(match[1] as string) : null);
+
+export function laneBranch(lane: Lane, key: IssueKey, slug: string): string {
+  return `${lanes[lane].prefix}/${key}-${slug}`;
 }
 
-export function branchPattern(n: string): RegExp {
-  return new RegExp(`^(${laneNames.map((lane) => lanes[lane].prefix).join('|')})/${n}-`);
+export function laneKey(ref: string): IssueKey | null {
+  return captured(new RegExp(`^(?:${prefixes()})/(${keySource()})-[a-z0-9][a-z0-9-]*$`).exec(ref));
+}
+
+export function branchGlobs(key: IssueKey): string[] {
+  return laneNames.map((lane) => `${lanes[lane].prefix}/${key}-*`);
+}
+
+export function branchPattern(key: IssueKey): RegExp {
+  return new RegExp(`^(${prefixes()})/${RegExp.escape(key)}-`);
+}
+
+export function folderPrefix(key: IssueKey): string {
+  return `${key}-`;
+}
+
+export function folderKey(name: string): IssueKey | null {
+  return captured(new RegExp(`^(${keySource()})-`).exec(name));
+}
+
+export function prototypeGlob(key: IssueKey): string {
+  return `prototype/${key}-*`;
+}
+
+export function holdsKey(ref: string, key: IssueKey): boolean {
+  return ref.includes(`/${key}-`);
+}
+
+export function holdsAnyKey(ref: string): boolean {
+  return [...ref.matchAll(new RegExp(`/(${keySource()})-`, 'g'))].some((match) => parseKey(match[1] as string));
+}
+
+export function tabLabel(key: IssueKey, word: string): string {
+  return `#${key} ${word}`;
+}
+
+export function labelOf(label: string): { key: IssueKey; word: string } | null {
+  const match = new RegExp(`^#(${keySource()})(?: ([a-z]+))?`).exec(label);
+  const key = captured(match);
+  return key === null ? null : { key, word: match?.[2] ?? '' };
+}
+
+export function keyedSubject(subject: string, key: IssueKey): string {
+  return `${subject} (#${key})`;
+}
+
+export function subjectKey(subject: string): IssueKey | null {
+  return captured(new RegExp(`^[a-z]+(?:\\([^()\\r\\n]+\\))?!?: [^ ].* \\(#(${keySource()})\\)$`).exec(subject));
+}
+
+export function closesLine(key: IssueKey): string {
+  return `Closes #${key}`;
+}
+
+export function closedKeys(body: string): IssueKey[] {
+  return [...body.matchAll(new RegExp(`\\bCloses\\s+#(${keySource()})\\b`, 'gi'))].flatMap((match) => {
+    const key = parseKey(match[1] as string);
+    return key === null ? [] : [key];
+  });
 }
 
 export type LaneOf =
@@ -104,7 +165,7 @@ export type EpicDeclaration =
 export type EpicChild = Readonly<{
   url: string;
   id: number;
-  number: number;
+  number: IssueKey;
   state: 'open' | 'closed';
   stateReason: 'completed' | 'not_planned' | 'duplicate' | 'reopened' | null;
   closedAt: string | null;
@@ -145,7 +206,7 @@ export type EpicReview = Readonly<{ session: string; at: string }>;
 
 type EpicEvidence = Readonly<{
   repository: string;
-  parent: number;
+  parent: IssueKey;
   definitionHash: string;
   children: readonly EpicChild[];
   review: EpicReview;
@@ -162,7 +223,7 @@ export type AcceptedEpic = EpicEvidence &
 
 export type EpicSnapshot = Readonly<{
   repository: string;
-  parent: number;
+  parent: IssueKey;
   data: IssueData;
   declaration: EpicDeclaration;
   children: readonly EpicChild[];

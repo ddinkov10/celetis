@@ -27,6 +27,7 @@ import { hostAdapter, requireCan } from './lib/host/hosts.ts';
 import { installRecorder, markDefect } from './lib/state/events.ts';
 import { commitMigration, readLocalRecord } from './lib/state/migration.ts';
 import { dispatchRecord, ensureFolder, privateState, stateOutcome, withLock, writeAtomic } from './lib/state/state.ts';
+import { type IssueKey, parseHandle } from './lib/tracker/key.ts';
 
 class UsageError extends Error {}
 class SetupError extends Error {
@@ -38,10 +39,10 @@ class SetupError extends Error {
   }
 }
 type Input =
-  | { act: 'next'; issue: number; task: string; role: Role; digits: number[]; bias: number }
-  | { act: 'gate'; issue: number; task: string; result: 'pass' | 'fail'; name: string; report: string }
-  | { act: 'review'; issue: number; task: string; result: 'findings' | 'blocked' }
-  | { act: 'close'; issue: number; task: string }
+  | { act: 'next'; issue: IssueKey; task: string; role: Role; digits: number[]; bias: number }
+  | { act: 'gate'; issue: IssueKey; task: string; result: 'pass' | 'fail'; name: string; report: string }
+  | { act: 'review'; issue: IssueKey; task: string; result: 'findings' | 'blocked' }
+  | { act: 'close'; issue: IssueKey; task: string }
   | { act: 'show' }
   | { act: 'report'; dispatch: string; file: string };
 function text(value: unknown): value is string {
@@ -77,10 +78,10 @@ function parse(args: string[]): { input: Input; profile?: string; runtimeFile?: 
     throw new UsageError(`${act ?? 'dispatch'} takes no flags`);
   if (act === 'show' && values.length === 1) return { input: { act } };
   if (act === 'report' && values.length === 3) return { input: { act, dispatch: issueText, file: task } };
-  if (!integer(issueText, 1)) throw new UsageError('need a positive issue number');
+  const issue = parseHandle(issueText);
+  if (issue === null) throw new UsageError('need a positive issue number');
   if (!/^(?:[1-9]\d*|final|verify-[1-9]\d*|land-[1-9]\d*)$/.test(task) || task.endsWith('\n'))
     throw new UsageError('need a task number, final, verify-<n>, or land-<n>');
-  const issue = Number(issueText);
   let input: Input;
   if (act === 'next' && values.length === 10) {
     if (arg !== 'implementer' && arg !== 'reviewer') throw new UsageError('need implementer or reviewer');
@@ -121,28 +122,31 @@ async function withRecord<T>(
   let sourceSchema: unknown;
   const failure = (error: unknown) =>
     new SetupError(
-      `${file}: ${sourceSchema === undefined ? 'target schema 2' : `schema ${String(sourceSchema)} to 2`}: ${message(error)}`,
+      `${file}: ${sourceSchema === undefined ? 'target schema 3' : `schema ${String(sourceSchema)} to 3`}: ${message(error)}`,
       error instanceof SetupError ? error.code : (stateOutcome(error)?.code ?? exits.blocked),
     );
+  const read = async () => {
+    sourceSchema = undefined;
+    const source = await readLocalRecord(file, [privateState.path, folder.path], 'private');
+    if (!source) return null;
+    const value = source.value;
+    if (value !== null && typeof value === 'object' && !Array.isArray(value))
+      sourceSchema = (value as Record<string, unknown>).schema;
+    if (sourceSchema === 1 || sourceSchema === 2)
+      return { source, schema: sourceSchema, record: convertDispatchRecord(value, host, session, sourceSchema) };
+    if (sourceSchema !== undefined && sourceSchema !== 3) throw new SetupError('unsupported schema');
+    return { source, schema: 3, record: validateRecord(value, host, session) };
+  };
   try {
     folders();
+    await read();
     return await withLock(
       lock,
       async () => {
-        let record: DispatchRecord | null = null;
-        const source = await readLocalRecord(file, [privateState.path, folder.path], 'private');
-        if (source) {
-          const value = source.value;
-          if (value !== null && typeof value === 'object' && !Array.isArray(value))
-            sourceSchema = (value as Record<string, unknown>).schema;
-          if (sourceSchema === 1) {
-            record = convertDispatchRecord(value, host, session);
-            await commitMigration(source, 1, `${JSON.stringify(record)}\n`);
-          } else {
-            if (sourceSchema !== undefined && sourceSchema !== 2) throw new SetupError('unsupported schema');
-            record = validateRecord(value, host, session);
-          }
-        }
+        const current = await read();
+        if (current && current.schema !== 3)
+          await commitMigration(current.source, current.schema, `${JSON.stringify(current.record)}\n`);
+        const record = current?.record ?? null;
         const result = await act(record);
         if (result.record !== undefined) {
           folders();

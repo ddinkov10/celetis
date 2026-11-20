@@ -1,3 +1,4 @@
+import type { IssueKey } from '../tracker/key.ts';
 import type { RowSource, StartPair } from '../workflow/effort.ts';
 import type { Lane, Step } from '../workflow/workflow.ts';
 
@@ -8,9 +9,9 @@ export type Pull = {
   checks: string | null;
   review: string | null;
 };
-export type ParentEpic = { number: number; title: string };
+export type ParentEpic = { number: IssueKey; title: string };
 export type IssueRow = {
-  number: number;
+  number: IssueKey;
   title: string;
   url: string;
   type: Lane | null;

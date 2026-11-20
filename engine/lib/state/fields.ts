@@ -14,11 +14,3 @@ export function isSessionId(host: Host, value: unknown): value is string {
 export function isCommit(value: unknown): value is string {
   return typeof value === 'string' && commit.test(value);
 }
-
-export function isIssueNumber(value: string): boolean {
-  return /^[1-9][0-9]*$/.test(value) && Number.isSafeInteger(Number(value));
-}
-
-export function isIssueField(value: unknown): value is number | string {
-  return (typeof value === 'number' || typeof value === 'string') && isIssueNumber(String(value));
-}

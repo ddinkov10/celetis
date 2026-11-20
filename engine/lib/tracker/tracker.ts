@@ -4,12 +4,13 @@ import { join } from 'node:path';
 import type { Label } from '../contract/contract.ts';
 import { parseEpicAcceptance, parseEpicChildren, parseEpicRepository } from '../epic/acceptance.ts';
 import { run } from '../process/process.ts';
-import { isCommit, isIssueNumber } from '../state/fields.ts';
+import { isCommit } from '../state/fields.ts';
 import type { Entry, EpicSnapshot, IssueData } from '../workflow/workflow.ts';
+import { type IssueKey, parseKey } from './key.ts';
 import { writeRefreshHint } from './refresh-hints.ts';
 
 export type Issue = Readonly<{
-  number: number;
+  key: IssueKey;
   title: string;
   url: string;
   apiUrl: string;
@@ -61,7 +62,7 @@ export type WorkflowRun = Readonly<{
 }>;
 export type Review = Readonly<{ user: string | null; state: string }>;
 export type PullDetails = Readonly<{ checks: readonly (CheckRun | CommitStatus)[]; reviews: readonly Review[] }>;
-export type Parent = Readonly<{ number: number; url: string }>;
+export type Parent = Readonly<{ key: IssueKey; url: string }>;
 export type Bucket = 'pass' | 'skipping' | 'fail' | 'cancel' | 'pending';
 export type PullFilter = Readonly<{ state: 'open' }> | Readonly<{ head: string; state: 'closed' | 'all' }>;
 export type NewPull = Readonly<{ base: string; head: string; title: string; body: string }>;
@@ -72,11 +73,11 @@ export type GitHub = Readonly<{
   api(endpoint: string): Promise<unknown>;
   list(endpoint: string): Promise<unknown[]>;
   graphql(query: string, variables?: Readonly<Record<string, string | number>>): Promise<Record<string, unknown>>;
-  timelines(issues: readonly Issue[]): Promise<ReadonlyMap<number, readonly Entry[]>>;
+  timelines(issues: readonly Issue[]): Promise<ReadonlyMap<IssueKey, readonly Entry[]>>;
   pullDetails(pulls: readonly Pull[]): Promise<ReadonlyMap<number, PullDetails>>;
-  read(n: string): Promise<Readonly<{ issue: Issue; data: IssueData }>>;
-  epic(n: string): Promise<EpicSnapshot>;
-  issue(n: string): Promise<Issue>;
+  read(n: IssueKey): Promise<Readonly<{ issue: Issue; data: IssueData }>>;
+  epic(n: IssueKey): Promise<EpicSnapshot>;
+  issue(n: IssueKey): Promise<Issue>;
   openIssues(): Promise<readonly Issue[]>;
   repository(): Promise<Repository>;
   pulls(filter: PullFilter): Promise<readonly Pull[]>;
@@ -88,15 +89,15 @@ export type GitHub = Readonly<{
   workflowRuns(sha: string): Promise<readonly WorkflowRun[]>;
   workflowRun(id: number): Promise<WorkflowRun>;
   rerunFailedJobs(id: number): Promise<void>;
-  parent(n: string): Promise<Parent>;
+  parent(n: IssueKey): Promise<Parent>;
   labels(): Promise<readonly string[]>;
   createLabel(fields: NewLabel): Promise<void>;
   createIssue(fields: NewIssue): Promise<Issue>;
-  comment(n: string, text: string): Promise<void>;
-  commentIssue(n: string, file: string, attachments: readonly string[]): Promise<string>;
-  addLabels(n: string, names: readonly string[]): Promise<void>;
-  removeLabel(n: string, name: string): Promise<void>;
-  edit(n: string, fields: Edit): Promise<void>;
+  comment(n: IssueKey, text: string): Promise<void>;
+  commentIssue(n: IssueKey, file: string, attachments: readonly string[]): Promise<string>;
+  addLabels(n: IssueKey, names: readonly string[]): Promise<void>;
+  removeLabel(n: IssueKey, name: string): Promise<void>;
+  edit(n: IssueKey, fields: Edit): Promise<void>;
   stderr(): string;
 }>;
 
@@ -203,14 +204,18 @@ function parseWorkflowRun(raw: unknown): WorkflowRun {
   };
 }
 
+function issueKey(value: unknown): IssueKey | null {
+  return Number.isSafeInteger(value) ? parseKey(String(value)) : null;
+}
+
 function parseParent(raw: unknown): Parent {
   const parent = typeof raw === 'object' && raw !== null && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
-  const { number, html_url: url } = parent;
-  if (!Number.isSafeInteger(number) || (number as number) < 1)
-    throw new Refusal('the parent response has no valid issue number');
-  if (typeof url !== 'string' || !url.endsWith(`/issues/${number}`))
+  const key = issueKey(parent.number);
+  const url = parent.html_url;
+  if (key === null) throw new Refusal('the parent response has no valid issue number');
+  if (typeof url !== 'string' || !url.endsWith(`/issues/${key}`))
     throw new Refusal('the parent response has no canonical issue URL that matches its number');
-  return { number: number as number, url };
+  return { key, url };
 }
 
 function parseLabelName(raw: unknown): string {
@@ -257,9 +262,10 @@ export async function loggedIn(host: string, cwd: string): Promise<boolean> {
 
 export function parseIssue(raw: unknown): Issue {
   const issue = record(raw);
-  const { number, state, labels, body, comments, closed_at: closedAt, pull_request: pull } = issue;
+  const { state, labels, body, comments, closed_at: closedAt, pull_request: pull } = issue;
+  const key = issueKey(issue.number);
   if (
-    typeof number !== 'number' ||
+    key === null ||
     (state !== 'open' && state !== 'closed') ||
     !Array.isArray(labels) ||
     typeof comments !== 'number' ||
@@ -269,7 +275,7 @@ export function parseIssue(raw: unknown): Issue {
   const parent = issue.parent_issue_url;
   if (parent !== undefined && parent !== null && typeof parent !== 'string') throw malformed();
   return {
-    number,
+    key,
     title: text(issue.title),
     url: text(issue.html_url),
     apiUrl: text(issue.url),
@@ -282,6 +288,12 @@ export function parseIssue(raw: unknown): Issue {
     closedAt: closedAt === null ? null : text(closedAt),
     pull: Boolean(pull),
   };
+}
+
+export function parentKey({ apiUrl, parentUrl }: Issue): IssueKey | null {
+  if (parentUrl === null) return null;
+  const prefix = apiUrl.slice(0, apiUrl.lastIndexOf('/') + 1);
+  return parentUrl.startsWith(prefix) ? parseKey(parentUrl.slice(prefix.length)) : null;
 }
 
 export function parseTimeline(entries: readonly unknown[]): Entry[] {
@@ -487,7 +499,8 @@ export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
         { cwd, signal, env },
       );
       const issue = /^issues\/([1-9][0-9]*)(?:\/|$)/.exec(endpoint);
-      if (result.code === 0 && issue) await writeRefreshHint(cwd, Number(issue[1]));
+      const key = issue && parseKey(issue[1] as string);
+      if (result.code === 0 && key) await writeRefreshHint(cwd, key);
       signal?.throwIfAborted();
       if (result.code !== 0) {
         const failure = `${result.stdout}${result.stderr}`.trimEnd();
@@ -541,22 +554,20 @@ export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
 
   const connectionAt = (value: unknown, ...keys: string[]) => parsed('graphql', () => connection(select(value, keys)));
 
-  async function timelines(issues: readonly Issue[]): Promise<ReadonlyMap<number, readonly Entry[]>> {
-    const result = new Map<number, readonly Entry[]>(issues.map((issue) => [issue.number, []]));
+  async function timelines(issues: readonly Issue[]): Promise<ReadonlyMap<IssueKey, readonly Entry[]>> {
+    const result = new Map<IssueKey, readonly Entry[]>(issues.map((issue) => [issue.key, []]));
     for (const chunk of chunks(
       issues.filter((issue) => issue.comments > 0),
       50,
     )) {
       const data = await graphql(
-        graphqlQuery(
-          chunk.map(({ number }) => `i${number}: issue(number: ${number}) { ${timelineItems('')} }`).join(' '),
-        ),
+        graphqlQuery(chunk.map(({ key }) => `i${key}: issue(number: ${key}) { ${timelineItems('')} }`).join(' ')),
       );
-      for (const { number } of chunk) {
-        const nodes = await drain(connectionAt(data, 'repository', `i${number}`, 'timelineItems'), async (cursor) =>
+      for (const { key } of chunk) {
+        const nodes = await drain(connectionAt(data, 'repository', `i${key}`, 'timelineItems'), async (cursor) =>
           connectionAt(
             await graphql(
-              graphqlQuery(`issue(number: ${number}) { ${timelineItems(', after: $cursor')} }`, '$cursor: String!'),
+              graphqlQuery(`issue(number: ${key}) { ${timelineItems(', after: $cursor')} }`, '$cursor: String!'),
               {
                 cursor,
               },
@@ -567,7 +578,7 @@ export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
           ),
         );
         result.set(
-          number,
+          key,
           parsed('graphql', () => nodes.map(timelineEntry)),
         );
       }
@@ -647,7 +658,7 @@ export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
 
   async function history(issue: Issue): Promise<readonly Entry[]> {
     if (issue.comments === 0) return [];
-    const endpoint = `issues/${issue.number}/timeline?per_page=100`;
+    const endpoint = `issues/${issue.key}/timeline?per_page=100`;
     const entries = await pages(endpoint);
     return parsed(endpoint, () => parseTimeline(entries));
   }
@@ -658,15 +669,12 @@ export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
     graphql,
     timelines,
     pullDetails,
-    async read(n: string) {
+    async read(n: IssueKey) {
       const issue = await get(`issues/${n}`, parseIssue);
       return { issue, data: issueData(issue, await history(issue)) };
     },
-    async epic(n: string) {
+    async epic(n: IssueKey) {
       const target = `issues/${n}`;
-      parsed(target, () => {
-        if (!isIssueNumber(n)) throw malformed();
-      });
       const rawRepository = await get('', record);
       const repository = parsed('', () => {
         const url = parseEpicRepository(rawRepository.html_url);
@@ -683,7 +691,7 @@ export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
         const parent = parseIssue(rawParent);
         if (
           Object.hasOwn(rawParent, 'pull_request') ||
-          parent.number !== Number(n) ||
+          parent.key !== n ||
           parent.url !== `${repository}/issues/${n}` ||
           !Number.isSafeInteger(parent.comments) ||
           parent.comments < 0
@@ -707,13 +715,15 @@ export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
       const rawChildren = await pages(sub);
       const children = parseEpicChildren(
         parsed(sub, () =>
-          rawChildren.map((raw) => {
+          rawChildren.map((raw, index) => {
             const child = record(raw);
             if (Object.hasOwn(child, 'pull_request')) throw malformed();
+            const number = issueKey(child.number);
+            if (number === null) throw new Error(`children[${index}].number: need a positive safe integer`);
             return {
               url: child.html_url,
               id: child.id,
-              number: child.number,
+              number,
               state: child.state,
               stateReason: child.state_reason,
               closedAt: child.closed_at,
@@ -723,13 +733,13 @@ export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
       );
       return {
         repository,
-        parent: issue.number,
+        parent: issue.key,
         data: issueData(issue, entries),
         declaration: parseEpicAcceptance(issue.body),
         children,
       };
     },
-    issue: (n: string) => get(`issues/${n}`, parseIssue),
+    issue: (n: IssueKey) => get(`issues/${n}`, parseIssue),
     openIssues: () => getAll('issues?state=open&per_page=100', parseIssue),
     repository: () => get('', parseRepository),
     pulls: (filter: PullFilter) =>
@@ -755,7 +765,7 @@ export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
     async rerunFailedJobs(id: number) {
       await send('POST', `actions/runs/${id}/rerun-failed-jobs`);
     },
-    parent: (n: string) => get(`issues/${n}/parent`, parseParent),
+    parent: (n: IssueKey) => get(`issues/${n}/parent`, parseParent),
     labels: () => getAll('labels?per_page=100', parseLabelName),
     async createLabel(fields: NewLabel) {
       await send('POST', 'labels', { fields });
@@ -764,10 +774,10 @@ export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
       const raw = await send('POST', 'issues', { fields, silent: false });
       return parsed('issues', () => parseIssue(json(raw)));
     },
-    async comment(n: string, text: string) {
+    async comment(n: IssueKey, text: string) {
       await send('POST', `issues/${n}/comments`, { fields: { body: text } });
     },
-    async commentIssue(n: string, file: string, attachments: readonly string[]) {
+    async commentIssue(n: IssueKey, file: string, attachments: readonly string[]) {
       signal?.throwIfAborted();
       const result = await run(
         'gh',
@@ -779,18 +789,18 @@ export function github(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
         throw new GitHubError(`issues/${n}/comments`, failure, result.stderr, failure);
       }
       stderr += result.stderr;
-      await writeRefreshHint(cwd, Number(n));
+      await writeRefreshHint(cwd, n);
       return result.stdout;
     },
-    async addLabels(n: string, names: readonly string[]) {
+    async addLabels(n: IssueKey, names: readonly string[]) {
       await send('POST', `issues/${n}/labels`, { fields: { labels: names } });
     },
-    async removeLabel(n: string, name: string) {
+    async removeLabel(n: IssueKey, name: string) {
       await send('DELETE', `issues/${n}/labels/${encodeURIComponent(name)}`).catch((error: unknown) => {
         if (!(error instanceof GitHubError && error.notFound)) throw error;
       });
     },
-    async edit(n: string, fields: Edit) {
+    async edit(n: IssueKey, fields: Edit) {
       await send('PATCH', `issues/${n}`, { fields });
     },
     stderr: () => stderr,

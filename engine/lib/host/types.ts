@@ -1,11 +1,12 @@
 import type { RepositoryLayout } from '../state/state.ts';
+import type { IssueKey } from '../tracker/key.ts';
 import type { Level, StartPair } from '../workflow/effort.ts';
 import type { Step } from '../workflow/workflow.ts';
 import type { ObservedUsage, UsageAttempt } from './usage.ts';
 
 export type Claim = { kind: 'none' } | { kind: 'one'; id: string } | { kind: 'many' };
 export type StepStart = Readonly<{
-  issue: number;
+  issue: IssueKey;
   step: Step;
   cwd: string;
   start: StartPair;
@@ -35,7 +36,7 @@ export type HostAdapter = Readonly<{
   stepEnv: (source: NodeJS.ProcessEnv) => NodeJS.ProcessEnv;
   pin: (main: string) => Promise<string[]>;
   sessionEnv: (session: SessionStart) => Promise<Readonly<Record<string, string>>>;
-  stepPrompt: (step: Step, issue: number) => string;
+  stepPrompt: (step: Step, issue: IssueKey) => string;
   stepArguments: (start: StepStart) => Promise<StepArguments>;
   resumeArguments: (session: Readonly<{ session_id: string; effort: Level | null }>) => string[];
   sessionArguments: (sessionId: string) => string[];

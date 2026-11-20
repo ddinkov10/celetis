@@ -5,6 +5,7 @@ import { exits } from '../../contract/contract.ts';
 import { run } from '../../process/process.ts';
 import { isSessionId } from '../../state/fields.ts';
 import { writeAtomic } from '../../state/state.ts';
+import type { IssueKey } from '../../tracker/key.ts';
 import { command, type Step } from '../../workflow/workflow.ts';
 import type { HostAdapter } from '../types.ts';
 import { unknownUsage } from '../usage.ts';
@@ -19,7 +20,7 @@ function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function opencodePrompt(step: Step, issue: number): string {
+function opencodePrompt(step: Step, issue: IssueKey): string {
   return `Load the skill ${command(step)} with the skill tool and follow it for #${issue}. Complete its Celetis entry before any response, including commentary.`;
 }
 

@@ -1,6 +1,7 @@
 import type { Host } from '../config/core.ts';
 import type { DispatchStatus } from '../contract/contract.ts';
 import { isHost } from '../host/names.ts';
+import { type IssueKey, isKey, parseKey } from '../tracker/key.ts';
 import { isLevel, type Level } from '../workflow/effort.ts';
 import { type Pair, pairText, ScoreError, scoreLabel } from './capability.ts';
 
@@ -32,7 +33,7 @@ export interface Execution {
 }
 export interface Dispatch {
   id: string;
-  issue: number;
+  issue: IssueKey;
   task: string;
   role: Role;
   action: Action;
@@ -52,7 +53,7 @@ export type Entry =
   | { kind: 'gate'; result: 'pass' | 'fail'; name: string; report: string; time: string }
   | { kind: 'review'; result: 'findings' | 'blocked'; time: string };
 export interface Task {
-  issue: number;
+  issue: IssueKey;
   task: string;
   attempt: number;
   round: number;
@@ -61,7 +62,7 @@ export interface Task {
   entries: Entry[];
 }
 export interface DispatchRecord {
-  schema: 2;
+  schema: 3;
   host: Host;
   session: string;
   tasks: Task[];
@@ -71,8 +72,8 @@ type Refusal = Exclude<DispatchStatus, 'ready' | 'reported' | 'closed'>;
 export type Result =
   | { status: Extract<DispatchStatus, 'reported'>; dispatch: string; result: 'started' | 'failed' }
   | { status: Extract<DispatchStatus, 'ready'>; dispatch: Dispatch; voided: string[] }
-  | { status: Extract<DispatchStatus, 'closed'>; issue: number; task: string }
-  | { status: Refusal; issue: number; task: string; reason: string; trail: unknown[] | null };
+  | { status: Extract<DispatchStatus, 'closed'>; issue: IssueKey; task: string }
+  | { status: Refusal; issue: IssueKey; task: string; reason: string; trail: unknown[] | null };
 export interface Context {
   resolve(score: Score, level: number, reviewer: boolean): Pair | null;
   id(): string;
@@ -80,7 +81,8 @@ export interface Context {
 }
 export class DispatchError extends Error {}
 
-type Key = { issue: number; task: string };
+type Key = { issue: IssueKey; task: string };
+type Schema = 1 | 2 | 3;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const taskId = /^(?:[1-9]\d*|final|verify-[1-9]\d*|land-[1-9]\d*)$/;
 const isText = (value: unknown): value is string =>
@@ -90,6 +92,7 @@ const nullableText = (value: unknown): boolean => value === null || isText(value
 const nullableString = (value: unknown): boolean => value === null || typeof value === 'string';
 const integer = (value: unknown, min: number, max = Number.MAX_SAFE_INTEGER): boolean =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max;
+const issueValue = (value: unknown, schema: Schema): boolean => (schema === 3 ? isKey(value) : integer(value, 1));
 function need(condition: unknown, field: string): asserts condition {
   if (!condition) throw new DispatchError(`invalid ${field}`);
 }
@@ -112,7 +115,7 @@ function scoreValue(value: unknown, path: string, fields = ['digits', 'bias']): 
   need(integer(score.bias, 0), `${path}.bias`);
 }
 function keyValue(value: Key): void {
-  need(integer(value.issue, 1), 'issue');
+  need(isKey(value.issue), 'issue');
   need(isText(value.task) && taskId.test(value.task) && !value.task.endsWith('\n'), 'task');
 }
 function pairValue(value: unknown, path: string): void {
@@ -225,7 +228,8 @@ function executionValue(value: unknown, path: string, historical: boolean): void
   );
   need(isText(execution.time), `${path}.time`);
 }
-function dispatchValue(value: unknown, path: string, historical: boolean): void {
+function dispatchValue(value: unknown, path: string, schema: Schema): void {
+  const historical = schema === 1;
   const dispatch = shape(
     value,
     [
@@ -247,7 +251,7 @@ function dispatchValue(value: unknown, path: string, historical: boolean): void 
     path,
   );
   need(typeof dispatch.id === 'string' && uuid.test(dispatch.id), `${path}.id`);
-  need(integer(dispatch.issue, 1), `${path}.issue`);
+  need(issueValue(dispatch.issue, schema), `${path}.issue`);
   need(isText(dispatch.task) && taskId.test(dispatch.task) && !dispatch.task.endsWith('\n'), `${path}.task`);
   need(dispatch.role === 'implementer' || dispatch.role === 'reviewer', `${path}.role`);
   need(['spawn', 'resume', 'replace'].includes(dispatch.action as Action), `${path}.action`);
@@ -271,17 +275,18 @@ function dispatchValue(value: unknown, path: string, historical: boolean): void 
 export function emptyRecord(host: Host, session: string): DispatchRecord {
   need(isHost(host), 'host');
   need(isText(session), 'session');
-  return { schema: 2, host, session, tasks: [], dispatches: [] };
+  return { schema: 3, host, session, tasks: [], dispatches: [] };
 }
-function recordValue(value: unknown, host: Host, session: string, historical: boolean): DispatchRecord {
+function recordValue(value: unknown, host: Host, session: string, schema: Schema): DispatchRecord {
+  const historical = schema === 1;
   const record = shape(value, ['schema', 'host', 'session', 'tasks', 'dispatches'], '');
-  need(record.schema === (historical ? 1 : 2), 'schema');
+  need(record.schema === schema, 'schema');
   need(isHost(record.host) && record.host === host, 'host');
   need(isText(record.session) && record.session === session, 'session');
   const keys = new Set<string>();
   list(record.tasks, 'tasks', (value, path) => {
     const task = shape(value, ['issue', 'task', 'attempt', 'round', 'escalated', 'closed', 'entries'], path);
-    need(integer(task.issue, 1), `${path}.issue`);
+    need(issueValue(task.issue, schema), `${path}.issue`);
     need(isText(task.task) && taskId.test(task.task) && !task.task.endsWith('\n'), `${path}.task`);
     const key = `${task.issue}:${task.task}`;
     need(!keys.has(key), path);
@@ -293,7 +298,7 @@ function recordValue(value: unknown, host: Host, session: string, historical: bo
     list(task.entries, `${path}.entries`, entryValue);
     need((task.entries as Entry[])[0]?.kind === 'score', `${path}.entries[0]`);
   });
-  list(record.dispatches, 'dispatches', (value, path) => dispatchValue(value, path, historical));
+  list(record.dispatches, 'dispatches', (value, path) => dispatchValue(value, path, schema));
   const typed = record as unknown as DispatchRecord;
   const dispatches = new Map<string, Dispatch>();
   for (const [index, dispatch] of typed.dispatches.entries()) {
@@ -379,16 +384,23 @@ function recordValue(value: unknown, host: Host, session: string, historical: bo
   return structuredClone(typed);
 }
 export function validateRecord(value: unknown, host: Host, session: string): DispatchRecord {
-  return recordValue(value, host, session, false);
+  return recordValue(value, host, session, 3);
 }
-export function convertDispatchRecord(value: unknown, host: Host, session: string): DispatchRecord {
-  const record = recordValue(value, host, session, true);
-  for (const dispatch of record.dispatches) {
-    if (!dispatch.execution) continue;
+export function convertDispatchRecord(value: unknown, host: Host, session: string, schema: 1 | 2): DispatchRecord {
+  const record = recordValue(value, host, session, schema);
+  const key = (issue: unknown, path: string) => {
+    const parsed = parseKey(String(issue));
+    need(parsed !== null, path);
+    return parsed;
+  };
+  for (const [index, task] of record.tasks.entries()) task.issue = key(task.issue, `tasks[${index}].issue`);
+  for (const [index, dispatch] of record.dispatches.entries()) {
+    dispatch.issue = key(dispatch.issue, `dispatches[${index}].issue`);
+    if (!dispatch.execution || schema !== 1) continue;
     const { call, outcome } = dispatch.execution.report;
     dispatch.execution.report = { call, outcome };
   }
-  record.schema = 2;
+  record.schema = 3;
   return validateRecord(record, host, session);
 }
 export function dispatchIdOf(text: string): string | null {
@@ -862,7 +874,7 @@ export function reportExecution(
   const report = validateExecutionReport(input.report);
   record = structuredClone(record);
   const dispatch = record.dispatches.find((dispatch) => dispatch.id === input.dispatch);
-  const key = dispatch ?? { issue: 1, task: 'final' };
+  const key = dispatch ?? { issue: '1' as IssueKey, task: 'final' };
   if (!dispatch) return { record, result: refused(record, key, `unknown dispatch ${input.dispatch}`) };
   if (dispatch.execution !== null || dispatch.voided)
     return { record, result: refused(record, dispatch, `dispatch ${dispatch.id} already has execution evidence`) };

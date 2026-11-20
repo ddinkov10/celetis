@@ -19,6 +19,7 @@ import { bunArgs, run } from '../lib/process/process.ts';
 import type { QueueAction, QueueView } from '../lib/queue/types.ts';
 import { isCommit, orderVersion } from '../lib/state/fields.ts';
 import { fromChild, repositoryLayout } from '../lib/state/state.ts';
+import type { IssueKey } from '../lib/tracker/key.ts';
 import type { Level } from '../lib/workflow/effort.ts';
 
 export type BoardDaemon = Readonly<{
@@ -37,15 +38,15 @@ export type BoardDaemon = Readonly<{
 }>;
 export type Adapter = Readonly<{
   intake(choice: AgentChoice): Promise<string[]>;
-  assist(number: number, choice: AgentChoice): Promise<string[]>;
-  visual(number: number, sha: string, choice: AgentChoice): Promise<string[]>;
-  run(number: number, choice: AgentChoice, effort?: Level): Promise<string>;
-  resume(number: number): Promise<string>;
-  aside(number: number): Promise<void>;
-  halt(number: number, terminal: string): Promise<void>;
+  assist(number: IssueKey, choice: AgentChoice): Promise<string[]>;
+  visual(number: IssueKey, sha: string, choice: AgentChoice): Promise<string[]>;
+  run(number: IssueKey, choice: AgentChoice, effort?: Level): Promise<string>;
+  resume(number: IssueKey): Promise<string>;
+  aside(number: IssueKey): Promise<void>;
+  halt(number: IssueKey, terminal: string): Promise<void>;
   queue(action: QueueAction, choice: AgentChoice): Promise<QueueView>;
   replaceAgentOrder(order: readonly Host[], expectedVersion: string): Promise<AgentOrder>;
-  retryQuota(number: number, waitId: string): Promise<void>;
+  retryQuota(number: IssueKey, waitId: string): Promise<void>;
   status(): Promise<DaemonStatus>;
   reconcileQueue(): Promise<QueueView>;
   coordinator(): CoordinatorFacts | null;
@@ -112,10 +113,10 @@ export async function celetisAdapter(
     if (!answer.accepted) throw new Error(answer.line);
     return answer.view;
   };
-  const argv = async (args: (string | number)[]) => {
+  const argv = async (args: string[]) => {
     const found = await engine();
-    if (process.platform === 'win32') return [process.execPath, ...bunArgs(found.entry, args.map(String))];
-    return [found.command, ...args.map(String)];
+    if (process.platform === 'win32') return [process.execPath, ...bunArgs(found.entry, args)];
+    return [found.command, ...args];
   };
   const control = async (args: string[]) => {
     const { CELETIS_AGENT: _agent, CELETIS_SESSION_AGENT: _session, ...env } = process.env;
@@ -129,8 +130,14 @@ export async function celetisAdapter(
       return argv([...agentFlag(choice), 'visual', number, sha]);
     },
     run: (number, choice, effort) =>
-      start({ kind: 'run', number, selection: selectionOf(choice), effort: effort ?? null, model: null }),
-    resume: (number) => start({ kind: 'resume', number, selection: {} }),
+      start({
+        kind: 'run',
+        number: number,
+        selection: selectionOf(choice),
+        effort: effort ?? null,
+        model: null,
+      }),
+    resume: (number) => start({ kind: 'resume', number: number, selection: {} }),
     queue: (input, choice) => changeQueue({ kind: 'queue-action', action: input, selection: selectionOf(choice) }),
     replaceAgentOrder: async (order, expectedVersion) => {
       const replacement = { order: validateAgentOrder(order), expectedVersion };
@@ -157,15 +164,15 @@ export async function celetisAdapter(
       return parseOrder(value);
     },
     aside: async (number) => {
-      const answer = parseAnswer(await daemon.send({ kind: 'aside', number }));
+      const answer = parseAnswer(await daemon.send({ kind: 'aside', number: number }));
       if (!answer.accepted) throw new Error(answer.line);
     },
     halt: async (number, terminal) => {
-      const answer = parseAnswer(await daemon.send({ kind: 'halt', number, terminal }));
+      const answer = parseAnswer(await daemon.send({ kind: 'halt', number: number, terminal }));
       if (!answer.accepted) throw new Error(answer.line);
     },
     retryQuota: async (number, waitId) => {
-      const answer = parseAnswer(await daemon.send({ kind: 'retry', number, waitId }));
+      const answer = parseAnswer(await daemon.send({ kind: 'retry', number: number, waitId }));
       if (!answer.accepted) throw new Error(answer.line);
     },
     status: () => daemon.status(),

@@ -1,7 +1,7 @@
 ---
 name: assist
 description: Help the maintainer complete an issue's current block. Use when the human runs /celetis:assist or opens an assistance session from the board.
-argument-hint: "#<issue number>"
+argument-hint: "#<issue key>"
 ---
 
 **Celetis entry.** Before any step or response, including commentary or an announcement, bind `<plugin>` to the absolute prefix before `/skills/<name>/SKILL.md` in the path of this loaded file. Then read `<plugin>/references/procedures/entry.md` whole, in one read, and follow it before any product-path scan. Do this on each invocation, including a same-session handoff.

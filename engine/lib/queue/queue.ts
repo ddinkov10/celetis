@@ -8,10 +8,11 @@ import { isHost } from '../host/names.ts';
 import { lineOf, type Next } from '../resolver/lines.ts';
 import { nextIssue } from '../resolver/resolver.ts';
 import { readRecovery, recoveryOwner } from '../run/quota-recovery.ts';
-import { type LockOwner, lockHolder } from '../state/locks.ts';
+import { issueLock, type LockOwner, lockHolder } from '../state/locks.ts';
 import { commitMigration, type LocalRecord, readLocalRecord } from '../state/migration.ts';
 import { requestStatePreparation } from '../state/preparation.ts';
 import { ensureFolder, repositoryLayout, withLock, writeAtomic } from '../state/state.ts';
+import { type IssueKey, parseKey } from '../tracker/key.ts';
 import {
   agentChoice,
   type QueueAction,
@@ -21,6 +22,7 @@ import {
   queueAction,
   queueReceipt,
   queueRecord,
+  queueRecordSchema3,
   sameChoice,
   queueView as viewSchema,
 } from './types.ts';
@@ -83,6 +85,14 @@ function validate(value: unknown): QueueRecord {
   return parsed.data;
 }
 
+type Schema3Record = z.output<typeof queueRecordSchema3>;
+
+function validate3(value: unknown): Schema3Record {
+  const parsed = queueRecordSchema3.safeParse(value);
+  if (!parsed.success) throw new Error('queue: invalid or obsolete record');
+  return parsed.data;
+}
+
 const viewShape = viewSchema.extend({ record: z.unknown() });
 
 export function parseQueueView(value: unknown): QueueView {
@@ -103,7 +113,7 @@ export function parseQueueReceipt(value: unknown): QueueReceipt {
   return parsed.data;
 }
 
-const { id, revision, numbers, current, last, reason, act } = queueRecord.shape;
+const { id, revision, numbers, current, last, reason, act } = queueRecordSchema3.shape;
 const historicalFields = { id, revision, numbers, current, last, reason, act };
 const historicalSchemas = {
   1: z.strictObject({
@@ -123,11 +133,39 @@ const historicalSchemas = {
   }),
 };
 
+function keyed(record: Schema3Record, invalid: (cause: string) => never): QueueRecord {
+  const key = (number: number): IssueKey => parseKey(String(number)) ?? invalid('an issue number is not an issue key');
+  const authorization = record.launch?.authorization;
+  const target = {
+    ...record,
+    schema: 4,
+    numbers: record.numbers.map(key),
+    launch: record.launch && {
+      ...record.launch,
+      authorization: authorization ? { ...authorization, number: key(authorization.number) } : null,
+    },
+  };
+  try {
+    return validate(target);
+  } catch {
+    return invalid('the record cannot map to the current invariant');
+  }
+}
+
 function historical(value: unknown, file: string): QueueRecord {
   const invalid = (cause: string): never => {
-    throw new HostError(`queue: ${file}: schema ${schemaText(value)} to 3: ${cause}`, exits.usage);
+    throw new HostError(`queue: ${file}: schema ${schemaText(value)} to 4: ${cause}`, exits.usage);
   };
   const version = versionOf(value)?.schema;
+  if (version === 3) {
+    let record: Schema3Record;
+    try {
+      record = validate3(value);
+    } catch {
+      return invalid('invalid schema-3 record');
+    }
+    return keyed(record, invalid);
+  }
   if (version !== 1 && version !== 2) return invalid('unsupported schema');
   const fields = historicalSchemas[version].safeParse(value);
   if (!fields.success) return invalid('invalid historical fields');
@@ -178,11 +216,13 @@ function historical(value: unknown, file: string): QueueRecord {
     launch: empty || old.schema === 1 ? null : old.launch,
   };
   if (!empty && old.state === 'me-gate' && old.current === null) invalid('current Run is unmappable for me-gate');
+  let record: Schema3Record;
   try {
-    return validate(target);
+    record = validate3(target);
   } catch {
     return invalid('historical state or launch cannot map to the current invariant');
   }
+  return keyed(record, invalid);
 }
 
 async function snapshot(common: string): Promise<LocalRecord | null> {
@@ -192,25 +232,25 @@ async function snapshot(common: string): Promise<LocalRecord | null> {
     return await readLocalRecord(file, [common, layout.root.path], 'shared');
   } catch (error) {
     throw new HostError(
-      `queue: ${file}: target schema 3: cannot read record: ${error instanceof Error ? error.message : String(error)}`,
+      `queue: ${file}: target schema 4: cannot read record: ${error instanceof Error ? error.message : String(error)}`,
       exits.blocked,
     );
   }
 }
 const oldSchema = (source: LocalRecord) => {
   const schema = versionOf(source.value)?.schema;
-  return schema === 1 || schema === 2;
+  return schema === 1 || schema === 2 || schema === 3;
 };
 const currentRecord = (source: LocalRecord): QueueRecord => {
-  if (versionOf(source.value)?.schema !== 3)
+  if (versionOf(source.value)?.schema !== 4)
     throw new HostError(
-      `queue: ${source.path}: unsupported schema ${schemaText(source.value)}; expected schema 3`,
+      `queue: ${source.path}: unsupported schema ${schemaText(source.value)}; expected schema 4`,
       exits.usage,
     );
   try {
     return validate(source.value);
   } catch {
-    throw new HostError(`queue: ${source.path}: invalid schema-3 record`, exits.usage);
+    throw new HostError(`queue: ${source.path}: invalid schema-4 record`, exits.usage);
   }
 };
 async function currentQueue(common: string): Promise<QueueRecord | null> {
@@ -233,10 +273,12 @@ export async function prepareQueue(_main: string, common: string, owner: LockOwn
     return;
   }
   const decided = historical(first.value, first.path);
-  const context = `queue: ${first.path}: schema ${schemaText(first.value)} to 3`;
-  const issue = decided.numbers[0];
-  if (!owner.owns('queue') && issue !== undefined && owner.owns(`issue-${issue}`))
-    throw new Error(`${context}: cannot acquire queue ownership after issue-${issue}; retry after releasing the issue`);
+  const context = `queue: ${first.path}: schema ${schemaText(first.value)} to 4`;
+  const issue: IssueKey | undefined = decided.numbers[0];
+  if (!owner.owns('queue') && issue !== undefined && owner.owns(issueLock(issue)))
+    throw new Error(
+      `${context}: cannot acquire queue ownership after ${issueLock(issue)}; retry after releasing the issue`,
+    );
   const acquired: string[] = [];
   const take = async (name: string) => {
     if (owner.owns(name)) return;
@@ -270,7 +312,7 @@ export async function prepareQueue(_main: string, common: string, owner: LockOwn
         `${context}: identity or current unfinished issue changed during preparation`,
         exits.prerequisite,
       );
-    if (issue !== undefined) await take(`issue-${issue}`);
+    if (issue !== undefined) await take(issueLock(issue));
     await withQueueWrite(common, async () => {
       const locked = await snapshot(common);
       if (!locked) throw new HostError(`${context}: source disappeared under the write lock`, exits.prerequisite);
@@ -347,7 +389,8 @@ export function queueView(
 ): QueueView {
   const terminal = next?.kind === 'stop' && (next.reason === 'finished' || next.reason === 'wontfix');
   const unreadable = next?.kind === 'observed' && next.reason === 'unreadable';
-  if (!error && next && next.kind !== 'run' && !terminal) error = lineOf(String(record?.numbers[0]), next);
+  const first = record?.numbers[0];
+  if (!error && first !== undefined && next && next.kind !== 'run' && !terminal) error = lineOf(first, next);
   if (!error && record?.state === 'error') error = record.reason;
   if (!error && (record?.state === 'running' || record?.state === 'quota-wait') && !owner)
     error = 'queue: the run was interrupted. Use Try again to continue.';
@@ -371,7 +414,7 @@ export function queueView(
 export async function queueOwner(main: string, record: QueueRecord | null): Promise<string | null> {
   return (
     (await lockHolder(main, 'queue')) ||
-    (record?.numbers[0] ? await lockHolder(main, `issue-${record.numbers[0]}`) : null) ||
+    (record?.numbers[0] ? await lockHolder(main, issueLock(record.numbers[0])) : null) ||
     null
   );
 }
@@ -384,7 +427,7 @@ export async function readQueueView(operation: Operation, signal?: AbortSignal):
     if (main === null || common === null) throw new Error('queue: need a Git checkout');
     record = await readQueue(main, common);
     const number = record?.numbers[0];
-    const next = number ? (await nextIssue(String(number), operation, signal)).next : null;
+    const next = number ? (await nextIssue(number, operation, signal)).next : null;
     const owner = await queueOwner(main, record);
     signal?.throwIfAborted();
     const latest = await readQueue(main, common);

@@ -280,7 +280,7 @@ lists open PRs once.
 It reads timelines and PR details only for those issues. It also reads once each distinct parent
 of the open selected issues that is in the same repository, with `issues/<parent>` and no
 timeline; a 404 of that read gives no epic. Both paths use the same row rules.
-The selected read replaces or removes only selected rows, sorts by issue number, and retains
+The selected read replaces or removes only selected rows, sorts in the key order of the tracker, and retains
 other rows. Closed issues, PR objects, and missing issues have no active row. Only an explicit
 404 from the initial issue request means missing; another request failure fails the batch.
 
@@ -310,12 +310,12 @@ time or the full-read evidence for the 30-second Assist detection period.
 
 `Document.queue` and `Board.queue` use QueueView. A null record means no saved queue yet.
 Queue access, including the first document, selected reads, local placement, and action preflight,
-prepares valid schema-1/schema-2 storage through the same revision's finite daemon path.
+prepares valid schema-1, schema-2, and schema-3 storage through the same revision's finite daemon path.
 Preparation holds queue and current-issue execution ownership before the write lock. It keeps
 unfinished order and the recorded host, archives exact source bytes, and starts no work.
 A live owner causes refusal; the next ordinary request can retry after it exits. Invalid or
 unsupported storage remains an error, with no empty-success result or extra refresh loop.
-The view carries the schema-3 record, live owner, fresh next decision, error, and Add/Edit/Continue/Retry
+The view carries the schema-4 record, live owner, fresh next decision, error, and Add/Edit/Continue/Retry
 permissions. A full read sends the reconcile request `POST /queue/reconcile` to the master
 daemon through the adapter. The daemon reconciles terminal members and starts a queue run that
 is due, and the queue view of its answer is the queue of the document. The request has a limit of
@@ -344,7 +344,7 @@ The board puts these values in the fields of its document (`Document` of
 | `daemon` | Read at each response, not in the refresh: `{pid, auto}` of the status object of the daemon that serves the board, with `auto` `on`, `off`, or `stopping`. |
 | `agents` | One entry for each agent of the registry (`engine/lib/host/names.ts`). Each has `available: true` and `cause: null` when its executable is on the `PATH` of the board, else `available: false` and a `cause` that says the agent is not on `PATH`. This checks only executable presence: sign-in, trust, and plugin discovery need their own checks. |
 | `history` | The remote trunk name, history URL, captured full head SHA, and up to 20 distinct landed issues. Each entry holds the issue number/title/URL and commit SHA/URL/committer time. |
-| `queue` | A `QueueView` with the schema-3 record, live owner, resolver result, error, and Add/Edit/Continue/Retry permissions. A null record means no saved queue yet. |
+| `queue` | A `QueueView` with the schema-4 record, live owner, resolver result, error, and Add/Edit/Continue/Retry permissions. A null record means no saved queue yet. |
 | `issues` | One row for each open issue. An issue whose line of the resolver is the epic line or the `wontfix` line has no row. |
 
 A row gets its `state` by the first rule that matches:
@@ -429,7 +429,8 @@ with `createdAt`, at most as many as the entries that are still missing. It keep
 traversal order and each issue's newest occurrence, with no closure-time cutoff. After each chunk,
 and after the issue batch of a page, it appends the new commit and issue lines to the cache, so
 an aborted walk keeps the chunks that it read; a failed request appends nothing of its chunk. A cache line that does not
-parse counts as absent. A direct
+parse counts as absent. A line holds its issue as the issue key in a JSON string, so a line from
+before the issue key, with a JSON number, does not parse, and the walk reads its commit again. A direct
 Celetis Conventional Commit has an issue suffix. For a PR landing, the commit must match a merged
 lane PR's merge SHA, base branch, and repository identities. The lane issue number must agree
 with its `Closes #<n>` body reference. A nonempty PR association never falls back to the subject's
@@ -707,6 +708,8 @@ POST /run {"number":<n>,"selection":<selection>,"effort":<level>|null,"model":nu
 POST /resume {"number":<n>,"selection":{}}
 ```
 
+The value `<n>` is the issue key as a JSON string, for example `"12"`.
+
 The selection is `{"explicit":"<host>"}` for an explicit agent choice of Run, else `{}`. The
 board sends no `environment`, so the `CELETIS_AGENT` of the daemon selects no host. A `Run at
 <level>` entry sends the level as `effort`. The board sends no model: `model` is always `null`, so
@@ -751,7 +754,7 @@ The adapter makes each argv from fixed items: the command of the engine (on Wind
 the board with its isolation flags and the entry of the read, as below), then, for Assist,
 `assist`; for Make visual, `visual`, the number, and the full commit hash of the History row of
 that number; or for New intake, `intake`, with no issue number. These commands select from the
-local order. The engine supplies Bun and its isolation flags. The number is its digits. Each
+local order. The engine supplies Bun and its isolation flags. The number is the issue key. Each
 item is one argument: no shell reads the argv as a line, so an item cannot add a second command.
 On macOS and Linux, for the issue 12:
 
@@ -990,7 +993,7 @@ view with its `error`. With no coordinator record, `view` is `none`, and `chat` 
 `{"number": <n>, "sessionId": "<id>"}` to `/api/stop`, and `{}` to
 `/api/refresh`, `{}` to `/api/coordinator/open`, `/api/coordinator/interrupt`, and
 `/api/coordinator/end`, `{"text": "<text>"}` to `/api/coordinator/say`, and `{"key": "<key>"}` to
-`/api/coordinator/key`. A Run body can also have `"agent": "<name>"` and `"effort": "<level>"`, and no other
+`/api/coordinator/key`. Each `<n>` is the issue key as a JSON string, for example `"12"`. A Run body can also have `"agent": "<name>"` and `"effort": "<level>"`, and no other
 field. A Retry of a usage-limit wait sends exactly `{"number": <n>, "waitId": "<uuid>"}` to
 `/api/run`; the server checks only its shape, and the daemon refuses a stale or
 finished wait or a run that no longer runs, which the server returns as 409 with the line of the daemon. Before any
@@ -1036,8 +1039,8 @@ prove running. A refresh carries no wake: its reconcile request starts a due que
 daemon. No second remote poller is added.
 
 An Assist body must be an object with exactly one field, `number`. An extra field, including
-`agent`, a prompt, or execution text, gives 400. The number must be a positive safe integer,
-as a number or a digit string. Assist accepts every resolver reason whose card is `blocked`.
+`agent`, a prompt, or execution text, gives 400. The number must be a JSON string that is an
+issue key; another value gives 400 with the line `the number of the issue is not an issue key`. Assist accepts every resolver reason whose card is `blocked`.
 It opens assistance for the human action; it starts no workflow step. A 200 response means the
 tab opened, not that the host resolved the block. A later CLI refusal can remain in that tab.
 
@@ -1084,7 +1087,7 @@ The answer to a press that the server did is 200 with `{"ok": true}`. Each other
 
 | Status | Case |
 |---|---|
-| 400 | The body is not JSON, the body has more than 1024 bytes (32 768 for `/api/coordinator/say`), the body of a coordinator act is not its exact object, the issue number is not a positive safe integer in digits, the `effort` of Run is not one of the five levels, a Run or Retry body has another field, the body of Set aside or Stop is not its exact object or its session ID is not a terminal ID, the queue request is invalid, the order request has another shape, or the body of Assist or Make visual is not an object or has an unexpected field. |
+| 400 | The body is not JSON, the body has more than 1024 bytes (32 768 for `/api/coordinator/say`), the body of a coordinator act is not its exact object, the `number` is not a JSON string that is an issue key (the line `the number of the issue is not an issue key`), the `effort` of Run is not one of the five levels, a Run or Retry body has another field, the body of Set aside or Stop is not its exact object or its session ID is not a terminal ID, the queue request is invalid, the order request has another shape, or the body of Assist or Make visual is not an object or has an unexpected field. |
 | 403 | The `Host`, the `Origin`, or the content type is not good, or the `Origin` is `null` ("The trust boundary"). |
 | 404 | The path is not a path of the board, a `/visual/` path names no page, Go names an id that is no session of the repository and not the terminal of the coordinator record, or Stop names an id that is no session of that issue. |
 | 409 | A condition of the table does not hold, the queue request is stale or unavailable, the read of the engine fails, the fresh issue read of Assist fails, the daemon refuses Run, Resume, Set aside, or Stop (for example a Resume with no valid saved session), the agent of Run, Assist, or Make visual is not good, the commit of Make visual is not 40 lowercase hex digits, the order replacement is stale or fails, a Retry names no live wait, the daemon refuses an act of the coordinator or gives it no valid answer, another act of the coordinator is in flight, or a restart request finds no restart to do or an installed engine that fails its validation. |
@@ -1139,16 +1142,16 @@ process. Twelve rules hold for the server and the page:
 4. It refuses, with 403, each request whose `Origin` is `null`, on every path and method, before
    it reads a file or data. The board page never sends that value; a sandboxed page or a `file://`
    page sends it on a cors request and on a POST.
-5. It accepts only digits, as a number or a string, as the number of an issue, only the terminal
+5. It accepts only a JSON string that the grammar of the tracker accepts (`isKey`) as the number of an issue, only the terminal
    id of a session of the repository ("The cards") or the terminal of the coordinator record of
    the daemon as the id of a session, and only `low`,
    `medium`, `high`, `xhigh`, or `max` as the effort level of a Run.
-6. The page sends an issue number, a session id, a selected Run agent, a selected Run effort level, a strict queue action, an
-   agent order with the version that it read, a usage-limit wait ID, the issue number and the session ID of a Stop, or an opaque update offer
+6. The page sends an issue key, a session id, a selected Run agent, a selected Run effort level, a strict queue action, an
+   agent order with the version that it read, a usage-limit wait ID, the issue key and the session ID of a Stop, or an opaque update offer
    ID, never a command, an installation path, or a usage observation. For the coordinator session
    it sends what the rules of the coordinator session below permit.
    New intake and **Restart** send only an empty object; the daemon reads the installed engine
-   itself. Resume, Assist, Make visual, and Set aside take only the issue number.
+   itself. Resume, Assist, Make visual, and Set aside take only the issue key.
 7. An id of an answer of `hc` or `herdr-app` (a terminal, a space, a tab) goes into a command only
    when it has letters, digits, `_`, `:`, `.`, and `-`, and does not start with `-` (`isSafeId` of
    `engine/lib/terminal/terminal.ts`). An id that is absent goes into no command.
@@ -1196,14 +1199,14 @@ Five rules hold for the start, the argvs, and the data:
    `git`, and the fixed argv `codex --disable plugins app-server --stdio` of the coordinator read
    in the main checkout, and the issue read starts `gh`, `git`, and, on macOS and Linux, `ps`. Update workers have the separate fixed update
    protocol above.
-3. **Only validated values go into an argv.** The number is the digits of the issue. The agent of
+3. **Only validated values go into an argv.** The number is an issue key that the grammar of the tracker accepts. The agent of
    an explicit Run is a registry agent. Default Run, New intake, Assist, and Make visual retain
    default mode; admission reads the current order and usage blocks. The effort level of Run is
    one of the five levels, and the adapter sends it as `effort` of the Run request.
    The commit of Make visual is the full hash of the History row of
    that number in the last good read, and the adapter refuses a value that is not 40 lowercase hex
    digits. The page never sends it. Resume takes no agent. Queue fields pass the shared exact-shape validator; its step is an engine-defined
-   value, its ID is a UUID, its revision and issue numbers are positive safe integers, and its
+   value, its ID is a UUID, its revision is a positive safe integer, its issue numbers are issue keys, and its
    choice is default mode or an explicit registry agent. No title, reason, act, or data path goes into an argv.
 4. **The data comes from the engine, in the process of the daemon.** No other program gives the
    document. The adapter parses each answer of the dispatcher of the daemon (`parseAnswer`,
@@ -1247,7 +1250,7 @@ These files enforce the rules. They are the trust files of the board:
 | --- | --- |
 | 1 (listen on `127.0.0.1`) | `engine/board/start.ts` |
 | 2, 3, 4 (the `Host`, the POST `Origin` and content type, `Origin: null` first) | `engine/board/perimeter.ts` |
-| 5 (digits, a session of the repository, five levels) | `engine/board/requests.ts`, `engine/lib/state/fields.ts`, `engine/board/presses.ts` (Go, Stop), `engine/lib/workflow/effort.ts` (`isLevel`) |
+| 5 (issue keys, a session of the repository, five levels) | `engine/board/requests.ts`, `engine/lib/tracker/key.ts` (`isKey`), `engine/lib/tracker/grammar.ts`, `engine/board/presses.ts` (Go, Stop), `engine/lib/workflow/effort.ts` (`isLevel`) |
 | 6 (what the page sends) | `engine/board/requests.ts`, the page modules of `engine/board/page/` |
 | 7 (`isSafeId`) | `engine/lib/terminal/terminal.ts` |
 | 8 (no shell) | `engine/board/perimeter.ts` (`run`), `engine/lib/process/process.ts` (`run` of the issue and status reads), `engine/lib/host/codex/app-server.ts` (`createCodexClient`) |
@@ -1257,7 +1260,7 @@ These files enforce the rules. They are the trust files of the board:
 | 12 (text as text, the Content-Security-Policies, the visual page) | `engine/board/perimeter.ts`, `engine/lib/state/fields.ts` (`isCommit`), `engine/lib/board-read/board-read.ts` (`readVisualPage`), `engine/lib/workflow/visual.ts` (`hasPage`), the page modules |
 | Start rule 1 (the engine read) | `engine/board/adapter.ts`, `engine/lib/install/installation.ts` (`readEngine`) |
 | Start rule 2 (fixed argvs and requests) | `engine/board/adapter.ts`, `engine/lib/terminal/terminal.ts` (`openTab`), `engine/lib/host/codex/app-server.ts` (`createCodexClient`) |
-| Start rule 3 (only validated values) | `engine/board/requests.ts`, `engine/lib/state/fields.ts`, `engine/lib/host/names.ts` (`isHost`), `engine/board/adapter.ts`, `engine/lib/queue/queue.ts` (`parseQueueAction`), `engine/lib/queue/types.ts` (`queueAction`), `engine/lib/state/schemas.ts` |
+| Start rule 3 (only validated values) | `engine/board/requests.ts`, `engine/lib/tracker/key.ts` (`isKey`), `engine/lib/tracker/grammar.ts`, `engine/lib/state/fields.ts`, `engine/lib/host/names.ts` (`isHost`), `engine/board/adapter.ts`, `engine/lib/queue/queue.ts` (`parseQueueAction`), `engine/lib/queue/types.ts` (`queueAction`), `engine/lib/state/schemas.ts` |
 | Start rule 4 (the data comes from the engine) | `engine/lib/board-read/board-read.ts`, `engine/board/adapter.ts`, `engine/lib/daemon/types.ts` (`parseAnswer`, `parseQueueAnswer`) |
 | Start rule 5 (a clean `PATH`) | `engine/lib/process/process.ts` (`childEnv`) |
 | Coordinator rules 1, 2 (what the page sends, the exact shapes) | `engine/board/requests.ts`, `engine/board/perimeter.ts` (the body limit), `engine/lib/coordinator/types.ts` (`coordinatorKeys`), `engine/lib/coordinator/coordinator.ts` (the check of an act), the page modules |
@@ -1821,7 +1824,8 @@ the texts are `Open the issue` and `Read the issues again`.
 The browser sources are the files of `page/`. They also import `view.ts` and `types.ts`, which server code shares,
 so those two stay free of the DOM. The pinned Bun 1.4.4 build program, `scripts/build.ts`, bundles `page/board.ts`
 into `board.js` and `page/theme/theme.ts` into the classic script `theme.js`, which `index.html` loads in
-`<head>` before the style sheet, and refuses a bundle input outside `engine/board/`.
+`<head>` before the style sheet, and refuses a bundle input outside `engine/board/`, except
+`engine/lib/tracker/key.ts` and `engine/lib/tracker/grammar.ts`, with which the page reads issue keys.
 It compiles every target before it writes any output. Plugin users run no build.
 
 ## Limits

@@ -76,7 +76,7 @@ completion criterion of a skill.
   `celetis --agent <host> issue create <file>` for a new issue, and
   `celetis --agent <host> issue <n> comment <file>` for each other comment. `issue create` prints
   the URL of the new issue first. With a URL on stdout, the issue exists, also on a nonzero exit:
-  continue with its number, and never create it again. With no URL on stdout, the exit line says
+  continue with its key, and never create it again. With no URL on stdout, the exit line says
   whether the issue can exist: when it can, read the open issues before a new create. Use `gh`
   for reads, for the sub-issue link of an epic child, and for writes to another
   repository (`<plugin>/docs/issue-tracker.md`, "Conventions", lists the acts and the `gh` forms).
@@ -84,7 +84,7 @@ completion criterion of a skill.
   own checkout and its own custom text: a same-session handoff and an invocation in a child agent
   too. Keep the invocation input across a handoff. A missing required Superpowers skill stops the
   work.
-- **The daemon.** The maintainer starts the daemon and turns auto mode on; an agent starts a run only when its task says so, with a number, and in a terminal.
+- **The daemon.** The maintainer starts the daemon and turns auto mode on; an agent starts a run only when its task says so, with an issue key, and in a terminal.
 - **Modules.** Read a module of `<plugin>/references/procedures/<name>.md` whole, in one read, when a step names
   it, not before.
 - **Custom text.** The custom text of the entry is an addition to this skill, for this invocation

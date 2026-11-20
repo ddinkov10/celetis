@@ -10,6 +10,7 @@ import { LessonError } from '../lesson/record.ts';
 import { readLessons } from '../lesson/store.ts';
 import { run } from '../process/process.ts';
 import { lineOf } from '../resolver/lines.ts';
+import type { IssueKey } from '../tracker/key.ts';
 import { writeRefreshHint } from '../tracker/refresh-hints.ts';
 import { type GitHub, GitHubError, github } from '../tracker/tracker.ts';
 import { branchGlobs, decide, landable } from '../workflow/workflow.ts';
@@ -17,12 +18,12 @@ import { checkoutOf, removeLane } from '../workflow/worktree.ts';
 import { mergeMechanism } from './merge.ts';
 import { prMechanism } from './pr.ts';
 
-export type Landing = Readonly<{ number: number; subject: string; selection: HostSelection; from: string }>;
+export type Landing = Readonly<{ number: IssueKey; subject: string; selection: HostSelection; from: string }>;
 export type LandingEnd = Readonly<{ status: ExitCode; defect: Readonly<{ error: unknown }> | null }>;
 
 export type Mechanism = Readonly<{ check(): Promise<void>; land(): Promise<void>; after(): Promise<void> }>;
 export type LandingContext = Readonly<{
-  n: string;
+  n: IssueKey;
   subject: string;
   main: string;
   trunk: string;
@@ -60,7 +61,7 @@ function select(config: Config, context: LandingContext): Mechanism {
 }
 
 export async function runLanding(landing: Landing, main: string, signal: AbortSignal): Promise<LandingEnd> {
-  const n = String(landing.number);
+  const n = landing.number;
   const subject = landing.subject;
   let branch = '',
     trunk = '',
@@ -212,11 +213,11 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
     };
     const mechanism = select(config, context);
     const completeParent = async () => {
-      let parent: number;
+      let parent: IssueKey;
       try {
         interrupted();
         const found = await github(main, signal).parent(n);
-        parent = found.number;
+        parent = found.key;
         const repository = parseEpicRepository(found.url.slice(0, -`/issues/${parent}`.length));
         if (repository !== parseEpicRepository(repo.url)) {
           console.log(
@@ -232,7 +233,7 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
         return;
       }
       try {
-        const result = await completeEpic(main, common, String(parent), undefined, signal);
+        const result = await completeEpic(main, common, parent, undefined, signal);
         if (result.kind === 'pending')
           console.log(`land: parent #${parent} remains open: ${result.reason}; run ${result.nextAction}`);
       } catch (error) {
@@ -259,7 +260,7 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
     await removeLane(n, branch, checkout, main, signal);
     interrupted();
     console.log(`land: ${branch} and its worktree are gone`);
-    await writeRefreshHint(main, Number(n));
+    await writeRefreshHint(main, n);
     return { status: exits.done, defect: null };
   } catch (error) {
     const defect = error instanceof HostError || signal.aborted ? null : { error };

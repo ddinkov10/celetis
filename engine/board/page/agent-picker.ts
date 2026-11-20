@@ -1,5 +1,6 @@
 import type { AgentOrder, Host } from '../../lib/config/core.ts';
 import type { Registry } from '../../lib/host/names.ts';
+import type { IssueKey } from '../../lib/tracker/key.ts';
 import type { AgentPickerView, MenuEntry, QuotaWait } from '../types.ts';
 import { clock } from '../view.ts';
 import { closeMenu, openMenu, placeMenu } from './palette.ts';
@@ -16,7 +17,7 @@ export class OrderConflict extends Error {
 
 type Actions = {
   replace(order: readonly Host[], version: string): Promise<AgentOrder>;
-  retry(number: number, waitId: string): Promise<void>;
+  retry(number: IssueKey, waitId: string): Promise<void>;
 };
 type Drag = {
   row: HTMLElement;

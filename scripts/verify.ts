@@ -32,6 +32,7 @@ import {
 import { entryParts } from '../engine/lib/contract/entry-text.ts';
 import { type Job, printJobs, runJobs } from '../engine/lib/process/parallel.ts';
 import { bunArgs, childEnv, run } from '../engine/lib/process/process.ts';
+import { type IssueKey, parseKey } from '../engine/lib/tracker/key.ts';
 import { lanes } from '../engine/lib/workflow/workflow.ts';
 
 const root = dirname(import.meta.dir);
@@ -673,7 +674,7 @@ const formShape = ({ words, flags, passThrough }: Form) => ({
 
 export function contractDigest(): string {
   const header = {
-    issue: 1,
+    issue: parseKey('1') as IssueKey,
     step: '<step>',
     host: '<host>',
     main: '<main>',

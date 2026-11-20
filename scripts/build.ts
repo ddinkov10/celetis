@@ -1,5 +1,5 @@
 import { chmod, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { HostError } from '../engine/lib/command/errors.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/command/operation.ts';
 import { bunFloor } from '../engine/lib/config/core.ts';
@@ -20,6 +20,7 @@ const root = dirname(import.meta.dir);
 const nativeTargets = [
   { entry: 'engine/hooks/entry.ts', output: 'plugins/celetis/hooks/entry.js', mode: 0o644, format: 'esm' },
 ] as const;
+const pageTracker: ReadonlySet<string> = new Set(['engine/lib/tracker/key.ts', 'engine/lib/tracker/grammar.ts']);
 const browserTargets = [
   { entry: 'engine/board/page/board.ts', output: 'engine/board/board.js', mode: 0o644, format: 'esm' },
   { entry: 'engine/board/page/theme/theme.ts', output: 'engine/board/theme.js', mode: 0o644, format: 'iife' },
@@ -304,12 +305,17 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
     if (browser) {
       const inputs = Object.keys(result.metafile?.inputs ?? {});
       const outside = inputs.filter((input) => {
-        const path = relative(join(root, 'engine/board'), resolve(process.cwd(), input));
-        return path.startsWith('..') || isAbsolute(path);
+        const file = resolve(process.cwd(), input);
+        const path = relative(join(root, 'engine/board'), file);
+        return (
+          (path.startsWith('..') || isAbsolute(path)) && !pageTracker.has(relative(root, file).split(sep).join('/'))
+        );
       });
       if (inputs.length === 0) console.error(`build: ${target.output} has no bundle inputs to check`);
       for (const input of outside)
-        console.error(`build: ${target.output} bundles ${input}, a file outside engine/board/`);
+        console.error(
+          `build: ${target.output} bundles ${input}, a file outside engine/board/ and the issue key files of the tracker`,
+        );
       if (inputs.length === 0 || outside.length > 0) return 1;
     }
     const bytes = Buffer.from(await artifact.arrayBuffer());

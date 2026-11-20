@@ -2,6 +2,7 @@ import { HostError } from '../../command/errors.ts';
 import { exits } from '../../contract/contract.ts';
 import { codexSessionPin } from '../../plugin/metadata.ts';
 import { isSessionId } from '../../state/fields.ts';
+import type { IssueKey } from '../../tracker/key.ts';
 import { clampEffort, type Level, levels, type Model } from '../../workflow/effort.ts';
 import { command, type Step } from '../../workflow/workflow.ts';
 import { codexHome } from '../homes.ts';
@@ -14,7 +15,7 @@ function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function codexPrompt(step: Step, issue: number): string {
+function codexPrompt(step: Step, issue: IssueKey): string {
   return `Use the celetis:${command(step)} skill for #${issue}. Complete its Celetis entry before any response, including commentary.`;
 }
 

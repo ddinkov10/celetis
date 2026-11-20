@@ -1,7 +1,7 @@
 import { HostError } from '../command/errors.ts';
 import { writeRefreshHint } from '../tracker/refresh-hints.ts';
 import { bucket, type CheckRun, type Pull, runBucket, type WorkflowRun } from '../tracker/tracker.ts';
-import { branchPattern } from '../workflow/workflow.ts';
+import { branchPattern, closesLine, keyedSubject } from '../workflow/workflow.ts';
 import type { LandingContext, Mechanism } from './landing.ts';
 
 export function prMechanism(context: LandingContext): Mechanism {
@@ -59,10 +59,10 @@ export function prMechanism(context: LandingContext): Mechanism {
       } else {
         await preflight();
         url = await checked(
-          (gh) => gh.createPull({ base: trunk, head: branch, title: `${subject} (#${n})`, body: `Closes #${n}` }),
+          (gh) => gh.createPull({ base: trunk, head: branch, title: keyedSubject(subject, n), body: closesLine(n) }),
           `cannot open the PR of ${branch}`,
         );
-        await writeRefreshHint(main, Number(n));
+        await writeRefreshHint(main, n);
         const number = url.split('/').at(-1) ?? '';
         if (!/^[0-9]+$/.test(number)) die('blocked', `cannot read the number of the new PR: ${url}`);
         pr = Number(number);
@@ -197,7 +197,7 @@ export function prMechanism(context: LandingContext): Mechanism {
       merging = pr;
       await preflight();
       await checked((gh) => gh.mergePull(pr, tip), `cannot merge PR #${pr} at ${tip}; the PR stays open: ${url}`);
-      await writeRefreshHint(main, Number(n));
+      await writeRefreshHint(main, n);
       for (const check of flaky)
         console.log(
           `land: the check ${check.name} of PR #${pr} failed, then passed on its re-run; look for a flaky test: ${check.url}`,

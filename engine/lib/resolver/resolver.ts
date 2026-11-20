@@ -6,8 +6,9 @@ import type { Config } from '../config/core.ts';
 import { run as runProcess } from '../process/process.ts';
 import { readSetAside } from '../queue/set-aside.ts';
 import type { RecoveryAuthority } from '../run/quota-recovery.ts';
-import { isRecorded, lockHolder } from '../state/locks.ts';
+import { isRecorded, issueLock, landLock, lockHolder } from '../state/locks.ts';
 import { laneFolder } from '../state/state.ts';
+import { compareKeys, type IssueKey } from '../tracker/key.ts';
 import {
   type Bucket,
   bucket,
@@ -17,10 +18,23 @@ import {
   type Issue,
   issueData,
   type PullDetails,
+  parentKey,
   type Pull as TrackerPull,
 } from '../tracker/tracker.ts';
 import { decisionOf, type EffortDecision, startPair } from '../workflow/effort.ts';
-import { type Decision, decide, factsOf, type IssueData, laneOf, specified, stageOf } from '../workflow/workflow.ts';
+import {
+  type Decision,
+  decide,
+  factsOf,
+  folderKey,
+  folderPrefix,
+  holdsAnyKey,
+  holdsKey,
+  type IssueData,
+  laneOf,
+  specified,
+  stageOf,
+} from '../workflow/workflow.ts';
 import { describe, type Next, type Observed } from './lines.ts';
 import type { IssueRow, ParentEpic, Pull } from './types.ts';
 
@@ -61,7 +75,7 @@ function reader(operation: Operation, signal?: AbortSignal) {
   async function openIssues(): Promise<Fetched[]> {
     const issues = (await gh.openIssues()).filter((issue) => !issue.pull);
     const histories = await gh.timelines(issues);
-    return issues.map((issue) => ({ issue, data: issueData(issue, histories.get(issue.number) ?? []) }));
+    return issues.map((issue) => ({ issue, data: issueData(issue, histories.get(issue.key) ?? []) }));
   }
 
   async function dirty(path: string): Promise<boolean> {
@@ -72,24 +86,24 @@ function reader(operation: Operation, signal?: AbortSignal) {
     return result.stdout.length > 0;
   }
 
-  async function landing(n: string): Promise<boolean> {
-    return (await lockHolder(checkout, `land-${n}`)) !== '';
+  async function landing(n: IssueKey): Promise<boolean> {
+    return (await lockHolder(checkout, landLock(n))) !== '';
   }
 
-  async function lanes(n?: string): Promise<string[]> {
+  async function lanes(n?: IssueKey): Promise<string[]> {
     const parent = laneFolder(checkout);
     return (await readdir(parent).catch(() => []))
-      .filter((name) => (n === undefined ? /^[0-9].*-/.test(name) : name.startsWith(`${n}-`)))
+      .filter((name) => (n === undefined ? folderKey(name) !== null : name.startsWith(folderPrefix(n))))
       .sort()
       .map((name) => join(parent, name));
   }
 
-  async function dirtyLane(n: string, keeps?: Keeps): Promise<string | null> {
+  async function dirtyLane(n: IssueKey, keeps?: Keeps): Promise<string | null> {
     for (const path of await lanes(n)) if ((await dirty(path)) && !(await keeps?.(path))) return path;
     return null;
   }
 
-  async function observe(n: string, mainDirty: boolean, keeps?: Keeps): Promise<Observed | null> {
+  async function observe(n: IssueKey, mainDirty: boolean, keeps?: Keeps): Promise<Observed | null> {
     if (mainDirty) return { kind: 'observed', reason: 'dirty', path: checkout };
     const path = await dirtyLane(n, keeps);
     if (path !== null) return { kind: 'observed', reason: 'dirty', path };
@@ -127,7 +141,7 @@ function authorityOf(data: IssueData, next: Decision): RecoveryAuthority | null 
 }
 
 export async function nextIssue(
-  n: string,
+  n: IssueKey,
   operation: Operation,
   signal?: AbortSignal,
   keeps?: Keeps,
@@ -151,9 +165,9 @@ export async function nextIssue(
 export async function nextOpen(
   operation: Operation,
   signal?: AbortSignal,
-): Promise<{ rows: readonly { number: number; next: Next }[] | null; stderr: string }> {
+): Promise<{ rows: readonly { number: IssueKey; next: Next }[] | null; stderr: string }> {
   const read = reader(operation, signal);
-  const { value, stderr } = await read.settle<{ number: number; next: Next }[] | null>(null, async () => {
+  const { value, stderr } = await read.settle<{ number: IssueKey; next: Next }[] | null>(null, async () => {
     let issues: Fetched[];
     try {
       issues = await read.openIssues();
@@ -161,31 +175,24 @@ export async function nextOpen(
       return null;
     }
     const mainDirty = await read.dirty(read.checkout);
-    const rows: { number: number; next: Next }[] = [];
-    for (const { issue, data } of issues.sort((a, b) => a.issue.number - b.issue.number))
+    const rows: { number: IssueKey; next: Next }[] = [];
+    for (const { issue, data } of issues.sort((a, b) => compareKeys(a.issue.key, b.issue.key)))
       rows.push({
-        number: issue.number,
-        next: (await read.observe(String(issue.number), mainDirty)) ?? decide(data),
+        number: issue.key,
+        next: (await read.observe(issue.key, mainDirty)) ?? decide(data),
       });
     return rows;
   });
   return { rows: value, stderr };
 }
 
-const asEpic = ({ number, title }: Issue): ParentEpic => ({ number, title });
-
-function parentNumber({ apiUrl, parentUrl }: Issue): string | null {
-  if (parentUrl === null) return null;
-  const prefix = apiUrl.slice(0, apiUrl.lastIndexOf('/') + 1);
-  const rest = parentUrl.slice(prefix.length);
-  return parentUrl.startsWith(prefix) && /^[1-9][0-9]*$/.test(rest) ? rest : null;
-}
+const asEpic = ({ key, title }: Issue): ParentEpic => ({ number: key, title });
 
 async function parentEpics(gh: GitHub, open: readonly Fetched[]): Promise<ReadonlyMap<string, ParentEpic>> {
   const epics = new Map<string, ParentEpic>();
-  const read = new Set<string>();
+  const read = new Set<IssueKey>();
   for (const { issue } of open) {
-    const n = parentNumber(issue);
+    const n = parentKey(issue);
     if (n === null || read.has(n)) continue;
     read.add(n);
     let parent: Issue;
@@ -211,16 +218,16 @@ function shownRow(
   config: Config | null,
 ): Shown | null {
   const next = decide(data);
-  const { line, row: shown } = describe(String(issue.number), next);
+  const { line, row: shown } = describe(issue.key, next);
   if (shown === null || shown.state === 'done') return null;
   const found = laneOf(issue.labels);
   const type = found.kind === 'lane' ? found.lane : null;
   const step = next.kind === 'run' ? next.step : null;
-  const path = dirtyLanes.find((lane) => basename(lane).startsWith(`${issue.number}-`));
+  const path = dirtyLanes.find((lane) => basename(lane).startsWith(folderPrefix(issue.key)));
   return {
     line,
     row: {
-      number: issue.number,
+      number: issue.key,
       title: issue.title,
       url: issue.url,
       type,
@@ -229,7 +236,7 @@ function shownRow(
       act: shown.act,
       effort: next.kind === 'run' ? startPair(decisionOf(data, next), config?.sessions?.[next.step]) : null,
       epic,
-      pr: prs.find(({ branch }) => branch.includes(`/${issue.number}-`))?.pull ?? null,
+      pr: prs.find(({ branch }) => holdsKey(branch, issue.key))?.pull ?? null,
       ...(path === undefined ? {} : { path }),
       state: path === undefined ? shown.state : 'dirty',
       step,
@@ -239,19 +246,18 @@ function shownRow(
   };
 }
 
-async function boardRow(operation: Operation, { row, line }: Shown, aside: ReadonlySet<number>): Promise<IssueRow> {
-  if (await lockHolder(operation.checkout.main as string, `issue-${row.number}`)) return { ...row, state: 'starting' };
+async function boardRow(operation: Operation, { row, line }: Shown, aside: ReadonlySet<IssueKey>): Promise<IssueRow> {
+  if (await lockHolder(operation.checkout.main as string, issueLock(row.number))) return { ...row, state: 'starting' };
   const act = `celetis --agent <host> run resume ${row.number}`;
   if (aside.has(row.number)) return { ...row, state: 'aside', act };
-  if (row.state === 'dirty' || !(await isRecorded(operation.checkout.common as string, String(row.number), line)))
-    return row;
+  if (row.state === 'dirty' || !(await isRecorded(operation.checkout.common as string, row.number, line))) return row;
   return { ...row, state: 'stuck', act };
 }
 
 export async function nextBoard(
   operation: Operation,
   signal: AbortSignal,
-  targets?: readonly number[],
+  targets?: readonly IssueKey[],
 ): Promise<{ data: { noRun: string | null; rows: readonly IssueRow[]; closed: boolean } | null; stderr: string }> {
   const read = reader(operation, signal);
   const { value, stderr } = await read.settle<{
@@ -265,12 +271,12 @@ export async function nextBoard(
       let closed = false;
       if (selected === null) open.push(...(await read.openIssues()));
       else {
-        for (const number of selected) {
+        for (const key of selected) {
           let fetched: Fetched;
           try {
-            fetched = await read.gh.read(String(number));
+            fetched = await read.gh.read(key);
           } catch (error) {
-            if (error instanceof GitHubError && error.endpoint === `issues/${number}` && error.notFound) continue;
+            if (error instanceof GitHubError && error.endpoint === `issues/${key}` && error.notFound) continue;
             throw error;
           }
           if (fetched.issue.pull) continue;
@@ -279,9 +285,7 @@ export async function nextBoard(
         }
       }
       const pulls = (await read.gh.pulls({ state: 'open' })).filter((pr) =>
-        selected === null
-          ? /\/[0-9]+-/.test(pr.head.ref)
-          : [...selected].some((number) => pr.head.ref.includes(`/${number}-`)),
+        selected === null ? holdsAnyKey(pr.head.ref) : [...selected].some((key) => holdsKey(pr.head.ref, key)),
       );
       const details = await read.gh.pullDetails(pulls);
       const prs = pulls.map((pr) => branchPull(pr, details.get(pr.number)));
@@ -289,14 +293,14 @@ export async function nextBoard(
       const paths =
         selected === null
           ? await read.lanes()
-          : (await Promise.all([...selected].map((number) => read.lanes(String(number))))).flat();
+          : (await Promise.all([...selected].map((key) => read.lanes(key)))).flat();
       for (const path of paths) if (await read.dirty(path)) dirtyLanes.push(path);
       const epics =
         selected === null
           ? new Map(open.filter((f) => f.issue.labels.includes('epic')).map((f) => [f.issue.apiUrl, asEpic(f.issue)]))
           : await parentEpics(read.gh, open);
       const rows: Shown[] = [];
-      for (const fetched of open.sort((a, b) => a.issue.number - b.issue.number)) {
+      for (const fetched of open.sort((a, b) => compareKeys(a.issue.key, b.issue.key))) {
         const { parentUrl } = fetched.issue;
         const epic = parentUrl === null ? null : (epics.get(parentUrl) ?? null);
         const row = shownRow(fetched, prs, dirtyLanes, epic, operation.mainConfig);

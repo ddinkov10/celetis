@@ -1,4 +1,5 @@
 import type { AgentOrder, Host } from '../../lib/config/core.ts';
+import { compareKeys, type IssueKey, parseKey } from '../../lib/tracker/key.ts';
 import type { Level, RowSource, StartPair } from '../../lib/workflow/effort.ts';
 import type {
   Action,
@@ -115,15 +116,15 @@ let isServerDown = false;
 let intakePending = false;
 let seen: Map<string, string> | null = null;
 let needsKeys: Set<string> | null = null;
-let starting: Map<number, string | null> | null = null;
-let startupWarnings = new Map<number, string>();
+let starting: Map<IssueKey, string | null> | null = null;
+let startupWarnings = new Map<IssueKey, string>();
 let byKey = new Map<string, { card: Card; column: Column }>();
 let used = new Set<string>();
 let coordinatorLine: string | null = null;
-type Pressed = Map<number, 'pending' | 'done'>;
+type Pressed = Map<IssueKey | null, 'pending' | 'done'>;
 const asides: Pressed = new Map();
 const stops: Pressed = new Map();
-const refusals = new Map<number, { sessionId: string | null; state: string | null; line: string }>();
+const refusals = new Map<IssueKey | null, { sessionId: string | null; state: string | null; line: string }>();
 
 const SEEN_TURN = 'seen-turn:';
 const seenTurn = (terminal: string) => parseSeenTurn(store.get(`${SEEN_TURN}${terminal}`));
@@ -217,10 +218,10 @@ const defaultReason = (work: 'run' | 'session' = 'session') => {
   return entry?.available === false ? cleanCause(entry.cause) : null;
 };
 
-const runReason = (agent: string | null, number?: number | null) => {
+const runReason = (agent: string | null, number?: IssueKey | null) => {
   if (data?.noRun) return data.noRun;
   const record = data?.queue?.record;
-  if (record?.state === 'me-gate' && record.numbers[0] === number && record.choice) {
+  if (record?.state === 'me-gate' && number != null && record.numbers[0] === number && record.choice) {
     if (record.choice.kind === 'default') {
       if (agent !== null) return 'queue: recorded agent choice is the default order';
     } else {
@@ -486,7 +487,7 @@ const actionsOf = (card: Card): Action[] => {
       }
   }
   if (card.aside) {
-    const isBusy = asides.has(card.number as number);
+    const isBusy = asides.has(card.number);
     list.push({
       id: 'aside',
       label: isBusy ? 'Setting aside' : 'Set aside',
@@ -503,7 +504,7 @@ const actionsOf = (card: Card): Action[] => {
     });
   }
   if (card.stop) {
-    const isBusy = card.state === 'stopping' || stops.has(card.number as number);
+    const isBusy = card.state === 'stopping' || stops.has(card.number);
     const reason = isBusy ? STOPPING : card.stop.reason;
     list.push({
       id: 'stop',
@@ -829,24 +830,25 @@ const needsBody = (cards: Card[]) =>
     return node;
   });
 
-const storeOpenEpics = (change: (open: Set<number>) => void) => {
+const storeOpenEpics = (change: (open: Set<IssueKey>) => void) => {
   const stored = store.get('open-epics');
   const next = new Set(stored === null ? openEpics : parseOpenEpics(stored));
   change(next);
-  store.set('open-epics', JSON.stringify([...next].sort((a, b) => a - b)));
+  store.set('open-epics', JSON.stringify([...next].sort(compareKeys)));
   openEpics = next;
 };
 
 const showOpenEpics = () => {
   for (const row of document.querySelectorAll<HTMLElement>('.epic-row')) {
-    const isOpen = openEpics.has(Number(row.dataset.epic));
+    const epic = parseKey(row.dataset.epic ?? '');
+    const isOpen = epic !== null && openEpics.has(epic);
     row.setAttribute('aria-expanded', String(isOpen));
     ($(row.getAttribute('aria-controls') as string) as HTMLElement).hidden = !isOpen;
   }
   syncStops();
 };
 
-const setEpicOpen = (epic: number, isOpen: boolean) => {
+const setEpicOpen = (epic: IssueKey, isOpen: boolean) => {
   storeOpenEpics((open) => (isOpen ? open.add(epic) : open.delete(epic)));
   showOpenEpics();
 };
@@ -1070,9 +1072,9 @@ const drawHuman = (cards: Card[]) => {
   );
 };
 
-const visualPresses = new Set<number>();
+const visualPresses = new Set<IssueKey>();
 
-const makeVisual = async (number: number) => {
+const makeVisual = async (number: IssueKey) => {
   if (visualPresses.has(number)) return;
   visualPresses.add(number);
   if (shell.tab === 'history') drawHistory();
@@ -1343,7 +1345,7 @@ const notify = (cards: Card[]) => {
       : cards.filter(
           (card: Card) =>
             !(needsKeys as Set<string>).has(keyOf(card)) &&
-            !(card.sessionId === null && starting?.has(card.number as number)),
+            !(card.sessionId === null && card.number !== null && starting?.has(card.number)),
         );
   for (const card of fresh) {
     const { title, body } = notice(card);
@@ -1358,7 +1360,7 @@ const notify = (cards: Card[]) => {
 
 const startNotices = (columns: Columns) => {
   const cards = [...columns.needs, ...columns.running, ...columns.idle];
-  const now = new Map<number, string | null>();
+  const now = new Map<IssueKey, string | null>();
   for (const card of cards) if (card.state === 'starts' && card.number !== null) now.set(card.number, card.step);
   const lines: string[] = [];
   const before = starting;
@@ -1530,7 +1532,8 @@ const revealCard = (key: string) => {
   const group = document
     .querySelector(`[data-key="${CSS.escape(key)}"]`)
     ?.closest<HTMLElement>('.epic-children[hidden]');
-  if (group) setEpicOpen(Number(group.closest<HTMLElement>('.epic-group')?.dataset.epic), true);
+  const epic = parseKey(group?.closest<HTMLElement>('.epic-group')?.dataset.epic ?? '');
+  if (epic !== null) setEpicOpen(epic, true);
 };
 
 const openDetails = (key: string) => {
@@ -1749,14 +1752,14 @@ let reads = 0;
 let accepted = 0;
 let settled = 0;
 type Launch = { step: string | null; phase: 'pending' | 'done' | 'failed'; at: number; isAnnounced: boolean };
-const launches = new Map<number, Launch>();
-const startFailures = new Map<number, string>();
+const launches = new Map<IssueKey, Launch>();
+const startFailures = new Map<IssueKey, string>();
 const SLOW_START = 5000;
 const SLOW_START_TEXT = 'The daemon still checks the start';
 
 const drawStartLine = (node: HTMLElement, now: number) => {
-  const number = Number(node.dataset.number);
-  const entry = launches.get(number);
+  const number = parseKey(node.dataset.number ?? '');
+  const entry = number === null ? undefined : launches.get(number);
   const isSlow = entry?.phase === 'pending' && now - entry.at >= SLOW_START;
   node.hidden = !isSlow;
   if (!entry || !isSlow) return;
@@ -1782,7 +1785,7 @@ const project = (board: Board): Board => {
   const columns: Columns = { needs: [], running: [], idle: [], human: [] };
   for (const [key, cards] of Object.entries(board.columns) as [Column, Card[]][])
     for (const card of cards) {
-      const launch = card.sessionId === null ? launches.get(card.number as number) : undefined;
+      const launch = card.sessionId === null && card.number !== null ? launches.get(card.number) : undefined;
       if (!launch) columns[key].push(card);
       else if (
         launch.phase !== 'failed' &&
@@ -1849,8 +1852,8 @@ const render = (canMove = true) => {
 };
 
 const launch = async (card: Card, path: '/api/run' | '/api/resume' | '/api/assist', agent?: string, effort?: Level) => {
-  if (isReconnecting()) return false;
-  const number = card.number as number;
+  const { number } = card;
+  if (isReconnecting() || number === null) return false;
   const current =
     data &&
     Object.values(project(data).columns)
@@ -1911,7 +1914,7 @@ const pressAct = async (
   value: unknown,
   text: ActText,
 ) => {
-  const number = card.number as number;
+  const { number } = card;
   if (isReconnecting() || pressed.has(number)) return;
   pressed.set(number, 'pending');
   refusals.delete(number);
@@ -1934,7 +1937,7 @@ const pressAct = async (
 };
 
 const openStop = (card: Card) => {
-  if (stops.has(card.number as number)) return;
+  if (stops.has(card.number)) return;
   openStopDialog({
     title: `Stop the ${card.step} session of #${card.number}?`,
     stop: () => pressAct(stops, card, '/api/stop', { number: card.number, sessionId: card.sessionId }, stopText(card)),
@@ -2092,6 +2095,14 @@ const phoneMenu = (): MenuEntry[] =>
     run: () => setArea(area),
   }));
 
+const unnamed = (name: string, number: IssueKey | null) => {
+  if (number === null) return name;
+  let label = name;
+  for (const tail of [`, #${number}`, ` of #${number}`]) if (label.endsWith(tail)) label = label.slice(0, -tail.length);
+  const lead = `Open issue #${number}`;
+  return label.startsWith(lead) ? `Open issue${label.slice(lead.length)}` : label;
+};
+
 const paletteItems = () => {
   if (!data) return [];
   const items: PaletteItem[] = [];
@@ -2099,10 +2110,7 @@ const paletteItems = () => {
     items.push({
       group,
       number: card.number,
-      label: action.name
-        .replace(/, #\d+$/, '')
-        .replace(/ of #\d+$/, '')
-        .replace(/^(Open issue) #\d+/, '$1'),
+      label: unnamed(action.name, card.number),
       context: card.title,
       icon: action.icon,
       tone: group === 'Needs you' ? 'needs' : null,
@@ -2173,7 +2181,7 @@ const paletteItems = () => {
       }
     }
   }
-  const epics = new Map<number, string>();
+  const epics = new Map<IssueKey, string>();
   for (const card of [...shown.columns.needs, ...shown.columns.running, ...shown.columns.idle])
     if (card.epic) epics.set(card.epic.number, card.epic.title);
   for (const [number, title] of epics)
@@ -2547,7 +2555,7 @@ const replaceOrder = async (order: readonly Host[], expectedVersion: string): Pr
     void load();
   }
 };
-const retryWait = async (number: number, waitId: string) => {
+const retryWait = async (number: IssueKey, waitId: string) => {
   const outcome = await post('/api/run', { number, waitId } satisfies RunRequest, 'Retry failed', { timeout: 150_000 });
   settled = reads;
   void load();

@@ -6,7 +6,8 @@ import { hostAvailability } from '../host/host.ts';
 import type { Next } from '../resolver/lines.ts';
 import { lineOf } from '../resolver/lines.ts';
 import { nextIssue } from '../resolver/resolver.ts';
-import { lockHolder } from '../state/locks.ts';
+import { issueLock, lockHolder } from '../state/locks.ts';
+import type { IssueKey } from '../tracker/key.ts';
 import {
   explicitHost,
   parseQueueAction,
@@ -40,7 +41,7 @@ const checkoutOf = (operation: Operation) => {
   return { main, common };
 };
 export const emptyQueue = (record?: QueueRecord | null): QueueRecord => ({
-  schema: 3,
+  schema: 4,
   id: record?.id ?? randomUUID(),
   revision: record?.revision ?? 1,
   choice: null,
@@ -69,19 +70,19 @@ export async function admitQueue(operation: Operation, input: QueueAction): Prom
   const pinned = explicitHost(choice);
   const number = action.kind === 'add' ? action.number : snapshot?.numbers[0];
   if (!number) refuse('queue: that action is not available; refresh the queue');
-  const next = (await nextIssue(String(number), operation)).next;
+  const next = (await nextIssue(number, operation)).next;
   if (action.kind === 'add' || action.kind === 'continue' || action.kind === 'retry') {
     if (
       action.kind === 'retry' && action.step === null
         ? !terminal(next)
         : next.kind !== 'run' || next.step !== action.step
     )
-      refuse(`queue: the displayed decision changed: ${lineOf(String(number), next)}`);
+      refuse(`queue: the displayed decision changed: ${lineOf(number, next)}`);
     if (next.kind === 'run' && pinned && !hostAvailability(pinned).available) refuse(`queue: ${pinned} is not on PATH`);
   }
   const currentNext =
     snapshot?.numbers[0] && snapshot.numbers[0] !== number
-      ? (await nextIssue(String(snapshot.numbers[0]), operation)).next
+      ? (await nextIssue(snapshot.numbers[0], operation)).next
       : next;
   let wake = false;
   let owner: string | null = null;
@@ -94,7 +95,7 @@ export async function admitQueue(operation: Operation, input: QueueAction): Prom
         if (!queueView(current, owner, currentNext).actions.add)
           refuse('queue: cannot read the current issue; refresh before acting', exits.blocked);
         if (current?.numbers.includes(action.number)) refuse('queue: that issue is already queued');
-        if (await lockHolder(main, `issue-${action.number}`)) refuse('queue: that issue already has a live owner');
+        if (await lockHolder(main, issueLock(action.number))) refuse('queue: that issue already has a live owner');
         if (current?.numbers.length) return { ...current, numbers: [...current.numbers, action.number] };
         if (owner) refuse('queue: a previous run still owns the queue');
         wake = true;
@@ -118,7 +119,7 @@ export async function admitQueue(operation: Operation, input: QueueAction): Prom
         else {
           const target = index + (action.direction === 'up' ? -1 : 1);
           if (target < 1 || target >= numbers.length) refuse('queue: that move is not available');
-          [numbers[index], numbers[target]] = [numbers[target] as number, action.number];
+          [numbers[index], numbers[target]] = [numbers[target] as IssueKey, action.number];
         }
         return { ...current, numbers };
       }
@@ -134,7 +135,7 @@ export async function admitQueue(operation: Operation, input: QueueAction): Prom
         act: null,
         launch: {
           token: randomUUID(),
-          authorization: { number: current.numbers[0] as number, step: action.step, retry: action.kind === 'retry' },
+          authorization: { number: current.numbers[0] as IssueKey, step: action.step, retry: action.kind === 'retry' },
         },
       };
     },
@@ -152,10 +153,10 @@ export async function reconcileQueue(operation: Operation, signal?: AbortSignal)
     return { view: await readQueueView(operation, signal), wake: null };
   }
   if (!snapshot?.numbers.length) return { view: await readQueueView(operation, signal), wake: null };
-  const observations = new Map<number, Next>();
+  const observations = new Map<IssueKey, Next>();
   for (const number of snapshot.numbers) {
     signal?.throwIfAborted();
-    observations.set(number, (await nextIssue(String(number), operation, signal)).next);
+    observations.set(number, (await nextIssue(number, operation, signal)).next);
   }
   let wake: QueueWake | null = null;
   let owner: string | null = null;
@@ -168,10 +169,10 @@ export async function reconcileQueue(operation: Operation, signal?: AbortSignal)
       if (current.id !== snapshot.id || current.revision !== snapshot.revision) return current;
       fresh = true;
       owner = await queueOwner(main, current);
-      const numbers: number[] = [];
+      const numbers: IssueKey[] = [];
       for (const number of current.numbers) {
         const observed = observations.get(number) ?? null;
-        const held = (number === current.numbers[0] && owner) || (await lockHolder(main, `issue-${number}`));
+        const held = (number === current.numbers[0] && owner) || (await lockHolder(main, issueLock(number)));
         if (!terminal(observed) || held) numbers.push(number);
       }
       if (numbers.length === current.numbers.length) return current;
@@ -202,7 +203,7 @@ export async function reconcileQueue(operation: Operation, signal?: AbortSignal)
   const view = queueView(
     record,
     owner,
-    observations.get(record.numbers[0] as number) ?? null,
+    observations.get(record.numbers[0] as IssueKey) ?? null,
     unreadable ? `queue: cannot read #${unreadable} from GitHub; the issue remains queued` : null,
   );
   if (unreadable) view.actions = { add: false, edit: false, continue: false, retry: false };

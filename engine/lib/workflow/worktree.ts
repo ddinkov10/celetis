@@ -6,6 +6,8 @@ import { exits } from '../contract/contract.ts';
 import { run, runBun } from '../process/process.ts';
 import { projectFile } from '../setup/wiring.ts';
 import { setupMarker } from '../state/state.ts';
+import type { IssueKey } from '../tracker/key.ts';
+import { keyedSubject, prototypeGlob } from './workflow.ts';
 
 export async function markerOf(checkout: string): Promise<string> {
   const result = await run('git', ['rev-parse', '--path-format=absolute', '--git-dir'], { cwd: checkout });
@@ -71,7 +73,7 @@ export async function removeCheckout(
   process.stderr.write(result.stdout + result.stderr);
 }
 
-export async function updateLane(checkout: string, branch: string, trunk: string, n: string): Promise<void> {
+export async function updateLane(checkout: string, branch: string, trunk: string, n: IssueKey): Promise<void> {
   const git = (args: string[]) => run('git', args, { cwd: checkout });
   const upstream = `origin/${trunk}`;
   const contains = async (ancestor: string, descendant: string) => {
@@ -85,7 +87,7 @@ export async function updateLane(checkout: string, branch: string, trunk: string
   if (status.stdout) throw new HostError(`the lane worktree is dirty: ${checkout}; commit first`, exits.prerequisite);
   const merge = (await contains('HEAD', upstream))
     ? await git(['merge', '-q', '--ff-only', upstream])
-    : await git(['merge', '--no-ff', '--no-edit', '-m', `Merge ${upstream} into ${branch} (#${n})`, upstream]);
+    : await git(['merge', '--no-ff', '--no-edit', '-m', keyedSubject(`Merge ${upstream} into ${branch}`, n), upstream]);
   if (merge.code === 0) return;
   const unmerged = await git(['ls-files', '-u']);
   const abort = await git(['merge', '--abort']);
@@ -105,7 +107,7 @@ export async function updateLane(checkout: string, branch: string, trunk: string
 }
 
 export async function removeLane(
-  n: string,
+  n: IssueKey,
   branch: string,
   checkout: string,
   cwd: string,
@@ -119,8 +121,8 @@ export async function removeLane(
     if (output) process.stderr.write(result.stdout + result.stderr);
     return result.stdout.trimEnd();
   };
-  const prototypes = await git(['branch', '--list', '--format=%(refname:lstrip=2)', `prototype/${n}-*`]);
-  const pushed = await git(['ls-remote', '--heads', 'origin', `refs/heads/prototype/${n}-*`]);
+  const prototypes = await git(['branch', '--list', '--format=%(refname:lstrip=2)', prototypeGlob(n)]);
+  const pushed = await git(['ls-remote', '--heads', 'origin', `refs/heads/${prototypeGlob(n)}`]);
   for (const prototype of prototypes.split('\n').filter(Boolean)) {
     const at = await checkoutOf(prototype, cwd, signal);
     if (at) {

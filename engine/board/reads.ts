@@ -1,4 +1,5 @@
 import type { QueueView } from '../lib/queue/types.ts';
+import { compareKeys, type IssueKey } from '../lib/tracker/key.ts';
 import { firstLine } from './requests.ts';
 import type { Document } from './types.ts';
 
@@ -13,7 +14,7 @@ export type Reads = {
   readonly pending: Promise<void> | null;
   readError(): string | null;
   refresh(): Promise<void>;
-  target(numbers: Iterable<number>): void;
+  target(keys: Iterable<IssueKey>): void;
   setQueue(view: QueueView): void;
   beforeBoard(isLocal: boolean, isDue: (checkedFrom: number) => boolean): Promise<void>;
   start(): void;
@@ -27,8 +28,8 @@ export const createReads = ({
   now,
 }: {
   read: (signal: AbortSignal) => Promise<Document>;
-  readTargets: (numbers: readonly number[], previous: Document, signal: AbortSignal) => Promise<Document>;
-  hints: () => Promise<ReadonlyMap<string, number> | null>;
+  readTargets: (keys: readonly IssueKey[], previous: Document, signal: AbortSignal) => Promise<Document>;
+  hints: () => Promise<ReadonlyMap<string, IssueKey> | null>;
   now: () => number;
 }): Reads => {
   let board: Document | null = null;
@@ -39,7 +40,7 @@ export const createReads = ({
   let askedAt = -Infinity;
   let checkedFrom = -Infinity;
   let pending: Promise<void> | null = null;
-  const targets = new Set<number>();
+  const targets = new Set<IssueKey>();
   let fullRequest: { promise: Promise<void>; done: () => void } | null = null;
   let fullQueued = false;
   let ready = false;
@@ -49,7 +50,7 @@ export const createReads = ({
   let nextHint: ReturnType<typeof setTimeout> | undefined;
   let seenHints = new Set<string>();
 
-  const readData = async (full: boolean, numbers: number[]) => {
+  const readData = async (full: boolean, numbers: IssueKey[]) => {
     const from = now();
     const limit = new AbortController();
     activeRead = limit;
@@ -99,7 +100,7 @@ export const createReads = ({
       clearTimeout(nextCheck);
       nextCheck = setTimeout(check, BACKGROUND_MS);
     }
-    const numbers = [...targets].sort((a, b) => a - b);
+    const numbers = [...targets].sort(compareKeys);
     targets.clear();
     pending = readData(full, numbers).finally(() => {
       pending = null;
@@ -126,7 +127,7 @@ export const createReads = ({
     return request;
   };
 
-  const target = (numbers: Iterable<number>) => {
+  const target = (numbers: Iterable<IssueKey>) => {
     if (stopped) return;
     const received = [...numbers];
     if (!received.length) return;

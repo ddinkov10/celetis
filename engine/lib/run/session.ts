@@ -9,18 +9,19 @@ import type { Claim } from '../host/types.ts';
 import { commonDir } from '../process/git.ts';
 import { recordEvent } from '../state/events.ts';
 import { isSessionId } from '../state/fields.ts';
-import type { LockOwner } from '../state/locks.ts';
+import { issueLock, type LockOwner } from '../state/locks.ts';
 import { commitMigration, type LocalRecord, readLocalRecord } from '../state/migration.ts';
 import { requestStatePreparation } from '../state/preparation.ts';
 import { ensureFolder, repositoryLayout, writeAtomic } from '../state/state.ts';
 import { readScreen } from '../terminal/terminal.ts';
+import { type IssueKey, isKey } from '../tracker/key.ts';
 import { isLevel, type Level, type StartPair } from '../workflow/effort.ts';
 import { type Step, steps } from '../workflow/workflow.ts';
 
 export interface SessionRecord {
-  schema: 2;
+  schema: 3;
   host: Host;
-  issue: number;
+  issue: IssueKey;
   step: Step;
   checkout: string;
   session_id: string | null;
@@ -28,7 +29,7 @@ export interface SessionRecord {
 }
 export type SavedSession = SessionRecord & { session_id: string };
 type StepFacts = {
-  issue: number;
+  issue: IssueKey;
   step: Step;
   host: Host;
   main: string;
@@ -40,8 +41,9 @@ function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function sessionFields(value: Record<string, unknown>, main: string, issue: number): boolean {
+function sessionFields(value: Record<string, unknown>, main: string, issue: IssueKey): boolean {
   return (
+    isKey(value.issue) &&
     value.issue === issue &&
     value.checkout === main &&
     isHost(value.host) &&
@@ -51,70 +53,89 @@ function sessionFields(value: Record<string, unknown>, main: string, issue: numb
   );
 }
 
-export function validateSession(value: unknown, main: string, issue: number, file: string): SessionRecord {
+const effortHolds = (value: Record<string, unknown>) =>
+  isHost(value.host) && (hostAdapter(value.host).appliesEffort ? isLevel(value.effort) : value.effort === null);
+
+export function validateSession(value: unknown, main: string, issue: IssueKey, file: string): SessionRecord {
   if (
     !object(value) ||
     Object.keys(value).sort().join(',') !== 'checkout,effort,host,issue,schema,session_id,step' ||
-    value.schema !== 2 ||
+    value.schema !== 3 ||
     !sessionFields(value, main, issue) ||
-    !(isHost(value.host) && (hostAdapter(value.host).appliesEffort ? isLevel(value.effort) : value.effort === null))
+    !effortHolds(value)
   ) {
     throw new HostError(
-      `session: ${file}: invalid schema-2 fields; preserve the record and repair its data`,
+      `session: ${file}: invalid schema-3 fields; preserve the record and repair its data`,
       exits.usage,
     );
   }
   return value as unknown as SessionRecord;
 }
 
+export function convertSession(value: unknown, main: string, issue: IssueKey, file: string): SessionRecord {
+  const invalid = (schema: string) =>
+    new HostError(
+      `session: ${file}: schema ${schema} to 3: invalid historical fields; preserve and repair the record`,
+      exits.usage,
+    );
+  if (!object(value) || (value.schema !== 1 && value.schema !== 2)) throw invalid('unknown');
+  const fields =
+    value.schema === 1
+      ? 'checkout,host,issue,schema,session_id,step'
+      : 'checkout,effort,host,issue,schema,session_id,step';
+  if (
+    Object.keys(value).sort().join(',') !== fields ||
+    !Number.isSafeInteger(value.issue) ||
+    String(value.issue) !== issue ||
+    !sessionFields({ ...value, issue }, main, issue) ||
+    (value.schema === 2 && !effortHolds(value))
+  )
+    throw invalid(String(value.schema));
+  return validateSession(
+    { ...value, schema: 3, issue, effort: value.schema === 1 ? 'high' : value.effort },
+    main,
+    issue,
+    file,
+  );
+}
+
 export function serializeSession(record: SessionRecord): string {
   return JSON.stringify(Object.fromEntries(Object.entries(record).sort(([a], [b]) => a.localeCompare(b))));
 }
 
-function historical(source: LocalRecord, main: string, issue: number): SessionRecord {
-  const value = source.value;
-  if (
-    !object(value) ||
-    value.schema !== 1 ||
-    Object.keys(value).sort().join(',') !== 'checkout,host,issue,schema,session_id,step' ||
-    !sessionFields(value, main, issue)
-  )
-    throw new HostError(
-      `session: ${source.path}: schema 1 to 2: invalid historical fields; preserve and repair the record`,
-      exits.usage,
-    );
-  return validateSession({ ...value, schema: 2, effort: 'high' }, main, issue, source.path);
-}
-
-const oldSchema = (source: LocalRecord) => object(source.value) && source.value.schema === 1;
-async function snapshot(common: string, issue: number): Promise<LocalRecord | null> {
+const historical = (source: LocalRecord, main: string, issue: IssueKey) =>
+  convertSession(source.value, main, issue, source.path);
+const schemaOf = (source: LocalRecord) => (object(source.value) ? String(source.value.schema) : 'unknown');
+const oldSchema = (source: LocalRecord) =>
+  object(source.value) && (source.value.schema === 1 || source.value.schema === 2);
+async function snapshot(common: string, issue: IssueKey): Promise<LocalRecord | null> {
   const layout = repositoryLayout(common);
   const file = layout.session(issue);
   try {
     return await readLocalRecord(file, [common, layout.root.path, layout.sessions.path], 'shared');
   } catch (error) {
     throw new HostError(
-      `session: ${file}: target schema 2: cannot read record: ${error instanceof Error ? error.message : String(error)}`,
+      `session: ${file}: target schema 3: cannot read record: ${error instanceof Error ? error.message : String(error)}`,
       exits.blocked,
     );
   }
 }
-function currentRecord(source: LocalRecord, main: string, issue: number): SessionRecord {
-  if (!object(source.value) || source.value.schema !== 2)
+function currentRecord(source: LocalRecord, main: string, issue: IssueKey): SessionRecord {
+  if (!object(source.value) || source.value.schema !== 3)
     throw new HostError(
-      `session: ${source.path}: unsupported schema ${object(source.value) ? String(source.value.schema) : 'unknown'}; expected schema 2`,
+      `session: ${source.path}: unsupported schema ${schemaOf(source)}; expected schema 3`,
       exits.usage,
     );
   return validateSession(source.value, main, issue, source.path);
 }
-function missing(issue: number): HostError {
+function missing(issue: IssueKey): HostError {
   return new HostError(
     `celetis: #${issue} has no current session record; start a new step with celetis --agent <host> run ${issue}`,
     exits.prerequisite,
   );
 }
 
-export async function prepareSession(main: string, issue: number, common: string, owner: LockOwner): Promise<void> {
+export async function prepareSession(main: string, issue: IssueKey, common: string, owner: LockOwner): Promise<void> {
   const source = await snapshot(common, issue);
   if (!source) return;
   if (!oldSchema(source)) {
@@ -122,8 +143,8 @@ export async function prepareSession(main: string, issue: number, common: string
     return;
   }
   historical(source, main, issue);
-  const context = `session: ${source.path}: schema 1 to 2`;
-  const name = `issue-${issue}`;
+  const context = `session: ${source.path}: schema ${schemaOf(source)} to 3`;
+  const name = issueLock(issue);
   let acquired = false;
   try {
     if (!owner.owns(name)) {
@@ -142,7 +163,11 @@ export async function prepareSession(main: string, issue: number, common: string
       return;
     }
     const target = historical(locked, main, issue);
-    await commitMigration(locked, 1, `${serializeSession(target)}\n`);
+    await commitMigration(
+      locked,
+      Number((locked.value as Record<string, unknown>).schema),
+      `${serializeSession(target)}\n`,
+    );
   } catch (error) {
     const cause = error instanceof Error ? error.message : String(error);
     if (cause.startsWith(context)) throw error;
@@ -154,7 +179,7 @@ export async function prepareSession(main: string, issue: number, common: string
 
 export async function readSession(
   main: string,
-  issue: number,
+  issue: IssueKey,
   common?: string,
   owner?: LockOwner,
 ): Promise<SessionRecord> {
@@ -164,10 +189,10 @@ export async function readSession(
   if (!oldSchema(source)) return currentRecord(source, main, issue);
   historical(source, main, issue);
   try {
-    if (owner?.owns(`issue-${issue}`)) await prepareSession(main, issue, common, owner);
+    if (owner?.owns(issueLock(issue))) await prepareSession(main, issue, common, owner);
     else await requestStatePreparation(main, { kind: 'session', issue });
   } catch (error) {
-    const context = `session: ${source.path}: schema 1 to 2`;
+    const context = `session: ${source.path}: schema ${schemaOf(source)} to 3`;
     const cause = error instanceof Error ? error.message : String(error);
     if (cause.startsWith(context)) throw error;
     throw new HostError(`${context}: ${cause}`, error instanceof HostError ? error.code : exits.internal);
@@ -179,7 +204,7 @@ export async function readSession(
 
 export async function selectSavedSession(
   main: string,
-  issue: number,
+  issue: IssueKey,
   explicit?: string,
   common?: string,
   owner?: LockOwner,
@@ -247,7 +272,7 @@ export function startLine(prompt: string, start: StartPair, applied: Level | nul
 }
 
 export async function startupError(
-  issue: number,
+  issue: IssueKey,
   host: Host,
   detail: string,
   terminal: string,

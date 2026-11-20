@@ -108,7 +108,7 @@ there, as the part of the host below says, and go on when it ends: the checks an
 failed check can take 30 minutes.
 Wait for its real exit; a yield or a timeout is not completion. Never start a second landing of
 the same issue while one runs or waits. The subject, `<type>(<area>): <what>`, is the squash subject of the change, without
-the issue number: the script adds ` (#<n>)`. When the lane branch holds one commit, pass the
+the issue key: the script adds ` (#<n>)`. When the lane branch holds one commit, pass the
 subject of that commit: the squash commit can take the subject of that commit in place of the
 argument.
 

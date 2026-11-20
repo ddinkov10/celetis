@@ -31,10 +31,10 @@ import {
   sessionJobName,
 } from './lib/process/windows.ts';
 import { installRecorder, passOn } from './lib/state/events.ts';
-import { isIssueNumber } from './lib/state/fields.ts';
-import type { LockOwner } from './lib/state/locks.ts';
+import { issueLock, type LockOwner } from './lib/state/locks.ts';
 import { daemonSockets, ensureFolder, repositoryLayout, startFiles, writeAtomic } from './lib/state/state.ts';
 import { requireTerminals, TerminalError } from './lib/terminal/terminal.ts';
+import { parseHandle } from './lib/tracker/key.ts';
 
 const noDaemon = 'daemon: no daemon runs for this repository';
 const root = dirname(import.meta.dir);
@@ -234,8 +234,8 @@ export async function main(argv: string[]): Promise<ExitCode> {
 }
 
 async function prepareState(argv: string[]): Promise<ExitCode> {
-  const session = argv[1] === 'session' && argv.length === 3 && isIssueNumber(argv[2] ?? '');
-  if (!(argv.length === 2 && argv[1] === 'queue') && !session) {
+  const session = argv[1] === 'session' && argv.length === 3 ? parseHandle(argv[2] as string) : null;
+  if (!(argv.length === 2 && argv[1] === 'queue') && session === null) {
     console.error('state preparation: invalid internal request');
     return exits.usage;
   }
@@ -246,20 +246,15 @@ async function prepareState(argv: string[]): Promise<ExitCode> {
     if (checkout.main === null || checkout.common === null)
       throw new HostError('state preparation: need a Git checkout', exits.usage);
     owner = (await import('./lib/state/locks.ts')).createLockOwner(checkout.main);
-    if (session) {
-      const name = `issue-${argv[2]}`;
+    if (session !== null) {
+      const name = issueLock(session);
       const holder = await owner.take(name);
       if (holder !== null)
         throw new HostError(
-          `session: ${repositoryLayout(checkout.common).session(Number(argv[2]))}: target schema 2: busy ${name} ownership (PID ${holder}); retry after the owner exits`,
+          `session: ${repositoryLayout(checkout.common).session(session)}: target schema 3: busy ${name} ownership (PID ${holder}); retry after the owner exits`,
           exits.prerequisite,
         );
-      await (await import('./lib/run/session.ts')).prepareSession(
-        checkout.main,
-        Number(argv[2]),
-        checkout.common,
-        owner,
-      );
+      await (await import('./lib/run/session.ts')).prepareSession(checkout.main, session, checkout.common, owner);
     } else await (await import('./lib/queue/queue.ts')).prepareQueue(checkout.main, checkout.common, owner);
     return exits.done;
   } catch (error) {

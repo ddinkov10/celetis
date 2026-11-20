@@ -8,7 +8,7 @@ import { requireCan } from './lib/host/hosts.ts';
 import { isHost } from './lib/host/names.ts';
 import { run } from './lib/process/process.ts';
 import { installRecorder, markDefect, recordedElsewhere, writeUnrecorded } from './lib/state/events.ts';
-import { isIssueNumber } from './lib/state/fields.ts';
+import { parseHandle } from './lib/tracker/key.ts';
 
 export async function main(argv: string[]): Promise<ExitCode> {
   try {
@@ -22,10 +22,9 @@ export async function main(argv: string[]): Promise<ExitCode> {
 }
 
 async function execute(argv: string[], explicit: string | undefined): Promise<ExitCode> {
-  const n = argv[0]?.replace(/^#/, '') ?? '';
-  const number = Number(n);
+  const key = parseHandle(argv[0] ?? '');
   const subject = argv[1] ?? '';
-  if (argv.length !== 2 || !isIssueNumber(n) || !landingSubject(number, subject)) {
+  if (argv.length !== 2 || key === null || !landingSubject(key, subject)) {
     console.error(usage('land'));
     return exits.usage;
   }
@@ -70,7 +69,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
     response = await fetch('http://daemon/land', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ number, subject, selection, from }),
+      body: JSON.stringify({ number: key, subject, selection, from }),
       signal: abort.signal,
       unix: daemonSocket(common),
     });
@@ -102,7 +101,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
   const lost = async (cause: string) => {
     written.err = new Promise((done) =>
       process.stderr.write(
-        `land: blocked: the daemon ended the landing of #${number} with no status: ${cause}; read celetis daemon status, then run celetis --agent <host> land ${number} again\n`,
+        `land: blocked: the daemon ended the landing of #${key} with no status: ${cause}; read celetis daemon status, then run celetis --agent <host> land ${key} again\n`,
         () => done(),
       ),
     );

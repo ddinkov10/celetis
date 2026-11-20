@@ -1,7 +1,7 @@
 import { HostError } from '../command/errors.ts';
 import { exits } from '../contract/contract.ts';
-import { isIssueNumber } from '../state/fields.ts';
 import { repositoryLayout, withLock } from '../state/state.ts';
+import type { IssueKey } from '../tracker/key.ts';
 import { writeRefreshHint } from '../tracker/refresh-hints.ts';
 import { type GitHub, github } from '../tracker/tracker.ts';
 import {
@@ -21,9 +21,9 @@ export type EpicCompletionResult =
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const passed: readonly number[] = [exits.usage, exits.prerequisite, exits.blocked];
-const nextAction = (n: string) => `/celetis:accept-epic #${n}`;
+const nextAction = (n: IssueKey) => `/celetis:accept-epic #${n}`;
 
-async function snapshot(gh: GitHub, n: string): Promise<EpicSnapshot> {
+async function snapshot(gh: GitHub, n: IssueKey): Promise<EpicSnapshot> {
   try {
     return await gh.epic(n);
   } catch (error) {
@@ -31,17 +31,16 @@ async function snapshot(gh: GitHub, n: string): Promise<EpicSnapshot> {
   }
 }
 
-export async function readEpic(main: string, n: string): Promise<EpicSnapshot> {
+export async function readEpic(main: string, n: IssueKey): Promise<EpicSnapshot> {
   return snapshot(github(main), n);
 }
 
 async function withEpicLock<T>(
   common: string,
-  n: string,
+  n: IssueKey,
   signal: AbortSignal | undefined,
   change: (signal: AbortSignal) => Promise<T>,
 ): Promise<T> {
-  if (!isIssueNumber(n)) throw new HostError('epic: need a positive safe issue number', exits.usage);
   const layout = repositoryLayout(common);
   const controller = new AbortController();
   const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const;
@@ -68,7 +67,7 @@ async function withEpicLock<T>(
   }
 }
 
-export async function writeEpicDefinition(main: string, common: string, n: string, body: string): Promise<void> {
+export async function writeEpicDefinition(main: string, common: string, n: IssueKey, body: string): Promise<void> {
   const declaration = parseEpicAcceptance(body);
   if (declaration.kind === 'unresolved') throw new HostError(`epic: ${declaration.reason}`, exits.usage);
   await withEpicLock(common, n, undefined, async (signal) => {
@@ -170,7 +169,7 @@ function inputs(snapshot: EpicSnapshot, submission: EpicSubmission | null): stri
 export async function completeEpic(
   main: string,
   common: string,
-  n: string,
+  n: IssueKey,
   submission?: EpicSubmission,
   signal?: AbortSignal,
 ): Promise<EpicCompletionResult> {

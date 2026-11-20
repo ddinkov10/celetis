@@ -7,16 +7,17 @@ import type { ProcessState } from '../process/identity.ts';
 import { queueAction, queueView } from '../queue/types.ts';
 import type { RunInput, RunState } from '../run/engine.ts';
 import { commit } from '../state/fields.ts';
-import { bounded, code, count, members, uuidText } from '../state/schemas.ts';
+import { bounded, code, count, issueKey, members, uuidText } from '../state/schemas.ts';
 import { daemonSocketPath, type RepositoryLayout, repositoryLayout } from '../state/state.ts';
 import { isSafeId } from '../terminal/terminal.ts';
 import type { DialogKind } from '../terminal/types.ts';
+import type { IssueKey } from '../tracker/key.ts';
 import { levels, models } from '../workflow/effort.ts';
-import { steps } from '../workflow/workflow.ts';
+import { keyedSubject, steps } from '../workflow/workflow.ts';
 
 export const textLimit = 4096;
 export const stopLine = 'daemon: the daemon stops; start it again, then send the request';
-export const stopKeptLine = (n: number) => `#${n}: the tab did not close; the run goes on`;
+export const stopKeptLine = (key: IssueKey) => `#${key}: the tab did not close; the run goes on`;
 export const unprovedStopAct =
   'End those processes, then restart the daemon: celetis daemon stop, then celetis daemon start.';
 export const codexStopLine = 'The daemon cannot prove the end of a Codex session. Close its tab, then use Set aside.';
@@ -39,28 +40,33 @@ const routed = <K extends string, T extends object>(kind: K, body: z.ZodType<T>)
 const bodies = {
   run: routed(
     'run',
-    z.strictObject({ number: count, selection, effort: z.enum(levels).nullable(), model: z.enum(models).nullable() }),
+    z.strictObject({
+      number: issueKey,
+      selection,
+      effort: z.enum(levels).nullable(),
+      model: z.enum(models).nullable(),
+    }),
   ),
   auto: routed('auto', z.strictObject({ on: z.boolean(), selection })),
   queue: routed('queue', z.strictObject({ id: uuidText, token: uuidText, selection })),
-  resume: routed('resume', z.strictObject({ number: count, selection })),
-  retry: routed('retry', z.strictObject({ number: count, waitId: filled })),
-  aside: routed('aside', z.strictObject({ number: count })),
-  halt: routed('halt', z.strictObject({ number: count, terminal: z.string().refine(isSafeId) })),
+  resume: routed('resume', z.strictObject({ number: issueKey, selection })),
+  retry: routed('retry', z.strictObject({ number: issueKey, waitId: filled })),
+  aside: routed('aside', z.strictObject({ number: issueKey })),
+  halt: routed('halt', z.strictObject({ number: issueKey, terminal: z.string().refine(isSafeId) })),
   stop: z.strictObject({}).transform(() => ({ kind: 'stop' as const })),
   'queue-action': routed('queue-action', z.strictObject({ action: queueAction, selection })),
   'queue-reconcile': z.strictObject({}).transform(() => ({ kind: 'queue-reconcile' as const })),
   land: routed(
     'land',
     z
-      .strictObject({ number: count, subject: z.string(), selection, from: absolute })
+      .strictObject({ number: issueKey, subject: z.string(), selection, from: absolute })
       .refine(({ number, subject }) => landingSubject(number, subject)),
   ),
   'coordinator-open': routed('coordinator-open', z.strictObject({ selection })),
-  'coordinator-read': routed('coordinator-read', z.strictObject({ number: count })),
+  'coordinator-read': routed('coordinator-read', z.strictObject({ number: issueKey })),
   'coordinator-send': routed(
     'coordinator-send',
-    z.strictObject({ number: count, authority, text: z.string(), token: uuidText }),
+    z.strictObject({ number: issueKey, authority, text: z.string(), token: uuidText }),
   ),
 };
 
@@ -119,8 +125,8 @@ const attention = z.strictObject({ state: members(attentions), kind: members(dia
 const runRow = z.strictObject({
   id: uuidText,
   kind: members(kinds),
-  issue: count.nullable(),
-  numbers: z.array(count).nullable(),
+  issue: issueKey.nullable(),
+  numbers: z.array(issueKey).nullable(),
   step: z.enum(steps).nullable(),
   host: z.enum(hosts).nullable(),
   tab: text.nullable(),
@@ -132,7 +138,7 @@ const runRow = z.strictObject({
   attention: attention.nullable(),
   outcome: z.strictObject({ kind: members(ends), reason: text, code: code.transform(passThrough) }).nullable(),
 });
-const landingRow = z.strictObject({ issue: count, state: z.enum(['runs', 'waits']), changedMs: code });
+const landingRow = z.strictObject({ issue: issueKey, state: z.enum(['runs', 'waits']), changedMs: code });
 const daemonStatus = z.strictObject({
   schema: z.literal(1),
   daemon: daemonIdentity,
@@ -188,8 +194,12 @@ const bodyAt = new Map<string, z.ZodType<DaemonRequest>>(
 
 export const isAuthority = (value: unknown): value is Authority => authority.safeParse(value).success;
 
-export function landingSubject(number: number, subject: string): boolean {
-  return /^[a-z]+(\([^()]+\))?!?: [^ ]/.test(subject) && !subject.includes('\n') && !subject.endsWith(`(#${number})`);
+export function landingSubject(key: IssueKey, subject: string): boolean {
+  return (
+    /^[a-z]+(\([^()]+\))?!?: [^ ]/.test(subject) &&
+    !subject.includes('\n') &&
+    !subject.endsWith(keyedSubject('', key).trimStart())
+  );
 }
 
 export function daemonSocket(common: string): string {

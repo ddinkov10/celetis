@@ -1,6 +1,7 @@
 import { dirname } from 'node:path';
 import { type ExitCode, exits, usage, usageLine } from './lib/contract/contract.ts';
 import { versionFolderGone } from './lib/install/version-folder.ts';
+import { parseHandle } from './lib/tracker/key.ts';
 import type { Level, Model } from './lib/workflow/effort.ts';
 
 const removed = 'the engine version of this command was removed after an update; run the command again';
@@ -22,17 +23,17 @@ export async function main(argv: string[]): Promise<ExitCode> {
     }
   } else if (argv[0] === '--agent') argv = argv.slice(2);
   let mode: 'number' | 'resume' | 'retry' = 'number';
-  let numbers: string[];
+  let handles: string[];
   let waitId = '';
   let override: Level | undefined;
   let model: Model | undefined;
   if (argv.length === 3 && argv[0] === 'retry') {
     mode = 'retry';
-    numbers = [(argv[1] ?? '').replace(/^#/, '')];
+    handles = [argv[1] ?? ''];
     waitId = argv[2] as string;
   } else if (argv.length === 2 && argv[0] === 'resume') {
     mode = 'resume';
-    numbers = [(argv[1] ?? '').replace(/^#/, '')];
+    handles = [argv[1] ?? ''];
   } else {
     const effort = unavailable ? null : await import('./lib/workflow/effort.ts');
     const take = <T>(flag: string, valid: ((value: unknown) => value is T) | undefined): T | undefined => {
@@ -44,15 +45,15 @@ export async function main(argv: string[]): Promise<ExitCode> {
     };
     override = take('--effort', effort?.isLevel);
     model = take('--model', effort?.isModel);
-    numbers = argv.map((arg) => arg.replace(/^#/, ''));
+    handles = argv;
   }
-  if (numbers.length !== 1 || !/^[1-9][0-9]*$/.test(numbers[0] as string)) {
+  const key = handles.length === 1 ? parseHandle(handles[0] as string) : null;
+  if (key === null) {
     console.error(unavailable ? `usage: ${usageLine('run')}` : usage('run'));
     return exits.usage;
   }
-  const number = Number(numbers[0]);
   if (unavailable) {
-    console.error(mode === 'number' ? `run: #${numbers[0]}: ${removed}` : `run: ${removed}`);
+    console.error(mode === 'number' ? `run: #${key}: ${removed}` : `run: ${removed}`);
     return exits.prerequisite;
   }
   const { HostError } = await import('./lib/command/errors.ts');
@@ -65,9 +66,9 @@ export async function main(argv: string[]): Promise<ExitCode> {
     if (checkout.main === null || checkout.common === null)
       throw new HostError('celetis: need a Git checkout', exits.usage);
     const { common } = checkout;
-    const subject = `#${number}`;
+    const subject = `#${key}`;
     if (mode === 'retry') {
-      const { answer } = await askDaemon(common, { kind: 'retry', number, waitId }, 'run');
+      const { answer } = await askDaemon(common, { kind: 'retry', number: key, waitId }, 'run');
       if (!answer.accepted) {
         (answer.code === exits.done ? console.log : console.error)(answer.line);
         return answer.code;
@@ -76,10 +77,10 @@ export async function main(argv: string[]): Promise<ExitCode> {
       return exits.done;
     }
     const selection = requestSelection(explicit);
-    if (mode === 'resume') return await sendRun(common, { kind: 'resume', number, selection }, 'run', subject);
+    if (mode === 'resume') return await sendRun(common, { kind: 'resume', number: key, selection }, 'run', subject);
     return await sendRun(
       common,
-      { kind: 'run', number, selection, effort: override ?? null, model: model ?? null },
+      { kind: 'run', number: key, selection, effort: override ?? null, model: model ?? null },
       'run',
       subject,
     );

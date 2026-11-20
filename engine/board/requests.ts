@@ -3,8 +3,9 @@ import { textLimit } from '../lib/daemon/types.ts';
 import { hostChoices, isHost } from '../lib/host/names.ts';
 import { parseQueueAction } from '../lib/queue/queue.ts';
 import type { QueueAction } from '../lib/queue/types.ts';
-import { isIssueField, orderVersion, uuid } from '../lib/state/fields.ts';
+import { orderVersion, uuid } from '../lib/state/fields.ts';
 import { isSafeId, TerminalError } from '../lib/terminal/terminal.ts';
+import { type IssueKey, isKey } from '../lib/tracker/key.ts';
 import { isLevel, levels } from '../lib/workflow/effort.ts';
 import type { BoardRequest } from './types.ts';
 
@@ -30,6 +31,7 @@ export const POSTS: ReadonlySet<string> = new Set([
   '/api/coordinator/interrupt',
   '/api/coordinator/end',
 ]);
+const notKey = 'the number of the issue is not an issue key';
 const fieldsOf = (value: Record<string, unknown>) => Object.keys(value).sort().join(',');
 
 export class Refusal extends Error {
@@ -63,7 +65,7 @@ export const cleanLines = (cause: unknown) =>
     .join('\n')
     .slice(0, textLimit);
 
-const agentOf = (number: number, choice: unknown) => {
+const agentOf = (number: IssueKey, choice: unknown) => {
   if (choice !== undefined && choice !== null && !isHost(choice))
     throw new Refusal(409, `#${number} has no agent "${String(choice)}"`);
   return isHost(choice) ? choice : undefined;
@@ -91,14 +93,16 @@ export const parseRequest = (path: string, body: unknown): BoardRequest => {
     throw new Refusal(400, 'making a visual takes only the issue number');
   if (path === '/api/aside' || path === '/api/stop') {
     const stops = path === '/api/stop';
-    if (fieldsOf(input) !== (stops ? 'number,sessionId' : 'number') || !isIssueField(input.number))
+    const { number } = input;
+    if (fieldsOf(input) !== (stops ? 'number,sessionId' : 'number'))
       throw new Refusal(
         400,
         stops ? 'Stop takes only the issue number and a session ID' : 'Set aside takes only the issue number',
       );
-    if (!stops) return { path, number: Number(input.number) };
+    if (!isKey(number)) throw new Refusal(400, notKey);
+    if (!stops) return { path, number };
     if (!isSafeId(input.sessionId)) throw new Refusal(400, 'the session ID is not a terminal ID');
-    return { path, number: Number(input.number), sessionId: input.sessionId };
+    return { path, number, sessionId: input.sessionId };
   }
   if (path === '/api/coordinator/open' || path === '/api/coordinator/interrupt' || path === '/api/coordinator/end') {
     if (Object.keys(input).length) throw new Refusal(400, 'this act of the coordinator takes an empty object');
@@ -155,11 +159,11 @@ export const parseRequest = (path: string, body: unknown): BoardRequest => {
     path === '/api/shell'
   ) {
     const { number } = input;
-    if (!isIssueField(number)) throw new Refusal(400, 'the number of the issue is not digits');
+    if (!isKey(number)) throw new Refusal(400, notKey);
     if (path === '/api/run' && Object.hasOwn(input, 'waitId')) {
       if (fieldsOf(input) !== 'number,waitId' || typeof input.waitId !== 'string' || !uuid.test(input.waitId))
         throw new Refusal(400, 'a quota Retry takes only the issue number and its wait ID');
-      return { path, number: Number(number), waitId: input.waitId };
+      return { path, number, waitId: input.waitId };
     }
     if (path === '/api/run') {
       const { effort } = input;
@@ -167,9 +171,9 @@ export const parseRequest = (path: string, body: unknown): BoardRequest => {
         throw new Refusal(400, 'Run takes only the issue number, an agent, and an effort');
       if (effort !== undefined && !isLevel(effort))
         throw new Refusal(400, `the effort is not one of ${levels.join(', ')}`);
-      return { path, number: Number(number), agent: agentOf(Number(number), input.agent), effort };
+      return { path, number, agent: agentOf(number, input.agent), effort };
     }
-    return { path, number: Number(number) };
+    return { path, number };
   }
   if (path === '/api/go') return { path, sessionId: String(input.sessionId) };
   if (path === '/api/agent') {

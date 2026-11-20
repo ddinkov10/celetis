@@ -8,7 +8,8 @@ import { interactiveHost, runInteractive } from './lib/host/interactive.ts';
 import type { Host } from './lib/host/names.ts';
 import { childEnv, run } from './lib/process/process.ts';
 import { installRecorder, markDefect, passOn } from './lib/state/events.ts';
-import { isCommit, isIssueNumber } from './lib/state/fields.ts';
+import { isCommit } from './lib/state/fields.ts';
+import { type IssueKey, parseHandle } from './lib/tracker/key.ts';
 import { hasPage, partialPage, visualFolder, visualLink, visualPage } from './lib/workflow/visual.ts';
 
 const claudeInstall =
@@ -28,7 +29,7 @@ const installPath: Record<Host, () => string> = {
 };
 const need: Need = { kind: 'interactive', command: 'visual' };
 
-function visualText(host: Host, issue: number, sha: string, main: string): { title: string; prompt: string } {
+function visualText(host: Host, issue: IssueKey, sha: string, main: string): { title: string; prompt: string } {
   const partial = JSON.stringify(partialPage(main, sha));
   const page = JSON.stringify(visualPage(main, sha));
   const prompt =
@@ -53,9 +54,8 @@ export async function main(argv: string[]): Promise<ExitCode> {
     requireBun();
     const { args, explicit } = commandInput(argv);
     const [number, sha] = args;
-    const issue = Number(number);
-    if (args.length !== 2 || !isIssueNumber(number ?? '') || !isCommit(sha))
-      throw new HostError(usage('visual'), exits.usage);
+    const issue = parseHandle(number ?? '');
+    if (args.length !== 2 || issue === null || !isCommit(sha)) throw new HostError(usage('visual'), exits.usage);
     process.env.PATH = childEnv().PATH;
     const operation = await createOperation(
       await locateCheckouts(process.cwd()),

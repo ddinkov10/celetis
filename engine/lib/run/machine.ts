@@ -10,7 +10,8 @@ import type { SessionStart } from '../host/types.ts';
 import type { UsageAttempt } from '../host/usage.ts';
 import type { QueueRecord } from '../queue/types.ts';
 import { describe, type Next } from '../resolver/lines.ts';
-import type { Identity } from '../state/locks.ts';
+import { type Identity, issueLock } from '../state/locks.ts';
+import type { IssueKey } from '../tracker/key.ts';
 import { type EffortDecision, noOverride, type Override } from '../workflow/effort.ts';
 import {
   autoTakes,
@@ -41,7 +42,7 @@ export type Loop = Readonly<{
   retryBlocked: boolean;
 }>;
 export type IssueFacts = Readonly<{
-  number: number;
+  number: IssueKey;
   loop: Loop;
   request: Request | null;
   override: Override;
@@ -119,13 +120,13 @@ type IssueSession = Readonly<{
   tab: string;
   wait: KeptWait | null;
 }>;
-type ResumeSession = Readonly<{ scope: 'resume'; number: number; terminal: string }>;
+type ResumeSession = Readonly<{ scope: 'resume'; number: IssueKey; terminal: string }>;
 type Opened = Readonly<{ barrier: Identity; exit: Promise<number | null> }>;
 
 export type State =
   | Readonly<{ kind: 'starting' }>
   | Readonly<{ kind: 'admitting'; scope: 'issue'; issue: IssueFacts }>
-  | Readonly<{ kind: 'admitting'; scope: 'resume'; number: number }>
+  | Readonly<{ kind: 'admitting'; scope: 'resume'; number: IssueKey }>
   | Readonly<{
       kind: 'binding';
       issue: IssueFacts;
@@ -138,17 +139,17 @@ export type State =
   | Readonly<{ kind: 'selecting'; issue: IssueFacts; resolution: Resolution }>
   | Readonly<{ kind: 'quota-wait'; issue: IssueFacts; wait: QuotaWait }>
   | Readonly<{ kind: 'preparing'; scope: 'issue'; issue: IssueFacts; resolution: Resolution; host: Host }>
-  | Readonly<{ kind: 'preparing'; scope: 'resume'; number: number; ready: boolean }>
+  | Readonly<{ kind: 'preparing'; scope: 'resume'; number: IssueKey; ready: boolean }>
   | Readonly<{ kind: 'opening'; scope: 'issue'; issue: IssueFacts; start: StepStart }>
-  | Readonly<{ kind: 'opening'; scope: 'resume'; number: number; start: ResumeStart }>
+  | Readonly<{ kind: 'opening'; scope: 'resume'; number: IssueKey; start: ResumeStart }>
   | (Readonly<{ kind: 'live' }> &
       IssueSession &
       ((Opened & Readonly<{ fresh: true; session: Steered }>) | Readonly<{ fresh: false; session: Facts }>))
   | (Readonly<{ kind: 'live' }> &
       ResumeSession &
       ((Opened & Readonly<{ fresh: true }>) | Readonly<{ fresh: false; session: Released }>))
-  | Readonly<{ kind: 'closing'; number: number; cause: Cause }>
-  | Readonly<{ kind: 'advancing'; number: number }>
+  | Readonly<{ kind: 'closing'; number: IssueKey; cause: Cause }>
+  | Readonly<{ kind: 'advancing'; number: IssueKey }>
   | Readonly<{ kind: 'reporting'; error: unknown }>
   | Readonly<{ kind: 'adopting'; record: RunRecord }>
   | Readonly<{ kind: 'observing'; record: RunRecord; claimed: Identity | null; lock: string | null }>
@@ -171,7 +172,7 @@ export type SessionEnd = Readonly<
 >;
 
 export type Event =
-  | Readonly<{ kind: 'started'; issue: number | null; request: Request | null; basis: Basis }>
+  | Readonly<{ kind: 'started'; issue: IssueKey | null; request: Request | null; basis: Basis }>
   | Readonly<{ kind: 'admitted' }>
   | Readonly<{ kind: 'lock-held'; holder: string; flags: Flags }>
   | Readonly<{ kind: 'aside'; reason: string }>
@@ -210,8 +211,8 @@ export type Event =
     }>
   | Readonly<{ kind: 'halted'; ownership: AttemptEnd; host: Host; tab: string; resume: string }>
   | Readonly<{ kind: 'closed'; flags: Flags }>
-  | Readonly<{ kind: 'advanced'; next: Readonly<{ issue: number; basis: Basis }> | null }>
-  | Readonly<{ kind: 'reported'; issue: number | null }>
+  | Readonly<{ kind: 'advanced'; next: Readonly<{ issue: IssueKey; basis: Basis }> | null }>
+  | Readonly<{ kind: 'reported'; issue: IssueKey | null }>
   | Readonly<{ kind: 'unsaved'; line: string }>
   | Readonly<{ kind: 'adopted'; claimed: Identity | null; lock: string | null }>
   | Readonly<{ kind: 'observed'; seen: Seen; basis: Basis }>
@@ -219,20 +220,20 @@ export type Event =
   | Readonly<{ kind: 'failed'; failure: Failure }>;
 
 export type Effect =
-  | Readonly<{ kind: 'say'; line: string; record: Readonly<{ name: string; issue: number }> | null }>
-  | Readonly<{ kind: 'event'; name: string; message: string; issue: number | null; error: unknown }>
+  | Readonly<{ kind: 'say'; line: string; record: Readonly<{ name: string; issue: IssueKey }> | null }>
+  | Readonly<{ kind: 'event'; name: string; message: string; issue: IssueKey | null; error: unknown }>
   | Readonly<{ kind: 'admit'; admission: Admission }>
   | Readonly<{ kind: 'note'; change: Partial<RunRecord> }>
   | Readonly<{ kind: 'note-loop'; loop: Loop; change: Partial<RunRecord> }>
   | Readonly<{ kind: 'mark'; label: RunState }>
-  | Readonly<{ kind: 'no-progress'; issue: number; line: string }>
-  | Readonly<{ kind: 'set-aside'; issue: number }>
-  | Readonly<{ kind: 'clear-aside'; issue: number }>
+  | Readonly<{ kind: 'no-progress'; issue: IssueKey; line: string }>
+  | Readonly<{ kind: 'set-aside'; issue: IssueKey }>
+  | Readonly<{ kind: 'clear-aside'; issue: IssueKey }>
   | Readonly<{ kind: 'keep-lock' }>
-  | Readonly<{ kind: 'end-recovery'; issue: number }>
+  | Readonly<{ kind: 'end-recovery'; issue: IssueKey }>
   | Readonly<{
       kind: 'archive';
-      issue: number;
+      issue: IssueKey;
       attemptId: string;
       terminal: string;
       loop: Loop;
@@ -240,7 +241,7 @@ export type Effect =
       choice: AgentChoice;
     }>
   | Readonly<{ kind: 'save-queue'; change: Partial<QueueRecord> }>
-  | Readonly<{ kind: 'startup-error'; issue: number; host: Host; terminal: string; tab: string }>
+  | Readonly<{ kind: 'startup-error'; issue: IssueKey; host: Host; terminal: string; tab: string }>
   | Readonly<{ kind: 'finish-tab'; terminal: string }>
   | Readonly<{ kind: 'remove-start' }>
   | Readonly<{ kind: 'close-tab'; terminal: string }>
@@ -295,20 +296,20 @@ export type Table = {
   [S in Working]: { [E in Accepts[S]]: (state: StateOf<S>, event: EventOf<E>, run: RunFacts) => Step<Targets[S]> };
 };
 
-const say = (line: string, record: Readonly<{ name: string; issue: number }> | null = null): Effect => ({
+const say = (line: string, record: Readonly<{ name: string; issue: IssueKey }> | null = null): Effect => ({
   kind: 'say',
   line,
   record,
 });
 const errorLine = (line: string): Effect => ({ kind: 'error-line', line });
-const logged = (name: string, message: string, issue: number | null, error: unknown = undefined): Effect => ({
+const logged = (name: string, message: string, issue: IssueKey | null, error: unknown = undefined): Effect => ({
   kind: 'event',
   name,
   message,
   issue,
   error,
 });
-const endRecovery = (issue: number): Effect => ({ kind: 'end-recovery', issue });
+const endRecovery = (issue: IssueKey): Effect => ({ kind: 'end-recovery', issue });
 const finishTab = (terminal: string): Effect => ({ kind: 'finish-tab', terminal });
 const noteLoop = (loop: Loop, change: Partial<RunRecord>): Effect => ({ kind: 'note-loop', loop, change });
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -320,7 +321,7 @@ const ending = (result: Result, effects: readonly Effect[] = []): Step<'ending'>
 });
 const stopped = (code: ExitCode, reason: string, effects: readonly Effect[] = []): Step<'ending'> =>
   ending({ ok: true, end: { kind: 'stopped', code, reason }, started: false }, effects);
-const fail = (number: number, error: unknown, effects: readonly Effect[] = []): Step<'closing'> => ({
+const fail = (number: IssueKey, error: unknown, effects: readonly Effect[] = []): Step<'closing'> => ({
   state: { kind: 'closing', number, cause: { kind: 'failure', error } },
   effects,
 });
@@ -356,7 +357,7 @@ const proceed = (
     ? { state: { kind: 'quota-wait', issue, wait: { kind: 'kept', wait } }, effects }
     : { state: { kind: 'resolving', issue }, effects };
 
-function newIssue(number: number, first: Loop['first'], basis: Basis, request: Request | null, override: Override) {
+function newIssue(number: IssueKey, first: Loop['first'], basis: Basis, request: Request | null, override: Override) {
   const loop: Loop = {
     first,
     last: basis.last,
@@ -404,7 +405,7 @@ function astray(
   return ending({ ok: false, error: new Error(`run machine: a resume run cannot take the ${event} of an issue run`) });
 }
 
-function endIssue(outcome: Outcome, number: number, run: RunFacts, effects: readonly Effect[]): Step<'ending'> {
+function endIssue(outcome: Outcome, number: IssueKey, run: RunFacts, effects: readonly Effect[]): Step<'ending'> {
   const end: RunEnd = { kind: outcome.kind, code: exits.done, reason: outcome.reason };
   if (run.input.kind !== 'queue')
     return ending(
@@ -438,12 +439,11 @@ function resolve(state: StateOf<'resolving'>, event: EventOf<'resolved'>, run: R
   const { next, authority, line, config, recovery } = event;
   const issue: IssueFacts = { ...state.issue, resolved: next };
   const { number, loop, request } = issue;
-  const n = String(number);
   const unreadable = next.kind === 'observed' && next.reason === 'unreadable';
   const refuse = (text: string): Effect[] =>
     unreadable ? [{ kind: 'admit', admission: { ok: false, line: `daemon: ${text}`, code: exits.blocked } }] : [];
   if (request && (next.kind === 'run' ? next.step : null) !== request.step) {
-    const reason = `#${n}: the displayed decision changed: ${line}; no step was started`;
+    const reason = `#${number}: the displayed decision changed: ${line}; no step was started`;
     return close(issue, 'stopped', reason, 'Refresh the queue, then use its displayed action.', [
       say(reason),
       ...refuse(reason),
@@ -455,7 +455,7 @@ function resolve(state: StateOf<'resolving'>, event: EventOf<'resolved'>, run: R
       issue,
       closed ? 'closed' : 'stopped',
       line,
-      describe(n, next).row?.act ?? 'Fix the cause, then use Try again.',
+      describe(number, next).row?.act ?? 'Fix the cause, then use Try again.',
       [say(line), ...refuse(line), ...(closed ? [endRecovery(number)] : [])],
     );
   }
@@ -467,7 +467,7 @@ function resolve(state: StateOf<'resolving'>, event: EventOf<'resolved'>, run: R
       authority.spec === recovery.authority.spec &&
       authority.plan === recovery.authority.plan;
     if (!same && step === recovery.authority.step) {
-      const reason = `#${n}: the spec or plan changed during the quota recovery of ${step}; no step was started`;
+      const reason = `#${number}: the spec or plan changed during the quota recovery of ${step}; no step was started`;
       return close(issue, 'stopped', reason, 'Read the issue, then start the step again.', [say(reason)]);
     }
     if (!same)
@@ -477,7 +477,7 @@ function resolve(state: StateOf<'resolving'>, event: EventOf<'resolved'>, run: R
       };
   } else {
     if (run.input.kind === 'auto' && !autoTakes(config.autoLanes, next)) {
-      const reason = `#${n}: autoLanes does not name ${next.lane ?? 'triage'}: celetis --agent <host> run ${n} starts ${prompt}`;
+      const reason = `#${number}: autoLanes does not name ${next.lane ?? 'triage'}: celetis --agent <host> run ${number} starts ${prompt}`;
       return close(issue, 'gate', reason, null, [say(reason)]);
     }
     if (loop.last && !request?.retry && sameResult(next, loop.last)) {
@@ -497,14 +497,14 @@ function resolve(state: StateOf<'resolving'>, event: EventOf<'resolved'>, run: R
     }
     const skips = loop.last ? skipped(loop.last.step, step, next.lane) : [];
     if (loop.last && !request?.retry && skips.length > 0) {
-      const reason = `#${n}: ${step} skips ${skips.join(', ')} after ${loop.last.step}; fix the issue, or start ${step} by hand: celetis --agent <host> run ${n}`;
+      const reason = `#${number}: ${step} skips ${skips.join(', ')} after ${loop.last.step}; fix the issue, or start ${step} by hand: celetis --agent <host> run ${number}`;
       return close(issue, 'stopped', reason, 'Fix the issue, or use Try again for this displayed step.', [
         say(reason, { name: 'step-skip', issue: number }),
         { kind: 'no-progress', issue: number, line },
       ]);
     }
     if (loop.first !== 'any' && (config.gates?.[step] ?? defaultGate) !== 'auto') {
-      const reason = `the gate of ${step} is manual: celetis --agent <host> run ${n} starts ${prompt}`;
+      const reason = `the gate of ${step} is manual: celetis --agent <host> run ${number} starts ${prompt}`;
       return close(issue, 'gate', reason, 'Use Continue queue to start this displayed step.', [say(reason)]);
     }
   }
@@ -552,7 +552,7 @@ function sessionDone(
 }
 
 function unproved(
-  number: number,
+  number: IssueKey,
   reason: string,
   host: Host,
   ownership: Extract<AttemptEnd, { kind: 'unverified' }>,
@@ -562,7 +562,7 @@ function unproved(
 }
 const unprovedAct = 'Stop the session and its tasks in its tab, then use Try again.';
 
-export function signalledLine(number: number, signalled: readonly Signalled[]): string | null {
+export function signalledLine(number: IssueKey, signalled: readonly Signalled[]): string | null {
   if (signalled.length === 0) return null;
   const k = new Set(signalled.map((each) => each.pid)).size;
   const noun = k === 1 ? 'process' : 'processes';
@@ -575,7 +575,7 @@ export function signalledLine(number: number, signalled: readonly Signalled[]): 
       .join(', ') || 'none';
   return `#${number}: the daemon signalled ${k} ${noun} of the attempt (SIGTERM: ${list('SIGTERM')}; SIGKILL: ${list('SIGKILL')})`;
 }
-const signalledSay = (number: number, ownership: AttemptEnd): Effect[] => {
+const signalledSay = (number: IssueKey, ownership: AttemptEnd): Effect[] => {
   const line = signalledLine(number, ownership.signalled);
   return line ? [say(line, { name: 'attempt-signalled', issue: number })] : [];
 };
@@ -622,7 +622,7 @@ function settle(
   ]);
 }
 
-const stoppedLine = (number: number) => `#${number}: stopped by the maintainer; set aside`;
+const stoppedLine = (number: IssueKey) => `#${number}: stopped by the maintainer; set aside`;
 
 function halt(state: IssueSession | ResumeSession, event: EventOf<'halted'>): Step<'closing' | 'ending'> {
   const { ownership, host, resume } = event;
@@ -653,8 +653,8 @@ function halt(state: IssueSession | ResumeSession, event: EventOf<'halted'>): St
 
 function observe(record: RunRecord, event: EventOf<'observed'>, run: RunFacts): Step<Targets['observing']> {
   const { seen } = event;
-  const number = record.issue ?? 0;
-  if (seen.kind === 'queue-changed')
+  const number = record.issue;
+  if (seen.kind === 'queue-changed' || number === null)
     return stopped(exits.done, 'queue: the queue changed while no daemon ran; this run ends', [
       say('queue: the queue changed while no daemon ran; this run ends'),
     ]);
@@ -763,12 +763,16 @@ export const on: Table = {
       return state.scope === 'resume'
         ? {
             state: { kind: 'preparing', scope: 'resume', number: state.number, ready: true },
-            effects: [{ kind: 'note', change: { issue, lock: `issue-${issue}` } }, ...clear],
+            effects: [{ kind: 'note', change: { issue: issue, lock: issueLock(issue) } }, ...clear],
           }
         : {
             state: { kind: 'binding', issue: state.issue, adopt: false, keepRow: false, session: null, wait: null },
             effects: [
-              noteLoop(state.issue.loop, { issue, lock: `issue-${issue}`, request: state.issue.request }),
+              noteLoop(state.issue.loop, {
+                issue: issue,
+                lock: issueLock(issue),
+                request: state.issue.request,
+              }),
               ...clear,
               { kind: 'daemon' },
             ],

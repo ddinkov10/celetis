@@ -62,7 +62,7 @@ In the lane checkout, before the return to the main checkout:
 
    The coordinator judges no proposal itself.
 3. The brief names the lane checkout, the absolute paths of this module and of
-   `<plugin>/references/procedures/lesson-format.md`, the issue number, the date, the host, and the
+   `<plugin>/references/procedures/lesson-format.md`, the issue key, the date, the host, and the
    pair. Its task is "The child" below, with the part of the host.
 4. Report the decisions, the commits, and each cause once in the last message of the step. Then
    go on to `land`.

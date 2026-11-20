@@ -6,9 +6,10 @@ import { versionFolderGone } from '../install/version-folder.ts';
 import { childEnv } from '../process/process.ts';
 import { readSetAside } from '../queue/set-aside.ts';
 import { recordEvent } from '../state/events.ts';
-import { createLockOwner, type Identity, isRecorded, type LockOwner, lockHolder } from '../state/locks.ts';
+import { createLockOwner, type Identity, isRecorded, issueLock, type LockOwner, lockHolder } from '../state/locks.ts';
 import type { RepositoryLayout } from '../state/state.ts';
 import { closeTerminal, requireTerminals, TerminalError } from '../terminal/terminal.ts';
+import type { IssueKey } from '../tracker/key.ts';
 import type { Level, Model } from '../workflow/effort.ts';
 import { autoTakes, defaultGate, type Step } from '../workflow/workflow.ts';
 import { activities, createIo, detachRun, die, failedOf, type Io, type Options, perform } from './activities.ts';
@@ -17,10 +18,10 @@ import type { RunRecord } from './record.ts';
 
 export type Place = Readonly<{ main: string; common: string; state: RepositoryLayout; root: string }>;
 export type RunInput =
-  | Readonly<{ kind: 'number'; number: number; selection: HostSelection; effort: Level | null; model: Model | null }>
-  | Readonly<{ kind: 'auto'; number: number; selection: HostSelection }>
+  | Readonly<{ kind: 'number'; number: IssueKey; selection: HostSelection; effort: Level | null; model: Model | null }>
+  | Readonly<{ kind: 'auto'; number: IssueKey; selection: HostSelection }>
   | Readonly<{ kind: 'queue'; id: string; token: string; selection: HostSelection }>
-  | Readonly<{ kind: 'resume'; number: number; selection: HostSelection }>;
+  | Readonly<{ kind: 'resume'; number: IssueKey; selection: HostSelection }>;
 export type RunState =
   | 'starting'
   | 'running'
@@ -36,8 +37,8 @@ export type Admission = Readonly<{ ok: true }> | Readonly<{ ok: false; line: str
 export type RunEnd = Readonly<{ kind: 'closed' | 'gate' | 'stopped' | 'detached'; code: ExitCode; reason: string }>;
 export type RunHooks = Readonly<{ ready?: () => Promise<void>; removed: () => void; fatal: () => void }>;
 export type RunView = Readonly<{
-  issue: number | null;
-  numbers: readonly number[] | null;
+  issue: IssueKey | null;
+  numbers: readonly IssueKey[] | null;
   step: Step | null;
   host: Host | null;
   tab: string | null;
@@ -230,17 +231,17 @@ export function autoLoop(
           const cause = aside.cause instanceof Error ? aside.cause.message : aside.message;
           say(`stop cannot read the set-aside record: ${cause}; auto mode asks again each 60 seconds`);
         } else if (rows && aside) {
-          let pick = 0;
-          for (const { number, next } of rows) {
-            const n = String(number);
+          let pick: IssueKey | null = null;
+          for (const { number: key, next } of rows) {
             if (next.kind !== 'run' || (config.gates?.[next.step] ?? defaultGate) !== 'auto') continue;
             if (!autoTakes(config.autoLanes, next)) continue;
-            if (aside.has(number)) continue;
-            if ((await lockHolder(main, `issue-${n}`)) || (await isRecorded(common, n, lineOf(n, next)))) continue;
-            pick = number;
+            if (aside.has(key)) continue;
+            if ((await lockHolder(main, issueLock(key))) || (await isRecorded(common, key, lineOf(key, next))))
+              continue;
+            pick = key;
             break;
           }
-          if (pick) {
+          if (pick !== null) {
             // No await may come between this check and `launch`, or a signal can miss the run.
             if (!running()) break;
             const start = () =>

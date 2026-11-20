@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { ensureFolder, repositoryLayout, writeAtomic } from '../state/state.ts';
+import { compareKeys, type IssueKey, isKey, parseKey } from '../tracker/key.ts';
 
-const NUMBER = /^[1-9][0-9]*$/;
 const writes = new Map<string, Promise<void>>();
 
-export async function readSetAside(common: string): Promise<ReadonlySet<number>> {
+export async function readSetAside(common: string): Promise<ReadonlySet<IssueKey>> {
   const path = repositoryLayout(common).setAside;
   let text: string;
   try {
@@ -14,29 +14,27 @@ export async function readSetAside(common: string): Promise<ReadonlySet<number>>
     throw new Error(`cannot read the set-aside record ${path}: ${(error as Error).message}`, { cause: error });
   }
   return new Set(
-    text
-      .split('\n')
-      .map((line) => line.replace(/\r$/, ''))
-      .filter((line) => NUMBER.test(line))
-      .map(Number)
-      .filter(Number.isSafeInteger),
+    text.split('\n').flatMap((line) => {
+      const key = parseKey(line.replace(/\r$/, ''));
+      return key === null ? [] : [key];
+    }),
   );
 }
 
-function change(common: string, n: number, aside: boolean): Promise<void> {
-  if (!Number.isSafeInteger(n) || n < 1) return Promise.reject(new Error(`set-aside: not an issue number: ${n}`));
+function change(common: string, key: IssueKey, aside: boolean): Promise<void> {
+  if (!isKey(key)) return Promise.reject(new Error(`set-aside: not an issue key: ${key}`));
   const layout = repositoryLayout(common);
   const write = (writes.get(layout.setAside) ?? Promise.resolve()).then(async () => {
-    const numbers = new Set(await readSetAside(common));
-    if (numbers.has(n) === aside) return;
-    if (aside) numbers.add(n);
-    else numbers.delete(n);
+    const keys = new Set(await readSetAside(common));
+    if (keys.has(key) === aside) return;
+    if (aside) keys.add(key);
+    else keys.delete(key);
     ensureFolder(layout.root);
     await writeAtomic(
       layout.setAside,
-      [...numbers]
-        .sort((a, b) => a - b)
-        .map((number) => `${number}\n`)
+      [...keys]
+        .sort(compareKeys)
+        .map((each) => `${each}\n`)
         .join(''),
     );
   });
@@ -47,5 +45,5 @@ function change(common: string, n: number, aside: boolean): Promise<void> {
   return write;
 }
 
-export const setAside = (common: string, n: number): Promise<void> => change(common, n, true);
-export const clearAside = (common: string, n: number): Promise<void> => change(common, n, false);
+export const setAside = (common: string, key: IssueKey): Promise<void> => change(common, key, true);
+export const clearAside = (common: string, key: IssueKey): Promise<void> => change(common, key, false);

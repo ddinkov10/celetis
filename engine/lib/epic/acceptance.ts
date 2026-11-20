@@ -1,5 +1,6 @@
 import { parseAllDocuments } from 'yaml';
 import { revision } from '../state/fields.ts';
+import { type IssueKey, keySource, parseKey } from '../tracker/key.ts';
 import type {
   AcceptedEpic,
   AcceptedEpicResult,
@@ -36,6 +37,12 @@ function integer(value: unknown, path: string): number {
     throw new Error(`${path}: need a positive safe integer`);
   }
   return value;
+}
+
+function key(value: unknown, path: string): IssueKey {
+  const parsed = typeof value === 'string' ? parseKey(value) : null;
+  if (parsed === null) throw new Error(`${path}: need an issue key`);
+  return parsed;
 }
 
 function array(value: unknown, path: string): unknown[] {
@@ -106,12 +113,13 @@ export function parseEpicRepository(value: unknown): string {
   return text;
 }
 
-function issueUrl(value: unknown, path: string): { url: string; number: number } {
+function issueUrl(value: unknown, path: string): { url: string; number: IssueKey } {
   const url = string(value, path);
-  const match = /^(.*)\/issues\/([1-9]\d*)$/.exec(url);
-  if (!match) throw new Error(`${path}: need a canonical issue URL`);
+  const match = new RegExp(`^(.*)/issues/(${keySource()})$`).exec(url);
+  const number = match && parseKey(match[2] as string);
+  if (!match || number === null) throw new Error(`${path}: need a canonical issue URL`);
   parseEpicRepository(match[1]);
-  return { url, number: integer(Number(match[2]), path) };
+  return { url, number };
 }
 
 export function parseEpicChildren(value: unknown): EpicChild[] {
@@ -119,7 +127,7 @@ export function parseEpicChildren(value: unknown): EpicChild[] {
     const path = `children[${index}]`;
     const child = object(raw, ['url', 'id', 'number', 'state', 'stateReason', 'closedAt'], path);
     const { url, number } = issueUrl(child.url, `${path}.url`);
-    if (integer(child.number, `${path}.number`) !== number) throw new Error(`${path}: URL and number differ`);
+    if (key(child.number, `${path}.number`) !== number) throw new Error(`${path}: URL and number differ`);
     if (child.state !== 'open' && child.state !== 'closed') throw new Error(`${path}.state: need open or closed`);
     const reason = child.stateReason;
     if (
@@ -309,7 +317,7 @@ function submission(data: Record<string, unknown>): EpicSubmission {
   unique(targets, (target) => target.name, 'targets');
   return {
     repository: parseEpicRepository(data.repository),
-    parent: integer(data.parent, 'parent'),
+    parent: key(data.parent, 'parent'),
     definitionHash: digest(data.definitionHash, 'definitionHash'),
     children: parseEpicChildren(data.children),
     review: { session: string(review.session, 'review.session'), at: timestamp(review.at, 'review.at') },

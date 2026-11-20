@@ -246,7 +246,7 @@ For installation changes, follow `plugins/celetis/README.md`, "Updates".
   `engine/board/chat/codex.ts`, `engine/board/update/worker.ts`, `engine/board/start.ts`, the page
   modules of `engine/board/page/`, `engine/lib/board-read/board-read.ts`,
   `engine/lib/workflow/visual.ts`, `engine/lib/state/fields.ts`, `engine/lib/state/schemas.ts`,
-  `engine/lib/host/names.ts`,
+  `engine/lib/tracker/key.ts`, `engine/lib/tracker/grammar.ts`, `engine/lib/host/names.ts`,
   `engine/lib/terminal/terminal.ts`, `engine/lib/workflow/effort.ts`, `engine/lib/process/process.ts`,
   `engine/lib/update/updater.ts`, `engine/lib/install/installation.ts`,
   `engine/lib/install/dependencies.ts`, `engine/lib/queue/queue.ts`, `engine/lib/queue/types.ts`,

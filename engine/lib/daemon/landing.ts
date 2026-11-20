@@ -3,7 +3,8 @@ import { HostError } from '../command/errors.ts';
 import { exits, signalExit } from '../contract/contract.ts';
 import { type LandingEnd, runLanding } from '../landing/landing.ts';
 import { recordEvent } from '../state/events.ts';
-import { createLockOwner } from '../state/locks.ts';
+import { createLockOwner, landLock } from '../state/locks.ts';
+import type { IssueKey } from '../tracker/key.ts';
 import type { DaemonRequest, LandingRow } from './types.ts';
 
 // One latin1 character per written byte; `own` is false for the wait line and the suite output that streamBun forwards.
@@ -13,7 +14,7 @@ type Context = Readonly<{
   main: string;
   start: string;
   pid: number;
-  enter<T>(issue: number, sink: Sink, work: () => T): T;
+  enter<T>(issue: IssueKey, sink: Sink, work: () => T): T;
 }>;
 export type Landings = Readonly<{
   answer(request: LandRequest, signal: AbortSignal): Response;
@@ -27,7 +28,7 @@ const heartbeat = 5_000;
 const drain = 5_000;
 const encoder = new TextEncoder();
 const aborted = () => new HostError('', signalExit(constants.signals.SIGTERM));
-const stopped = (issue: number) =>
+const stopped = (issue: IssueKey) =>
   new HostError(`the daemon stops; start it again, then run celetis --agent <host> land ${issue} again`, exits.blocked);
 const aborts = (signal: AbortSignal) =>
   new Promise<void>((resolve) =>
@@ -48,7 +49,7 @@ export function createLandings(context: Context): Landings {
   };
 
   const land = async ({ number, subject, selection, from }: LandRequest, signal: AbortSignal): Promise<LandingEnd> => {
-    const name = `land-${number}`;
+    const name = landLock(number);
     const owner = createLockOwner(context.main, context.start);
     try {
       const holder = await owner.take(name);

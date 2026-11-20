@@ -1,3 +1,4 @@
+import type { IssueKey } from '../tracker/key.ts';
 import { command, type Decision, type Stop } from '../workflow/workflow.ts';
 
 export type Observed = Readonly<
@@ -11,7 +12,7 @@ type Described = {
   row: { state: 'ready' | 'blocked' | 'done'; reason: string | null; act: string | null } | null;
 };
 
-function describeObserved(n: string, next: Observed): Described {
+function describeObserved(n: IssueKey, next: Observed): Described {
   switch (next.reason) {
     case 'dirty':
       return { line: `stop the working tree is dirty: ${next.path}; commit or stash first`, row: null };
@@ -32,7 +33,7 @@ const humanStepActs = {
   removal: 'Add ready-for-human, then remove it: the removal confirms the ## Human steps done report.',
 } as const;
 
-function describeStop(n: string, next: Stop): Described {
+function describeStop(n: IssueKey, next: Stop): Described {
   const blocked = (head: string, reason: string, act: string): Described => ({
     line: `stop #${n} ${head}. ${act}`,
     row: { state: 'blocked', reason, act },
@@ -69,7 +70,7 @@ function describeStop(n: string, next: Stop): Described {
   }
 }
 
-export function describe(n: string, next: Next): Described {
+export function describe(n: IssueKey, next: Next): Described {
   switch (next.kind) {
     case 'run':
       return {
@@ -83,6 +84,6 @@ export function describe(n: string, next: Next): Described {
   }
 }
 
-export function lineOf(n: string, next: Next): string {
+export function lineOf(n: IssueKey, next: Next): string {
   return describe(n, next).line;
 }

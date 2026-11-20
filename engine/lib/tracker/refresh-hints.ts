@@ -3,15 +3,16 @@ import { lstat, readdir, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { commonDir } from '../process/git.ts';
 import { checkFolder, ensureFolder, repositoryLayout } from '../state/state.ts';
+import { type IssueKey, isKey, keySource, parseKey } from './key.ts';
 
-function issueNumber(name: string): number | null {
-  const match = /^([1-9][0-9]*)\.[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.exec(name);
-  if (!match) return null;
-  const number = Number(match[1]);
-  return Number.isSafeInteger(number) ? number : null;
+function hintKey(name: string): IssueKey | null {
+  const match = new RegExp(
+    `^(${keySource()})\\.[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`,
+  ).exec(name);
+  return match ? parseKey(match[1] as string) : null;
 }
 
-export async function readRefreshHints(common: string): Promise<ReadonlyMap<string, number> | null> {
+export async function readRefreshHints(common: string): Promise<ReadonlyMap<string, IssueKey> | null> {
   let folder: string;
   let names: string[];
   try {
@@ -23,28 +24,28 @@ export async function readRefreshHints(common: string): Promise<ReadonlyMap<stri
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === 'ENOENT' ? new Map() : null;
   }
-  const hints = new Map<string, number>();
+  const hints = new Map<string, IssueKey>();
   for (const name of names) {
-    const number = issueNumber(name);
-    if (number === null) continue;
+    const key = hintKey(name);
+    if (key === null) continue;
     try {
-      if ((await lstat(join(folder, name))).isFile()) hints.set(name, number);
+      if ((await lstat(join(folder, name))).isFile()) hints.set(name, key);
     } catch {}
   }
   return hints;
 }
 
-export async function writeRefreshHint(cwd: string, number: number): Promise<void> {
+export async function writeRefreshHint(cwd: string, key: IssueKey): Promise<void> {
   try {
-    if (!Number.isSafeInteger(number) || number < 1) return;
+    if (!isKey(key)) return;
     const layout = repositoryLayout(await commonDir(cwd));
     ensureFolder(layout.root);
     ensureFolder(layout.refresh);
     const folder = layout.refresh.path;
-    await writeFile(join(folder, `${number}.${randomUUID()}`), '', { flag: 'wx', mode: 0o600 });
+    await writeFile(join(folder, `${key}.${randomUUID()}`), '', { flag: 'wx', mode: 0o600 });
     const cutoff = Date.now() - 300_000;
     for (const name of await readdir(folder)) {
-      if (issueNumber(name) === null) continue;
+      if (hintKey(name) === null) continue;
       try {
         const path = join(folder, name);
         const file = await lstat(path);

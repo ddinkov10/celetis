@@ -77,7 +77,7 @@ completion criterion of a skill.
   \`celetis --agent <host> issue create <file>\` for a new issue, and
   \`celetis --agent <host> issue <n> comment <file>\` for each other comment. \`issue create\` prints
   the URL of the new issue first. With a URL on stdout, the issue exists, also on a nonzero exit:
-  continue with its number, and never create it again. With no URL on stdout, the exit line says
+  continue with its key, and never create it again. With no URL on stdout, the exit line says
   whether the issue can exist: when it can, read the open issues before a new create. Use \`gh\`
   for reads, for the sub-issue link of an epic child, and for writes to another
   repository (\`<plugin>/docs/issue-tracker.md\`, "Conventions", lists the acts and the \`gh\` forms).
@@ -85,7 +85,7 @@ completion criterion of a skill.
   own checkout and its own custom text: a same-session handoff and an invocation in a child agent
   too. Keep the invocation input across a handoff. A missing required Superpowers skill stops the
   work.
-- **The daemon.** The maintainer starts the daemon and turns auto mode on; an agent starts a run only when its task says so, with a number, and in a terminal.
+- **The daemon.** The maintainer starts the daemon and turns auto mode on; an agent starts a run only when its task says so, with an issue key, and in a terminal.
 - **Modules.** Read a module of \`<plugin>/references/procedures/<name>.md\` whole, in one read, when a step names
   it, not before.
 - **Custom text.** The custom text of the entry is an addition to this skill, for this invocation
@@ -6354,7 +6354,7 @@ var issueActs = {
     flags: [],
     argument: "file",
     numbered: false,
-    prerequisite: "none; it takes no issue number",
+    prerequisite: "none; it takes no issue key",
     writes: "a new issue with the title from the first line `# Intent: <title>`, the whole file as its body, and `needs-triage`; it prints the URL of the new issue first"
   },
   comment: {
@@ -6506,7 +6506,7 @@ var commands = [
   entry("run", true, [
     form("run <n>", [required("--effort", "<level>"), optional("--model", "<model>")], helped(10, "Asks the daemon to start the next step of one issue at another effort level, for its first session only.")),
     form("run <n>", [required("--model", "<model>"), optional("--effort", "<level>")], helped(10, "Asks the daemon to start the next step of one issue on another model, for its first session only."))
-  ], `Asks the daemon to start the next step of the issue with \`--effort\` at \`low\`, \`medium\`, \`high\`, \`xhigh\`, or \`max\`, with \`--model\` on \`haiku\`, \`sonnet\`, \`opus\`, or \`fable\`, or with both, in either order. Each flag replaces the decided, pinned, or default value of the first session of this start only, and the request carries it. Each later step uses its own pair, and neither flag writes a decision. It needs exactly one issue number; any other form exits ${exits.usage} with the usage line`),
+  ], `Asks the daemon to start the next step of the issue with \`--effort\` at \`low\`, \`medium\`, \`high\`, \`xhigh\`, or \`max\`, with \`--model\` on \`haiku\`, \`sonnet\`, \`opus\`, or \`fable\`, or with both, in either order. Each flag replaces the decided, pinned, or default value of the first session of this start only, and the request carries it. Each later step uses its own pair, and neither flag writes a decision. It needs exactly one issue key; any other form exits ${exits.usage} with the usage line`),
   entry("queue", true, [
     form(["queue", "action", "'<QueueAction JSON>'"], [], helped(13, "Saves a queue action; asks the daemon to run its authorized wake.")),
     form("queue status", [], helped(14, "Reads the current queue and its allowed actions."))

@@ -38,10 +38,10 @@ comes first; after an entry stop, this check does not run.
 
 ### Free text
 
-Create the issue first, and continue with its number: fill the template of
+Create the issue first, and continue with its key: fill the template of
 `<plugin>/references/procedures/intent.md` into a file, then run
 `celetis --agent <host> issue create <intent>`. Then continue as "Any other issue" with the
-number of the URL that it prints.
+key in the URL that it prints.
 
 ### An epic
 

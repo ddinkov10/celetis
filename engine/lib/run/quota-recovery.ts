@@ -10,20 +10,23 @@ import { commonDir } from '../process/git.ts';
 import { daemonScript, processRunsScript, processState } from '../process/identity.ts';
 import { run } from '../process/process.ts';
 import { isSessionId, revision, uuid } from '../state/fields.ts';
-import { type LockOwner, lockHolder } from '../state/locks.ts';
+import { issueLock, type LockOwner, lockHolder } from '../state/locks.ts';
+import { commitMigration, readLocalRecord } from '../state/migration.ts';
 import {
   checkFolder,
   ensureFolder,
   laneFolder,
   privateMode,
   type RepositoryLayout,
+  recordKey,
   repositoryLayout,
   StateError,
   unsafe,
   withLock,
   writeAtomic,
 } from '../state/state.ts';
-import { type Step, steps } from '../workflow/workflow.ts';
+import { type IssueKey, isKey } from '../tracker/key.ts';
+import { folderPrefix, type Step, steps } from '../workflow/workflow.ts';
 import { readSession, serializeSession } from './session.ts';
 
 export type LaneBinding = Readonly<{ path: string; branch: string; tip: string; dirtySnapshotDigest: string }> | null;
@@ -32,10 +35,10 @@ export type NativeIdentity = Readonly<{ attemptId: string; host: Host; sessionId
 export type RecoveryAttempt = Readonly<{ id: string; host: Host; startedAt: number; sessionId: string | null }>;
 export type QuotaBlock = Readonly<{ host: Host; reason: string; resetAt: number | null }>;
 export type QuotaRecovery = Readonly<{
-  schema: 2;
+  schema: 3;
   id: string;
   revision: number;
-  issue: number;
+  issue: IssueKey;
   authority: RecoveryAuthority;
   main: string;
   common: string;
@@ -53,7 +56,7 @@ export type QuotaRecovery = Readonly<{
   nextResetAt: number | null;
 }>;
 declare const permitBrand: unique symbol;
-export type RecoveryPermit = Readonly<{ issue: number; step: Step; lane: string; attemptId: string }> & {
+export type RecoveryPermit = Readonly<{ issue: IssueKey; step: Step; lane: string; attemptId: string }> & {
   readonly [permitBrand]: true;
 };
 
@@ -106,18 +109,20 @@ function validAttempt(value: unknown): value is RecoveryAttempt {
   );
 }
 
-function validRecord(value: unknown, issue: number): value is QuotaRecovery {
+function validRecord(value: unknown, issue: IssueKey, schema: 2 | 3 = 3): value is QuotaRecovery {
   if (
     !object(value) ||
     !keys(value, fields) ||
-    value.schema !== 2 ||
+    value.schema !== schema ||
     typeof value.id !== 'string' ||
     !uuid.test(value.id) ||
     !positive(value.revision) ||
-    value.issue !== issue ||
+    !(schema === 3
+      ? isKey(value.issue) && value.issue === issue
+      : positive(value.issue) && String(value.issue) === issue) ||
     !text(value.main) ||
     !text(value.common) ||
-    value.lock !== `issue-${issue}` ||
+    value.lock !== issueLock(issue) ||
     !validLane(value.lane) ||
     !validChoice(value.choice) ||
     !(value.attempt === null || validAttempt(value.attempt)) ||
@@ -208,39 +213,51 @@ async function readPrivate(path: string): Promise<string | null> {
   }
 }
 
-function parse(path: string, source: string, issue: number): QuotaRecovery {
+function parse(path: string, source: string, issue: IssueKey): { record: QuotaRecovery; old: boolean } {
   let value: unknown;
   try {
     value = JSON.parse(source);
   } catch {}
-  if (!validRecord(value, issue)) throw refused(path);
-  return value;
+  if (validRecord(value, issue)) return { record: value, old: false };
+  if (validRecord(value, issue, 2)) {
+    const record = { ...value, schema: 3, issue };
+    if (validRecord(record, issue)) return { record, old: true };
+  }
+  throw refused(path);
 }
 
-function locked<T>(layout: RepositoryLayout, issue: number, work: () => Promise<T>): Promise<T> {
+function locked<T>(layout: RepositoryLayout, issue: IssueKey, work: () => Promise<T>): Promise<T> {
   return withLock(layout.recoveryLock(issue), work);
 }
 
-async function readLocked(layout: RepositoryLayout, issue: number): Promise<QuotaRecovery | null> {
+async function readLocked(layout: RepositoryLayout, issue: IssueKey): Promise<QuotaRecovery | null> {
   const path = layout.recoveryRecord(issue);
   const source = await readPrivate(path);
-  return source === null ? null : parse(path, source, issue);
+  if (source === null) return null;
+  const read = parse(path, source, issue);
+  if (!read.old) return read.record;
+  const local = await readLocalRecord(path, [layout.recovery.path], 'private');
+  if (local === null) return null;
+  const { record, old } = parse(path, local.bytes.toString('utf8'), issue);
+  if (old) await commitMigration(local, 2, `${JSON.stringify(record)}\n`);
+  return record;
 }
 
-async function readOne(layout: RepositoryLayout, issue: number): Promise<QuotaRecovery | null> {
+async function readOne(layout: RepositoryLayout, issue: IssueKey): Promise<QuotaRecovery | null> {
   const path = layout.recoveryRecord(issue);
   try {
     const source = await readPrivate(path);
     if (source === null) return null;
-    return parse(path, source, issue);
+    const read = parse(path, source, issue);
+    if (!read.old) return read.record;
   } catch (error) {
     if (!(error instanceof ChangedRecord)) throw error;
   }
   return locked(layout, issue, () => readLocked(layout, issue));
 }
 
-export async function readRecovery(main: string, issue: number): Promise<QuotaRecovery | null> {
-  if (!positive(issue)) throw new RecoveryError('recovery: invalid issue number', exits.usage);
+export async function readRecovery(main: string, issue: IssueKey): Promise<QuotaRecovery | null> {
+  if (!isKey(issue)) throw new RecoveryError('recovery: invalid issue number', exits.usage);
   return recovering(async () => {
     const layout = await existingFolder(main);
     return layout === null ? null : readOne(layout, issue);
@@ -253,9 +270,9 @@ export async function listRecoveries(main: string): Promise<QuotaRecovery[]> {
     if (layout === null) return [];
     const records: QuotaRecovery[] = [];
     for (const name of (await readdir(layout.recovery.path)).sort()) {
-      const issue = /^([1-9][0-9]*)\.json$/.exec(name)?.[1];
-      if (!issue) continue;
-      const record = await readOne(layout, Number(issue));
+      const key = recordKey(name, '.json');
+      if (key === null) continue;
+      const record = await readOne(layout, key);
       if (record !== null) records.push(record);
     }
     return records;
@@ -264,10 +281,10 @@ export async function listRecoveries(main: string): Promise<QuotaRecovery[]> {
 
 export async function updateRecovery(
   main: string,
-  issue: number,
+  issue: IssueKey,
   change: (current: QuotaRecovery | null) => Promise<QuotaRecovery | null> | QuotaRecovery | null,
 ): Promise<QuotaRecovery | null> {
-  if (!positive(issue)) throw new RecoveryError('recovery: invalid issue number', exits.usage);
+  if (!isKey(issue)) throw new RecoveryError('recovery: invalid issue number', exits.usage);
   return recovering(async () => {
     const layout = await recoveryFolder(main);
     return locked(layout, issue, async () => {
@@ -295,7 +312,7 @@ export async function recoveryOwner(record: QuotaRecovery): Promise<boolean> {
 
 export async function retryQuota(
   main: string,
-  issue: number,
+  issue: IssueKey,
   expectedWaitId: string,
   waiting: (record: QuotaRecovery) => Promise<boolean>,
 ): Promise<void> {
@@ -368,9 +385,11 @@ async function laneState(path: string): Promise<Omit<NonNullable<LaneBinding>, '
   return { branch, tip, dirtySnapshotDigest: hash.digest('hex') };
 }
 
-export async function snapshotLane(main: string, issue: number): Promise<LaneBinding> {
+export async function snapshotLane(main: string, issue: IssueKey): Promise<LaneBinding> {
   const parent = laneFolder(main);
-  const names = (await readdir(parent).catch(() => [] as string[])).filter((name) => name.startsWith(`${issue}-`));
+  const names = (await readdir(parent).catch(() => [] as string[])).filter((name) =>
+    name.startsWith(folderPrefix(issue)),
+  );
   const dirty: string[] = [];
   for (const name of names) {
     const path = join(parent, name);
@@ -383,7 +402,7 @@ export async function snapshotLane(main: string, issue: number): Promise<LaneBin
   return state && { path, ...state };
 }
 
-export async function validateRecovery(main: string, issue: number, attemptId: string): Promise<RecoveryPermit> {
+export async function validateRecovery(main: string, issue: IssueKey, attemptId: string): Promise<RecoveryPermit> {
   const refuse = (reason: string): never => {
     throw new RecoveryError(`recovery: #${issue}: ${reason}`, exits.prerequisite);
   };
@@ -396,7 +415,7 @@ export async function validateRecovery(main: string, issue: number, attemptId: s
   if ((await lockHolder(canonical, record.lock)) !== String(record.daemon.pid))
     refuse('its daemon does not hold the issue lock');
   const lane = record.lane ?? refuse('no dirty lane is bound');
-  if (dirname(lane.path) !== laneFolder(canonical) || !basename(lane.path).startsWith(`${issue}-`))
+  if (dirname(lane.path) !== laneFolder(canonical) || !basename(lane.path).startsWith(folderPrefix(issue)))
     refuse('the bound lane is not a lane of this issue');
   if ((await realpath(lane.path).catch(() => null)) !== lane.path) refuse('the bound lane is missing');
   const laneCommon = await git(lane.path, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
@@ -425,7 +444,7 @@ export async function permitHolds(main: string, permit: RecoveryPermit): Promise
 
 export async function archiveSession(
   main: string,
-  issue: number,
+  issue: IssueKey,
   attemptId: string,
   owner?: LockOwner,
 ): Promise<NativeIdentity> {

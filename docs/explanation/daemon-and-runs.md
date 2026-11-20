@@ -153,7 +153,7 @@ pinned packages to `engine/package.json`.
 Without auto mode, work starts only when a person asks: a number, a Run press on the board, a queue
 action, or a resume. Auto mode adds a loop to the daemon. The loop picks work by itself.
 
-Each time, the loop reads the decision of every open issue. It takes the lowest issue that meets all
+Each time, the loop reads the decision of every open issue. It takes the first issue in key order that meets all
 of these tests:
 
 - The decision is a Run.

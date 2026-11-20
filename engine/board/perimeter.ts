@@ -2,6 +2,7 @@ import type { ExecFileOptions } from 'node:child_process';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { DeliveryWindow } from '../lib/board-read/types.ts';
+import type { IssueKey } from '../lib/tracker/key.ts';
 import type { Adapter } from './adapter.ts';
 import type { BoardRuntime, Document, UpdateRestartResponse } from './types.ts';
 import type { UpdateController } from './update/updates.ts';
@@ -80,8 +81,8 @@ export const createBoard = ({
 }: {
   main: string;
   read: (signal: AbortSignal) => Promise<Document>;
-  readTargets: (numbers: readonly number[], previous: Document, signal: AbortSignal) => Promise<Document>;
-  hints: () => Promise<ReadonlyMap<string, number> | null>;
+  readTargets: (keys: readonly IssueKey[], previous: Document, signal: AbortSignal) => Promise<Document>;
+  hints: () => Promise<ReadonlyMap<string, IssueKey> | null>;
   common: string;
   readDelivery: (signal: AbortSignal) => Promise<DeliveryWindow[]>;
   adapter: Adapter;

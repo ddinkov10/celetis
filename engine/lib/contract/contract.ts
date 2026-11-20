@@ -1,3 +1,5 @@
+import type { IssueKey } from '../tracker/key.ts';
+
 export { default as contractVersions } from './versions.json' with { type: 'json' };
 
 declare const exitBrand: unique symbol;
@@ -194,7 +196,7 @@ export const issueActs = {
     flags: [],
     argument: 'file',
     numbered: false,
-    prerequisite: 'none; it takes no issue number',
+    prerequisite: 'none; it takes no issue key',
     writes:
       'a new issue with the title from the first line `# Intent: <title>`, the whole file as its body, and `needs-triage`; it prints the URL of the new issue first',
   },
@@ -429,7 +431,7 @@ export const commands: readonly Entry[] = [
         helped(10, 'Asks the daemon to start the next step of one issue on another model, for its first session only.'),
       ),
     ],
-    `Asks the daemon to start the next step of the issue with \`--effort\` at \`low\`, \`medium\`, \`high\`, \`xhigh\`, or \`max\`, with \`--model\` on \`haiku\`, \`sonnet\`, \`opus\`, or \`fable\`, or with both, in either order. Each flag replaces the decided, pinned, or default value of the first session of this start only, and the request carries it. Each later step uses its own pair, and neither flag writes a decision. It needs exactly one issue number; any other form exits ${exits.usage} with the usage line`,
+    `Asks the daemon to start the next step of the issue with \`--effort\` at \`low\`, \`medium\`, \`high\`, \`xhigh\`, or \`max\`, with \`--model\` on \`haiku\`, \`sonnet\`, \`opus\`, or \`fable\`, or with both, in either order. Each flag replaces the decided, pinned, or default value of the first session of this start only, and the request carries it. Each later step uses its own pair, and neither flag writes a decision. It needs exactly one issue key; any other form exits ${exits.usage} with the usage line`,
   ),
   entry(
     'queue',
@@ -777,7 +779,7 @@ export function servedContracts(text: string): ReadonlyMap<number, string> | nul
 }
 
 export type StepHeader = Readonly<{
-  issue: number;
+  issue: IssueKey;
   step: string;
   host: string;
   main: string;

@@ -33,7 +33,7 @@ import { explicitHost, readQueue, requireQueueChoice, updateQueue } from '../que
 import { clearAside, readSetAside, setAside } from '../queue/set-aside.ts';
 import type { QueueRecord } from '../queue/types.ts';
 import { markDefect, passOn, recordEvent } from '../state/events.ts';
-import { addRecord, type Identity, type LockClaim, type LockOwner, lockHolder } from '../state/locks.ts';
+import { addRecord, type Identity, issueLock, type LockClaim, type LockOwner, lockHolder } from '../state/locks.ts';
 import { startFiles } from '../state/state.ts';
 import {
   closeTerminal,
@@ -47,8 +47,9 @@ import {
   waitTerminal,
 } from '../terminal/terminal.ts';
 import type { TerminalStatus } from '../terminal/types.ts';
+import type { IssueKey } from '../tracker/key.ts';
 import { startPair } from '../workflow/effort.ts';
-import { type Run, type Step, sameResult } from '../workflow/workflow.ts';
+import { type Run, type Step, sameResult, tabLabel } from '../workflow/workflow.ts';
 import {
   type AttemptEnd,
   endOwnedAttempt,
@@ -206,7 +207,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
   const rest = (ms: number) => pause(ms, undefined, { signal: halt.signal }).catch(() => {});
   let watcher: AbortController | undefined;
   let watching: Promise<void> | undefined;
-  let stepEndIssue: number | undefined;
+  let stepEndIssue: IssueKey | undefined;
   let stepEndOwner: StepEndRecord['daemon'];
   let unremovable = false;
   let watchDir = '';
@@ -260,7 +261,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     if (!self?.start) self = { pid: process.pid, start: await processStart(process.pid) };
     const { stop: _stop, ...next }: RunRecord = {
       ...(fact ?? {
-        schema: 3,
+        schema: 4,
         id,
         daemon: self,
         input,
@@ -302,7 +303,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     kept.resolve();
     kept = Promise.withResolvers<void>();
     mark(held);
-    say(stopKeptLine(shown.issue ?? 0));
+    if (shown.issue !== null) say(stopKeptLine(shown.issue));
     note().catch((error: unknown) => console.error((error as Error).message));
   };
   const arm = () => {
@@ -430,7 +431,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     if (!availability.available) throw new HostError(availability.cause, exits.prerequisite);
   };
   const nextOf = async (
-    n: string,
+    n: IssueKey,
     current: Operation,
     abort?: AbortSignal,
     permit?: Awaited<ReturnType<typeof validateRecovery>>,
@@ -450,7 +451,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
           `${each.host}: ${each.reason} Reset: ${each.resetAt === null ? 'unknown' : new Date(each.resetAt).toISOString()}`,
       )
       .join('; ') || 'no included agent can start';
-  const usageWarning = (n: string) => {
+  const usageWarning = (n: IssueKey) => {
     let warned = false;
     return (error: unknown) => {
       if (!warned) console.error(`daemon: #${n} cannot record usage: ${(error as Error).message}`);
@@ -458,12 +459,12 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     };
   };
   const observeUsage = async (
-    n: string,
+    n: IssueKey,
     ticket: UsageTicket,
     capture: string,
     warn: (error: unknown) => void,
   ): Promise<ObservedUsage | null> => {
-    const saved = await readSession(main, Number(n), common, locks).then(
+    const saved = await readSession(main, n, common, locks).then(
       (record) => record.session_id,
       () => null,
     );
@@ -474,7 +475,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     return observed;
   };
   const watchUsage = async (
-    n: string,
+    n: IssueKey,
     ticket: UsageTicket,
     capture: string,
     abort: AbortSignal,
@@ -502,7 +503,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
   };
   const publish = async (host: Host, state: StepEndState, turn: TurnKey | null) => {
     try {
-      await writeStepEnd(main, stepEndIssue as number, { daemon: stepEndOwner, terminal, host, state, turn });
+      await writeStepEnd(main, stepEndIssue as IssueKey, { daemon: stepEndOwner, terminal, host, state, turn });
       mark(state);
       shown = { ...shown, turn: turn?.sequence ?? null };
       return true;
@@ -532,7 +533,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     a.sessionId === b.sessionId &&
     a.sequence === b.sequence;
   const endWhenDone = async (
-    n: string,
+    n: IssueKey,
     start: Run,
     record: SessionRecord,
     announced: string,
@@ -547,7 +548,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     let saved = false;
     let warned = false;
     while (!abort.aborted) {
-      const claim = await adapter.claim(main, adapter.stepPrompt(record.step, Number(n)), announced, startedAt);
+      const claim = await adapter.claim(main, adapter.stepPrompt(record.step, n), announced, startedAt);
       const result = await observeSession(record, claim, startedAt, locks);
       if (result === 0) {
         saved = true;
@@ -555,7 +556,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
       }
       if (result === 2) {
         await writeFile(startFiles(watchDir).error, '');
-        await startupError(Number(n), record.host, 'no single session identity can be saved', terminal, tab);
+        await startupError(n, record.host, 'no single session identity can be saved', terminal, tab);
         return;
       }
       if (!warned && performance.now() >= deadline) {
@@ -567,7 +568,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
       await Bun.sleep(1000);
     }
     if (!saved || abort.aborted) return false;
-    const id = (await readSession(main, Number(n), common, locks)).session_id ?? '';
+    const id = (await readSession(main, n, common, locks)).session_id ?? '';
     let retained: TurnKey | null = null;
     while (!abort.aborted && (await waitTerminal(terminal, 60, abort))) {
       if (await versionFolderGone(root)) {
@@ -610,7 +611,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
                     await publish(record.host, 'waiting', turn);
                     const line = `daemon: #${n} cannot request ${record.host} exit; the session stays open. Exit it in the tab ${tab} when ready.`;
                     console.error(line);
-                    recordEvent({ name: 'exit-request', message: line, issue: Number(n) });
+                    recordEvent({ name: 'exit-request', message: line, issue: n });
                   }
                   return false;
                 })
@@ -622,7 +623,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
             let after: ReturnType<typeof setTimeout> | undefined;
             const report = (name: string, line: string) => {
               console.error(line);
-              recordEvent({ name, message: line, issue: Number(n) });
+              recordEvent({ name, message: line, issue: n });
             };
             const signalHost = async () => {
               try {
@@ -711,7 +712,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     return (await stat(startFiles(dir).terminated).catch(() => null))?.isFile() ? exits.done : code;
   };
   const startSession = async (
-    n: string,
+    n: IssueKey,
     step: Step,
     host: Host,
     args: string[],
@@ -724,8 +725,8 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     args = [...(await hostAdapter(host).pin(main)), ...args];
     const dir = await mkdtemp(state.startPrefix);
     watchDir = dir;
-    tab = `#${n} ${step}`;
-    shown = { ...shown, issue: Number(n), step, host, tab, barrier: null, terminal: null, turn: null };
+    tab = tabLabel(n, step);
+    shown = { ...shown, issue: n, step, host, tab, barrier: null, terminal: null, turn: null };
     const unstarted = async () => {
       if (!detach.signal.aborted) return;
       await note({ session: null });
@@ -870,8 +871,8 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
   const issueHooks = input.kind === 'queue' ? queueHooks : undefined;
   let recovery: QuotaRecovery | null = null;
   let daemon: Identity;
-  const issueOf = (n: string, attempted: readonly Host[] = []) => {
-    const issue = Number(n);
+  const issueOf = (n: IssueKey, attempted: readonly Host[] = []) => {
+    const issue = n;
     const hooks = issueHooks;
     const saveRecovery = async (
       authority: RecoveryAuthority,
@@ -882,7 +883,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
       recovery = await updateRecovery(main, issue, (current) =>
         change(
           current ?? {
-            schema: 2,
+            schema: 3,
             id: randomUUID(),
             revision: 1,
             issue,
@@ -894,7 +895,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
             attempt: null,
             prior: [],
             daemon,
-            lock: `issue-${n}`,
+            lock: issueLock(issue),
             attempted: [],
             state: 'recovering',
             waitId: null,
@@ -1100,7 +1101,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
         get issue() {
           return stepEndIssue;
         },
-        set issue(value: number | undefined) {
+        set issue(value: IssueKey | undefined) {
           stepEndIssue = value;
         },
         get owner() {
@@ -1187,7 +1188,7 @@ async function daemonOf(): Promise<Identity> {
 
 async function sessionEnded(
   io: Io,
-  issue: number,
+  issue: IssueKey,
   session: Steered,
   code: number | null,
 ): Promise<EventOf<'session-ended'>> {
@@ -1250,7 +1251,7 @@ async function starting(_at: StateOf<'starting'>, io: Io): Promise<EventOf<Own['
           throw new HostError('queue: stale launch token; no session started', exits.prerequisite);
         if (!current.choice) throw new HostError('queue: no recorded agent choice', exits.prerequisite);
         requireQueueChoice(current.choice, io.operation.choice);
-        if (await lockHolder(main, `issue-${current.numbers[0]}`))
+        if (await lockHolder(main, issueLock(current.numbers[0] as IssueKey)))
           throw new HostError('queue: a run or its foreground still owns this work', exits.prerequisite);
         return current;
       },
@@ -1271,7 +1272,13 @@ async function starting(_at: StateOf<'starting'>, io: Io): Promise<EventOf<Own['
     await hooks.ready?.();
     await saveQueue({ state: 'running', launch: null });
     if (!io.queue.numbers.length) io.queueWritable = false;
-    return { kind: 'started', issue: io.queue.numbers[0] ?? null, request: request ?? null, basis: basisOf(io.queue) };
+    const first = io.queue.numbers[0];
+    return {
+      kind: 'started',
+      issue: first === undefined ? null : first,
+      request: request ?? null,
+      basis: basisOf(io.queue),
+    };
   }
   io.operation = await createOperation(checkout, selection, 'main');
   io.initial = io.operation;
@@ -1282,7 +1289,7 @@ async function starting(_at: StateOf<'starting'>, io: Io): Promise<EventOf<Own['
 async function admitting(at: StateOf<'admitting'>, io: Io): Promise<EventOf<Own['admitting']>> {
   const issue = at.scope === 'issue' ? at.issue.number : at.number;
   if (at.scope === 'issue') io.shown = { ...io.shown, issue, step: null, host: null, tab: null };
-  const holder = await io.locks.take(`issue-${issue}`);
+  const holder = await io.locks.take(issueLock(issue));
   if (holder !== null) return { kind: 'lock-held', holder, flags: flagsOf(io) };
   if (io.input.kind !== 'auto') return { kind: 'admitted' };
   // The read comes after the lock take, so a Set aside that writes under the issue lock cannot race this start.
@@ -1303,7 +1310,6 @@ async function binding(at: StateOf<'binding'>, io: Io): Promise<EventOf<Own['bin
   const { stopped, rest, daemon } = io;
   const { main } = io.place;
   const issue = at.issue.number;
-  const n = String(issue);
   io.recovery = null;
   io.shown = { ...io.shown, issue, ...(at.keepRow ? {} : { step: null, host: null, tab: null }) };
   const adoptRecovery = async () => {
@@ -1311,7 +1317,7 @@ async function binding(at: StateOf<'binding'>, io: Io): Promise<EventOf<Own['bin
       stopped();
       let unknown = false;
       const kept = await updateRecovery(main, issue, async (current) => {
-        if (!current || current.lock !== `issue-${n}`) return current;
+        if (!current || current.lock !== issueLock(issue)) return current;
         const state = await processState(current.daemon.pid, current.daemon.start);
         unknown = state === 'unknown';
         return state === 'gone' ? { ...current, daemon } : current;
@@ -1331,7 +1337,7 @@ async function resolving(at: StateOf<'resolving'>, io: Io): Promise<EventOf<Own[
   const { stopped, removal, nextOperation, say, nextOf, halt, recovery } = io;
   const { main, root } = io.place;
   const issue = at.issue.number;
-  const n = String(issue);
+  const n = issue;
   const { retrying, lastHost } = at.issue.loop;
   stopped();
   if (await versionFolderGone(root)) {
@@ -1374,7 +1380,7 @@ async function selecting(_at: StateOf<'selecting'>, io: Io): Promise<EventOf<Own
 
 async function quotaWait(at: StateOf<'quota-wait'>, io: Io): Promise<EventOf<Own['quota-wait']>> {
   const { recovery } = io;
-  const n = String(at.issue.number);
+  const n = at.issue.number;
   const { waitQuota } = io.issueOf(n, at.issue.loop.attempted);
   if (at.wait.kind === 'kept') {
     const waiting = at.wait.wait;
@@ -1466,7 +1472,7 @@ async function preparing(at: StateOf<'preparing'>, io: Io): Promise<EventOf<Own[
     sessionId: attempt.sessionId,
   };
   const record: SessionRecord = {
-    schema: 2,
+    schema: 3,
     host: stepHost,
     issue,
     step,
@@ -1498,7 +1504,7 @@ async function openResume(
   const { saved, host, args, session } = at.start;
   const id = randomUUID();
   const { ended, barrier } = await startSession(
-    String(n),
+    n,
     saved.step,
     host,
     args,
@@ -1526,7 +1532,7 @@ async function opening(at: StateOf<'opening'>, io: Io): Promise<EventOf<Own['ope
   const { main, common } = io.place;
   const { args: sessionArgs, facts, attempt, session } = at.start;
   const { step, host: stepHost, authority, owned, record, capture } = facts;
-  const n = String(at.issue.number);
+  const n = at.issue.number;
   const { retrying } = at.issue.loop;
   const { saveRecovery } = io.issueOf(n);
   let ticket: UsageTicket | undefined;
@@ -1621,7 +1627,7 @@ async function live(at: StateOf<'live'>, io: Io): Promise<EventOf<Own['live']>> 
   const { watch, stepEnd } = io.ledger;
   const hooks = io.issueHooks;
   const issue = at.issue.number;
-  const n = String(issue);
+  const n = issue;
   const { endAttempt } = io.issueOf(n);
   const s = at.fresh ? await begunLive(at, io) : await adoptedLive(at, io);
   let watchError: unknown;
@@ -1702,7 +1708,7 @@ async function ended(at: StateOf<'ended'>, io: Io): Promise<EventOf<Own['ended']
   const { watchDir } = io.ledger;
   const { session, terminal, tab } = at;
   const issue = at.issue.number;
-  const n = String(issue);
+  const n = issue;
   const { endAttempt } = io.issueOf(n);
   const s = steered(session);
   const exitCode = await sessionExit(session.folder, s.barrier);
@@ -1731,7 +1737,7 @@ async function closing(at: StateOf<'closing'>, io: Io): Promise<EventOf<Own['clo
   await clearStepEnd();
   stepEnd.issue = undefined;
   await closeUnreleased();
-  if (!io.keepsLock) await locks.release(`issue-${n}`, handOff());
+  if (!io.keepsLock) await locks.release(issueLock(n), handOff());
   return { kind: 'closed', flags: flagsOf(io) };
 }
 
@@ -1739,10 +1745,10 @@ async function advancing(at: StateOf<'advancing'>, io: Io): Promise<EventOf<Own[
   const { locks, nextOf, fresh, halt, stopped, handOff } = io;
   const { main, common } = io.place;
   if (io.queue === null) throw new HostError('daemon: queue: no submitted queue', exits.internal);
-  const n = String(at.number);
+  const n = at.number;
   for (;;) {
     const snapshot = await readQueue(main, common, locks);
-    if (!snapshot || snapshot.id !== io.queue.id || snapshot.numbers[0] !== Number(n))
+    if (!snapshot || snapshot.id !== io.queue.id || snapshot.numbers[0] !== at.number)
       throw new HostError('queue: current issue changed during drain', exits.prerequisite);
     const { next } = await nextOf(n, await fresh(), halt.signal);
     stopped();
@@ -1775,7 +1781,10 @@ async function advancing(at: StateOf<'advancing'>, io: Io): Promise<EventOf<Own[
   }
   if (!io.queue.numbers.length) io.queueWritable = false;
   const issue = io.queue.numbers[0];
-  return { kind: 'advanced', next: issue === undefined ? null : { issue, basis: basisOf(io.queue) } };
+  return {
+    kind: 'advanced',
+    next: issue === undefined ? null : { issue, basis: basisOf(io.queue) },
+  };
 }
 
 async function reporting(at: StateOf<'reporting'>, io: Io): Promise<EventOf<Own['reporting']>> {
@@ -1795,7 +1804,8 @@ async function reporting(at: StateOf<'reporting'>, io: Io): Promise<EventOf<Own[
   } catch (failure) {
     return { kind: 'unsaved', line: (failure as Error).message };
   }
-  return { kind: 'reported', issue: io.queue?.numbers[0] ?? null };
+  const first = io.queue?.numbers[0];
+  return { kind: 'reported', issue: first === undefined ? null : first };
 }
 
 async function adopting(at: StateOf<'adopting'>, io: Io): Promise<EventOf<Own['adopting']>> {
@@ -1808,8 +1818,8 @@ async function adopting(at: StateOf<'adopting'>, io: Io): Promise<EventOf<Own['a
     : session
       ? pidOf(await readFile(startFiles(session.folder).pid, 'utf8').catch(() => ''))
       : null;
-  const issueLock = record.lock ?? (record.queue && record.issue !== null ? `issue-${record.issue}` : null);
-  const names = (record.queue ? ['queue', issueLock] : [issueLock]).filter((name) => name !== null);
+  const ownLock = record.lock ?? (record.queue && record.issue !== null ? issueLock(record.issue) : null);
+  const names = (record.queue ? ['queue', ownLock] : [ownLock]).filter((name) => name !== null);
   for (;;) {
     let claim: LockClaim = { kind: 'taken' };
     for (const name of names) {
@@ -1822,16 +1832,16 @@ async function adopting(at: StateOf<'adopting'>, io: Io): Promise<EventOf<Own['a
     await rest(2000);
     stopped();
   }
-  return { kind: 'adopted', claimed, lock: issueLock };
+  return { kind: 'adopted', claimed, lock: ownLock };
 }
 
 async function observing(at: StateOf<'observing'>, io: Io): Promise<EventOf<Own['observing']>> {
   const { note, locks, saveQueue, tabs, sessionPhase, ledger, checkout } = io;
   const { main, common } = io.place;
-  const { record, claimed, lock: issueLock } = at;
+  const { record, claimed, lock: ownLock } = at;
   const { session } = record;
-  const n = record.issue ?? 0;
-  await note({ lock: issueLock });
+  const n = record.issue;
+  await note({ lock: ownLock });
   if (record.queue) {
     const found = await readQueue(main, common, locks);
     if (!found || found.id !== record.queue.id || found.numbers[0] !== record.issue) {
@@ -1932,7 +1942,7 @@ async function archive(io: Io, effect: Extract<Effect, { kind: 'archive' }>): Pr
   const { main } = io.place;
   const { issue, attemptId, terminal, loop, authority, choice } = effect;
   const { attempted } = loop;
-  const { saveRecovery } = io.issueOf(String(issue));
+  const { saveRecovery } = io.issueOf(issue);
   const archived = await archiveSession(main, issue, attemptId, locks);
   tabs.finished = terminal;
   await noteLoop(io, loop, { session: null });
@@ -1969,7 +1979,7 @@ export async function perform(effect: Effect, io: Io): Promise<void> {
       io.mark(effect.label);
       return;
     case 'no-progress':
-      await addRecord(io.place.common, String(effect.issue), effect.line);
+      await addRecord(io.place.common, effect.issue, effect.line);
       return;
     case 'set-aside':
       await setAside(io.place.common, effect.issue);
@@ -1981,7 +1991,7 @@ export async function perform(effect: Effect, io: Io): Promise<void> {
       io.keepsLock = true;
       return;
     case 'end-recovery':
-      await io.issueOf(String(effect.issue)).endRecovery();
+      await io.issueOf(effect.issue).endRecovery();
       return;
     case 'archive':
       await archive(io, effect);

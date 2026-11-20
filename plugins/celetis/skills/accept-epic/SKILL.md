@@ -1,7 +1,7 @@
 ---
 name: accept-epic
 description: Check an epic's declared outcomes and complete the parent when current evidence permits it.
-argument-hint: "#<issue number>"
+argument-hint: "#<issue key>"
 disable-model-invocation: true
 ---
 

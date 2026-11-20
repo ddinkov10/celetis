@@ -47,6 +47,7 @@ import {
   terminalState,
 } from '../terminal/terminal.ts';
 import type { DialogKind, Terminal } from '../terminal/types.ts';
+import type { IssueKey } from '../tracker/key.ts';
 import { withPluginRead } from '../update/lock.ts';
 import type { Step } from '../workflow/workflow.ts';
 import {
@@ -84,8 +85,8 @@ export type Coordinator = Readonly<{
   facts(): CoordinatorFacts | null;
   act(request: CoordinatorAct): Promise<{ status: number; answer: DaemonAnswer }>;
   attention(id: string): Attention | null;
-  read(number: number): Promise<{ status: number; answer: ScreenAnswer }>;
-  send(request: { number: number; authority: Authority; text: string; token: string }): Promise<{
+  read(number: IssueKey): Promise<{ status: number; answer: ScreenAnswer }>;
+  send(request: { number: IssueKey; authority: Authority; text: string; token: string }): Promise<{
     status: number;
     answer: DaemonAnswer;
   }>;
@@ -151,8 +152,8 @@ const refused = (line: string, code: ExitCode): { status: number; answer: Refusa
 const settled = new Set(['idle', 'done', 'error']);
 const notCoordinator =
   'coordinator: this session is not the coordinator session of the daemon; run celetis coordinator in a terminal';
-const noRun = (number: number) => `coordinator: #${number} has no live run with a released session`;
-const whereOf = (view: RunView, number: number) =>
+const noRun = (number: IssueKey) => `coordinator: #${number} has no live run with a released session`;
+const whereOf = (view: RunView, number: IssueKey) =>
   view.tab === null ? `the session of #${number}` : `the tab ${view.tab}`;
 
 export const sendMarker = '[celetis coordinator session]';
@@ -163,7 +164,7 @@ const meaning: Record<Authority, string> = {
 };
 
 export const noteMarker = '[celetis daemon note]';
-export type NoteItem = Readonly<{ issue: number | null; step: Step | null }> &
+export type NoteItem = Readonly<{ issue: IssueKey | null; step: Step | null }> &
   (
     | Readonly<{ kind: 'attention'; state: Attention['state']; dialog: DialogKind | null }>
     | Readonly<{ kind: 'ended'; outcome: 'closed' | 'gate' | 'stopped'; code: number }>

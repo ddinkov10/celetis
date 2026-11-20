@@ -36,8 +36,9 @@ import {
 import { type QuotaRecovery, recoveryOwner, retryQuota } from '../run/quota-recovery.ts';
 import { type RunRecord, readRunRecords, removeRunRecord, writeRunRecord } from '../run/record.ts';
 import { installRecorder, recordEvent } from '../state/events.ts';
-import { createLockOwner, type Identity } from '../state/locks.ts';
+import { createLockOwner, type Identity, issueLock, landLock } from '../state/locks.ts';
 import { daemonSockets, ensureFolder, privateState, writeAtomic } from '../state/state.ts';
+import type { IssueKey } from '../tracker/key.ts';
 import { shortRevision, socketFolderRefusal } from './client.ts';
 import { createLandings, type Sink } from './landing.ts';
 import { daemonArgv, startDetached } from './start.ts';
@@ -93,7 +94,7 @@ const bodyLimit = 16 * 1024;
 const stoppable: ReadonlySet<RunState> = new Set(['running', 'waiting', 'checking', 'stopping']);
 
 export function stopRefusal(
-  number: number,
+  number: IssueKey,
   view: RunView | null,
   kind: RunInput['kind'] | null,
   landing: boolean,
@@ -109,7 +110,10 @@ export function stopRefusal(
   return null;
 }
 
-export function landingStopRefusal(number: number, views: readonly Pick<RunView, 'issue' | 'state'>[]): string | null {
+export function landingStopRefusal(
+  number: IssueKey,
+  views: readonly Pick<RunView, 'issue' | 'state'>[],
+): string | null {
   return views.some((view) => view.issue === number && view.state === 'stopping')
     ? `#${number} is stopping; the landing does not start`
     : null;
@@ -333,7 +337,7 @@ async function serve(
     main,
     start,
     pid: process.pid,
-    enter: (issue, sink, work) => frames.run({ tag: `land-${issue}`, last: null, sink }, work),
+    enter: (issue, sink, work) => frames.run({ tag: landLock(issue), last: null, sink }, work),
   });
   const opened = Promise.withResolvers<BoardHandle>();
   let board: BoardHandle | undefined;
@@ -614,14 +618,14 @@ async function serve(
       }
       case 'run': {
         const { number, selection, effort, model } = parsed;
-        return answerRun(begin({ kind: 'number', number, selection, effort, model }, true));
+        return answerRun(begin({ kind: 'number', number: number, selection, effort, model }, true));
       }
       case 'resume':
         return answerRun(begin({ kind: 'resume', number: parsed.number, selection: parsed.selection }, false));
       case 'aside': {
         const { number } = parsed;
         const asideOwner = createLockOwner(main, start);
-        const holder = await asideOwner.take(`issue-${number}`);
+        const holder = await asideOwner.take(issueLock(number));
         try {
           if (
             holder !== null ||
@@ -633,7 +637,7 @@ async function serve(
             return refusal(409, `daemon: #${number} runs now; use Stop`, exits.prerequisite);
           await setAside(common, number);
         } finally {
-          const name = `issue-${number}`;
+          const name = issueLock(number);
           const cause = (await asideOwner.release(name)) === null ? null : await asideOwner.release(name);
           if (cause !== null)
             console.error(

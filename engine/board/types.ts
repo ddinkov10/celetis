@@ -14,6 +14,7 @@ import type { PluginHost, Registry } from '../lib/host/names.ts';
 import type { QueueAction, QueueView } from '../lib/queue/types.ts';
 import type { IssueRow, ParentEpic, Pull } from '../lib/resolver/types.ts';
 import type { DialogKind, TerminalStatus } from '../lib/terminal/types.ts';
+import type { IssueKey } from '../lib/tracker/key.ts';
 import type { UpdateStage } from '../lib/update/types.ts';
 import type { Level, RowSource, StartPair } from '../lib/workflow/effort.ts';
 
@@ -22,6 +23,7 @@ export type {
   Document,
   Flow,
   History,
+  IssueKey,
   IssueRow,
   LandedIssue,
   ParentEpic,
@@ -75,16 +77,16 @@ export type AgentPickerView = {
 };
 export type AgentReplaceRequest = { order: readonly Host[]; expectedVersion: string };
 export type AgentReplaceConflict = { error: string; latest: AgentOrder };
-export type RunRequest = { number: number; agent?: Host; effort?: Level } | { number: number; waitId: string };
+export type RunRequest = { number: IssueKey; agent?: Host; effort?: Level } | { number: IssueKey; waitId: string };
 export type BoardRequest =
   | { path: '/api/intake' }
-  | { path: '/api/assist' | '/api/visual' | '/api/resume' | '/api/shell'; number: number }
-  | { path: '/api/run'; number: number; agent?: Host; effort?: Level }
-  | { path: '/api/run'; number: number; waitId: string }
+  | { path: '/api/assist' | '/api/visual' | '/api/resume' | '/api/shell'; number: IssueKey }
+  | { path: '/api/run'; number: IssueKey; agent?: Host; effort?: Level }
+  | { path: '/api/run'; number: IssueKey; waitId: string }
   | { path: '/api/queue'; action: QueueAction; choice: AgentChoice }
   | { path: '/api/go'; sessionId: string }
-  | { path: '/api/aside'; number: number }
-  | { path: '/api/stop'; number: number; sessionId: string }
+  | { path: '/api/aside'; number: IssueKey }
+  | { path: '/api/stop'; number: IssueKey; sessionId: string }
   | { path: '/api/agent'; order: Host[]; expectedVersion: string }
   | { path: '/api/refresh' }
   | { path: '/api/update/check' }
@@ -145,7 +147,7 @@ export type Session = {
   status: TerminalStatus;
   turn: number;
   stepEnd: 'checking' | 'waiting' | 'exiting' | null;
-  issue: number | null;
+  issue: IssueKey | null;
   step: string | null;
   label: string;
   cwd: string;
@@ -154,7 +156,7 @@ export type Session = {
 };
 export type Card = {
   sessionId: string | null;
-  number: number | null;
+  number: IssueKey | null;
   title: string;
   url: string | null;
   type: string | null;
@@ -236,7 +238,7 @@ export type MenuEntry = {
 };
 export type MenuSection = { heading: string; entries: MenuEntry[] };
 export type PaletteItem = MenuEntry & {
-  number: number | null;
+  number: IssueKey | null;
   group: string;
   context?: string;
   tone?: string | null;

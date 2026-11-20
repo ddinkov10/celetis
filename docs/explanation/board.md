@@ -172,7 +172,7 @@ A Run press starts an agent session, so the trust boundary of the server is part
 ([ADR-0003](../adr/0003-a-local-web-board-starts-each-step-in-herdr.md)). The server listens on `127.0.0.1` only. It refuses a request with the
 wrong `Host`, and it refuses a POST from another origin. ADR-0003 gives the reason: a page of
 another site then cannot start a step ([ADR-0003](../adr/0003-a-local-web-board-starts-each-step-in-herdr.md)).
-The page sends an issue number, a session id, or a fixed field, and never a command. The server
+The page sends an issue key, a session id, or a fixed field, and never a command. The server
 starts `hc`, `herdr-app`, `git`, and `gh` with no shell
 ([The trust boundary](../../engine/board/README.md#the-trust-boundary)).
 

@@ -3,6 +3,7 @@ import {
   type AgentState,
   hasVisualPage,
   isInside,
+  labelOf,
   laneOf,
   readAgentState,
   readDiff,
@@ -25,6 +26,7 @@ import type { QueueView } from '../lib/queue/types.ts';
 import { stateOutcome } from '../lib/state/state.ts';
 import { type Exec, LINK, listTerminals, readScreen, terminalState } from '../lib/terminal/terminal.ts';
 import type { Terminal, TerminalStatus } from '../lib/terminal/types.ts';
+import { compareKeys, type IssueKey, keySource, parseKey } from '../lib/tracker/key.ts';
 import { visualLink } from '../lib/workflow/visual.ts';
 import type { CoordinatorReads } from './coordinator.ts';
 import type { Reads } from './reads.ts';
@@ -40,7 +42,6 @@ import type {
   Document,
   Flow,
   IssueRow,
-  LandedIssue,
   Placement,
   QuotaState,
   Session,
@@ -49,7 +50,6 @@ import type {
 } from './types.ts';
 import { gateOf } from './view.ts';
 
-const LABEL = /^#([1-9][0-9]*)(?: ([a-z]+))?/;
 const INDEPENDENT_COMMANDS = ['intake', 'assist', 'visual'];
 const INDEPENDENT = INDEPENDENT_COMMANDS.map((name) => bunArgs(join(import.meta.dir, '..', `${name}.ts`), []));
 const FLAGS = bunArgs('', []).slice(0, -1);
@@ -90,7 +90,8 @@ export const sessionsOf = (terminals: Terminal[], isHere: (path: string) => bool
       words.some((word, at) => basename(word) === daemonScript || (isEntry(word) && words[at + 1] === 'daemon')) &&
       link !== '';
     if (!isHere(cwd) || host === null || status === null || !(isHost || isSession || isIndependent)) return [];
-    const [, issue, step = ''] = LABEL.exec(link) ?? [];
+    const label = labelOf(link);
+    const step = label?.word ?? '';
     return [
       {
         sessionId: id,
@@ -98,7 +99,7 @@ export const sessionsOf = (terminals: Terminal[], isHere: (path: string) => bool
         status,
         turn,
         stepEnd: null,
-        issue: issue ? Number(issue) : null,
+        issue: label ? label.key : null,
         step: steps.has(step) ? step : null,
         label: link || (tab ?? ''),
         cwd,
@@ -196,9 +197,8 @@ const placeSession = (
   const status = STATUSES[session.status];
   const row = runs.find((each) => each.issue === session.issue && each.terminal === session.sessionId);
   const stoppable = row && STOPPABLE.has(row.state) && !landings.some((each) => each.issue === session.issue);
-  const kept = row?.line?.endsWith(stopKeptLine(session.issue as number))
-    ? stopKeptLine(session.issue as number)
-    : null;
+  const keptLine = session.issue === null ? null : stopKeptLine(session.issue);
+  const kept = keptLine !== null && row?.line?.endsWith(keptLine) ? keptLine : null;
   const [column, state, waitFor] =
     row?.state === 'stopping'
       ? (['running', 'stopping', null] as const)
@@ -245,7 +245,7 @@ const rank = (card: Card) => (card.urgent ? 0 : 2) + (card.waitFor === 'dialog' 
 const ORDER: Record<Column, (a: Card, b: Card) => number> = {
   needs: (a, b) => rank(a) - rank(b) || time(a.since) - time(b.since),
   running: (a, b) => time(b.since) - time(a.since),
-  idle: (a, b) => (b.number as number) - (a.number as number),
+  idle: (a, b) => compareKeys(b.number as IssueKey, a.number as IssueKey),
   human: (a, b) =>
     a.title.localeCompare(b.title, undefined, { numeric: true }) ||
     (a.sessionId as string).localeCompare(b.sessionId as string),
@@ -262,7 +262,7 @@ export const place = ({
   sessions: Session[];
   board: Pick<Document, 'flow' | 'noRun' | 'issues'> | null;
   launches: Record<string, LaunchFeedback>;
-  quota?: ReadonlyMap<number, QuotaState>;
+  quota?: ReadonlyMap<IssueKey, QuotaState>;
   runs?: readonly RunRow[];
   landings?: readonly LandingRow[];
 }): Placement => {
@@ -272,7 +272,9 @@ export const place = ({
   const byNumber = new Map(issues.map((issue) => [issue.number, issue]));
   const busy = new Set(sessions.map((session) => session.issue));
   const placed = [
-    ...sessions.map((session) => placeSession(session, byNumber.get(session.issue as number), runs, landings)),
+    ...sessions.map((session) =>
+      placeSession(session, session.issue === null ? undefined : byNumber.get(session.issue), runs, landings),
+    ),
     ...issues
       .filter((issue) => !busy.has(issue.number))
       .map((issue): [Column, Card] => {
@@ -333,6 +335,13 @@ const DIFF_MS = 15_000;
 const SCREEN_LINES = 16;
 const RULE = /^[\s─━═╌┄-]*$/;
 const daemonView = (status: DaemonStatus): DaemonView => ({ pid: status.daemon.pid, auto: status.auto });
+const isRecoveryLine = (message: string) => {
+  const key = `#(${keySource()})`;
+  const match = new RegExp(
+    `^recovery: (?:${key} (?:has no quota wait|waits with another wait ID; refresh, then use its Retry)|the run of ${key} no longer runs; start the run again)$`,
+  ).exec(message);
+  return match !== null && parseKey((match[1] ?? match[2]) as string) !== null;
+};
 export const agentCause = (cause: unknown) => {
   const message = cause instanceof Error ? cause.message : String(cause);
   if (/\b(EACCES|EPERM)\b|permission denied/.test(message)) return 'access to local agent state was denied';
@@ -342,12 +351,7 @@ export const agentCause = (cause: unknown) => {
   if (outcome?.kind === 'busy' && outcome.lock === 'agents') return 'the agent order is busy; try again';
   if (outcome?.kind === 'unsafe' && outcome.reason.startsWith('need a '))
     return 'local agent state has unsafe file permissions; check it in a terminal';
-  if (
-    /^recovery: (#[1-9][0-9]* (has no quota wait|waits with another wait ID; refresh, then use its Retry)|the run of #[1-9][0-9]* no longer runs; start the run again)$/.test(
-      message,
-    )
-  )
-    return message;
+  if (isRecoveryLine(message)) return message;
   if (message.includes('the celetis engine is not installed')) return 'the celetis engine is not installed';
   return 'local agent state could not be read or changed; check it in a terminal';
 };
@@ -370,19 +374,23 @@ const screenOf = (text: string) => cleanScreen(text, SCREEN_LINES);
 
 export type PressView = {
   nextRead(): number;
-  follow(status: DaemonStatus, read: number, busy: ReadonlySet<number | null>): void;
+  follow(status: DaemonStatus, read: number, busy: ReadonlySet<IssueKey | null>): void;
   launches(
     issues: readonly IssueRow[] | undefined,
-    busy: ReadonlySet<number | null>,
+    busy: ReadonlySet<IssueKey | null>,
     checkedFrom: number,
   ): Record<string, LaunchFeedback>;
-  isVisualPressed(number: number): boolean;
+  isVisualPressed(key: IssueKey): boolean;
 };
 export type Placer = {
   placement(options?: { isLocal?: boolean }): Promise<Board>;
   queueView(): Promise<QueueView | null>;
   readSessions(): Promise<Session[]>;
-  visualOf(row: LandedIssue, terminals: Terminal[], isPressed: boolean): Promise<VisualState>;
+  visualOf(
+    row: Document['history']['entries'][number],
+    terminals: Terminal[],
+    isPressed: boolean,
+  ): Promise<VisualState>;
 };
 
 export const createPlacement = ({
@@ -406,7 +414,7 @@ export const createPlacement = ({
   exec: Exec;
   now: () => number;
 }): Placer => {
-  let shown = new Map<string, number | null>();
+  let shown = new Map<string, IssueKey | null>();
   let firstSeen = new Map<string, number>();
   let screens = new Map<string, string[]>();
   const diffs = new Map<string, { at: number; value: Diff | null }>();
@@ -466,7 +474,11 @@ export const createPlacement = ({
     }
   };
 
-  const visualOf = async (row: LandedIssue, terminals: Terminal[], isPressed: boolean): Promise<VisualState> => {
+  const visualOf = async (
+    row: Document['history']['entries'][number],
+    terminals: Terminal[],
+    isPressed: boolean,
+  ): Promise<VisualState> => {
     if (await hasVisualPage(main, row.sha)) return 'ready';
     if (isPressed) return 'starting';
     const link = visualLink(row.number);
@@ -521,7 +533,7 @@ export const createPlacement = ({
     );
     const sessions: Session[] = [];
     for (const session of found) {
-      const record = dispositions.get(session.issue as number);
+      const record = session.issue === null ? undefined : dispositions.get(session.issue);
       if (record?.terminal === session.sessionId) {
         session.stepEnd =
           record.turn?.terminalId === session.sessionId && record.turn.sequence === session.turn

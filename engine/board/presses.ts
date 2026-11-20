@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { AgentOrderConflict } from '../lib/agent/order.ts';
-import { commonDir, isInside, readAgentState } from '../lib/board-read/board-read.ts';
+import { commonDir, isInside, readAgentState, tabLabel } from '../lib/board-read/board-read.ts';
 import type { AgentChoice, AgentOrder, Host } from '../lib/config/core.ts';
 import type { CoordinatorAct } from '../lib/coordinator/types.ts';
 import type { DaemonStatus } from '../lib/daemon/types.ts';
@@ -15,6 +15,7 @@ import {
   type OpenTab,
   openTab as openTerminalTab,
 } from '../lib/terminal/terminal.ts';
+import type { IssueKey } from '../lib/tracker/key.ts';
 import type { Level } from '../lib/workflow/effort.ts';
 import { visualLink } from '../lib/workflow/visual.ts';
 import type { Adapter } from './adapter.ts';
@@ -29,9 +30,9 @@ type Press = { feedback: LaunchFeedback; at: number };
 export type PressBook = PressView & {
   hasDuePress(checkedFrom: number): boolean;
   readonly presses: Record<string, Press>;
-  readonly pressRuns: Map<number, { run: string; press: Press; since: number }>;
+  readonly pressRuns: Map<IssueKey, { run: string; press: Press; since: number }>;
   readonly operations: Record<string, { step: string | null | undefined; observed: boolean }>;
-  readonly visualPresses: Set<number>;
+  readonly visualPresses: Set<IssueKey>;
   readonly daemonReads: number;
   queuePress: boolean;
   intakePending: boolean;
@@ -39,15 +40,15 @@ export type PressBook = PressView & {
 };
 export type Presses = {
   intake(): Promise<void>;
-  assist(number: number): Promise<void>;
-  visual(number: number): Promise<void>;
-  run(number: number, agent?: Host, effort?: Level): Promise<void>;
-  retry(number: number, waitId: string): Promise<void>;
-  resume(number: number): Promise<void>;
-  shell(number: number): Promise<void>;
+  assist(number: IssueKey): Promise<void>;
+  visual(number: IssueKey): Promise<void>;
+  run(number: IssueKey, agent?: Host, effort?: Level): Promise<void>;
+  retry(number: IssueKey, waitId: string): Promise<void>;
+  resume(number: IssueKey): Promise<void>;
+  shell(number: IssueKey): Promise<void>;
   go(sessionId: string): Promise<void>;
-  aside(number: number): Promise<void>;
-  stop(number: number, sessionId: string): Promise<void>;
+  aside(number: IssueKey): Promise<void>;
+  stop(number: IssueKey, sessionId: string): Promise<void>;
   queue(action: QueueAction, choice: AgentChoice): Promise<QueueView>;
   replaceOrder(order: readonly Host[], expectedVersion: string): Promise<AgentOrder>;
   openCoordinator(): Promise<void>;
@@ -59,15 +60,15 @@ export const createPressBook = ({
   target,
 }: {
   now: () => number;
-  target: (numbers: Iterable<number>) => void;
+  target: (keys: Iterable<IssueKey>) => void;
 }): PressBook => {
-  const visualPresses = new Set<number>();
+  const visualPresses = new Set<IssueKey>();
   const presses: Record<string, Press> = {};
-  const pressRuns = new Map<number, { run: string; press: Press; since: number }>();
+  const pressRuns = new Map<IssueKey, { run: string; press: Press; since: number }>();
   let daemonReads = 0;
   const operations: Record<string, { step: string | null | undefined; observed: boolean }> = {};
 
-  const followPresses = (status: DaemonStatus, read: number, busy: ReadonlySet<number | null>) => {
+  const followPresses = (status: DaemonStatus, read: number, busy: ReadonlySet<IssueKey | null>) => {
     for (const [number, record] of pressRuns) {
       if (read <= record.since) continue;
       record.since = read;
@@ -101,7 +102,7 @@ export const createPressBook = ({
 
   const launchesOf = (
     issues: readonly IssueRow[] | undefined,
-    busy: ReadonlySet<number | null>,
+    busy: ReadonlySet<IssueKey | null>,
     checkedFrom: number,
   ): Record<string, LaunchFeedback> => {
     const launches: Parameters<typeof place>[0]['launches'] = {};
@@ -110,8 +111,8 @@ export const createPressBook = ({
       const active = operation?.step !== undefined;
       const evidence = active ? operation : presses[number]?.feedback;
       if (!evidence || evidence.step === undefined) continue;
-      const issue = issues?.find((issue) => issue.number === Number(number));
-      if (busy.has(Number(number)) || !launchMatches(issue, evidence.step)) {
+      const issue = issues?.find((issue) => issue.number === number);
+      if (busy.has(number as IssueKey) || !launchMatches(issue, evidence.step)) {
         delete presses[number];
         if (active) operation.observed = true;
       }
@@ -184,13 +185,13 @@ export const createPresses = ({
     }
   };
 
-  const issueCardOf = async (number: number) =>
+  const issueCardOf = async (number: IssueKey) =>
     Object.values((await placement()).columns)
       .flat()
       .find((c) => c.sessionId === null && c.number === number);
 
   const press = async (
-    number: number,
+    number: IssueKey,
     refusal: string,
     prepare: () => Promise<{ card: Card; start: () => Promise<string | undefined> }>,
   ) => {
@@ -258,7 +259,7 @@ export const createPresses = ({
     }
   };
 
-  const assist = async (number: number) => {
+  const assist = async (number: IssueKey) => {
     const refusal = `#${number} has no blocked issue to assist now`;
     await press(number, refusal, async () => {
       await reads.pending;
@@ -292,13 +293,13 @@ export const createPresses = ({
           const argv = await adapter.assist(number, choice).catch((cause: Error) => {
             throw new Refusal(409, cleanCause(cause.message));
           });
-          await openTab({ folder: main, name: `#${number} assist`, argv, focus: true });
+          await openTab({ folder: main, name: tabLabel(number, 'assist'), argv, focus: true });
         },
       };
     });
   };
 
-  const visual = async (number: number) => {
+  const visual = async (number: IssueKey) => {
     if (visualPresses.has(number)) throw new Refusal(409, `a Make visual press of #${number} is in flight`);
     visualPresses.add(number);
     try {
@@ -317,7 +318,7 @@ export const createPresses = ({
     }
   };
 
-  const runStep = async (number: number, choice?: Host, effort?: Level) => {
+  const runStep = async (number: IssueKey, choice?: Host, effort?: Level) => {
     const refusal = `#${number} has no step to start now`;
     return press(number, refusal, async () => {
       await reads.pending;
@@ -361,7 +362,7 @@ export const createPresses = ({
     });
   };
 
-  const resume = async (number: number) => {
+  const resume = async (number: IssueKey) => {
     const refusal = `#${number} has no session to resume now`;
     return press(number, refusal, async () => {
       const card = await issueCardOf(number);
@@ -389,7 +390,7 @@ export const createPresses = ({
     }
   };
 
-  const retryQuota = async (number: number, waitId: string) => {
+  const retryQuota = async (number: IssueKey, waitId: string) => {
     await adapter.retryQuota(number, waitId).catch((cause: Error) => {
       throw new Refusal(409, cleanCause(cause.message));
     });
@@ -404,15 +405,15 @@ export const createPresses = ({
     }
   };
 
-  const shell = async (number: number) => {
+  const shell = async (number: IssueKey) => {
     const card = await issueCardOf(number);
     const folder = card?.state === 'dirty-tree' ? card.act : card?.state === 'set-aside' ? card.path : null;
     if (!folder || !isInside(main, folder) || resolve(folder) === main)
       throw new Refusal(409, `#${number} has no dirty worktree`);
-    await openTab({ folder: resolve(folder), name: `#${number} shell`, argv: null, focus: true });
+    await openTab({ folder: resolve(folder), name: tabLabel(number, 'shell'), argv: null, focus: true });
   };
 
-  const daemonAct = async (number: number, check: () => Promise<void>, act: () => Promise<void>) => {
+  const daemonAct = async (number: IssueKey, check: () => Promise<void>, act: () => Promise<void>) => {
     if (number in operations || pressRuns.has(number)) throw new Refusal(409, `a press of #${number} is in flight`);
     operations[number] = { step: undefined, observed: false };
     try {
@@ -426,7 +427,7 @@ export const createPresses = ({
     await refresh();
   };
 
-  const aside = (number: number) =>
+  const aside = (number: IssueKey) =>
     daemonAct(
       number,
       async () => {
@@ -435,7 +436,7 @@ export const createPresses = ({
       () => adapter.aside(number),
     );
 
-  const stop = (number: number, sessionId: string) =>
+  const stop = (number: IssueKey, sessionId: string) =>
     daemonAct(
       number,
       async () => {

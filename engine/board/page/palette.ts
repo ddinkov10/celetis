@@ -1,4 +1,5 @@
 import type { Host } from '../../lib/config/core.ts';
+import { grammar } from '../../lib/tracker/grammar.ts';
 import type { MenuEntry, PaletteItem } from '../types.ts';
 import { filterItems } from '../view.ts';
 import { $, AGENT_ICONS, el, icon } from './ui.ts';
@@ -7,7 +8,7 @@ let items: PaletteItem[] = [];
 let shown: PaletteItem[] = [];
 let active = 0;
 
-const exactNumber = () => /^#?(\d+)$/.exec($('pal-input').value.trim())?.[1];
+const exactNumber = () => new RegExp(`^#?(${grammar().query})$`).exec($('pal-input').value.trim())?.[1];
 
 const option = (item: PaletteItem, index: number) => {
   const node = el(
@@ -43,7 +44,7 @@ const draw = () => {
   let section: HTMLElement | null = null;
   const exact = exactNumber();
   shown.forEach((item, index) => {
-    const label = exact && !item.isGoTo && String(item.number) === exact ? `Actions for #${exact}` : item.group;
+    const label = exact && !item.isGoTo && item.number === exact ? `Actions for #${exact}` : item.group;
     if (section === null || label !== group) {
       group = label;
       const heading = el('div', 'pal-group', group);

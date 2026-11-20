@@ -9,8 +9,10 @@ import { interactiveHost, runInteractive } from './lib/host/interactive.ts';
 import type { Host } from './lib/host/names.ts';
 import { childEnv } from './lib/process/process.ts';
 import { installRecorder, markDefect, passOn } from './lib/state/events.ts';
+import { type IssueKey, parseHandle } from './lib/tracker/key.ts';
+import { tabLabel } from './lib/workflow/workflow.ts';
 
-const promptFor: Record<Host, (issue: number, plugin: string) => string> = {
+const promptFor: Record<Host, (issue: IssueKey, plugin: string) => string> = {
   claude: (issue) => `/celetis:assist #${issue}`,
   codex: (issue, plugin) =>
     `Use the celetis:assist skill for #${issue}. Complete its Celetis entry before any response, including commentary.\n` +
@@ -22,9 +24,8 @@ export async function main(argv: string[]): Promise<ExitCode> {
   try {
     requireBun();
     const { args, explicit } = commandInput(argv);
-    const issue = Number(args[0]?.replace(/^#/, ''));
-    if (args.length !== 1 || !/^#?[0-9]+$/.test(args[0] ?? '') || !Number.isSafeInteger(issue) || issue < 1)
-      throw new HostError(usage('assist'), exits.usage);
+    const issue = args.length === 1 ? parseHandle(args[0] as string) : null;
+    if (issue === null) throw new HostError(usage('assist'), exits.usage);
     process.env.PATH = childEnv().PATH;
     const operation = await createOperation(
       await locateCheckouts(process.cwd()),
@@ -40,7 +41,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
         const skill = join(plugin, 'skills/assist/SKILL.md');
         if (!(await stat(skill).catch(() => null))?.isFile())
           throw new HostError(`celetis-assist: cannot read the assistance skill: ${skill}`, exits.prerequisite);
-        return { title: `#${issue} assist`, prompt: promptFor[host](issue, plugin) };
+        return { title: tabLabel(issue, 'assist'), prompt: promptFor[host](issue, plugin) };
       }),
     );
   } catch (error) {

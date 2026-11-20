@@ -9,8 +9,9 @@ import { run } from './lib/process/process.ts';
 import { RecoveryError, validateRecovery } from './lib/run/quota-recovery.ts';
 import { installRecorder, markDefect } from './lib/state/events.ts';
 import { laneFolder } from './lib/state/state.ts';
+import { type IssueKey, parseHandle } from './lib/tracker/key.ts';
 import { GitHubError, github } from './lib/tracker/tracker.ts';
-import { branchGlobs, branchPattern, laneOf, lanes } from './lib/workflow/workflow.ts';
+import { branchGlobs, branchPattern, laneBranch, laneOf, prototypeGlob } from './lib/workflow/workflow.ts';
 import { checkoutOf, markerOf, removeCheckout, removeLane, runSetup, updateLane } from './lib/workflow/worktree.ts';
 
 const recoveryLine =
@@ -23,10 +24,10 @@ async function fromGitHub<T>(call: Promise<T>, message: string): Promise<T> {
   });
 }
 
-async function recovered(main: string, n: string, path: string): Promise<boolean> {
+async function recovered(main: string, n: IssueKey, path: string): Promise<boolean> {
   const key = process.env.CELETIS_RECOVERY;
   if (!key) return false;
-  const permit = await validateRecovery(main, Number(n), key).catch((error: unknown) => {
+  const permit = await validateRecovery(main, n, key).catch((error: unknown) => {
     if (error instanceof RecoveryError) {
       console.error(`worktree: ${error.message}; the normal entry applies`);
       return null;
@@ -39,8 +40,8 @@ async function recovered(main: string, n: string, path: string): Promise<boolean
 async function execute(argv: string[], explicit: string | undefined): Promise<ExitCode> {
   const remove = argv[0] === '--remove';
   const args = remove ? argv.slice(1) : argv;
-  const n = args[0]?.replace(/^#/, '');
-  if (args.length !== 1 || !n || !/^[1-9][0-9]*$/.test(n)) throw new HostError(usage('worktree'), exits.usage);
+  const n = args.length === 1 ? parseHandle(args[0] as string) : null;
+  if (n === null) throw new HostError(usage('worktree'), exits.usage);
   const cwd = process.cwd();
   const operation = await createOperation(
     await locateCheckouts(cwd),
@@ -88,7 +89,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
         slug = slug.slice(0, 31);
         slug = slug.includes('-') ? slug.slice(0, slug.lastIndexOf('-')) : slug.slice(0, 30);
       }
-      branch = `${lanes[found.lane].prefix}/${n}-${slug || 'issue'}`;
+      branch = laneBranch(found.lane, n, slug || 'issue');
     }
   }
   let path = join(laneFolder(main), branch.slice(branch.indexOf('/') + 1));
@@ -124,7 +125,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
           '1',
           `refs/heads/${branch}`,
           '--not',
-          `--exclude=origin/prototype/${n}-*`,
+          `--exclude=origin/${prototypeGlob(n)}`,
           '--remotes=origin',
         ])
       )

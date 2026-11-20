@@ -5,7 +5,7 @@ import { HostError } from '../../command/errors.ts';
 import { exits } from '../../contract/contract.ts';
 import { isSessionId } from '../../state/fields.ts';
 import { ensureFolder } from '../../state/state.ts';
-import { invocation } from '../../workflow/workflow.ts';
+import { invocation, tabLabel } from '../../workflow/workflow.ts';
 import { configHome } from '../homes.ts';
 import type { HostAdapter } from '../types.ts';
 import { prepareClaudeUsage, readClaudeUsage } from './usage.ts';
@@ -39,7 +39,7 @@ export const claude: HostAdapter = {
       '--effort',
       start.level,
       '-n',
-      `#${issue} ${step}`,
+      tabLabel(issue, step),
       ...(step === 'specify' ? [] : ['--append-system-prompt', await stepText()]),
       invocation(step, issue),
     ],

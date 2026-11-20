@@ -153,7 +153,7 @@ session ([A landing](../plugins/celetis/docs/workflow.md#a-landing)). The `no-pr
 each step that the script refused as a skip. Auto mode and the board read it. An
 explicit issue start can start that step. `engine/lib/state/locks.ts` of the engine owns the lock refs,
 the owner records, the liveness check of an owner, and the record; the daemon and the board use it.
-The `set-aside` file in the same folder holds one issue number per line, for each issue that the
+The `set-aside` file in the same folder holds one issue key per line, for each issue that the
 maintainer set aside. It is keyed by the issue only, so it holds across a step change. Auto mode
 starts no issue of the file, and the board shows the issue as set aside in Idle. That state comes
 after a held issue lock and before a dirty lane worktree and a no-progress row. A run of the issue
@@ -215,16 +215,19 @@ checks the daemon before the admission. A move, a remove, and an Add to a nonemp
 daemon. When the daemon stops between the admission and the
 wake, the queue keeps an unowned pending launch, which a deliberate Try again recovers.
 
-Every action has `expected: {id, revision, current}`, where current is the first issue number.
-Only a missing record accepts null ID, revision 0, and null current. Add has kind, number, and
-step; move has kind, number, and direction up/down; remove has kind and number; continue and
-retry have kind and step. Retry alone permits a null step. Extra fields, unsafe integers,
-duplicates, stale identity/revision/current, current-row edits, and a conflicting agent choice refuse.
+Every action has `expected: {id, revision, current}`, where current is the issue key of the first
+issue, as a JSON string (`"12"`). Only a missing record accepts null ID, revision 0, and null
+current. Add has kind, number, and step; move has kind, number, and direction up/down; remove has
+kind and number; continue and retry have kind and step. Each `number` is an issue key as a JSON
+string. Retry alone permits a null step. Extra fields, unsafe integers, a key that the grammar of
+the tracker refuses, duplicates, stale identity/revision/current, current-row edits, and a
+conflicting agent choice refuse.
 
-Schema 3 is at `<git common dir>/celetis/queue.json`. It has an ID and increasing
-revision, ordered unique numbers, the fixed agent choice (`default`, or `explicit` with its host),
-the active host, current and last Runs, reason/action, a wait ID, and a nullable launch token with
-issue-bound one-step authorization. Its states are empty, starting, running, quota-wait, me-gate,
+Schema 4 is at `<git common dir>/celetis/queue.json`. It has an ID and increasing
+revision, ordered unique issue keys in `numbers` (each a JSON string), the fixed agent choice
+(`default`, or `explicit` with its host), the active host, current and last Runs, reason/action, a
+wait ID, and a nullable launch token with issue-bound one-step authorization (its `number` is the
+key of the first issue). Its states are empty, starting, running, quota-wait, me-gate,
 and error. Empty retains the record identity but has no numbers, choice, or active host. A
 default choice stays default: each start selects its host from the effective order of its step
 ([The agent of each start](#the-agent-of-each-start)). The active host is the host of the current
@@ -259,13 +262,18 @@ Unreadable members stay queued with an error. A current issue cannot drain while
 When an unowned stopped current closes, reconciliation advances with normal gates or leaves
 empty. An Add after the final drain starts more work without reload or reset.
 
-**Automatic storage preparation.** Ordinary queue readers and writers convert valid schema 1
-and schema 2 to schema 3. Schema 2 retains ordered numbers, state, current/last Runs,
+**Automatic storage preparation.** Ordinary queue readers and writers convert valid schemas 1,
+2, and 3 to schema 4. Schema 3 to 4 writes each issue number of `numbers` and of the launch
+authorization as its key, a JSON string (`12` becomes `"12"`), and keeps each other field and the
+revision. Schemas 1 and 2 first convert in memory as they did to schema 3, then to schema 4, in the
+same access. Schema 2 retains ordered numbers, state, current/last Runs,
 reason/action, and pending launch token and authorization. Schema 1 keeps only
 `numbers.slice(position)` as unfinished work; its completed prefix and results stay in the
 backup. Complete becomes empty. Nonempty work pins its recorded host as an explicit choice.
-Active host and wait ID become null; schema 1 has no launch. The revision advances once.
-A valid current record or absent record causes no conversion or archive.
+Active host and wait ID become null; schema 1 has no launch. From schema 1 or 2 the revision
+advances once. A number that the grammar of the tracker refuses (for example `0`) refuses the
+record intact, before any lock. A valid current record or absent record causes no conversion or
+archive.
 
 Preparation takes queue execution ownership, then ownership of the current unfinished issue,
 then the write lock, and rereads under those locks. A run with those locks prepares directly.
@@ -417,6 +425,9 @@ dispatcher throws is the 500 answer below. A body is JSON of at most 16 KiB, wit
 | `POST /coordinator/read` | `{number}` | The screen read, as `celetis coordinator read <number>`; the answer is `{accepted: true, text, complete, why}` ([The coordinator session](#the-coordinator-session)) |
 | `POST /coordinator/send` | `{number, authority, text, token}` | The send, as `celetis coordinator send <number> <file> --as <authority>`; `authority` is `maintainer` or `coordinator`, `text` is a string, and `token` is a UUID; the answer is `{accepted: true, run: null}` ([The coordinator session](#the-coordinator-session)) |
 
+Each `number` is an issue key as a JSON string (`"12"`) that the grammar of the tracker accepts. A
+JSON number (`12`) or a string that the grammar refuses (`"012"`) gives the 400 answer with the usage line.
+
 `selection` is `{explicit?, environment?}`: an explicit host (`claude`, `codex`, or `opencode`), the
 `CELETIS_AGENT` value of the client, or neither. Each run and each landing selects its host from its own request,
 as `celetis --agent <host> run` does from its prefix and its environment. The
@@ -425,7 +436,7 @@ the queue. A queue action uses the choice rules of `queue action`: an Add
 uses the request selection; each other action of a queue with a recorded choice refuses another
 named host with code 2, and uses the recorded choice. A reconcile uses the recorded choice.
 
-A `/land` body has a positive safe integer `number`, a `subject` that `land` accepts (a
+A `/land` body has the issue key `number`, a `subject` that `land` accepts (a
 Conventional Commit subject with no newline and no ` (#<number>)` at its end), and an absolute
 `from`, the top-level folder of the checkout of the client. The landing uses
 `from` only for the refusal of a run from inside the lane worktree. The daemon answers an accepted
@@ -543,7 +554,7 @@ state ([ADR-0103](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0103-a
 | --- | --- |
 | `id` | The run ID |
 | `kind` | `number`, `auto`, `queue`, or `resume` |
-| `issue`, `numbers` | The current issue; the issue numbers of a queue run, else `null` |
+| `issue`, `numbers` | The current issue key; the issue keys of a queue run, else `null`. Each key is a JSON string (`"12"`) |
 | `step`, `host`, `tab` | The step, the host, and the tab name of the current session, else `null` |
 | `terminal` | The terminal ID of the current session, else `null` |
 | `state` | `starting`, `running`, `checking`, `waiting`, `exiting`, `quota-wait`, `stopping`, `ending`, `taken-over`, or `finished` |
@@ -556,7 +567,7 @@ state ([ADR-0103](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0103-a
 A finished run stays in the status, with its outcome, until the daemon stops. A refused run
 request is a finished run too. A text field has at most 4096 characters.
 
-`landings` has one row `{issue, state, changedMs}` for each landing in the line, in the order of
+`landings` has one row `{issue, state, changedMs}`, with the issue key as a JSON string, for each landing in the line, in the order of
 the requests: `state` is `runs` for the landing at the head and `waits` for each other one, and
 `changedMs` is the time that the landing entered its state, in milliseconds since 1970 UTC. A
 landing leaves the list when it ends. `celetis daemon status` prints one line for each row, with
@@ -618,10 +629,15 @@ after the start barrier reports and before its release, after each session end, 
 and its wake, at the claim of a queue wake, and after each drain of a queue issue. A run that ends
 removes its record. A detached run
 keeps it, except a run whose answer was 503. The `go` file of the start folder, not the record,
-tells whether the barrier was released. The record has `schema: 3`, with its paths under
-`<git common dir>/celetis/`. A schema-2 record converts to schema 3 when the daemon reads it at its
-start, after it holds `daemon` and before it serves, with `model: null` in a `number` input. A
-`number`, `auto`, or `queue` input with `quiet` is not valid, so its record does not convert. The
+tells whether the barrier was released. The record has `schema: 4`, with its paths under
+`<git common dir>/celetis/`. Its `issue` and the `number` of its input are issue keys, each a JSON
+string (`"12"`), and its `session.record` is a saved session of schema 3. A schema-2 or schema-3
+record converts to schema 4 when the daemon reads it at its start, after it holds `daemon` and
+before it serves. A schema-2 record first gets `model: null` in a `number` input, as it did to
+schema 3. The conversion writes each issue number as its key, converts the embedded session record
+by the rule of the saved session, and keeps each other field. A number that the grammar of the
+tracker refuses refuses the record intact. A `number`, `auto`, or `queue` input with `quiet` is not
+valid, so its record does not convert. The
 conversion keeps the exact original bytes in an immutable sibling archive
 ([ADR-0070](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0070-automatic-runtime-state-migration.md)). The run
 records have no record lock.
@@ -678,8 +694,9 @@ names the next issue with no session, so a stop between two issues continues the
 start. A session whose start folder has no `go` file ends the issue as the table says, and the
 queue state becomes `error` with that line.
 
-**A quota recovery.** The recovery record has `schema: 2` with the key `daemon`. A record of another
-schema, or with an invalid field, is refused with its path and `invalid or obsolete recovery record;
+**A quota recovery.** The recovery record has `schema: 3` with the key `daemon`. A valid schema-2
+record converts to schema 3 when it is read ([Usage-limit recovery](#usage-limit-recovery)). A
+record of another schema, or with an invalid field, is refused with its path and `invalid or obsolete recovery record;
 inspect it, then remove it`, and it is never read as empty. When the recovery record of the
 issue names a daemon that is gone (a definite read), the daemon writes itself as the owner of the record in one
 transaction. Retry and the bound lane of the
@@ -1233,8 +1250,12 @@ Only a daemon-owned step with the default choice continues on another
 agent. A confirmed refusal of an explicit host is recorded; that session stays open, and no other
 agent starts. After a confirmed refusal of the default host, the daemon:
 
-1. Saves the block, writes `<git common dir>/celetis/recovery/<n>.json` (schema 2, with the key `daemon`) with the state
-   `recovering`, and stops the job of the step end.
+1. Saves the block, writes `<git common dir>/celetis/recovery/<n>.json` (schema 3, with the key `daemon`; its `issue`
+   is the issue key as a JSON string) with the state `recovering`, and stops the job of the step end.
+   A read of a schema-2 record converts it to schema 3 under the recovery lock, with the issue
+   number written as its key and each other field kept, and keeps the exact original bytes in an
+   immutable sibling archive. A number that the grammar of the tracker refuses refuses the record
+   intact, before the lock.
 2. Ends only its own attempt (`endOwnedAttempt` of `engine/lib/run/attempt-end.ts`). The barrier
    gives the host `CELETIS_ATTEMPT=<attempt id>`, and each child inherits it. A resume session
    also gets an attempt ID, which its run record keeps, so a Stop proves its end the same way.
@@ -1403,13 +1424,16 @@ Exact run resume needs a verified session identity and a saved turn. The daemon 
 saves them for each step session that it starts. A resumed session stays open until you leave it.
 
 The record at `<git common dir>/celetis/sessions/<n>.json` has exactly seven fields:
-`schema: 2`, `host`, `issue`, `step`, absolute main `checkout`, `session_id` (UUID or null), and
-`effort`, the level that the daemon requested after the Codex clamp.
-The daemon writes it atomically. Before a current record is used or replaced, a valid schema-1
-record becomes schema 2 under the issue lock. This preserves its host, issue, step, checkout, and
-nullable native session ID exactly, and retains its original bytes in an immutable sibling backup.
-The new `effort` is `high`, the current Resume policy default; it does not describe the original
-session's effort. Unsupported schemas and invalid data stop without replacement.
+`schema: 3`, `host`, `issue` (the issue key as a JSON string, `"12"`), `step`, absolute main
+`checkout`, `session_id` (UUID or null), and `effort`, the level that the daemon requested after the
+Codex clamp.
+The daemon writes it atomically. Before a current record is used or replaced, a valid schema-1 or
+schema-2 record becomes schema 3 under the issue lock. The conversion writes the issue number as
+its key and preserves its host, step, checkout, and nullable native session ID exactly, and retains
+its original bytes in an immutable sibling backup. A schema-1 record first gets the `effort` `high`
+in memory, as it did to schema 2: the current Resume policy default, which does not describe the
+original session's effort. A schema-2 record keeps its `effort`. Unsupported schemas, a number
+that the grammar of the tracker refuses, and invalid data stop without replacement.
 Before a usage-limit recovery replaces this record, the daemon copies it unchanged to
 `<git common dir>/celetis/sessions/<n>/<attempt id>.json`. That archive keeps the exact native
 session of each interrupted attempt; Resume reads only the current record.
@@ -1465,7 +1489,7 @@ An entry is one JSON object on one line, ended by `\n`, in UTF-8:
 
 | Field | Value |
 | --- | --- |
-| `schema` | `1` |
+| `schema` | `2`. A line of schema 1, written before, keeps its schema and holds `issue` as a JSON number |
 | `id` | `<time>-<pid>-<8 hex>`. It is unique. `--after` uses it |
 | `time` | ISO 8601 UTC with milliseconds |
 | `kind` | `defect`, `refusal`, or `workflow` |
@@ -1476,7 +1500,7 @@ An entry is one JSON object on one line, ended by `\n`, in UTF-8:
 | `host` | `claude` or `codex` from `--agent`, then `CELETIS_SESSION_AGENT`, then `CELETIS_AGENT`, else `null` |
 | `revision` | The full revision of the running engine, or `null` when it is not known |
 | `pid` | The process ID |
-| `issue` | The issue number when the site knows it, else `null` |
+| `issue` | The issue key when the site knows it, as a string (`"12"`), else `null` |
 | `code` | The exit code of an exit entry, the HTTP status of a board entry, else `null` |
 | `message` | For a defect, the message of the error. For a refusal, the text that the process itself wrote to stderr. For a workflow entry, the line that the site printed or returned; for `land-exit`, the last line of `land` among the writes of the landing itself (not of its suite), or an empty text when it printed none |
 | `exception.type` | The class name of the error. A defect only |
@@ -1562,7 +1586,7 @@ The fingerprint is the first 16 hex digits of SHA-256 over a key. The key parts 
 | Kind | Key |
 | --- | --- |
 | `defect` | `defect`, `command`, `exception.type`, and the first stack frame inside the folder that holds `engine/`: its path relative to that folder and its function name, with no line or column |
-| `refusal` | `refusal`, `command`, `code`, and the first line of `message`, with each run of digits replaced by `0` and the folder that holds `engine/` replaced by `<engine>` |
+| `refusal` | `refusal`, `command`, `code`, and the first line of `message`, with the folder that holds `engine/` replaced by `<engine>`, then each `#` followed by a match of the issue key grammar replaced by `#0`, then each run of digits replaced by `0`. Only the form `#<key>` is covered: a key with no `#`, for example in a path, groups by its digit runs |
 | `workflow` | `workflow`, `command`, and `name` |
 
 Each write opens `events.lock` and takes an exclusive `flock` (`LockFileEx` on Windows). It

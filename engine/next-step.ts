@@ -5,11 +5,15 @@ import { hostAdapter } from './lib/host/hosts.ts';
 import { lineOf } from './lib/resolver/lines.ts';
 import { nextIssue, nextOpen } from './lib/resolver/resolver.ts';
 import { installRecorder } from './lib/state/events.ts';
+import { type IssueKey, parseHandle } from './lib/tracker/key.ts';
 
-function request(args: string[]): { arg: string; n: string } | null {
-  const arg = args[0] ?? '';
-  const n = arg.replace(/^#/, '');
-  return args.length === 1 && (arg === '--open' || /^\d+$/.test(n)) ? { arg, n } : null;
+type Request = { kind: 'open' } | { kind: 'issue'; key: IssueKey };
+
+function request(args: string[]): Request | null {
+  if (args.length !== 1) return null;
+  if (args[0] === '--open') return { kind: 'open' };
+  const key = parseHandle(args[0] as string);
+  return key === null ? null : { kind: 'issue', key };
 }
 
 export async function main(argv: string[]): Promise<ExitCode> {
@@ -40,18 +44,18 @@ export async function main(argv: string[]): Promise<ExitCode> {
 }
 
 async function resolveNext(
-  { arg, n }: { arg: string; n: string },
+  input: Request,
   operation: Operation,
 ): Promise<{ code: ExitCode; stdout: string; stderr: string }> {
-  if (arg === '--open') {
+  if (input.kind === 'open') {
     const { rows, stderr } = await nextOpen(operation);
     if (!rows) return { code: exits.blocked, stdout: 'stop cannot read the open issues from GitHub\n', stderr };
-    const stdout = rows.map((row) => `${row.number}\t${lineOf(String(row.number), row.next)}\n`).join('');
+    const stdout = rows.map((row) => `${row.number}\t${lineOf(row.number, row.next)}\n`).join('');
     return { code: exits.done, stdout, stderr };
   }
-  const { next, stderr } = await nextIssue(n, operation);
+  const { next, stderr } = await nextIssue(input.key, operation);
   const failed = next.kind === 'observed' && next.reason === 'unreadable';
-  return { code: failed ? exits.blocked : exits.done, stdout: `${lineOf(n, next)}\n`, stderr };
+  return { code: failed ? exits.blocked : exits.done, stdout: `${lineOf(input.key, next)}\n`, stderr };
 }
 
 if (import.meta.main) {

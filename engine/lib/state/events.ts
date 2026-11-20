@@ -6,13 +6,14 @@ import { format } from 'node:util';
 import { HostError } from '../command/errors.ts';
 import { type ExitCode, exits, passThrough, signalExit } from '../contract/contract.ts';
 import { type Host, isHost } from '../host/names.ts';
+import { type IssueKey, keySource } from '../tracker/key.ts';
 import { revision as fullRevision } from './fields.ts';
 import { ensureFolder, eventLayout, privateMode, withLockSync } from './state.ts';
 
 type Cut = 'message' | 'exception.stacktrace' | 'argv';
 
 type Common = {
-  schema: 1;
+  schema: 2;
   id: string;
   time: string;
   name: string;
@@ -22,7 +23,7 @@ type Common = {
   host: Host | null;
   revision: string | null;
   pid: number;
-  issue: number | null;
+  issue: IssueKey | null;
   code: number | null;
   message: string;
   fingerprint: string;
@@ -33,7 +34,7 @@ export type EventEntry =
   | (Common & { kind: 'refusal' | 'workflow' })
   | (Common & { kind: 'defect'; 'exception.type': string; 'exception.stacktrace': string });
 
-type Report = { name: string; issue: number | null; code: number | null } & (
+type Report = { name: string; issue: IssueKey | null; code: number | null } & (
   | { kind: 'refusal' | 'workflow'; message: string }
   | { kind: 'defect'; error: unknown }
 );
@@ -112,7 +113,7 @@ export function recordedElsewhere(code: ExitCode): ExitCode {
 export function recordEvent(event: {
   name: string;
   message: string;
-  issue?: number | null;
+  issue?: IssueKey | null;
   code?: number | null;
   error?: unknown;
 }): void {
@@ -140,7 +141,7 @@ function record(report: Report): void {
 function entry(command: string, report: Report): EventEntry {
   const argv = process.argv.slice(2);
   const head = {
-    schema: 1 as const,
+    schema: 2 as const,
     id: `${Date.now()}-${process.pid}-${randomBytes(4).toString('hex')}`,
     time: new Date().toISOString(),
   };
@@ -204,7 +205,10 @@ function frame(stack: string): string {
 }
 
 function firstLine(message: string): string {
-  return (message.split('\n', 1)[0] ?? '').replaceAll(root, '<engine>').replace(/\d+/g, '0');
+  return (message.split('\n', 1)[0] ?? '')
+    .replaceAll(root, '<engine>')
+    .replace(new RegExp(`#${keySource()}`, 'g'), '#0')
+    .replace(/\d+/g, '0');
 }
 
 function fingerprint(key: string[]): string {

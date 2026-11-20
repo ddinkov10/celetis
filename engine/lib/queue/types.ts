@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { AgentChoice } from '../config/core.ts';
 import { hosts } from '../host/names.ts';
 import type { Next } from '../resolver/lines.ts';
-import { code, count, members, uuidText } from '../state/schemas.ts';
+import { code, count, issueKey, members, uuidText } from '../state/schemas.ts';
 import { type Lane, lanes, type Run, type RunState, type Stop, steps } from '../workflow/workflow.ts';
 
 const step = z.enum(steps);
@@ -57,18 +57,18 @@ const next: z.ZodType<Next> = z.union([
 ]);
 
 export const queueExpected = z
-  .strictObject({ id: uuidText.nullable(), revision: code, current: count.nullable() })
+  .strictObject({ id: uuidText.nullable(), revision: code, current: issueKey.nullable() })
   .refine((value) => (value.id === null ? value.revision === 0 && value.current === null : value.revision > 0));
 
 export const queueAction = z.discriminatedUnion('kind', [
-  z.strictObject({ expected: queueExpected, kind: z.literal('add'), number: count, step }),
+  z.strictObject({ expected: queueExpected, kind: z.literal('add'), number: issueKey, step }),
   z.strictObject({
     expected: queueExpected,
     kind: z.literal('move'),
-    number: count,
+    number: issueKey,
     direction: z.enum(['up', 'down']),
   }),
-  z.strictObject({ expected: queueExpected, kind: z.literal('remove'), number: count }),
+  z.strictObject({ expected: queueExpected, kind: z.literal('remove'), number: issueKey }),
   z.strictObject({ expected: queueExpected, kind: z.literal('continue'), step }),
   z.strictObject({ expected: queueExpected, kind: z.literal('retry'), step: step.nullable() }),
 ]);
@@ -83,46 +83,61 @@ const states: Record<State, true> = {
   error: true,
 };
 
-const authorization = z
-  .strictObject({ number: count, step: step.nullable(), retry: z.boolean() })
-  .refine((value) => value.step !== null || value.retry);
+const authorizationOf = <T extends z.ZodType>(item: T) =>
+  z
+    .strictObject({ number: item, step: step.nullable(), retry: z.boolean() })
+    .refine((value) => value.step !== null || value.retry);
 
-export const queueRecord = z
-  .strictObject({
-    schema: z.literal(3),
-    id: uuidText,
-    revision: count,
-    choice: agentChoice.nullable(),
-    activeHost: host.nullable(),
-    numbers: z.array(count).refine((numbers) => new Set(numbers).size === numbers.length),
-    state: members(states),
-    waitId: uuidText.nullable(),
-    current: run.nullable(),
-    last: run.nullable(),
-    reason: z.string().nullable(),
-    act: z.string().nullable(),
-    launch: z.strictObject({ token: uuidText, authorization: authorization.nullable() }).nullable(),
-  })
-  .refine((value) =>
-    value.state === 'empty'
-      ? !value.numbers.length &&
-        [
-          value.choice,
-          value.activeHost,
-          value.waitId,
-          value.current,
-          value.last,
-          value.reason,
-          value.act,
-          value.launch,
-        ].every((item) => item === null)
-      : value.numbers.length > 0 &&
-        value.choice !== null &&
-        (value.state === 'quota-wait' ? value.waitId !== null && value.activeHost === null : value.waitId === null) &&
-        (value.state === 'starting') === (value.launch !== null) &&
-        (value.state !== 'me-gate' || value.current !== null) &&
-        (value.launch?.authorization == null || value.launch.authorization.number === value.numbers[0]),
-  );
+const recordFields = <T extends z.ZodType>(item: T) => ({
+  id: uuidText,
+  revision: count,
+  choice: agentChoice.nullable(),
+  activeHost: host.nullable(),
+  numbers: z.array(item).refine((numbers) => new Set(numbers).size === numbers.length),
+  state: members(states),
+  waitId: uuidText.nullable(),
+  current: run.nullable(),
+  last: run.nullable(),
+  reason: z.string().nullable(),
+  act: z.string().nullable(),
+  launch: z.strictObject({ token: uuidText, authorization: authorizationOf(item).nullable() }).nullable(),
+});
+
+type Invariant = {
+  state: State;
+  numbers: readonly unknown[];
+  choice: unknown;
+  activeHost: unknown;
+  waitId: unknown;
+  current: unknown;
+  last: unknown;
+  reason: unknown;
+  act: unknown;
+  launch: { authorization: { number: unknown } | null } | null;
+};
+
+const invariant = (value: Invariant) =>
+  value.state === 'empty'
+    ? !value.numbers.length &&
+      [
+        value.choice,
+        value.activeHost,
+        value.waitId,
+        value.current,
+        value.last,
+        value.reason,
+        value.act,
+        value.launch,
+      ].every((item) => item === null)
+    : value.numbers.length > 0 &&
+      value.choice !== null &&
+      (value.state === 'quota-wait' ? value.waitId !== null && value.activeHost === null : value.waitId === null) &&
+      (value.state === 'starting') === (value.launch !== null) &&
+      (value.state !== 'me-gate' || value.current !== null) &&
+      (value.launch?.authorization == null || value.launch.authorization.number === value.numbers[0]);
+
+export const queueRecord = z.strictObject({ schema: z.literal(4), ...recordFields(issueKey) }).refine(invariant);
+export const queueRecordSchema3 = z.strictObject({ schema: z.literal(3), ...recordFields(count) }).refine(invariant);
 
 const queueActions = z.strictObject({ add: z.boolean(), edit: z.boolean(), continue: z.boolean(), retry: z.boolean() });
 

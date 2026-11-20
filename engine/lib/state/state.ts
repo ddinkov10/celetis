@@ -8,6 +8,7 @@ import type { Host } from '../config/core.ts';
 import { exits } from '../contract/contract.ts';
 import { celetisBase } from '../host/homes.ts';
 import { openLockFile } from '../process/windows.ts';
+import { type IssueKey, parseKey } from '../tracker/key.ts';
 import { tryFlock } from '../update/lock.ts';
 
 export type FolderRule = 'shared' | 'private';
@@ -110,7 +111,7 @@ export function repositoryLayout(common: string) {
   const usageSequence = (attemptId: string) => owned(join(usageSequences.path, sha256(attemptId)));
   const daemon = owned(join(root.path, 'daemon'));
   const runs = owned(join(daemon.path, 'runs'));
-  const sessionArchive = (issue: number) => owned(join(sessions.path, String(issue)));
+  const sessionArchive = (issue: IssueKey) => owned(join(sessions.path, issue));
   return Object.freeze({
     root,
     queue: join(root.path, 'queue.json'),
@@ -121,18 +122,18 @@ export function repositoryLayout(common: string) {
     trendCache: join(root.path, 'trend-cache.jsonl'),
     trendsLock: lockAt('trends', join(root.path, 'trends-write.lock'), [root]),
     sessions,
-    session: (issue: number) => join(sessions.path, `${issue}.json`),
+    session: (issue: IssueKey) => join(sessions.path, `${issue}.json`),
     sessionArchive,
-    archivedSession: (issue: number, attemptId: string) => join(sessionArchive(issue).path, `${attemptId}.json`),
+    archivedSession: (issue: IssueKey, attemptId: string) => join(sessionArchive(issue).path, `${attemptId}.json`),
     stepEnds,
-    stepEnd: (issue: number) => join(stepEnds.path, `${issue}.json`),
+    stepEnd: (issue: IssueKey) => join(stepEnds.path, `${issue}.json`),
     recovery,
-    recoveryRecord: (issue: number) => join(recovery.path, `${issue}.json`),
-    recoveryLock: (issue: number) => lockAt('recovery', join(recovery.path, `${issue}.lock`), [root, recovery]),
+    recoveryRecord: (issue: IssueKey) => join(recovery.path, `${issue}.json`),
+    recoveryLock: (issue: IssueKey) => lockAt('recovery', join(recovery.path, `${issue}.lock`), [root, recovery]),
     limits,
     limit: (host: Host) => join(limits.path, `${host}.json`),
     limitLock: (host: Host) => lockAt('usage', join(limits.path, `${host}.lock`), [root, limits]),
-    epicLock: (issue: string) => lockAt('epic', join(root.path, `epic-${issue}.lock`), [root]),
+    epicLock: (issue: IssueKey) => lockAt('epic', join(root.path, `epic-${issue}.lock`), [root]),
     spaceLock: lockAt('space', join(root.path, 'space.lock'), [root]),
     noProgress: join(root.path, 'no-progress'),
     setAside: join(root.path, 'set-aside'),
@@ -154,6 +155,10 @@ export function repositoryLayout(common: string) {
     runRecord: (id: string) => join(runs.path, `${id}.json`),
     startPrefix: join(root.path, 'start.'),
   });
+}
+
+export function recordKey(name: string, suffix: '.json'): IssueKey | null {
+  return name.endsWith(suffix) ? parseKey(name.slice(0, -suffix.length)) : null;
 }
 
 export function captureFiles(dir: string) {

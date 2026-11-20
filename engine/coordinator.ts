@@ -9,6 +9,7 @@ import { requireCan } from './lib/host/hosts.ts';
 import { isHost } from './lib/host/names.ts';
 import { installRecorder, markDefect } from './lib/state/events.ts';
 import { uuid } from './lib/state/fields.ts';
+import { parseHandle } from './lib/tracker/key.ts';
 
 export async function main(argv: string[]): Promise<ExitCode> {
   try {
@@ -18,16 +19,15 @@ export async function main(argv: string[]): Promise<ExitCode> {
     const named = at < 0 ? undefined : args[at + 1];
     const authority = isAuthority(named) ? named : null;
     const words = at < 0 ? args : args.toSpliced(at, 2);
-    const issue = /^#?[0-9]+$/.test(words[1] ?? '') ? Number(words[1]?.replace(/^#/, '')) : 0;
-    const numbered = Number.isSafeInteger(issue) && issue > 0;
+    const key = parseHandle(words[1] ?? '');
     const form =
       words.length === 0
         ? 'open'
         : words.length === 1 && words[0] === 'status'
           ? 'status'
-          : words.length === 2 && words[0] === 'read' && numbered
+          : words.length === 2 && words[0] === 'read' && key !== null
             ? 'read'
-            : words.length === 3 && words[0] === 'send' && numbered && authority
+            : words.length === 3 && words[0] === 'send' && key !== null && authority
               ? 'send'
               : null;
     if (form === null) throw new HostError(usage('coordinator'), exits.usage);
@@ -39,7 +39,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
       console.log(JSON.stringify(await readStatus(common)));
       return exits.done;
     }
-    if (form === 'send' && authority) {
+    if (form === 'send' && authority && key !== null) {
       const file = words[2] as string;
       let bytes: Uint8Array;
       try {
@@ -63,7 +63,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
         common,
         {
           kind: 'coordinator-send',
-          number: issue,
+          number: key,
           authority,
           text: text.endsWith('\n') ? text.slice(0, -1) : text,
           token,
@@ -74,11 +74,11 @@ export async function main(argv: string[]): Promise<ExitCode> {
         console.error(answer.line);
         return answer.code;
       }
-      console.log(`coordinator: sent to #${issue} as ${authority}`);
+      console.log(`coordinator: sent to #${key} as ${authority}`);
       return exits.done;
     }
-    if (form === 'read') {
-      const { answer } = await askCoordinator(common, { kind: 'coordinator-read', number: issue }, parseScreenAnswer);
+    if (form === 'read' && key !== null) {
+      const { answer } = await askCoordinator(common, { kind: 'coordinator-read', number: key }, parseScreenAnswer);
       if (!answer.accepted) {
         console.error(answer.line);
         return answer.code;
@@ -86,7 +86,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
       process.stdout.write(answer.text.endsWith('\n') ? answer.text : `${answer.text}\n`);
       if (!answer.complete)
         console.error(
-          `coordinator: #${issue}: hc gave only the visible screen${answer.why === null ? '' : ` (the session is ${answer.why})`}`,
+          `coordinator: #${key}: hc gave only the visible screen${answer.why === null ? '' : ` (the session is ${answer.why})`}`,
         );
       return exits.done;
     }

@@ -1,3 +1,27 @@
+// engine/lib/tracker/grammar.ts
+var github = {
+  pattern: "[1-9][0-9]*",
+  query: "[0-9]+",
+  accepts: (text) => Number.isSafeInteger(Number(text)),
+  compare: (a, b) => Number(a) - Number(b)
+};
+function grammar() {
+  return github;
+}
+
+// engine/lib/tracker/key.ts
+var envelope = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?$/;
+function parseKey(text) {
+  const { pattern, accepts } = grammar();
+  return envelope.test(text) && new RegExp(`^(?:${pattern})$`).test(text) && accepts(text) ? text : null;
+}
+function isKey(value) {
+  return typeof value === "string" && parseKey(value) !== null;
+}
+function compareKeys(a, b) {
+  return grammar().compare(a, b);
+}
+
 // engine/board/view.ts
 var COLUMNS = [
   {
@@ -91,7 +115,7 @@ var groupEpics = (cards, canGroup) => {
 var parseOpenEpics = (value) => {
   try {
     const parsed = JSON.parse(value);
-    if (Array.isArray(parsed) && parsed.every((item) => Number.isSafeInteger(item) && item > 0))
+    if (Array.isArray(parsed) && parsed.every(isKey))
       return new Set(parsed);
   } catch {}
   return new Set;
@@ -207,15 +231,15 @@ var filterItems = (items, query) => {
   const text = query.trim().toLowerCase();
   if (text === "")
     return items.filter((item) => !item.isGoTo);
-  const number = /^#?(\d+)$/.exec(text)?.[1];
+  const number = new RegExp(`^#?(${grammar().query})$`).exec(text)?.[1];
   if (number) {
-    const found = items.filter((item) => item.number !== null && String(item.number).startsWith(number));
-    const exact = found.filter((item) => String(item.number) === number);
+    const found = items.filter((item) => item.number?.startsWith(number));
+    const exact = found.filter((item) => item.number === number);
     return [
       ...exact.filter((item) => item.isGoTo),
       ...exact.filter((item) => !item.isGoTo),
       ...items.filter((item) => item.number === null && item.context === text),
-      ...found.filter((item) => String(item.number) !== number)
+      ...found.filter((item) => item.number !== number)
     ];
   }
   const words = text.split(/\s+/);
@@ -696,7 +720,7 @@ var mark = (card, registry, identifiedByText = false) => {
 var items = [];
 var shown = [];
 var active = 0;
-var exactNumber = () => /^#?(\d+)$/.exec($("pal-input").value.trim())?.[1];
+var exactNumber = () => new RegExp(`^#?(${grammar().query})$`).exec($("pal-input").value.trim())?.[1];
 var option = (item, index) => {
   const node = el("div", `pal-row${index === active ? " on" : ""}${item.isGoTo ? " go" : ""}${item.tone ? ` tone-${item.tone}` : ""}`);
   node.id = `pal-${index}`;
@@ -728,7 +752,7 @@ var draw = () => {
   let section = null;
   const exact = exactNumber();
   shown.forEach((item, index) => {
-    const label = exact && !item.isGoTo && String(item.number) === exact ? `Actions for #${exact}` : item.group;
+    const label = exact && !item.isGoTo && item.number === exact ? `Actions for #${exact}` : item.group;
     if (section === null || label !== group) {
       group = label;
       const heading = el("div", "pal-group", group);
@@ -2986,7 +3010,7 @@ var retired = new Set;
 var options;
 var section2 = () => $("queue");
 var cards = () => Object.values(board?.columns ?? {}).flat();
-var available = () => cards().filter((card) => card.number !== null && !card.sessionId && card.run && card.step);
+var available = () => cards().flatMap(({ number, ...card }) => number !== null && !card.sessionId && card.run && card.step ? [{ ...card, number }] : []);
 var find = (number) => cards().find((card) => card.number === number);
 var heading = () => section2().querySelector(".queue-status h3");
 var expected = () => ({
@@ -3190,7 +3214,7 @@ function draw2() {
   const picker = el("section", "queue-picker");
   picker.append(el("h3", "", "Add from the board"), el("p", "", "Add puts the issue at the end of the queue, and starts the queue when it is empty."));
   for (const card of available()) {
-    const number = card.number;
+    const { number } = card;
     const item = el("div", "queue-pick");
     const copy = el("div");
     copy.append(el("span", "queue-number", `#${number}`), el("span", "queue-title", card.title), el("span", "queue-step", `next ${card.step} · ${card.state ? stateLabel(card) : "ready"}`));
@@ -3417,7 +3441,7 @@ var runReason = (agent, number) => {
   if (data?.noRun)
     return data.noRun;
   const record = data?.queue?.record;
-  if (record?.state === "me-gate" && record.numbers[0] === number && record.choice) {
+  if (record?.state === "me-gate" && number != null && record.numbers[0] === number && record.choice) {
     if (record.choice.kind === "default") {
       if (agent !== null)
         return "queue: recorded agent choice is the default order";
@@ -3977,12 +4001,13 @@ var storeOpenEpics = (change) => {
   const stored = store.get("open-epics");
   const next = new Set(stored === null ? openEpics : parseOpenEpics(stored));
   change(next);
-  store.set("open-epics", JSON.stringify([...next].sort((a, b) => a - b)));
+  store.set("open-epics", JSON.stringify([...next].sort(compareKeys)));
   openEpics = next;
 };
 var showOpenEpics = () => {
   for (const row of document.querySelectorAll(".epic-row")) {
-    const isOpen = openEpics.has(Number(row.dataset.epic));
+    const epic = parseKey(row.dataset.epic ?? "");
+    const isOpen = epic !== null && openEpics.has(epic);
     row.setAttribute("aria-expanded", String(isOpen));
     $(row.getAttribute("aria-controls")).hidden = !isOpen;
   }
@@ -4426,7 +4451,7 @@ var systemNotice = (title, body, tag, open) => {
 };
 var notify = (cards) => {
   const keys = new Set(cards.map((card) => keyOf(card)));
-  const fresh = needsKeys === null ? [] : cards.filter((card) => !needsKeys.has(keyOf(card)) && !(card.sessionId === null && starting?.has(card.number)));
+  const fresh = needsKeys === null ? [] : cards.filter((card) => !needsKeys.has(keyOf(card)) && !(card.sessionId === null && card.number !== null && starting?.has(card.number)));
   for (const card of fresh) {
     const { title, body } = notice(card);
     systemNotice(title, body, keyOf(card), () => {
@@ -4587,8 +4612,9 @@ var drawPanelFor = () => {
 };
 var revealCard = (key) => {
   const group = document.querySelector(`[data-key="${CSS.escape(key)}"]`)?.closest(".epic-children[hidden]");
-  if (group)
-    setEpicOpen(Number(group.closest(".epic-group")?.dataset.epic), true);
+  const epic = parseKey(group?.closest(".epic-group")?.dataset.epic ?? "");
+  if (epic !== null)
+    setEpicOpen(epic, true);
 };
 var openDetails = (key) => {
   if (!byKey.has(key))
@@ -4788,8 +4814,8 @@ var startFailures = new Map;
 var SLOW_START = 5000;
 var SLOW_START_TEXT = "The daemon still checks the start";
 var drawStartLine = (node, now) => {
-  const number = Number(node.dataset.number);
-  const entry = launches.get(number);
+  const number = parseKey(node.dataset.number ?? "");
+  const entry = number === null ? undefined : launches.get(number);
   const isSlow = entry?.phase === "pending" && now - entry.at >= SLOW_START;
   node.hidden = !isSlow;
   if (!entry || !isSlow)
@@ -4817,7 +4843,7 @@ var project = (board) => {
   const columns = { needs: [], running: [], idle: [], human: [] };
   for (const [key, cards] of Object.entries(board.columns))
     for (const card of cards) {
-      const launch = card.sessionId === null ? launches.get(card.number) : undefined;
+      const launch = card.sessionId === null && card.number !== null ? launches.get(card.number) : undefined;
       if (!launch)
         columns[key].push(card);
       else if (launch.phase !== "failed" && card.step === launch.step && (card.state === null || card.state === "no-progress" || card.state === "set-aside" || card.state === "blocked" && launch.step === null))
@@ -4878,9 +4904,9 @@ var render = (canMove = true) => {
   lastLayout = layout;
 };
 var launch = async (card, path, agent, effort) => {
-  if (isReconnecting())
+  const { number } = card;
+  if (isReconnecting() || number === null)
     return false;
-  const number = card.number;
   const current = data && Object.values(project(data).columns).flat().find((other) => other.sessionId === null && other.number === number);
   if (!current?.[path === "/api/run" ? "run" : path === "/api/assist" ? "assist" : "resume"])
     return false;
@@ -4922,7 +4948,7 @@ var stopText = (card) => ({
   detail: "The card moves to Idle when the session has ended."
 });
 var pressAct = async (pressed, card, path, value, text) => {
-  const number = card.number;
+  const { number } = card;
   if (isReconnecting() || pressed.has(number))
     return;
   pressed.set(number, "pending");
@@ -5087,6 +5113,16 @@ var phoneMenu = () => ["throughput"].map((area) => ({
   key: "",
   run: () => setArea(area)
 }));
+var unnamed = (name, number) => {
+  if (number === null)
+    return name;
+  let label = name;
+  for (const tail of [`, #${number}`, ` of #${number}`])
+    if (label.endsWith(tail))
+      label = label.slice(0, -tail.length);
+  const lead = `Open issue #${number}`;
+  return label.startsWith(lead) ? `Open issue${label.slice(lead.length)}` : label;
+};
 var paletteItems = () => {
   if (!data)
     return [];
@@ -5094,7 +5130,7 @@ var paletteItems = () => {
   const add = (group, card, _key, action) => items.push({
     group,
     number: card.number,
-    label: action.name.replace(/, #\d+$/, "").replace(/ of #\d+$/, "").replace(/^(Open issue) #\d+/, "$1"),
+    label: unnamed(action.name, card.number),
     context: card.title,
     icon: action.icon,
     tone: group === "Needs you" ? "needs" : null,

@@ -1,4 +1,6 @@
 import type { Host, Registry } from '../lib/host/names.ts';
+import { grammar } from '../lib/tracker/grammar.ts';
+import { type IssueKey, isKey } from '../lib/tracker/key.ts';
 import type { Level, RowSource, StartPair } from '../lib/workflow/effort.ts';
 import type { Board, Card, Column, CoordinatorView, Diff, Flow, ParentEpic, Pull } from './types.ts';
 export const COLUMNS: { key: Column; name: string; note: string; empty: [string, string] }[] = [
@@ -101,7 +103,7 @@ export const groupNeeds = (cards: Card[]) => {
 export type EpicItem = { kind: 'card'; card: Card } | { kind: 'group'; epic: ParentEpic; cards: Card[] };
 
 export const groupEpics = (cards: Card[], canGroup: (card: Card) => boolean): EpicItem[] => {
-  const groups = new Map<number, Extract<EpicItem, { kind: 'group' }>>();
+  const groups = new Map<IssueKey, Extract<EpicItem, { kind: 'group' }>>();
   const items: EpicItem[] = [];
   for (const card of cards) {
     if (!card.epic || !canGroup(card)) {
@@ -120,11 +122,10 @@ export const groupEpics = (cards: Card[], canGroup: (card: Card) => boolean): Ep
   return items;
 };
 
-export const parseOpenEpics = (value: string): Set<number> => {
+export const parseOpenEpics = (value: string): Set<IssueKey> => {
   try {
     const parsed: unknown = JSON.parse(value);
-    if (Array.isArray(parsed) && parsed.every((item) => Number.isSafeInteger(item) && item > 0))
-      return new Set<number>(parsed);
+    if (Array.isArray(parsed) && parsed.every(isKey)) return new Set(parsed);
   } catch {}
   return new Set();
 };
@@ -283,21 +284,21 @@ export const pipeline = (cards: Card[], flow: Partial<Flow> | null | undefined) 
   return { stages, hold: cards.filter((card) => !placed.has(card)) };
 };
 
-export const filterItems = <T extends { number: number | null; label: string; context?: string; isGoTo?: boolean }>(
+export const filterItems = <T extends { number: IssueKey | null; label: string; context?: string; isGoTo?: boolean }>(
   items: T[],
   query: string,
 ): T[] => {
   const text = query.trim().toLowerCase();
   if (text === '') return items.filter((item) => !item.isGoTo);
-  const number = /^#?(\d+)$/.exec(text)?.[1];
+  const number = new RegExp(`^#?(${grammar().query})$`).exec(text)?.[1];
   if (number) {
-    const found = items.filter((item) => item.number !== null && String(item.number).startsWith(number));
-    const exact = found.filter((item) => String(item.number) === number);
+    const found = items.filter((item) => item.number?.startsWith(number));
+    const exact = found.filter((item) => item.number === number);
     return [
       ...exact.filter((item) => item.isGoTo),
       ...exact.filter((item) => !item.isGoTo),
       ...items.filter((item) => item.number === null && item.context === text),
-      ...found.filter((item) => String(item.number) !== number),
+      ...found.filter((item) => item.number !== number),
     ];
   }
   const words = text.split(/\s+/);

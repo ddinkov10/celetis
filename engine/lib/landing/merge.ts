@@ -2,13 +2,15 @@ import { join } from 'node:path';
 import { HostError } from '../command/errors.ts';
 import { exits } from '../contract/contract.ts';
 import { streamBun } from '../process/process.ts';
+import type { IssueKey } from '../tracker/key.ts';
 import { github } from '../tracker/tracker.ts';
+import { keyedSubject } from '../workflow/workflow.ts';
 import type { LandingContext, Mechanism } from './landing.ts';
 
 export function mergeMechanism(context: LandingContext, suite: string): Mechanism {
   const { n, subject, main, trunk, branch, tip, base, checkout, stale, signal } = context;
   const { git, gitRaw, tracked, die, interrupted, preflight, setCleanup } = context;
-  const closeIssue = async (issue: string, body: string) => {
+  const closeIssue = async (issue: IssueKey, body: string) => {
     const gh = github(main, signal);
     await gh.comment(issue, body);
     await gh.edit(issue, { state: 'closed', state_reason: 'completed' });
@@ -59,14 +61,22 @@ export function mergeMechanism(context: LandingContext, suite: string): Mechanis
       let commit: string;
       if (tree === (await git(['rev-parse', `${base}^{tree}`]))) {
         setCleanup(open);
-        commit = await git(['log', '-n', '1', '--format=%H', '--fixed-strings', `--grep=(#${n})`, `origin/${trunk}`]);
+        commit = await git([
+          'log',
+          '-n',
+          '1',
+          '--format=%H',
+          '--fixed-strings',
+          `--grep=${keyedSubject('', n).trimStart()}`,
+          `origin/${trunk}`,
+        ]);
       } else {
         await preflight();
         if (!checkout) die('repair', `the lane worktree of ${branch} is missing`);
         const status = await streamBun(join(checkout, suite), [], checkout, signal);
         interrupted();
         if (status !== 0) die('checks', `the suite ${suite} failed with status ${status} at ${tip}`);
-        commit = await git(['commit-tree', `${tip}^{tree}`, '-p', base, '-m', `${subject} (#${n})`]);
+        commit = await git(['commit-tree', `${tip}^{tree}`, '-p', base, '-m', keyedSubject(subject, n)]);
         await preflight();
         await git(
           ['push', '-q', 'origin', `${commit}:refs/heads/${trunk}`],

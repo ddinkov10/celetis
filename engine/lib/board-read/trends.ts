@@ -2,6 +2,7 @@ import { constants } from 'node:fs';
 import { open, readFile } from 'node:fs/promises';
 import { commit } from '../state/fields.ts';
 import { type RepositoryLayout, repositoryLayout, withLock, writeAtomic } from '../state/state.ts';
+import { isKey } from '../tracker/key.ts';
 import type { CacheLine, DeliveryWindow, Sample } from './types.ts';
 
 const hour = 3_600_000;
@@ -16,8 +17,6 @@ type CommitLine = Extract<CacheLine, { sha: string }>;
 const validTime = (value: unknown): value is string => typeof value === 'string' && !Number.isNaN(Date.parse(value));
 const count = (value: unknown): value is number | null =>
   value === null || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0);
-const positive = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 
 async function readLines(path: string): Promise<Parsed[] | null> {
   let source: string;
@@ -47,10 +46,10 @@ function cacheOf(line: Parsed): CacheLine | null {
     return typeof line.sha === 'string' &&
       commit.test(line.sha) &&
       validTime(line.at) &&
-      (line.issue === null || positive(line.issue))
+      (line.issue === null || isKey(line.issue))
       ? { sha: line.sha, issue: line.issue, at: line.at }
       : null;
-  return positive(line.issue) && (line.createdAt === null || validTime(line.createdAt))
+  return isKey(line.issue) && (line.createdAt === null || validTime(line.createdAt))
     ? { issue: line.issue, createdAt: line.createdAt }
     : null;
 }

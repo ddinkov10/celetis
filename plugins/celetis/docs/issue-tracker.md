@@ -1,6 +1,6 @@
 # Issue tracker: GitHub
 
-Issues are the state store for every lane. The issue number `#<n>` is the handle that carries work between commands and sessions; state lives in the issue and the repo, never in chat history. The `gh` CLI infers the repo from the clone, and `{owner}/{repo}` in an API path fills itself in.
+Issues are the state store for every lane. The issue key `<n>` is the handle (`#<n>`) that carries work between commands and sessions; state lives in the issue and the repo, never in chat history. The tracker defines the issue key: for GitHub it is the number of the issue, and each command, file, and JSON value carries it as a string. `<n>` in this document stands for the key. The `gh` CLI infers the repo from the clone, and `{owner}/{repo}` in an API path fills itself in.
 
 The state, headings, paths, and branches are shared by both hosts. `/celetis:<skill>` names the
 shared skill. Skills run each `celetis` command with the explicit `--agent claude` or `--agent
@@ -27,7 +27,7 @@ Each issue write in the repository of the checkout goes through an act
 the refresh hint that a running board reads. `gh` serves the reads, the sub-issue link of an epic
 child, and the writes to another repository. In this document, `issue <n> <act>` stands for
 `celetis --agent <host> issue <n> <act>`, and `issue create <file>` for
-`celetis --agent <host> issue create <file>`, which takes no number. The command reads the issue
+`celetis --agent <host> issue create <file>`, which takes no issue key. The command reads the issue
 once, checks the prerequisite of the act with the rules of the resolver, and then writes. Epic acts
 also use the protected current-state reads in "Epic completion and repair":
 
@@ -36,7 +36,7 @@ also use the protected current-state reads in "Epic completion and repair":
 |---|---|---|
 | `route feature\|bug\|chore\|hotfix` | open; not an epic | the label of the lane; it removes the other lane labels and `needs-triage` |
 | `effort <step> <model> <level> <file>` | open | an `Effort: <step> <model> <level>` comment ("What lives on the issue", "Effort"); no label change |
-| `create <file>` | none; it takes no issue number | a new issue with the title from the first line `# Intent: <title>`, the whole file as its body, and `needs-triage`; it prints the URL of the new issue first |
+| `create <file>` | none; it takes no issue key | a new issue with the title from the first line `# Intent: <title>`, the whole file as its body, and `needs-triage`; it prints the URL of the new issue first |
 | `comment <file> [--attach <file>#<alt>]` | an issue, open or closed; not a pull request | the file as a comment, with each `--attach` file uploaded (the flag repeats, at most 50 times); it refuses a first line that is a lifecycle heading or the effort marker |
 | `epic <file>` | open feature or epic; valid declaration and current child references | the complete parent body, then adds `epic` and removes `enhancement` as needed; clears no hold |
 | `epic-state` | readable parent and complete children | nothing; the JSON snapshot of "Epic acceptance submission" |
@@ -231,13 +231,14 @@ unresolved; there is no compatibility interpretation or automatic independent de
 ## Epic acceptance submission
 
 `issue <n> epic-state` is read-only JSON. Its fields are `repository` (canonical repository URL),
-`parent` (number), `data` (current `state`, `labels`, `body`, and ordered `history`), `declaration`,
+`parent` (the issue key, as a JSON string), `data` (current `state`, `labels`, `body`, and ordered `history`), `declaration`,
 `children`, and `open` (unresolved human preconditions). A valid `declaration` has `kind: "valid"`,
 `acceptance`, and `definitionHash`; otherwise it has `kind: "unresolved"` and `reason`.
 The hash is SHA-256 of the exact normalized acceptance section. A changed hash requires coverage
 review. Incomplete or malformed tracker data fails the read rather than returning a partial set.
 
-Each sorted child has `url`, positive safe-integer `id` and `number`, `state` (`open` or `closed`),
+Each sorted child has `url`, a positive safe-integer `id`, `number` (the issue key, as a JSON string),
+`state` (`open` or `closed`),
 `stateReason` (`completed`, `not_planned`, `duplicate`, `reopened`, or null), and `closedAt` (ISO
 timestamp or null). Duplicate identities are refused. Reopening and closing a child changes its
 terminal snapshot. Its state or reason supplies no behavioral PASS.
@@ -248,12 +249,12 @@ one strict JSON file with exactly these fields:
 ```json
 {
   "repository": "https://github.com/owner/project",
-  "parent": 10,
+  "parent": "10",
   "definitionHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "children": [{
     "url": "https://github.com/owner/project/issues/11",
     "id": 211,
-    "number": 11,
+    "number": "11",
     "state": "closed",
     "stateReason": "completed",
     "closedAt": "2026-10-31T10:00:00Z"

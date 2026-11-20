@@ -1,7 +1,7 @@
 # The intent
 
 The template that `intake` fills for a raw request, and that a lane fills when it gets free text
-in place of an issue number (the lane start). Fill it from the source. Never invent a solution:
+in place of an issue key (the lane start). Fill it from the source. Never invent a solution:
 record the user's problem and wanted outcome in their own words.
 
 ## The template

@@ -3,6 +3,7 @@ import { HostError } from '../command/errors.ts';
 import { type ExitCode, exits } from '../contract/contract.ts';
 import { daemonScript, type ProcessState, processScript, processStart, processState } from '../process/identity.ts';
 import { childEnv, run } from '../process/process.ts';
+import type { IssueKey } from '../tracker/key.ts';
 import { repositoryLayout } from './state.ts';
 
 export type Identity = Readonly<{ pid: number; start: string }>;
@@ -34,6 +35,9 @@ function parsed(source: string): unknown {
 function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
+
+export const issueLock = (key: IssueKey): string => `issue-${key}`;
+export const landLock = (key: IssueKey): string => `land-${key}`;
 
 const ref = (name: string) => `refs/celetis/locks/${name}`;
 const recordPath = async (common: string) => repositoryLayout(common).noProgress;

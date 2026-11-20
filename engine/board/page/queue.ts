@@ -1,5 +1,6 @@
 import type { Host } from '../../lib/host/names.ts';
 import type { QueueAction, QueueRecord, QueueView } from '../../lib/queue/types.ts';
+import type { IssueKey } from '../../lib/tracker/key.ts';
 import type { Step } from '../../lib/workflow/workflow.ts';
 import type { Board } from '../types.ts';
 import { knownAgent, stateLabel } from '../view.ts';
@@ -19,8 +20,11 @@ const retired = new Set<string>();
 let options: { refresh: () => Promise<void> };
 const section = () => $('queue');
 const cards = () => Object.values(board?.columns ?? {}).flat();
-const available = () => cards().filter((card) => card.number !== null && !card.sessionId && card.run && card.step);
-const find = (number: number) => cards().find((card) => card.number === number);
+const available = () =>
+  cards().flatMap(({ number, ...card }) =>
+    number !== null && !card.sessionId && card.run && card.step ? [{ ...card, number }] : [],
+  );
+const find = (number: IssueKey) => cards().find((card) => card.number === number);
 const heading = () => section().querySelector<HTMLElement>('.queue-status h3');
 const expected = () => ({
   id: submitted?.record?.id ?? null,
@@ -121,7 +125,7 @@ const stateOf = () => {
   );
   return record.state === 'running' && observed ? 'running' : 'starting';
 };
-const row = (number: number, index: number, numbers: number[]) => {
+const row = (number: IssueKey, index: number, numbers: IssueKey[]) => {
   const node = el('li', `queue-row${index === 0 ? ' queue-current' : ''}`);
   node.dataset.number = String(number);
   const copy = el('div', 'queue-copy');
@@ -295,7 +299,7 @@ function draw(): void {
     el('p', '', 'Add puts the issue at the end of the queue, and starts the queue when it is empty.'),
   );
   for (const card of available()) {
-    const number = card.number as number;
+    const { number } = card;
     const item = el('div', 'queue-pick');
     const copy = el('div');
     copy.append(

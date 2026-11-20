@@ -122,11 +122,14 @@ The private session record is `/tmp/celetis-<uid>/dispatch/<host>-<session>.json
 or `<os.tmpdir()>/celetis/dispatch/<host>-<session>.json` on Windows. It uses private directories,
 mode-0600 record and lock files, a lock, and atomic replacement. Its key is the host and
 `CLAUDE_CODE_SESSION_ID` or `CODEX_SESSION_ID`. A new session starts at attempt 1. GitHub remains
-workflow state; this file is local execution evidence. Record schema 2 stores host/session only
-at the record root. An ordinary open converts a supported schema-1 record under the record lock,
-checks each report against the record and active host/session, and retains all history and an
-exact source archive before replacement. Invalid, unsupported, unmappable, unsafe, or unreadable records
-refuse intact; a busy lock or failed persistence also refuses. See
+workflow state; this file is local execution evidence. Record schema 3 stores host/session only
+at the record root, and the `issue` of each task and dispatch is the issue key as a JSON string
+(`"12"`). An ordinary open converts a supported schema-1 or schema-2 record under the record lock.
+A schema-1 record first converts in memory as it did to schema 2: each report must match the
+record and active host/session. The conversion then writes each issue number as its key, retains
+all history, and retains an exact source archive before replacement. Invalid, unsupported,
+unmappable, unsafe, or unreadable records, and a number that the grammar of the tracker refuses,
+refuse intact before the lock; a busy lock or failed persistence also refuses. See
 [ADR-0070](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0070-automatic-runtime-state-migration.md). The CLI result envelope remains schema 1.
 
 The acts of `dispatch` and the result of each ([the child dispatch](../references/procedures/dispatch.md#the-task-loop)

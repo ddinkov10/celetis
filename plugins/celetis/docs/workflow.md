@@ -56,7 +56,7 @@ celetis --agent <host> run 373 --effort xhigh  # the same, with its first sessio
 celetis --agent <host> run 373 --model sonnet  # the same, with its first session on sonnet
 celetis --agent <host> run resume 373          # the session of a step with no progress, again
 celetis --agent <host> queue status
-celetis --agent <host> queue action '{"kind":"add","number":12,"step":"plan","expected":{"id":null,"revision":0,"current":null}}'
+celetis --agent <host> queue action '{"kind":"add","number":"12","step":"plan","expected":{"id":null,"revision":0,"current":null}}'
 celetis run retry 373 <wait id>               # one bounded attempt cycle of a quota wait
 celetis daemon status                          # the runs of the daemon, with their progress
 ```
@@ -75,7 +75,7 @@ Start the master daemon once for each repository with `celetis daemon start`, fr
 the environment that the runs need
 ([The master daemon](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#the-master-daemon)).
 
-A start with a number, `celetis --agent <host> run <n>`, asks the daemon for the next step of the
+A start with an issue key, `celetis --agent <host> run <n>`, asks the daemon for the next step of the
 issue and returns at the answer of the daemon. With the default gates, it runs one step of that
 issue. When the outcome of the request is unknown, read
 `celetis daemon status` before you send the request again: a second start can start a second step.
@@ -96,7 +96,7 @@ and `celetis run retry <n> <wait id>` wakes a quota wait for one attempt cycle
 
 An argument is `<n>`, or `'#<n>'` in quotes. A shell can read an unquoted word that starts with `#`
 as the start of a comment: the script then gets neither that word nor the words after it, and with
-no number it prints its usage line and exits 2. Each line of `run`, `queue`, and the daemon starts
+no key it prints its usage line and exits 2. Each line of `run`, `queue`, and the daemon starts
 with the name of its command and a colon, apart from the usage line and the lines of the queue,
 the recovery, the session, and the state, which keep their own prefix. A client prints the answer
 of the daemon as it comes.
@@ -110,7 +110,7 @@ A line that tells you to start the run again means: send the request again. A li
 to start the daemon again means: start the daemon when it does not run, then send the request
 again.
 
-The script asks for no confirmation. A start with the number of an issue whose next step is
+The script asks for no confirmation. A start with the key of an issue whose next step is
 `implement`, `chore`, or `hotfix` builds the change and lands it with `celetis --agent <host> land` when
 its checks are green, with no more act of yours. With an `auto` gate on a step, the daemon run
 continues through that step by itself.
@@ -417,7 +417,7 @@ the command of the `run` line with no prefix: `triage`, `bug`, `chore`, `hotfix`
 `enhancement` with no spec, is the step `specify`.
 
 `gates` in the main checkout's `.celetis.yaml` holds the project gates; each omitted step is `manual`
-(`docs/configuration.md`, "Fields and defaults"). The default gates start one step for each number
+(`docs/configuration.md`, "Fields and defaults"). The default gates start one step for each issue key
 or Run press. With `specify` as `auto`, the daemon starts a design session and waits for your first
 answer.
 
@@ -435,7 +435,7 @@ only when the list names `triage`. A run of auto mode continues only into a lane
 a triage routes its issue to another lane, the run ends before the next step, and a Run press or
 `celetis --agent <host> run <n>` starts that step. With no `autoLanes`, auto mode takes each lane
 and each issue with no lane. The gates stay in force inside a listed lane. The list changes only
-auto mode: a start with a number, a Run press, a queue run, `run resume`, and `run retry` work in
+auto mode: a start with an issue key, a Run press, a queue run, `run resume`, and `run retry` work in
 each lane. An edit of the list applies at the next read of auto mode and before the next step of
 its run, with no restart of the daemon.
 

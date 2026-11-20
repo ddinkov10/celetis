@@ -7,6 +7,7 @@ import type { Next } from '../resolver/lines.ts';
 import { isSessionId } from '../state/fields.ts';
 import { checkFolder, ensureFolder, repositoryLayout, writeAtomic } from '../state/state.ts';
 import { isSafeId } from '../terminal/terminal.ts';
+import { type IssueKey, isKey } from '../tracker/key.ts';
 
 export type StepEndState = 'checking' | 'waiting' | 'exiting';
 export type TurnKey = { terminalId: string; sessionId: string; sequence: number };
@@ -51,12 +52,12 @@ const valid = (value: unknown): value is StepEndRecord => {
   );
 };
 
-async function layoutOf(main: string, issue: number) {
-  if (!Number.isSafeInteger(issue) || issue <= 0) throw new Error('step-end: invalid issue number');
+async function layoutOf(main: string, issue: IssueKey) {
+  if (!isKey(issue)) throw new Error('step-end: invalid issue number');
   return repositoryLayout(await commonDir(main));
 }
 
-export async function writeStepEnd(main: string, issue: number, record: StepEndRecord): Promise<void> {
+export async function writeStepEnd(main: string, issue: IssueKey, record: StepEndRecord): Promise<void> {
   if (!valid(record)) throw new Error('step-end: invalid record');
   const layout = await layoutOf(main, issue);
   ensureFolder(layout.root);
@@ -64,7 +65,7 @@ export async function writeStepEnd(main: string, issue: number, record: StepEndR
   await writeAtomic(layout.stepEnd(issue), `${JSON.stringify(record)}\n`);
 }
 
-export async function readStepEnd(main: string, issue: number): Promise<StepEndRecord | null> {
+export async function readStepEnd(main: string, issue: IssueKey): Promise<StepEndRecord | null> {
   try {
     const layout = await layoutOf(main, issue);
     checkFolder(layout.root);
@@ -91,7 +92,7 @@ export async function readStepEnd(main: string, issue: number): Promise<StepEndR
   }
 }
 
-export async function removeStepEnd(main: string, issue: number): Promise<void> {
+export async function removeStepEnd(main: string, issue: IssueKey): Promise<void> {
   const file = (await layoutOf(main, issue)).stepEnd(issue);
   try {
     await rm(file, { force: true });

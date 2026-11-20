@@ -20,7 +20,7 @@ import { completeEpic, readEpic, writeEpicDefinition } from './lib/epic/epic.ts'
 import { hostAdapter } from './lib/host/hosts.ts';
 import { lineOf } from './lib/resolver/lines.ts';
 import { installRecorder, markDefect } from './lib/state/events.ts';
-import { isIssueNumber } from './lib/state/fields.ts';
+import { parseHandle } from './lib/tracker/key.ts';
 import { writeRefreshHint } from './lib/tracker/refresh-hints.ts';
 import { type Edit, GitHubError, github } from './lib/tracker/tracker.ts';
 import { decidable, effortMarker, isLevel, isModel } from './lib/workflow/effort.ts';
@@ -204,7 +204,7 @@ async function createIssue(argv: string[], explicit: string | undefined): Promis
     );
   });
   console.log(issue.url);
-  await writeRefreshHint(main, issue.number);
+  await writeRefreshHint(main, issue.key);
   if (!issue.labels.includes('needs-triage'))
     die(
       'blocked',
@@ -217,14 +217,14 @@ async function createIssue(argv: string[], explicit: string | undefined): Promis
 
 async function commentIssue(argv: string[], explicit: string | undefined): Promise<ExitCode> {
   const [number = '', , file = '', ...pairs] = argv;
-  const n = number.replace(/^#/, '');
+  const n = parseHandle(number);
   const attachments: string[] = [];
   for (let index = 0; index < pairs.length; index += 2) {
     const value = pairs[index + 1];
     if (pairs[index] !== '--attach' || !value) die('usage', usageText('issue'));
     attachments.push(value);
   }
-  if (!isIssueNumber(n) || !file || attachments.length > maxAttachments) die('usage', usageText('issue'));
+  if (n === null || !file || attachments.length > maxAttachments) die('usage', usageText('issue'));
   const text = await readText(file);
   if (!text.trim()) die('usage', `${file} is empty; give the text of the comment`);
   const start = text.replace(/^\uFEFF/, '').trimStart();
@@ -258,7 +258,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
   if (argv[0] === 'create') return createIssue(argv, explicit);
   if (argv[1] === 'comment') return commentIssue(argv, explicit);
   const [number = '', name = '', argument = '', flag] = argv;
-  const n = number.replace(/^#/, '');
+  const n = parseHandle(number);
   const known = Object.hasOwn(acts, name) ? (name as EngineAct) : undefined;
   const act = known && acts[known];
   const kind = known && issueActs[known].argument;
@@ -269,7 +269,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
   const effort = step && isModel(flag) && isLevel(level) ? effortMarker(step, flag, level) : '';
   const file = kind === 'effort' ? (argv[5] ?? '') : argument;
   if (
-    !isIssueNumber(n) ||
+    n === null ||
     (epic
       ? name === 'complete-epic'
         ? argv.length < 2 || argv.length > 3
