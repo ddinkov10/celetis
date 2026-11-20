@@ -1,5 +1,0 @@
-prefix_rule(
-    pattern = ["gh", "pr", "merge"],
-    decision = "forbidden",
-    justification = "Use celetis --agent codex land from the main checkout.",
-)

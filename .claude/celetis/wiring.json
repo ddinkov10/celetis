@@ -1,6 +1,6 @@
 {
   "answers": {
-    "hosts": ["claude", "codex"],
+    "hosts": ["claude"],
     "tracker": "github"
   },
   "entries": {
@@ -40,6 +40,7 @@
       }
     ]
   },
-  "files": [".claude/celetis/wiring.json", ".codex/rules/celetis.rules"],
+  "files": [".claude/celetis/wiring.json"],
+  "release": "0.0.1",
   "schema": 1
 }
