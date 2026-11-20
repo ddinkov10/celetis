@@ -21,3 +21,12 @@ This repository holds:
 - the maintenance scripts: `scripts/`, described in [`scripts/README.md`](scripts/README.md).
 
 [`plugins/celetis/README.md`](plugins/celetis/README.md) holds the install, the full loop, the skills, the commands, and the updates. [`plugins/celetis/docs/setup.md`](plugins/celetis/docs/setup.md) holds what setup writes, and [`plugins/celetis/docs/workflow.md`](plugins/celetis/docs/workflow.md) holds the steps of a run as a session and a person meet them. [`engine/board/README.md`](engine/board/README.md) holds the board.
+
+## Documentation
+
+- [About Celetis](docs/explanation/overview.md): What is Celetis, what are its parts, and where in the code is each part?
+- [About the lifecycle of a change](docs/explanation/change-lifecycle.md): How does a request become a change on the trunk, and why is the issue the state store?
+- [About the skills and the agent text](docs/explanation/agent-text.md): How do the skills, the procedure modules, and the principles steer an agent, and why one copy serves both hosts?
+- [About the daemon and its runs](docs/explanation/daemon-and-runs.md): What does the daemon do, how does a run move from step to step, and what does auto mode change?
+- [About the board](docs/explanation/board.md): What does the board show, and why does no card move by hand?
+- [About the records](docs/explanation/records.md): Why does Celetis keep ADRs, lessons, and a constitution, and how does each one steer later work?

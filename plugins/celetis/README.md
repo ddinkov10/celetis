@@ -14,7 +14,7 @@ no immutable-resource or automatic skill-reload guarantee (ADR-0028). Desktop au
 The repository holds the plugin in `plugins/celetis/` and the engine beside it, and it reaches a
 machine in two forms:
 
-- The plugin of each host gives its sessions the 36 skills ("The skills"), the procedure modules,
+- The plugin of each host gives its sessions the 37 skills ("The skills"), the procedure modules,
   the principles, the entry hook, and the documents. The step text of a run is `step-prompt.md`.
 - The engine is the folder `engine/`, with its entry `engine/celetis` ("The commands"). It runs
   each command, also the daemon and the board, and the daemon gives each step session a facts
@@ -240,7 +240,7 @@ or the board's update control ("Updates").
    ```
 
    The install enables the plugin at the `user` scope, so each session of the machine loads it, in
-   each folder. A session in a project that is not wired also lists the 36 skills. Before its
+   each folder. A session in a project that is not wired also lists the 37 skills. Before its
    first step, each lane skill (`feature`, `bug`, `chore`, `hotfix`) runs
    `celetis --agent <host> setup status`. When the wiring is incomplete, the lane shows each gap
    and `Run /celetis:setup in the main checkout: <path>`, and stops before any issue, label,
@@ -567,6 +567,7 @@ On Codex, explicitly name or select the advertised `celetis:<skill>` as describe
 | | [`/celetis:record-architecture-decisions`](skills/record-architecture-decisions/SKILL.md) | Reads and writes the records of `docs/adr/` |
 | | [`/celetis:constitution`](skills/constitution/SKILL.md) | Writes and amends `CONSTITUTION.md` with your approval of the text. Only you can start it |
 | | [`/celetis:doc-drift-sync`](skills/doc-drift-sync/SKILL.md) | Corrects mechanical drift from source and behavioral drift from approved intent; reports implementation defects and uncertain evidence |
+| | [`/celetis:document`](skills/document/SKILL.md) | Writes the documents that the readers of the product need, by type (tutorial, how-to guide, reference, explanation), from the sources of the project, after your approval of the set. Only you can start it |
 | **Principles** | [`/celetis:attack-the-premise`](skills/attack-the-premise/SKILL.md) | Checks a shared premise after two fixes fail |
 | | [`/celetis:encode-lessons-in-structure`](skills/encode-lessons-in-structure/SKILL.md) | Uses structural prevention when a mistake or corrective instruction repeats |
 | | [`/celetis:make-operations-idempotent`](skills/make-operations-idempotent/SKILL.md) | Checks duplicate runs and recovery for operations that change persistent state |
@@ -608,7 +609,7 @@ Each principle is also a native skill. An ordinary engineering task can select i
 by name without an issue, a lane, or project configuration. The normal entry contract applies.
 Each invocation reads its one canonical rule file.
 
-`capture`, `constitution`, `coordinate`, `feedback`, `guide`, `setup`, `create-verification`, and `maintain-verification` are explicit-only on both
+`accept-epic`, `capture`, `constitution`, `coordinate`, `document`, `feedback`, `guide`, `setup`, `create-verification`, and `maintain-verification` are explicit-only on both
 hosts. Claude reads `disable-model-invocation: true`;
 Codex reads `policy.allow_implicit_invocation: false` in each skill's
 `agents/openai.yaml`. Guide reads its custom part and gives advice; it starts no
