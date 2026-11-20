@@ -23,9 +23,6 @@
       },
       {
         "path": ["enabledPlugins", "superpowers@superpowers-marketplace"]
-      },
-      {
-        "path": ["extraKnownMarketplaces", "celetis"]
       }
     ],
     ".gitattributes": [".celetis.yaml text eol=lf"],

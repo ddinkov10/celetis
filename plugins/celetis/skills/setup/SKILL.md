@@ -11,8 +11,9 @@ Setup approval does not approve a plugin update. The entry contract owns the rea
 check. One affirmative response in an interactive terminal, or a person's direct click on the
 board's **Update and restart** control, permits one exact update attempt. An agent cannot supply
 either response for the person. Verification with temporary installation data is permitted.
-Required Celetis marketplace entries use `autoUpdate: false`. Valid recorded scopes authorize
-refresh and removal, including manual edits inside an owned object key or dedicated whole file.
+Setup writes no Celetis marketplace entry, because a project entry overrides the pin of a machine.
+Valid recorded scopes authorize refresh and removal, including manual edits inside an owned object
+key or dedicated whole file.
 Show each replacement and removal before the existing commit-and-push question. Preserve
 differing unowned entries and report their exact warnings for owner action. The command checks project settings only. Report that scope and each
 known effective local, user, managed, or native policy conflict. Generated policy is not proof

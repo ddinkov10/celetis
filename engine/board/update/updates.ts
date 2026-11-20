@@ -34,7 +34,9 @@ class WorkerFailure extends Error {
 type Worker = { done: Promise<UpdateCheck | UpdateResult>; stop(reason: string): void };
 type Component = 'engine' | PluginHost;
 const pendingParts = (offer: PreparedUpdate): Component[] => [
-  ...offer.plugins.filter((plugin) => plugin.installed !== plugin.target).map((plugin) => plugin.host),
+  ...offer.plugins
+    .filter((plugin) => plugin.installed !== plugin.target || plugin.resolvedRef !== plugin.to)
+    .map((plugin) => plugin.host),
   ...(offer.engine.source.revision !== offer.target ? (['engine'] as const) : []),
 ];
 

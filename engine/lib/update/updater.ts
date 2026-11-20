@@ -1,6 +1,6 @@
 import { lstat, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { isAbsolute, join } from 'node:path';
+import { basename, dirname, isAbsolute, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { HostError, NotInstalled } from '../command/errors.ts';
 import { commandInput } from '../command/operation.ts';
@@ -29,13 +29,17 @@ import {
   nativeJson,
   object,
 } from '../plugin/metadata.ts';
-import { checkClaudePolicy, claudePolicy, requireUpdatePolicy } from '../plugin/policy.ts';
+import { checkClaudePolicy, claudePolicy, type PolicyRecord, requireUpdatePolicy } from '../plugin/policy.ts';
 import { git } from '../process/git.ts';
 import { bunArgs, childEnv, run } from '../process/process.ts';
+import { type Ref, releaseParts } from '../release/release.ts';
+import { editJSON, jsonStyle } from '../setup/json-layout.ts';
+import { ambiguousJSON } from '../setup/wiring.ts';
 import { installRecorder, markDefect } from '../state/events.ts';
 import { revision } from '../state/fields.ts';
 import { writeAtomic } from '../state/state.ts';
 import { UpdateLock, withPluginRead } from './lock.ts';
+import { followTarget, fullRef, newestTarget, requestTarget, resolveRef } from './target.ts';
 import type { UpdateStage } from './types.ts';
 
 export type { UpdateStage };
@@ -50,19 +54,22 @@ export type Installation = {
   installed: string;
   scope?: string;
   registered?: unknown;
+  user: Readonly<{ path: string; source: Record<string, unknown> }> | null;
+  layer: string | null;
   siblings: string[];
 };
 type Offer = Omit<UpdateTarget, 'home'> & { ref: string };
 export type Part =
   | { part: 'engine' | PluginHost; skipped: string }
   | { part: 'engine' | PluginHost; error: string }
-  | ({ part: 'engine' } & Offer)
-  | ({ part: PluginHost } & UpdateTarget & { ref: string });
+  | ({ part: 'engine' } & Offer & { to: string })
+  | ({ part: PluginHost } & UpdateTarget & { ref: string; to: string });
 export type PreparedUpdate = {
   parts: Part[];
-  engine: { installed: Engine; source: EngineSource };
-  plugins: (Installation & { target: string; resolvedRef: string })[];
+  engine: { installed: Engine; source: EngineSource; to: EngineSource };
+  plugins: (Installation & { target: string; resolvedRef: string; to: string; toRef: Ref })[];
   target: string;
+  request: string | null;
 };
 export type UpdateCheck = { parts: Part[]; offer: PreparedUpdate | null; error: string | null };
 export type UpdateResult = {
@@ -114,6 +121,56 @@ function gitSource(value: unknown): { source: string; ref: string } {
   return { source, ref };
 }
 
+function claudeArg(source: Record<string, unknown>): string {
+  if (source.source === 'github' && typeof source.repo === 'string') return source.repo;
+  if (source.source === 'git' && typeof source.url === 'string') return source.url;
+  throw new HostError(
+    'update: the Claude user entry of celetis needs a github or git source; repair the user settings',
+    exits.prerequisite,
+  );
+}
+
+async function sameSource(layer: unknown, own: ReturnType<typeof gitSource>, cwd: string): Promise<boolean> {
+  let declared: ReturnType<typeof gitSource>;
+  try {
+    declared = gitSource(layer);
+  } catch {
+    return false;
+  }
+  if (declared.source !== own.source) return false;
+  if (declared.ref === own.ref) return true;
+  const full = (ref: string) =>
+    resolveRef(own.source, ref, cwd).then(
+      (resolved) => resolved.full,
+      (error: unknown) => {
+        if (error instanceof HostError && error.code === exits.prerequisite) return null;
+        throw error;
+      },
+    );
+  const [a, b] = [await full(declared.ref), await full(own.ref)];
+  return a !== null && a === b;
+}
+
+async function conflictingLayer(
+  policies: PolicyRecord[],
+  userPath: string,
+  pin: ReturnType<typeof gitSource>,
+  cwd: string,
+): Promise<string | null> {
+  for (const { path, value } of policies) {
+    if (
+      path === userPath ||
+      basename(dirname(path)) !== '.claude' ||
+      !['settings.json', 'settings.local.json'].includes(basename(path))
+    )
+      continue;
+    const markets = value.extraKnownMarketplaces;
+    const market = object(markets) ? markets.celetis : undefined;
+    if (object(market) && Object.hasOwn(market, 'source') && !(await sameSource(market.source, pin, cwd))) return path;
+  }
+  return null;
+}
+
 async function claudeRegistrations(records: unknown, scope: unknown, version: unknown, root: string) {
   const matches: Record<string, unknown>[] = [];
   if (Array.isArray(records))
@@ -131,9 +188,11 @@ async function claudeRegistrations(records: unknown, scope: unknown, version: un
   return matches;
 }
 
-async function installation(host: PluginHost, cwd: string): Promise<Installation> {
+async function installation(host: PluginHost, cwd: string): Promise<[Installation, PolicyRecord[]]> {
   const home = await bindUpdateHome(host);
   let siblings: string[] = [];
+  let user: Installation['user'] = null;
+  let policies: PolicyRecord[] = [];
   let scope: string | undefined;
   let registeredSource: unknown;
   let root: string;
@@ -155,19 +214,31 @@ async function installation(host: PluginHost, cwd: string): Promise<Installation
     const manifest = await jsonFile(join(root, '.claude-plugin/plugin.json'));
     if (manifest.name !== 'celetis')
       throw new HostError(`update: wrong installed plugin identity in ${root}`, exits.prerequisite);
-    const policies = await claudePolicy(cwd);
+    policies = await claudePolicy(cwd);
     checkClaudePolicy(policies);
-    const nativeMarket = policies.find(
-      (record) => record.path === join(configHome(host), 'plugins/known_marketplaces.json'),
-    )?.value.celetis;
+    const knownPath = join(configHome(host), 'plugins/known_marketplaces.json');
+    const nativeMarket = policies.find((record) => record.path === knownPath)?.value.celetis;
     registeredSource = nativeMarket;
+    const settingsPath = join(configHome(host), 'settings.json');
+    const userMarkets = policies.find((record) => record.path === settingsPath)?.value.extraKnownMarketplaces;
+    const userMarket = object(userMarkets) ? userMarkets.celetis : undefined;
+    if (object(userMarket) && object(userMarket.source)) user = { path: settingsPath, source: userMarket.source };
+    if (user && object(nativeMarket) && object(nativeMarket.source)) {
+      const follows = nativeMarket.source.ref ?? 'HEAD';
+      const pins = user.source.ref ?? 'HEAD';
+      if (follows !== pins)
+        throw new HostError(
+          `update: the Claude marketplace catalog in ${knownPath} follows ${String(follows)}, and the user entry in ${settingsPath} pins ${String(pins)}; run claude plugin marketplace add ${claudeArg(user.source)}${pins === 'HEAD' ? '' : `#${String(pins)}`} in a folder with no project entry of celetis, then run celetis update again`,
+          exits.prerequisite,
+        );
+    }
     let configuredSource: unknown;
     for (const { value } of policies) {
       const markets = value.extraKnownMarketplaces;
       const market = object(markets) ? markets.celetis : value.celetis;
       if (object(market) && Object.hasOwn(market, 'source')) configuredSource = market.source;
     }
-    configured = gitSource(configuredSource);
+    configured = gitSource(user ? user.source : configuredSource);
     const registry = await jsonFile(join(configHome(host), 'plugins/installed_plugins.json'), true);
     if (registry.version === 2 && object(registry.plugins)) {
       const records = registry.plugins['celetis@celetis'];
@@ -237,51 +308,44 @@ async function installation(host: PluginHost, cwd: string): Promise<Installation
       .sort();
     installed = await codexRevision(metadata, configured.source);
   }
-  return {
-    host,
-    home,
-    source: configured.source,
-    installed,
-    root: await realpath(root),
-    ref: configured.ref,
-    scope,
-    registered: registeredSource,
-    siblings,
-  };
+  return [
+    {
+      host,
+      home,
+      source: configured.source,
+      installed,
+      root: await realpath(root),
+      ref: configured.ref,
+      scope,
+      registered: registeredSource,
+      user,
+      layer: null,
+      siblings,
+    },
+    policies,
+  ];
 }
 
-async function remoteTarget(source: string, ref: string, cwd: string): Promise<{ ref: string; target: string }> {
-  let remote: string;
-  try {
-    remote = await git(['ls-remote', '--symref', '--', source, ref, `${ref}^{}`], cwd);
-  } catch (error) {
-    throw new HostError(`update: cannot resolve configured Git ref ${ref}: ${(error as Error).message}`, exits.blocked);
-  }
-  const names = new Map<string, string>();
-  const records: string[][] = [];
-  for (const line of remote.split('\n').filter(Boolean))
-    if (line.startsWith('ref: ')) {
-      const [name = '', base = ''] = line.slice(5).split('\t');
-      names.set(base, name);
-    } else records.push(line.split('\t'));
-  if (records.some(([sha, name]) => !sha || !revision.test(sha) || !name))
-    throw new HostError(`update: invalid remote revision for configured ref ${ref}`, exits.blocked);
-  const base = records.filter(([, name]) => !name?.endsWith('^{}'));
-  if (base.length !== 1)
-    throw new HostError(
-      `update: configured ref ${ref} is missing or ambiguous; choose one native Git ref`,
-      exits.prerequisite,
-    );
-  const selected = base[0]?.[1] ?? '';
-  const target = records.find(([, name]) => name === `${selected}^{}`)?.[0] ?? base[0]?.[0];
-  if (!target) throw new HostError(`update: no full revision for configured ref ${ref}`, exits.blocked);
-  return { ref: names.get(selected) || selected, target };
-}
+const inspectArgs = (host: PluginHost, request: string | null) =>
+  bunArgs(import.meta.path, ['--inspect', host, ...(request === null ? [] : [request])]);
 
-async function inspect(host: PluginHost, cwd: string): Promise<Installation & { target: string; resolvedRef: string }> {
-  const found = await installation(host, cwd);
-  const { ref, target } = await remoteTarget(found.source, found.ref, cwd);
-  return { ...found, target, resolvedRef: ref };
+async function inspect(host: PluginHost, cwd: string, request: string | null): Promise<PluginUpdate> {
+  const [found, policies] = await installation(host, cwd);
+  const current = await resolveRef(found.source, found.ref, cwd).catch(async (error: unknown) => {
+    if (error instanceof HostError && error.code === exits.prerequisite && releaseParts(found.ref) !== null)
+      await newestTarget(found.source, cwd);
+    throw error;
+  });
+  const to =
+    request !== null
+      ? await requestTarget(found.source, request, cwd)
+      : current.ref.kind === 'branch'
+        ? current
+        : await followTarget(found.source, current.ref, cwd);
+  const layer = found.user
+    ? await conflictingLayer(policies, found.user.path, { source: found.source, ref: to.full }, cwd)
+    : null;
+  return { ...found, layer, target: to.target, resolvedRef: current.full, to: to.full, toRef: to.ref };
 }
 
 async function settle(part: 'engine' | PluginHost, read: () => Promise<Part>): Promise<Part> {
@@ -293,7 +357,12 @@ async function settle(part: 'engine' | PluginHost, read: () => Promise<Part>): P
   }
 }
 
-async function inspectPlugin(host: PluginHost, cwd: string, ownerPid?: number): Promise<PluginUpdate | string> {
+async function inspectPlugin(
+  host: PluginHost,
+  cwd: string,
+  request: string | null,
+  ownerPid?: number,
+): Promise<PluginUpdate | string> {
   if (!hostAvailability(host).available) return `no ${host} command on PATH`;
   if (host === 'codex') {
     const home = configHome(host);
@@ -309,7 +378,7 @@ async function inspectPlugin(host: PluginHost, cwd: string, ownerPid?: number): 
     const value = JSON.parse(output) as PluginUpdate | { skipped: string };
     return 'skipped' in value ? value.skipped : value;
   };
-  const args = bunArgs(import.meta.path, ['--inspect', host]);
+  const args = inspectArgs(host, request);
   if (ownerPid !== undefined) {
     const home = await realpath(configHome(host));
     const lock = await UpdateLock.acquire(join(home, 'celetis-update.lock'), ownerPid, { refuseBusy: true });
@@ -328,8 +397,8 @@ async function inspectPlugin(host: PluginHost, cwd: string, ownerPid?: number): 
   });
 }
 
-function pluginPart({ host, home, root, source, resolvedRef, installed, target }: PluginUpdate): Part {
-  return { part: host, home, root, source, ref: resolvedRef, installed, target };
+function pluginPart({ host, home, root, source, resolvedRef, to, installed, target }: PluginUpdate): Part {
+  return { part: host, home, root, source, ref: resolvedRef, to, installed, target };
 }
 
 const slow: typeof run = (file, args, options) =>
@@ -389,8 +458,24 @@ function pairLines(
   });
 }
 
+function claudeStops(plugins: PluginUpdate[]): string[] {
+  return plugins.flatMap((plugin) => {
+    if (plugin.host !== 'claude') return [];
+    if (plugin.layer !== null && plugin.user !== null)
+      return [
+        `update: ${plugin.layer} declares the marketplace celetis with another source or ref than ${plugin.user.path}; remove that entry (setup removes an entry that it owns), then run celetis update again`,
+      ];
+    if (plugin.user === null && plugin.to !== plugin.resolvedRef)
+      return [
+        `update: the user settings of Claude Code hold no marketplace celetis; add it as plugins/celetis/README.md, "Each machine: Claude Code", says: claude plugin marketplace add ${plugin.source}#${plugin.toRef.name}`,
+      ];
+    return [];
+  });
+}
+
 async function discoverUpdate(
   cwd: string,
+  request: string | null,
   ownerPid?: number,
   changed = false,
 ): Promise<{ parts: Part[]; prepared: PreparedUpdate | null; error: string | null }> {
@@ -410,18 +495,27 @@ async function discoverUpdate(
             'update: installed engine link and Git revision disagree; repair the engine',
             exits.prerequisite,
           );
-        const resolved = await remoteTarget(source.source, `refs/heads/${source.branch}`, cwd);
+        const resolved =
+          request === null
+            ? await followTarget(source.source, source.ref, cwd)
+            : await requestTarget(source.source, request, cwd);
+        if (resolved.target === source.revision && resolved.full !== fullRef(source.ref))
+          throw new HostError(
+            `update: the engine follows ${fullRef(source.ref)} at ${short(source.revision)}, and ${resolved.full} is the same commit; the engine cannot move between two refs at one commit`,
+            exits.prerequisite,
+          );
         const text =
           source.revision === resolved.target
             ? await fileOnDisk(join(installed.root, servedContractsFile))
             : await fileAt(scratch, source.source, resolved.target, servedContractsFile);
         serves = text === null ? null : servedContracts(text);
-        engine = { installed, source };
+        engine = { installed, source, to: { source: source.source, ref: resolved.ref, revision: resolved.target } };
         return {
           part: 'engine',
           root: installed.root,
           source: source.source,
-          ref: resolved.ref,
+          ref: fullRef(source.ref),
+          to: resolved.full,
           installed: source.revision,
           target: resolved.target,
         };
@@ -430,7 +524,7 @@ async function discoverUpdate(
     for (const host of pluginHosts)
       found.push(
         await settle(host, async () => {
-          const inspected = await inspectPlugin(host, cwd, ownerPid);
+          const inspected = await inspectPlugin(host, cwd, request, ownerPid);
           if (typeof inspected === 'string') return { part: host, skipped: inspected };
           const text =
             inspected.installed === inspected.target
@@ -444,8 +538,10 @@ async function discoverUpdate(
     const first = found[0];
     const target = first && 'target' in first ? first.target : undefined;
     let error: string | null = null;
+    const stops = claudeStops(plugins);
     if (found.some((part) => 'error' in part))
       error = `update: fix the errors above${changed ? '' : '; nothing changed'}`;
+    else if (stops.length) error = stops.join('\n');
     else if (!engine || !target)
       error =
         'update: the celetis engine is not installed; run the first install of plugins/celetis/README.md, "First install"';
@@ -455,7 +551,7 @@ async function discoverUpdate(
     else error = pairLines(serves, target, plugins, needs, changed).join('\n') || null;
     return {
       parts: found,
-      prepared: !error && engine && target ? { parts: found, engine, plugins, target } : null,
+      prepared: !error && engine && target ? { parts: found, engine, plugins, target, request } : null,
       error,
     };
   } finally {
@@ -463,11 +559,15 @@ async function discoverUpdate(
   }
 }
 
-export async function inspectUpdate(cwd: string): Promise<UpdateCheck> {
-  const { parts, prepared, error } = await discoverUpdate(cwd);
+export async function inspectUpdate(cwd: string, request: string | null = null): Promise<UpdateCheck> {
+  const { parts, prepared, error } = await discoverUpdate(cwd, request);
   return {
     parts,
-    offer: prepared?.parts.some((part) => 'installed' in part && part.installed !== part.target) ? prepared : null,
+    offer: prepared?.parts.some(
+      (part) => 'installed' in part && (part.installed !== part.target || part.ref !== part.to),
+    )
+      ? prepared
+      : null,
     error,
   };
 }
@@ -494,7 +594,108 @@ async function replaceClaudeMarketplace(
   await writeAtomic(path, JSON.stringify({ ...registry, celetis: replacement }), { mode: metadata.mode & 0o7777 });
 }
 
-async function updatePlugin(ownerPid: number, host: PluginHost, target: PluginUpdate): Promise<PluginUpdate> {
+async function moveClaude(
+  lock: UpdateLock,
+  env: NodeJS.ProcessEnv,
+  config: string,
+  target: PluginUpdate,
+  completed: string[],
+): Promise<PluginUpdate> {
+  const user = target.user;
+  if (!user)
+    throw new HostError(
+      `update: ${join(config, 'settings.json')} has no user entry extraKnownMarketplaces.celetis to move; add the marketplace at user scope`,
+      exits.prerequisite,
+    );
+  const name = target.toRef.name;
+  const text = await readFile(user.path, 'utf8');
+  if (ambiguousJSON(text))
+    throw new HostError(`update: ${user.path} holds ambiguous JSON; repair it, then check again`, exits.prerequisite);
+  const doc: unknown = JSON.parse(text);
+  const markets = object(doc) ? doc.extraKnownMarketplaces : undefined;
+  const market = object(markets) ? markets.celetis : undefined;
+  if (!object(market) || !isDeepStrictEqual(market.source, user.source))
+    throw new HostError(`update: the user entry of celetis in ${user.path} changed; check again`, exits.prerequisite);
+  const arg = claudeArg(user.source);
+  const source = { ...user.source, ref: name };
+  market.source = source;
+  const next = editJSON(text, doc, jsonStyle(text, text), []);
+  if (!isDeepStrictEqual(JSON.parse(next), doc))
+    throw new HostError(`update: cannot keep the layout of ${user.path}; no change was written`, exits.internal);
+  const metadata = await lstat(user.path);
+  if (!metadata.isFile())
+    throw new HostError(`update: ${user.path} needs a regular file with no symbolic link`, exits.blocked);
+  await writeAtomic(user.path, next, {
+    mode: metadata.mode & 0o7777,
+    check: async () => {
+      if ((await readFile(user.path, 'utf8')) !== text)
+        throw new HostError(`update: another writer changed ${user.path}; no change was written`, exits.blocked);
+    },
+  });
+  completed.push(`claude user entry ref ${name}`);
+  try {
+    await lock.run('claude', ['plugin', 'marketplace', 'add', '--scope', 'user', '--json', '--', `${arg}#${name}`], {
+      cwd: process.cwd(),
+      env,
+    });
+  } catch (error) {
+    throw new HostError(
+      [
+        `update: the user entry in ${user.path} pins ${name}, and the marketplace add failed: ${(error as Error).message}`,
+        `repair: claude plugin marketplace add ${arg}#${name}`,
+      ].join('\n'),
+      exits.blocked,
+    );
+  }
+  completed.push(`claude marketplace add ${arg}#${name}`);
+  const registryPath = join(config, 'plugins/known_marketplaces.json');
+  const registered = (await jsonFile(registryPath)).celetis;
+  if (
+    !object(registered) ||
+    !isDeepStrictEqual(registered.source, source) ||
+    !object(target.registered) ||
+    registered.installLocation !== target.registered.installLocation
+  )
+    throw new HostError(
+      `update: the Claude marketplace record in ${registryPath} does not follow ${name} after the add: ${JSON.stringify(registered)}`,
+      exits.blocked,
+    );
+  return { ...target, ref: name, resolvedRef: target.to, user: { path: user.path, source }, registered };
+}
+
+async function moveCodex(
+  lock: UpdateLock,
+  env: NodeJS.ProcessEnv,
+  target: PluginUpdate,
+  completed: string[],
+): Promise<PluginUpdate> {
+  const name = target.toRef.name;
+  await lock.run('codex', ['plugin', 'marketplace', 'remove', 'celetis'], { cwd: process.cwd(), env });
+  completed.push('codex marketplace remove celetis');
+  try {
+    await lock.run('codex', ['plugin', 'marketplace', 'add', '--ref', name, '--', target.source], {
+      cwd: process.cwd(),
+      env,
+    });
+  } catch (error) {
+    throw new HostError(
+      [
+        (error as Error).message,
+        `update: codex has no marketplace celetis; repair: codex plugin marketplace add ${target.source} --ref ${name}, then run celetis update --to ${name} again`,
+      ].join('\n'),
+      exits.blocked,
+    );
+  }
+  completed.push(`codex marketplace add ${target.source} --ref ${name}`);
+  return { ...target, ref: name, resolvedRef: target.to };
+}
+
+async function updatePlugin(
+  ownerPid: number,
+  host: PluginHost,
+  target: PluginUpdate,
+  request: string | null,
+): Promise<PluginUpdate> {
   if (
     !target.home ||
     !target.root ||
@@ -515,20 +716,22 @@ async function updatePlugin(ownerPid: number, host: PluginHost, target: PluginUp
   });
   const lock = await UpdateLock.acquire(join(config, 'celetis-update.lock'), ownerPid, { refuseBusy: true });
   try {
+    let expected = target;
     const revalidate = async () => {
-      const output = await lock.run(process.execPath, bunArgs(import.meta.path, ['--inspect', host]), {
+      const output = await lock.run(process.execPath, inspectArgs(host, request), {
         cwd: process.cwd(),
         env,
       });
       const current = JSON.parse(output) as PluginUpdate;
-      if (!isDeepStrictEqual(current, target))
+      if (!isDeepStrictEqual(current, expected))
         throw new HostError(
           `update: offered installation identity or target changed; this attempt is consumed. Check again and obtain a new direct user response. Observed: ${JSON.stringify(current)}`,
           exits.prerequisite,
         );
       return current;
     };
-    const details = await revalidate();
+    let details = await revalidate();
+    const moving = target.to !== target.resolvedRef;
     if (host === 'codex' && details.siblings.length)
       throw new HostError(
         `update: native whole-marketplace upgrade would also replace configured plugins ${details.siblings.join(', ')}; no mutation ran. Celetis approval does not include these plugins`,
@@ -549,6 +752,12 @@ async function updatePlugin(ownerPid: number, host: PluginHost, target: PluginUp
           cwd: process.cwd(),
           env,
         });
+        if (moving) {
+          operation = 'claude marketplace ref move';
+          expected = await moveClaude(lock, env, config, target, completed);
+          details = await revalidate();
+          operation = 'prepare native target';
+        }
         if (!['user', 'project', 'local'].includes(details.scope ?? '') || !object(details.registered))
           throw new HostError('update: native installed scope/source is unavailable', exits.prerequisite);
         const registryPath = join(config, 'plugins/known_marketplaces.json');
@@ -699,6 +908,10 @@ async function updatePlugin(ownerPid: number, host: PluginHost, target: PluginUp
           { cwd: process.cwd(), env },
         );
         completed.push(operation);
+        if (moving) {
+          operation = 'codex marketplace ref move';
+          expected = await moveCodex(lock, env, target, completed);
+        }
       }
       operation = 'fresh enabled installation validation';
       const metadata = host === 'codex' ? await codexPlugin(process.cwd(), execute) : null;
@@ -734,7 +947,7 @@ async function updatePlugin(ownerPid: number, host: PluginHost, target: PluginUp
           exits.blocked,
         );
       const fresh = JSON.parse(
-        await lock.run(process.execPath, bunArgs(import.meta.path, ['--inspect', host]), {
+        await lock.run(process.execPath, inspectArgs(host, request), {
           cwd: process.cwd(),
           env,
         }),
@@ -742,7 +955,7 @@ async function updatePlugin(ownerPid: number, host: PluginHost, target: PluginUp
       if (
         fresh.root !== root ||
         fresh.installed !== target.target ||
-        !isDeepStrictEqual({ ...fresh, root: target.root, installed: target.installed }, target)
+        !isDeepStrictEqual({ ...fresh, root: expected.root, installed: expected.installed }, expected)
       )
         throw new HostError(
           'update: fresh installation does not match the approved source, ref, scope, or target',
@@ -784,8 +997,9 @@ export const short = (revision: string) => revision.slice(0, 12);
 export function line(part: Part): string {
   if ('error' in part) return `  ${part.part}  error: ${part.error.split('\n')[0]}`;
   if ('skipped' in part) return `  ${part.part}  skipped: ${part.skipped}`;
-  const from = `${part.source} ${part.ref}`;
-  if (part.installed === part.target) return `  ${part.part}  up to date  ${short(part.installed)}  ${from}`;
+  const from = part.ref === part.to ? `${part.source} ${part.ref}` : `${part.source} ${part.ref} -> ${part.to}`;
+  if (part.installed === part.target && part.ref === part.to)
+    return `  ${part.part}  up to date  ${short(part.installed)}  ${from}`;
   return `  ${part.part}  ${short(part.installed)} -> ${short(part.target)}  ${from}`;
 }
 
@@ -795,13 +1009,13 @@ export async function executeUpdate(
   ownerPid: number,
 ): Promise<UpdateResult> {
   const pending: ('engine' | PluginHost)[] = offer.plugins
-    .filter((plugin) => plugin.installed !== plugin.target)
+    .filter((plugin) => plugin.installed !== plugin.target || plugin.resolvedRef !== plugin.to)
     .map((plugin) => plugin.host);
   if (offer.engine.source.revision !== offer.target) pending.push('engine');
   const completed: ('engine' | PluginHost)[] = [];
   const expected = structuredClone(offer);
   try {
-    const before = await discoverUpdate(process.cwd(), ownerPid);
+    const before = await discoverUpdate(process.cwd(), offer.request, ownerPid);
     if (before.error || !isDeepStrictEqual(before.prepared, offer))
       throw new HostError(
         [
@@ -818,37 +1032,33 @@ export async function executeUpdate(
     for (const part of pending) {
       stage({ part, state: 'started' });
       if (part === 'engine') {
-        const installed = await installEngine(
-          offer.engine.source.source,
-          { ...offer.engine.source, revision: offer.target },
-          undefined,
-          offer.engine.installed,
-        );
+        const installed = await installEngine(offer.engine.to.source, offer.engine.to, undefined, {
+          engine: offer.engine.installed,
+          source: offer.engine.source,
+        });
         const source = await engineSource(installed.root);
         if (
-          source.source !== offer.engine.source.source ||
-          source.branch !== offer.engine.source.branch ||
-          source.revision !== offer.target ||
+          !isDeepStrictEqual(source, offer.engine.to) ||
           (await installedRevision('engine', installed.root, source.source)) !== offer.target
         )
           throw new HostError('update: fresh engine does not match the approved source, ref, or target', exits.blocked);
-        expected.engine = { installed, source };
+        expected.engine = { installed, source, to: offer.engine.to };
         expected.parts = expected.parts.map((value) =>
-          value.part === part && 'installed' in value
-            ? { ...value, root: installed.root, installed: offer.target }
+          value.part === 'engine' && 'to' in value
+            ? { ...value, root: installed.root, ref: value.to, installed: offer.target }
             : value,
         );
       } else {
         const plugin = offer.plugins.find((plugin) => plugin.host === part);
         if (!plugin) throw new HostError(`update: the offer has no ${part} installation`, exits.internal);
-        const fresh = await updatePlugin(ownerPid, part, plugin);
+        const fresh = await updatePlugin(ownerPid, part, plugin, offer.request);
         expected.plugins = expected.plugins.map((value) => (value.host === part ? fresh : value));
         expected.parts = expected.parts.map((value) => (value.part === part ? pluginPart(fresh) : value));
       }
       completed.push(part);
       stage({ part, state: 'completed' });
     }
-    const final = await discoverUpdate(process.cwd(), ownerPid, true);
+    const final = await discoverUpdate(process.cwd(), offer.request, ownerPid, true);
     if (final.error || !isDeepStrictEqual(final.prepared, expected))
       throw new HostError(
         [
@@ -878,9 +1088,9 @@ async function child(argv: string[]): Promise<ExitCode> {
     const { args } = commandInput(argv);
     if (args[0] === '--policy' && args.length === 2 && isHost(args[1]))
       await requireUpdatePolicy(args[1], process.cwd());
-    else if (args[0] === '--inspect' && args.length === 2 && isPluginHost(args[1])) {
+    else if (args[0] === '--inspect' && (args.length === 2 || args.length === 3) && isPluginHost(args[1])) {
       try {
-        console.log(JSON.stringify(await inspect(args[1], process.cwd())));
+        console.log(JSON.stringify(await inspect(args[1], process.cwd(), args[2] ?? null)));
       } catch (error) {
         if (!(error instanceof NotInstalled)) throw error;
         console.log(JSON.stringify({ skipped: `Celetis is not installed in ${args[1]}` }));

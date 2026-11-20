@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from 'node:util';
 import { exits } from '../../lib/contract/contract.ts';
 import { isPluginHost } from '../../lib/host/names.ts';
+import { releaseParts } from '../../lib/release/release.ts';
 import { installRecorder, markDefect } from '../../lib/state/events.ts';
 import { revision } from '../../lib/state/fields.ts';
 import type { PreparedUpdate, UpdateCheck, UpdateResult, UpdateStage } from '../../lib/update/updater.ts';
@@ -20,20 +21,27 @@ const keys = (value: Record<string, unknown>, names: string[]) =>
   Object.keys(value).length === names.length && names.every((name) => Object.hasOwn(value, name));
 const strings = (value: unknown): value is string[] => Array.isArray(value) && value.every(text);
 const parts = (value: unknown) => Array.isArray(value) && value.every(part) && new Set(value).size === value.length;
+const ref = (value: unknown) =>
+  object(value) &&
+  keys(value, ['kind', 'name']) &&
+  text(value.name) &&
+  (value.kind === 'branch' || (value.kind === 'release' && releaseParts(value.name) !== null));
+const engineSource = (value: unknown): value is Record<string, unknown> =>
+  object(value) && text(value.source) && ref(value.ref) && sha(value.revision);
 
 export function isPreparedUpdate(value: unknown): value is PreparedUpdate {
-  if (!object(value) || !sha(value.target) || !isParts(value.parts) || !object(value.engine)) return false;
+  if (!object(value) || value.request !== null || !sha(value.target) || !isParts(value.parts) || !object(value.engine))
+    return false;
   const target = (value.parts as Record<string, unknown>[]).find((entry) => entry.part === 'engine')?.target;
   if (target !== value.target) return false;
-  const { installed, source } = value.engine;
+  const { installed, source, to } = value.engine;
   if (
     !object(installed) ||
     !['root', 'entry', 'command'].every((key) => text(installed[key])) ||
     !sha(installed.revision) ||
-    !object(source) ||
-    !text(source.source) ||
-    !text(source.branch) ||
-    !sha(source.revision) ||
+    !engineSource(source) ||
+    !engineSource(to) ||
+    to.revision !== value.target ||
     !Array.isArray(value.plugins) ||
     value.plugins.length > 2
   )
@@ -43,7 +51,10 @@ export function isPreparedUpdate(value: unknown): value is PreparedUpdate {
       (plugin) =>
         object(plugin) &&
         isPluginHost(plugin.host) &&
-        ['home', 'root', 'source', 'ref', 'resolvedRef'].every((key) => text(plugin[key])) &&
+        ['home', 'root', 'source', 'ref', 'resolvedRef', 'to'].every((key) => text(plugin[key])) &&
+        ref(plugin.toRef) &&
+        (plugin.user === null || (object(plugin.user) && text(plugin.user.path) && object(plugin.user.source))) &&
+        plugin.layer === null &&
         sha(plugin.installed) &&
         sha(plugin.target) &&
         (plugin.scope === undefined || text(plugin.scope)) &&
@@ -65,6 +76,7 @@ function isParts(value: unknown): boolean {
           (['root', 'source', 'ref'].every((key) => text(entry[key])) &&
             sha(entry.installed) &&
             sha(entry.target) &&
+            text(entry.to) &&
             (entry.part === 'engine' || text(entry.home)))),
     ) &&
     new Set(value.map((entry) => entry.part)).size === value.length

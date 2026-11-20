@@ -3,6 +3,7 @@ import { validateAgentOrder } from '../agent/order.ts';
 import { HostError } from '../command/errors.ts';
 import type { Host } from '../config/core.ts';
 import { exits } from '../contract/contract.ts';
+import { releaseParts } from '../release/release.ts';
 import { laneIgnore } from '../state/state.ts';
 
 export type SetupAnswers = { tracker?: 'github'; hosts?: readonly Host[] };
@@ -13,6 +14,7 @@ export type SetupEntry =
 export type WiringRecord = {
   schema: 1;
   answers?: SetupAnswers;
+  release?: string;
   files: string[];
   entries: Record<string, SetupEntry[]>;
 };
@@ -106,7 +108,7 @@ export function parseSetupRecord(source: string, path: string): WiringRecord {
   }
   if (
     !object(value) ||
-    !keysAre(value, ['schema', 'answers', 'files', 'entries']) ||
+    !keysAre(value, ['schema', 'answers', 'release', 'files', 'entries']) ||
     value.schema !== 1 ||
     !Array.isArray(value.files) ||
     !object(value.entries)
@@ -128,6 +130,15 @@ export function parseSetupRecord(source: string, path: string): WiringRecord {
         return invalid(`answers.hosts: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
+  }
+  if (Object.hasOwn(value, 'release')) {
+    const release = value.release;
+    if (
+      typeof release !== 'string' ||
+      !(releaseParts(`v${release}`) || /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(release))
+    )
+      return invalid('release: need a version X.Y.Z or a full revision');
+    result.release = release;
   }
   for (const file of value.files) {
     if (typeof file !== 'string' || !Object.hasOwn(scopes, file) || !scopes[file]?.file)

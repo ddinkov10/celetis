@@ -97,10 +97,12 @@ each missing tool and each hook that skips its checks in the test lane (ADR-0018
   other value must stay the same outside the planned owned edits. If that validation fails, setup
   stops before any write; repair the reported field by hand first.
 - The schema-1 record at `.claude/celetis/wiring.json` records the resulting owned files and
-  entries and the resolved tracker and hosts. It is no config: only `setup` reads it. Setup
-  validates its complete shape and finite wiring scope before using any claim. It drops retired
-  claims rather than keeping their union. An unchanged committed repeat changes no bytes or
-  modification times. Setup compares the value of the record, not its bytes, so this also holds
+  entries, the resolved tracker and hosts, and the optional `release` of the engine that wrote it:
+  a version `X.Y.Z`, or the full revision of an engine that has no version. It is no config:
+  only `setup` reads it. Setup validates its complete shape and finite wiring scope before using
+  any claim. It drops retired
+  claims rather than keeping their union. An unchanged committed repeat on the same engine release
+  changes no bytes or modification times. Setup compares the value of the record, not its bytes, so this also holds
   for a record that the formatter of the product laid out. A record whose value changes is written
   whole in the common JSON layout
   ([Claude permissions](#claude-permissions-claudesettingsjson)), so a product layout of the
@@ -125,23 +127,17 @@ lane before retry. It copies no source and performs no automatic merge or fallba
 
 ## Claude permissions: `.claude/settings.json`
 
-Setup adds or refreshes owned marketplace settings, Superpowers enablement, and direct-merge denies.
-It removes obsolete recorded host entries. It adds no shared
-allow and no project Celetis enablement. A new file holds these bytes:
+Setup adds or refreshes owned Superpowers enablement and direct-merge denies. It writes no
+marketplace entry: the pin of the Celetis marketplace lives in the user settings of each machine
+(`celetis update --to <ref>` moves it), and a project entry would override it. It removes obsolete
+recorded host entries, including an `extraKnownMarketplaces.celetis` entry that its record owns.
+When a removed owned key leaves its parent object empty, setup deletes that object. It
+adds no shared allow and no project Celetis enablement. A new file holds these bytes:
 
 ```json
 {
   "permissions": {
     "deny": ["Bash(gh pr merge*)", "PowerShell(gh pr merge*)"]
-  },
-  "extraKnownMarketplaces": {
-    "celetis": {
-      "source": {
-        "source": "github",
-        "repo": "ddinkov10/celetis"
-      },
-      "autoUpdate": false
-    }
   },
   "enabledPlugins": {
     "superpowers@superpowers-marketplace": true
@@ -155,10 +151,9 @@ person. An `issue` allow is optional, and it has a risk.
 [Personal landing permission](../README.md#personal-landing-permission) gives the rules, the risk of the
 `issue` allow, and their lifetime across an update.
 
-The command checks only the planned project settings. The generated `autoUpdate: false` value
-does not prove that a native session loaded it or that a stronger policy disables automatic
-updates. Review each enabled or unknown policy warning and set the effective Celetis policy to
-false by hand.
+The command checks only the planned project settings. It proves no native policy loading and
+no stronger policy that disables automatic updates. Review each enabled or unknown policy
+warning and set the effective Celetis policy to false by hand.
 
 Setup writes this file only when an owned value changes, and then it edits the text in place.
 Each byte outside the containers that it changes stays: the other members, the white space, the
@@ -393,8 +388,12 @@ entry pointer retains its bounded marker authority, even without a record.
      `.codex/rules/celetis.rules`. Keep the direct-merge restriction. Personal `land` and optional
      `issue` rules stay explicit and local.
    - Project `enabledPlugins.celetis@celetis` in `.claude/settings.json`. The supported Celetis
-     installation is user-scoped. Keep Superpowers and other plugins, the required marketplace,
-     and product settings. Review effective automatic-update policy separately.
+     installation is user-scoped. Keep Superpowers and other plugins and product settings.
+     Review effective automatic-update policy separately.
+   - An unrecorded `extraKnownMarketplaces.celetis` in `.claude/settings.json` or
+     `.claude/settings.local.json`. It overrides the marketplace pin of the user settings, and
+     `celetis update` stops while it differs from the pin. Remove it by hand; `setup status`
+     reports it.
 
 3. The owner reviews unowned removals in a separate product change. Keep every unreviewed unowned
    entry. Existing generic ADR files and populated stores stay product content and need independent

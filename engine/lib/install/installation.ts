@@ -8,8 +8,10 @@ import { celetisBase } from '../host/homes.ts';
 import { installedRevision } from '../plugin/metadata.ts';
 import { git } from '../process/git.ts';
 import { run } from '../process/process.ts';
+import { manifestVersion, type Ref } from '../release/release.ts';
 import { revision as fullRevision } from '../state/fields.ts';
 import { installLock, withLock, writeAtomic } from '../state/state.ts';
+import { fullRef, resolveRef } from '../update/target.ts';
 import { installDependencies } from './dependencies.ts';
 
 export type EnginePaths = Readonly<{
@@ -21,7 +23,7 @@ export type EnginePaths = Readonly<{
   current: string;
 }>;
 export type Engine = Readonly<{ root: string; entry: string; revision: string; command: string }>;
-export type EngineSource = Readonly<{ source: string; branch: string; revision: string }>;
+export type EngineSource = Readonly<{ source: string; ref: Ref; revision: string }>;
 
 const shShim = [
   '#!/bin/sh',
@@ -117,21 +119,37 @@ export async function installedEngine(target: string): Promise<Engine> {
 
 export async function engineSource(root: string): Promise<EngineSource> {
   const source = await git(['config', '--get', 'remote.origin.url'], root);
-  const branch = await git(['symbolic-ref', '--short', 'HEAD'], root);
   const revision = await git(['rev-parse', '--verify', 'HEAD'], root);
+  const ref = await engineRef(root, revision);
   if (await git(['status', '--porcelain', '--untracked-files=normal'], root))
     throw new HostError(
       `celetis: ${root} has changes that are not in a commit; commit or remove them, then run the install again`,
       exits.prerequisite,
     );
-  return { source, branch, revision };
+  return { source, ref, revision };
+}
+
+async function engineRef(root: string, revision: string): Promise<Ref> {
+  const branch = await run('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], { cwd: root });
+  if (branch.code === 0) return { kind: 'branch', name: branch.stdout.trimEnd() };
+  if (branch.code !== 1)
+    throw new HostError(`celetis: cannot read the HEAD of ${root}: ${branch.stderr.trimEnd()}`, exits.blocked);
+  const version = await manifestVersion(root);
+  const name = `v${version}`;
+  const tag = await run('git', ['rev-parse', '--quiet', '--verify', `refs/tags/${name}^{commit}`], { cwd: root });
+  if (version === null || tag.code !== 0 || tag.stdout.trimEnd() !== revision)
+    throw new HostError(
+      `celetis: ${root} is on no branch and not at its release tag; check out a branch or a release tag, then run the install again`,
+      exits.prerequisite,
+    );
+  return { kind: 'release', name };
 }
 
 async function holds(folder: string, wanted: EngineSource): Promise<boolean> {
   const found = await engineSource(folder);
   return (
     found.source === wanted.source &&
-    found.branch === wanted.branch &&
+    isDeepStrictEqual(found.ref, wanted.ref) &&
     found.revision === wanted.revision &&
     (await installedRevision('engine', folder, wanted.source)) === wanted.revision
   );
@@ -143,7 +161,7 @@ export async function installEngine(
   from: string,
   wanted: EngineSource,
   paths = enginePaths(),
-  expected?: Engine,
+  expected?: Readonly<{ engine: Engine; source: EngineSource }>,
 ): Promise<Engine> {
   if (!fullRevision.test(wanted.revision))
     throw new HostError(`celetis: invalid engine revision ${wanted.revision}`, exits.internal);
@@ -153,18 +171,20 @@ export async function installEngine(
     const validateExpected = async () => {
       if (!expected) return;
       const installed = await readEngine(paths);
-      if (!isDeepStrictEqual(installed, expected))
+      if (!isDeepStrictEqual(installed, expected.engine))
         throw new HostError(
           'update: installed engine changed; check again and obtain a new direct user response',
           exits.prerequisite,
         );
-      const source = await engineSource(expected.root);
-      const remote = await git(['ls-remote', '--', wanted.source, `refs/heads/${wanted.branch}`], expected.root);
+      const source = await engineSource(expected.engine.root);
+      const full = fullRef(wanted.ref);
+      const remote = await resolveRef(wanted.source, full, expected.engine.root);
       if (
+        !isDeepStrictEqual(source, expected.source) ||
+        source.revision !== expected.engine.revision ||
         source.source !== wanted.source ||
-        source.branch !== wanted.branch ||
-        source.revision !== expected.revision ||
-        remote !== `${wanted.revision}\trefs/heads/${wanted.branch}`
+        remote.full !== full ||
+        remote.target !== wanted.revision
       )
         throw new HostError(
           'update: engine source, ref, or target changed; check again and obtain a new decision',
@@ -194,7 +214,14 @@ export async function installEngine(
           slow,
         );
         await git(['remote', 'set-url', 'origin', wanted.source], staging, slow);
-        await git(['checkout', '--quiet', '-B', wanted.branch, wanted.revision], staging, slow);
+        if (wanted.ref.kind === 'branch')
+          await git(['checkout', '--quiet', '-B', wanted.ref.name, wanted.revision], staging, slow);
+        else {
+          const tag = `refs/tags/${wanted.ref.name}`;
+          if ((await run('git', ['rev-parse', '--quiet', '--verify', tag], { cwd: staging })).code !== 0)
+            await git(['fetch', '--quiet', '--no-tags', '--', from, `${tag}:${tag}`], staging, slow);
+          await git(['checkout', '--quiet', '--detach', wanted.revision], staging, slow);
+        }
         if ((await lstat(join(staging, 'engine', 'celetis')).catch(() => null))?.isFile()) {
           const dependencies = await installDependencies(staging);
           if (dependencies.kind === 'no-lock')
@@ -212,7 +239,7 @@ export async function installEngine(
         }
         if (!(await holds(staging, wanted)))
           throw new HostError(
-            `celetis: the clone of ${from} is not ${wanted.source} ${wanted.branch} at ${wanted.revision}`,
+            `celetis: the clone of ${from} is not ${wanted.source} ${wanted.ref.name} at ${wanted.revision}`,
             exits.blocked,
           );
         await rename(staging, root);

@@ -2,15 +2,6 @@
   "permissions": {
     "deny": ["Bash(gh pr merge*)", "PowerShell(gh pr merge*)"]
   },
-  "extraKnownMarketplaces": {
-    "celetis": {
-      "source": {
-        "source": "github",
-        "repo": "ddinkov10/celetis"
-      },
-      "autoUpdate": false
-    }
-  },
   "enabledPlugins": {
     "superpowers@superpowers-marketplace": true
   }

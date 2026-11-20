@@ -634,8 +634,13 @@ export const commands: readonly Entry[] = [
     [
       form('update', [], helped(1, 'Updates the engine and the plugin of each host; asks once.')),
       form('update check', [], helped(2, 'Shows the installed and the available revision of each part.')),
+      form(
+        'update',
+        [required('--to', '<ref>')],
+        helped(2, 'Moves each part to a branch or a release tag; asks once.'),
+      ),
     ],
-    `Updates the engine and the plugin of each host, and asks once in an interactive terminal. \`check\` is read-only: it prints one JSON array of the parts. \`plugins/celetis/README.md\`, "Updates", gives the steps. Any other form exits ${exits.usage} with the usage line`,
+    `Updates the engine and the plugin of each host, and asks once in an interactive terminal. \`check\` is read-only: it prints one JSON array of the parts. \`--to <ref>\` moves each part to the head of the branch \`<ref>\` or to the release tag \`<ref>\` (\`vX.Y.Z\`). \`plugins/celetis/README.md\`, "Updates", gives the steps. Any other form, and a \`<ref>\` that is no release tag and no valid branch name, exits ${exits.usage} with the usage line`,
   ),
   entry(
     'root',

@@ -6577,8 +6577,9 @@ var commands = [
   ], `Reads the local ordered preference, or replaces it with exactly \`order\` and \`expectedVersion\`. It shares the Git common directory across worktrees and requires no YAML. It exits ${exits.usage} for a replacement that is not JSON or not a valid order, and for an \`agents.json\` that does not validate. It exits ${exits.prerequisite} for a stale-edit conflict, and returns the latest order; a busy write lock also exits ${exits.prerequisite}, with no JSON. It exits ${exits.blocked} for an unsafe or unreadable record. Repeating the current order succeeds`),
   entry("update", false, [
     form("update", [], helped(1, "Updates the engine and the plugin of each host; asks once.")),
-    form("update check", [], helped(2, "Shows the installed and the available revision of each part."))
-  ], `Updates the engine and the plugin of each host, and asks once in an interactive terminal. \`check\` is read-only: it prints one JSON array of the parts. \`plugins/celetis/README.md\`, "Updates", gives the steps. Any other form exits ${exits.usage} with the usage line`),
+    form("update check", [], helped(2, "Shows the installed and the available revision of each part.")),
+    form("update", [required("--to", "<ref>")], helped(2, "Moves each part to a branch or a release tag; asks once."))
+  ], `Updates the engine and the plugin of each host, and asks once in an interactive terminal. \`check\` is read-only: it prints one JSON array of the parts. \`--to <ref>\` moves each part to the head of the branch \`<ref>\` or to the release tag \`<ref>\` (\`vX.Y.Z\`). \`plugins/celetis/README.md\`, "Updates", gives the steps. Any other form, and a \`<ref>\` that is no release tag and no valid branch name, exits ${exits.usage} with the usage line`),
   entry("root", false, [form("root", [], helped(25, "Prints the version folder that holds the running engine."))], "Prints the version folder that holds the running engine. It takes no argument and runs in each folder"),
   entry("daemon", false, [form(["daemon", "--daemon"])], "The detached master daemon process of `daemon start`.", [...base, "signal"], true),
   entry("daemon", false, [

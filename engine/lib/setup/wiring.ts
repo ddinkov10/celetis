@@ -46,10 +46,6 @@ export function settingsForm(): Entry[] {
       path: ['permissions', 'deny'],
       item,
     })),
-    {
-      path: ['extraKnownMarketplaces', 'celetis'],
-      value: { source: { source: 'github', repo: 'ddinkov10/celetis' }, autoUpdate: false },
-    },
     { path: ['enabledPlugins', 'superpowers@superpowers-marketplace'], value: true },
   ];
 }

@@ -129,7 +129,8 @@ starts the daemon in the main checkout from each checkout of the repository, and
 **Open work during updates.** The section `Updates` of Control keeps one update control.
 **Check for updates** starts discovery in one press. **Checking…** retains focus and ignores
 another press. **Up to date** reports that the installed engine and registered plugins match
-the configured target of each part; it does not mean that an open agent session has reloaded new code.
+the configured target of each part: the head of its branch, or the newest release of its source for
+a part that follows a release. It does not mean that an open agent session has reloaded new code.
 **Restart needed** (below) shows a daemon that runs another engine than the installed one. Press
 **Up to date** for a fresh check. Progress and results use the polite status region,
 without a success toast or current-result dialog. A check does not refresh issues or approve
@@ -1165,7 +1166,12 @@ process. Twelve rules hold for the server and the page:
 10. Open shell refuses a path that is not under `.claude/worktrees/` of the main checkout.
 11. The server writes nothing in a product working tree. The trend sampler and the delivery read write
     only `trend-samples.jsonl` and `trend-cache.jsonl` in `<git common dir>/celetis/`. An approved
-    update changes only the validated native plugin and engine installations.
+    update changes only the validated native plugin and engine installations. For a part that
+    follows a release, the update also moves the source record of the plugin to the new release tag:
+    it writes only the `ref` of `extraKnownMarketplaces.celetis.source` in the Claude user settings,
+    and it removes and adds the `celetis` marketplace record of Codex with the same source. The
+    `claude plugin marketplace add` of that move then writes the user settings again, and the record
+    `celetis` of `plugins/known_marketplaces.json`, with the same source and that ref.
 12. The page writes each text of the data, of a terminal screen, and of an error as text, never as HTML. Its
     Content-Security-Policy allows its own files (the page, its two scripts, `theme.js` and `board.js`, its stylesheet, and
     its two fonts) and `data:` images (the tab icon) only. A visual page at `/visual/<sha>` is
@@ -1254,7 +1260,7 @@ These files enforce the rules. They are the trust files of the board:
 | 6 (what the page sends) | `engine/board/requests.ts`, the page modules of `engine/board/page/` |
 | 7 (`isSafeId`) | `engine/lib/terminal/terminal.ts` |
 | 8 (no shell) | `engine/board/perimeter.ts` (`run`), `engine/lib/process/process.ts` (`run` of the issue and status reads), `engine/lib/host/codex/app-server.ts` (`createCodexClient`) |
-| 9 (`git` only in the repository, `--no-optional-locks`; update workers validate the installations) | `engine/lib/board-read/board-read.ts` (`isInside`, `readDiff`), `engine/board/update/worker.ts`, `engine/lib/update/updater.ts`, `engine/lib/install/dependencies.ts` |
+| 9 (`git` only in the repository, `--no-optional-locks`; update workers validate the installations) | `engine/lib/board-read/board-read.ts` (`isInside`, `readDiff`), `engine/board/update/worker.ts`, `engine/lib/update/updater.ts`, `engine/lib/update/target.ts` (`resolveRef`, the ref of a target), `engine/lib/release/release.ts` (`releaseParts`, the release form), `engine/lib/install/dependencies.ts` |
 | 10 (Open shell under `.claude/worktrees/`) | `engine/board/presses.ts`, `engine/lib/board-read/board-read.ts` (`isInside`) |
 | 11 (no write in a product working tree; the trend files only in the git common dir) | No one file: each module of the board; the read model reads, and only `engine/board/trends.ts` through `engine/lib/board-read/trends.ts` and the History read through the trend cache write, in `<git common dir>/celetis/` |
 | 12 (text as text, the Content-Security-Policies, the visual page) | `engine/board/perimeter.ts`, `engine/lib/state/fields.ts` (`isCommit`), `engine/lib/board-read/board-read.ts` (`readVisualPage`), `engine/lib/workflow/visual.ts` (`hasPage`), the page modules |

@@ -229,6 +229,8 @@ The lanes of this repository are the skills of the plugin itself, on the issues 
 (`landing` in `.celetis.yaml`): a build step runs the verify gate locally, then ends
 with `celetis --agent <host> land <n> '<subject>'`, which runs `suite` (`scripts/verify.ts`) on the commit that it lands and puts one squash commit on `main` without a PR.
 The landing is the last act of a change: this repository has no deployment.
+A release is a separate act of the maintainer: `scripts/release.ts <X.Y.Z>` (`scripts/README.md`, "The release"; ADR-0118).
+The manifests on `main` hold no `version`: a `version` there stops each machine that follows `main` at that copy.
 For installation changes, follow `plugins/celetis/README.md`, "Updates".
 
 - The maintainer starts the daemon and turns auto mode on; an agent starts a run only when its task
@@ -248,7 +250,8 @@ For installation changes, follow `plugins/celetis/README.md`, "Updates".
   `engine/lib/workflow/visual.ts`, `engine/lib/state/fields.ts`, `engine/lib/state/schemas.ts`,
   `engine/lib/tracker/key.ts`, `engine/lib/tracker/grammar.ts`, `engine/lib/host/names.ts`,
   `engine/lib/terminal/terminal.ts`, `engine/lib/workflow/effort.ts`, `engine/lib/process/process.ts`,
-  `engine/lib/update/updater.ts`, `engine/lib/install/installation.ts`,
+  `engine/lib/update/updater.ts`, `engine/lib/update/target.ts`, `engine/lib/release/release.ts`,
+  `engine/lib/install/installation.ts`,
   `engine/lib/install/dependencies.ts`, `engine/lib/queue/queue.ts`, `engine/lib/queue/types.ts`,
   `engine/lib/coordinator/coordinator.ts`, `engine/lib/coordinator/types.ts`,
   `engine/lib/host/codex/app-server.ts`, `engine/lib/daemon/server.ts`, and

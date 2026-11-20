@@ -14,6 +14,7 @@ import { type ExitCode, exits, type Label, labels, usage } from './lib/contract/
 import { hostAdapter, type Need, requireCan } from './lib/host/hosts.ts';
 import { checkClaudePolicy } from './lib/plugin/policy.ts';
 import { childEnv, run } from './lib/process/process.ts';
+import { engineRelease } from './lib/release/release.ts';
 import { editJSON, jsonStyle, layoutJSON } from './lib/setup/json-layout.ts';
 import { parseSetupRecord, type SetupEntry, type WiringRecord } from './lib/setup/record.ts';
 import { setupStatus } from './lib/setup/status.ts';
@@ -548,6 +549,7 @@ class Setup {
       if (entry.item === undefined) {
         if (Object.hasOwn(group, key)) {
           delete group[key];
+          if (!Object.keys(group).length) delete doc[entry.path[0] as string];
           changed = true;
         }
       } else if (Array.isArray(group[key])) {
@@ -593,10 +595,7 @@ class Setup {
         }
         this.own(settings, { path: form.path });
       } else if (isDeepStrictEqual(value, form.value)) this.own(settings, { path: form.path });
-      else
-        this.warn(
-          `${settings}: ${form.path.join('.')} differs from the current form; setup leaves it${parentKey === 'extraKnownMarketplaces' && key === 'celetis' ? '; review this entry and set autoUpdate to false by hand' : ''}`,
-        );
+      else this.warn(`${settings}: ${form.path.join('.')} differs from the current form; setup leaves it`);
     }
     if (!selected)
       for (const form of settingsForm()) {
@@ -763,6 +762,8 @@ class Setup {
         this.review(settings, `permissions.allow: ${item}`);
     if (object(doc) && object(doc.enabledPlugins) && Object.hasOwn(doc.enabledPlugins, 'celetis@celetis'))
       this.review(settings, 'enabledPlugins.celetis@celetis');
+    if (object(doc) && object(doc.extraKnownMarketplaces) && Object.hasOwn(doc.extraKnownMarketplaces, 'celetis'))
+      this.review(settings, 'extraKnownMarketplaces.celetis');
   }
   async plan(opts: Options, scratch: string): Promise<void> {
     if (opts.baseline) {
@@ -871,6 +872,7 @@ class Setup {
     const record = {
       schema: 1,
       answers: { hosts: opts.hosts, tracker: 'github' },
+      release: await engineRelease(resolve(import.meta.dir, '..')),
       files: [...new Set(this.owned.files)].sort(),
       entries,
     };

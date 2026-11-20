@@ -58,6 +58,36 @@ The workflow has one job, `test`, on Linux. It installs the locked packages of t
 `scripts/install-tools.ts` installs the tool pins. The gate runs the JavaScript tool entries on the
 selected Bun. [`AGENTS.md`](../AGENTS.md#verify-gate) gives its command.
 
+## The release
+
+`scripts/release.ts <X.Y.Z>` makes a release. The maintainer runs it at the top of the main checkout,
+on `main`, with a clean tree and `HEAD` equal to `origin/main`. It makes a detached worktree in the
+OS temporary folder, adds `"version": "<X.Y.Z>"` to the two plugin manifests, commits that as
+`release: v<X.Y.Z>`, installs the locked packages of the engine there, runs the verify gate on that
+commit, and then tags it `v<X.Y.Z>` and pushes the tag. `main` and each other branch do not move.
+The tag form is `v<int>.<int>.<int>` with no leading zero and no pre-release part.
+
+Each refusal prints `release: <reason>`. Only the failed push leaves a ref, the local tag:
+
+- Exit 2: the argument is not one version `X.Y.Z`.
+- Exit 3: the folder is not the top of a checkout, the branch is not `main`, the tree is not clean,
+  or `HEAD` is not the commit of `origin/main`.
+- Exit 3: `v<X.Y.Z>` is not newer than the greatest release tag of `origin`; the line names that tag.
+- Exit 3: a manifest has no single line `  "name": "celetis",`, or it holds a `version` already.
+- Exit 3: the release commit has no `engine/bun.lock`, or the locked package install or the verify
+  gate failed on it; the line names the commit, and nothing was tagged.
+- Exit 3: the local tag `v<X.Y.Z>` exists and `origin` has no such tag; the line names the push command.
+- Exit 6: another Git command failed, for example `git ls-remote` with an `origin` that it cannot
+  reach, or `git commit` with a hook that fails. The reason is `git <command> failed: ` and the
+  error text of Git, which can have more than one line. Nothing was tagged.
+- Exit 6: the push failed. The local tag stays. Run `git push origin refs/tags/v<X.Y.Z>`; the script
+  does not retry, and a second run refuses because of the local tag.
+
+A manifest that is not valid JSON gives no `release:` line: the script ends with the stack of the
+JSON parse error and exit 1, and nothing was tagged.
+
+On success it prints `release: v<X.Y.Z> -> <full commit>` and exits 0.
+
 ## The Herdr lab
 
 `scripts/herdr-lab.ts` runs a runtime check that uses the Herdr app or the hc core, away from the

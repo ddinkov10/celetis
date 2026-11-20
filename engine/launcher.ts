@@ -5,6 +5,7 @@ import { commands, type ExitCode, exits, helpText, launcherForms, updateHint } f
 import { requireBun } from './lib/host/host.ts';
 import { engineRevision } from './lib/process/git.ts';
 import { bunArgs, childEnv } from './lib/process/process.ts';
+import { manifestVersion } from './lib/release/release.ts';
 import { installRecorder, passOn } from './lib/state/events.ts';
 import { execConsumer } from './lib/update/lock.ts';
 
@@ -20,7 +21,10 @@ export async function main(argv: string[]): Promise<ExitCode> {
       return exits.done;
     }
     if (args.length === 1 && args[0] === '--version') {
-      console.log(await engineRevision(dirname(import.meta.dir)));
+      const root = dirname(import.meta.dir);
+      const version = await manifestVersion(root);
+      const revision = await engineRevision(root);
+      console.log(version === null ? revision : `${version} (${revision})`);
       return exits.done;
     }
     if (args.length === 0) {

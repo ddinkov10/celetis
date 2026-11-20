@@ -32,6 +32,9 @@ import {
   wiring,
 } from './wiring.ts';
 
+const localSettings = '.claude/settings.local.json';
+const marketEntry = ['extraKnownMarketplaces', 'celetis'];
+
 type Finding = Readonly<{ kind: 'missing' | 'invalid' | 'different' | 'blocked'; subject: string; cause: string }>;
 type Origin = Readonly<{ host: string; repository: string }>;
 
@@ -259,6 +262,33 @@ class Status {
             : `${name} differs from the required form; setup preserves it; repair it by hand`,
         );
     }
+    if (object(doc.extraKnownMarketplaces) && Object.hasOwn(doc.extraKnownMarketplaces, 'celetis'))
+      this.add(
+        'different',
+        settings,
+        `extraKnownMarketplaces.celetis overrides the marketplace pin of the user settings; ${
+          this.saved?.entries[settings]?.some((entry) => isDeepStrictEqual(entry, { path: marketEntry }))
+            ? 'setup removes an entry that its record owns'
+            : 'remove it by hand'
+        }`,
+      );
+    await this.local();
+  }
+
+  async local(): Promise<void> {
+    if ((await destinationProblem(this.root, localSettings)) !== null) return;
+    let doc: unknown;
+    try {
+      doc = JSON.parse(await readFile(join(this.root, localSettings), 'utf8'));
+    } catch {
+      return;
+    }
+    if (object(doc) && object(doc.extraKnownMarketplaces) && Object.hasOwn(doc.extraKnownMarketplaces, 'celetis'))
+      this.add(
+        'different',
+        localSettings,
+        'extraKnownMarketplaces.celetis overrides the marketplace pin of the user settings; remove it by hand',
+      );
   }
 
   async codex(): Promise<void> {

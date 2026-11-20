@@ -47,7 +47,8 @@ No file of the plugin names a part of a product, apart from the records of `docs
 names a role, for example "the verify gate of the project", and the product project names the
 thing. A lane ends when the change is on the trunk, which is the default branch of the repository
 on GitHub: the verify gate, the deployment, and each other part of a product stay in the product
-project. The plugin has no `version` or declared dependency. Shared permissions restrict direct
+project. The plugin on `main` has no `version`; only the commit of a release tag holds the version
+of that tag. The plugin has no declared dependency. Shared permissions restrict direct
 merges. Personal host rules allow landing. Native skill entry still reads its whole active file
 through the host's permission controls and applies only that skill's custom text.
 
@@ -178,16 +179,28 @@ looks for a workspace root and for packages in each folder above `engine/`, and 
 users can write to `/tmp`.
 
 `celetis install` installs the revision of the clean checkout that it runs from, here the trunk of
-`ddinkov10/celetis`. The checkout must be on a branch, with no uncommitted changes; a linked
-worktree is also a checkout. The URL of the clone is the source of the engine, and the branch of
-the checkout is its ref: `celetis update` moves the engine to the head of that branch of that
-source. `<base>` is `CELETIS_HOME` when that variable is not empty, else the
+`ddinkov10/celetis`. The checkout must be on a branch or at a release tag `v<X.Y.Z>`, with no
+uncommitted changes; a linked worktree is also a checkout. A checkout at a release tag has a
+detached `HEAD` at the commit of that tag, holds the tag, and its plugin manifest has the version
+of the tag. The install refuses a detached checkout at any other commit, and exits 3. The URL of
+the clone is the source of the engine. The ref of the engine is the branch of the checkout, or the
+release tag of the checkout. For a branch, `celetis update` moves the engine to the head of that
+branch of that source. For a release tag, it moves the engine to the newest release tag of that
+source.
+
+For a machine that runs a release, add `--branch v<X.Y.Z>` to the clone of the command above, for
+example `git clone --quiet --branch v0.0.1 https://github.com/ddinkov10/celetis.git "$celetis_tmp/celetis"`.
+On such a machine, add the marketplace of each host at the same release tag:
+`claude plugin marketplace add ddinkov10/celetis#v<X.Y.Z>` in "Each machine: Claude Code", and
+`codex plugin marketplace add ddinkov10/celetis --ref v<X.Y.Z>` in "Each machine: Codex only".
+
+`<base>` is `CELETIS_HOME` when that variable is not empty, else the
 home folder; set it for each process that runs `celetis`. The engine refuses a `CELETIS_HOME` that
 is not an absolute path, and the install then exits 2. The install makes these entries:
 
-- `<base>/.local/share/celetis/versions/<revision>/` is a Git clone of the source of the checkout,
-  on its branch, at that full revision. The install refuses a version folder that holds another
-  engine.
+- `<base>/.local/share/celetis/versions/<revision>/` is a Git clone of the source of the checkout
+  at that full revision: on its branch, or, at a release tag, with a detached `HEAD` and that local
+  tag. The install refuses a version folder that holds another engine.
 - `<base>/.local/share/celetis/versions/<revision>/engine/node_modules/` holds the packages that
   `engine/bun.lock` of that revision locks. The install puts them into the new version folder with
   `bun install --frozen-lockfile --production --ignore-scripts`, so no lifecycle script runs. The
@@ -215,7 +228,8 @@ version folder that it began to remove. The name of each starts with a dot, and 
 removes each. When it cannot remove one, that install fails before it changes the engine: remove
 the folder that the error names, then run the install again.
 
-`celetis --version` prints the full revision of the engine.
+`celetis --version` prints `<X.Y.Z> (<full revision>)` for the engine of a release, and the full
+revision for the engine of any other commit.
 
 `~/.local/bin` (`<base>/.local/bin`) must be on `PATH` in a terminal, in the Bash tool of Claude
 Code, and in Codex. When it is not, the install says so and names the folder. An app that starts
@@ -252,7 +266,7 @@ or the board's update control ("Updates").
 
    The engine finds the enabled plugin through native metadata (`celetis update check` and the
    check of the daemon), so the two commands are necessary on each machine. It is not shown that
-   the block of the project file ([Claude permissions](docs/setup.md#claude-permissions-claudesettingsjson)) loads the plugin with no install. In the probe, a
+   the block that setup wrote into the project file at the time of the probe ([Claude permissions](docs/setup.md#claude-permissions-claudesettingsjson)) loads the plugin with no install. In the probe, a
    headless turn in a new repository whose project
    file held the marketplace and the two plugins loaded no plugin and added no marketplace. A
    headless turn shows no workspace trust dialog, so the probe does not show what an interactive
@@ -279,9 +293,10 @@ or the board's update control ("Updates").
 4. Last, turn on auto-update for superpowers. In `~/.claude/settings.json`, add
    `"autoUpdate": true` beside `source` in the entry `superpowers-marketplace` of
    `extraKnownMarketplaces`. Do this step last, and again after a later run of an add command: in
-   Claude Code 2.1.296 that command writes the entry again with `source` only. The entry `celetis`
-   uses `"autoUpdate": false` in the project file. See [Updates](#updates) before changing an
-   installed Celetis package. The Superpowers setting stays independent.
+   Claude Code 2.1.296 that command writes the entry again with `source` only. Setup writes no
+   entry `celetis` in a project file. Keep automatic update off for the entry `celetis` of the user
+   settings: `celetis update` refuses a machine where it is on. See [Updates](#updates) before
+   changing an installed Celetis package. The Superpowers setting stays independent.
 
 ### Each machine: Codex only
 
@@ -296,7 +311,8 @@ codex plugin add celetis@celetis --json
 The engine finds the enabled installation through `skills/list`; it does not calculate a cache
 path. A local-path marketplace is unsuitable for `celetis update`: it reads the contract file of the
 plugin from a Git source, and `plugin marketplace upgrade celetis` requires a Git source. The check
-of a new step reads no Git source, so a step can start with a local source ("Updates"). `--ref main` selects the landed source, the branch of the engine. For an unlanded check, use supported checkout loading with the existing host and authentication. These commands and result fields were checked
+of a new step reads no Git source, so a step can start with a local source ("Updates"). `--ref main` selects the landed source, the branch of the engine. On a machine whose engine runs a release, add the marketplace at that release tag instead:
+`codex plugin marketplace add ddinkov10/celetis --ref v<X.Y.Z>`. For an unlanded check, use supported checkout loading with the existing host and authentication. These commands and result fields were checked
 on Codex 0.162.1. See the [Codex CLI reference](https://learn.chatgpt.com/docs/cli/reference).
 
 Install Superpowers from its Git marketplace:
@@ -633,6 +649,7 @@ usage: celetis [--agent <host>] <command> [<argument>...]
 
   celetis update                              Updates the engine and the plugin of each host; asks once.
   celetis update check                        Shows the installed and the available revision of each part.
+  celetis update --to <ref>                   Moves each part to a branch or a release tag; asks once.
   celetis setup status                        Reports each part of the required wiring that this checkout lacks; writes nothing.
   celetis agents read                         Reads the local ordered agent preference and its version.
   celetis agents replace '<JSON>'             Replaces the local order using order and expectedVersion.
@@ -700,7 +717,7 @@ setup"):
 | `celetis --agent <host> setup check \| setup write --hosts claude\|codex\|claude,codex\|codex,claude --landing pr\|merge [--suite <file>] [--setup-file <file>] [--ignore <line>] [--baseline-file <file>] \| setup try --hosts claude\|codex\|claude,codex\|codex,claude --landing pr\|merge [--suite <file>] [--setup-file <file>] [--ignore <line>] [--baseline-file <file>] \| setup try --remove \| setup lane <path> \| setup push` | The deterministic part of `/celetis:setup`: validated saved answers from `check`, bounded owned refresh and removal in `write`, the test lane (`try` makes it and runs the worktree setup there, and `try --remove` removes it), the run of the worktree setup in a lane that exists (`lane`), and the commit of planned paths, including deletions, with the push. Every setup run calls the engine; no product launcher is written. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked, or the exit code of the worktree setup script |
 | `celetis --agent <host> setup status` | Reports the required wiring of the active checkout for the selected host, also from a subfolder or a lane worktree: `origin`, `.celetis.yaml` and its configured files, the Celetis block, the Claude imports and settings or the Codex restriction, the ignore and attribute lines, the record of setup, and the workflow labels. It writes nothing, runs no product file, and fetches nothing. An incomplete report ends with `Run /celetis:setup in the main checkout: <path>`. It exits 0 when the wiring is complete, 3 when it is missing, invalid, or different, and 6 when an observation is blocked. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis agents read \| agents replace '<JSON>'` | Reads the local ordered preference, or replaces it with exactly `order` and `expectedVersion`. It shares the Git common directory across worktrees and requires no YAML. It exits 2 for a replacement that is not JSON or not a valid order, and for an `agents.json` that does not validate. It exits 3 for a stale-edit conflict, and returns the latest order; a busy write lock also exits 3, with no JSON. It exits 6 for an unsafe or unreadable record. Repeating the current order succeeds. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
-| `celetis update \| update check` | Updates the engine and the plugin of each host, and asks once in an interactive terminal. `check` is read-only: it prints one JSON array of the parts. `plugins/celetis/README.md`, "Updates", gives the steps. Any other form exits 2 with the usage line. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
+| `celetis update \| update check \| update --to <ref>` | Updates the engine and the plugin of each host, and asks once in an interactive terminal. `check` is read-only: it prints one JSON array of the parts. `--to <ref>` moves each part to the head of the branch `<ref>` or to the release tag `<ref>` (`vX.Y.Z`). `plugins/celetis/README.md`, "Updates", gives the steps. Any other form, and a `<ref>` that is no release tag and no valid branch name, exits 2 with the usage line. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis root` | Prints the version folder that holds the running engine. It takes no argument and runs in each folder. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 <!-- The end of the command table that scripts/build.ts writes. -->
 
@@ -760,11 +777,51 @@ celetis update
 ```
 
 It reads three parts: the engine, the Celetis plugin of Claude Code, and the Celetis plugin of
-Codex. Each part goes to the target of its own source and ref: the engine to the head of the
-branch of its version folder, and each plugin to the native marketplace source and ref of its
-host. A host with no CLI on `PATH`, or with no Celetis, is skipped. At a stop of the list below,
-it prints one line for each part: the installed and the target revision or `up to date`, then the
-source and the ref of the part; or a skipped part with its reason, or the first line of an error.
+Codex. Each part follows one ref of its own source: a branch, or a release tag `v<X.Y.Z>`. An
+absent ref and `HEAD` mean the default branch of the source. The ref of the engine is the branch
+or the release tag of its version folder ("First install"). The source and the ref of a plugin
+are the native marketplace source of its host. For Codex, it is the marketplace `celetis`. For
+Claude Code, the order is:
+
+1. With a user entry `extraKnownMarketplaces.celetis` in `settings.json` of the Claude
+   configuration folder, the part takes its source and its ref from that entry.
+2. A project or local settings layer of the current folder that declares `celetis` with another
+   source or ref is then a stop (stop 2 of the list below), and a managed settings layer is not
+   read for the source and the ref.
+3. With no user entry, the part takes them from the last settings layer that declares the
+   marketplace `celetis`, a managed layer last, or else from the record `celetis` of
+   `plugins/known_marketplaces.json`.
+
+A short ref of a marketplace source names only the branch `refs/heads/<ref>` or the tag
+`refs/tags/<ref>`, and a release form `v<X.Y.Z>` names only the tag. The target of a part comes
+from its ref:
+
+| Ref of the part | Target of `celetis update` | Target of `celetis update --to <ref>` |
+| --- | --- | --- |
+| a branch | the head of that branch | the head of the branch `<ref>`, or the commit of the release tag `<ref>` |
+| a release tag | the commit of the newest release tag of the source | the head of the branch `<ref>`, or the commit of the release tag `<ref>` |
+
+"Newest" is the numeric order of the three numbers of the tag, and each part reads the tags of its
+own source. A part that follows a release on a source with no release tag is an error part. A
+host with no CLI on `PATH`, or with no Celetis, is skipped. At a stop of the list below, it prints
+one line for each part: the installed and the target revision or `up to date`, then the source
+and the full ref of the part, with ` -> <target ref>` when the target ref is another ref; or a
+skipped part with its reason, or the first line of an error.
+
+`celetis update --to <ref>` names one ref for all three parts: a release tag `v<X.Y.Z>` or a
+branch. After the move, each part follows `<ref>`, so a later `celetis update` follows that branch
+or the release line. A move to an older release is allowed. It exits 2 with the usage line, and
+reads no part, when `<ref>` starts with `-`, holds a control character, has the start of a
+release tag but not its exact form (such as `v01.0.0` or `v1.0.0-rc1`), or is not a valid branch
+name for `git check-ref-format --branch`. On the source of a part, `<ref>` names only the branch
+`refs/heads/<ref>` or the tag `refs/tags/<ref>`, never a longer ref that ends with `<ref>`. A
+release form `v<X.Y.Z>` names only the tag, so a branch with that name does not count. A ref
+that the source of a part lacks, and a tag of the source that is no release tag, is an error of
+that part, and its line names the ref. The engine cannot move between two refs at one commit,
+because its version folder has the name of its revision and holds one ref. So a `<ref>` at the
+commit of the installed engine, when the engine follows another ref, is an error of the engine
+part: `update: the engine follows <full ref> at <revision>, and <full target ref> is the same commit; the engine cannot move between two refs at one commit`.
+The stops, the question, and the update after it follow the rules below.
 
 Before it asks anything, it checks the contract pair of the targets. It reads
 `plugins/celetis/contract.json` at the target of each plugin and
@@ -775,9 +832,24 @@ folder. Then it stops with no change at the first of these:
 
 1. A part has an error. A failed fetch or read of a contract file is an error of its part, and
    its line names the path, the source, the target, and the reason.
-2. The engine is not installed: run "First install".
-3. No host has Celetis: install the plugin as "Wire a product project" says.
-4. The pair of the targets does not match. When the engine target has no valid file of served
+2. A project or local settings layer of the current folder (`.claude/settings.json` of the
+   checkout, or a `.claude/settings.local.json` that the policy check reads) declares the
+   marketplace `celetis` with another source or ref than the user entry after the update: when
+   the Claude part moves its ref, the user entry at the target ref. Two forms of one GitHub
+   address are one source, and each ref compares by its full name, so an absent ref equals the
+   ref of the default branch. The line is
+   `update: <layer> declares the marketplace celetis with another source or ref than <user settings>; remove that entry (setup removes an entry that it owns), then run celetis update again`.
+   Such a layer would override the pin of the machine. So on a machine that follows `main`, a
+   layer with the source of the user entry and no ref is no stop for `celetis update`, and a stop
+   for `celetis update --to v<X.Y.Z>`; on a pinned machine, it is a stop until that entry is
+   removed. The step start checks of the daemon do not read this rule.
+3. The Claude part moves its ref, and the user settings hold no entry
+   `extraKnownMarketplaces.celetis`:
+   `update: the user settings of Claude Code hold no marketplace celetis; add it as plugins/celetis/README.md, "Each machine: Claude Code", says: claude plugin marketplace add <source>#<ref>`.
+   Run that command, then run the update again.
+4. The engine is not installed: run "First install".
+5. No host has Celetis: install the plugin as "Wire a product project" says.
+6. The pair of the targets does not match. When the engine target has no valid file of served
    versions, it prints one line that says so. Else it prints one line for each plugin target
    whose version the engine target does not serve: the line says that the plugin at its target
    needs contract `<n>`, and names the versions that the engine at its target serves. A plugin
@@ -790,7 +862,7 @@ It exits 6 at the first stop, and 3 at each other stop.
 An engine installed before the feature folders of the engine (#340) reads
 `engine/lib/contract-versions.json` at the target of the engine, and the target has the file at
 `engine/lib/contract/versions.json`. So, by the code of its updater, `celetis update` of such an
-engine stops at stop 4 with
+engine stops at stop 4 of its own list, the stop of the pair, with
 `update: the engine at <target> declares no served contract versions; nothing changed; …`, and
 changes nothing. Run "First install" once to cross the change (ADR-0114).
 
@@ -814,43 +886,41 @@ bun install --cwd="$(dirname "$(readlink "${CELETIS_HOME:-$HOME}/.local/bin/cele
 On Windows, `<revision>` is the line of `<base>/.local/share/celetis/current`.
 
 The parts can be at different revisions when their contract versions match. After a stop of the
-pair, set one compatible source and ref for the parts. The source and the ref of a plugin are the
-native marketplace source of its host. For Claude Code, `claude plugin marketplace add <source>#<ref>`
-adds a marketplace at a ref, but the Claude Code documents say that a marketplace already added from
-the same source is reused, and they do not say that the command changes its ref. To change the ref,
-run `claude plugin marketplace remove celetis`, which uninstalls the plugins of that marketplace,
-then add the marketplace with the new ref and install the plugin again. For Codex, run
-`codex plugin marketplace remove celetis`, which keeps the installed plugin, then
-`codex plugin marketplace add <source> --ref <ref>`. A check with codex-cli 0.167.0 observed that the add
-with another ref fails while the marketplace `celetis` exists, and that the remove keeps the plugin
-enabled. The ref of the engine is
-the branch of its version folder, which is the branch of the checkout that ran `celetis install`.
+pair, set one compatible source and ref for the parts; with one source, `celetis update --to <ref>`
+sets one ref.
 One source and one ref for all parts is the usual setup. For example, two forms of one GitHub
 address are one source: `ddinkov10/celetis` of Claude Code, and
 `https://github.com/ddinkov10/celetis.git` of Codex and of the engine. Each ref resolves to its
 full name, so the `HEAD` of Claude Code and the `main` of Codex and of the engine are one ref,
 `refs/heads/main`.
 
-When each part is at its target, the command prints `✓ Celetis is up to date (<target>).`, with
-the target of the engine, and asks nothing.
+When each part is at its target, the command prints `✓ Celetis is up to date (<label>).` and asks
+nothing. `<label>` is the short target of the engine when the engine follows a branch and stays on
+it. Else it is the target ref of the engine and then its short target, for example
+`v0.0.2 1a2b3c4d5e6f`.
 
-Else it asks `Update Celetis to <target>? Sessions keep running. [Y/n]` one time in an interactive
-terminal, with the target of the engine and no part lines before it. Press Enter or enter `y` or
+Else it asks `Update Celetis to <label>? Sessions keep running. [Y/n]` one time in an interactive
+terminal, with no part lines before it. The question of `celetis update --to <ref>` always names
+`<ref>` before the short target, also when the engine stays on that branch. Press Enter or enter `y` or
 `yes` to permit that exact attempt. EOF or any
 other answer leaves each part unchanged and prints `Nothing changed.` With no interactive terminal, it stops with a line that tells you to run `celetis update` in an interactive terminal, and
 exits 3. No cache path, commit hash, or flag confirms an update.
 
-After confirmation, it updates each part that is not at its own target, in this order: Claude Code, Codex, and
-then the engine. It prints one progress row: `Updating`, then ` ✓ <part>` for each part that it
+After confirmation, it updates each part that is not at its own target or not on its target ref,
+in this order: Claude Code, Codex, and then the engine. A plugin whose target ref is another ref
+moves that ref ("The move of a ref" below). It prints one progress row: `Updating`, then ` ✓ <part>` for each part that it
 completes, and ` ✗ <part>` for a part that fails. Then it checks the installed parts again, with
 the contract pair of the installed folders. The first failure stops the update: it prints the
-message and the lists of the completed and the incomplete parts on stderr, and exits 6. There is
+message and the lists of the completed and the incomplete parts on stderr, and exits 6. When a
+part failed, it then reads the parts again and prints `update: failed part now: <line>`, the
+current line of that part: its installed and target revision, its source, and its full ref, or
+its `skipped` or `error` line. There is
 no retry: a new attempt is a new command and a new answer. At the end it prints
 `Updated. Open a fresh session to use the new skills.` It prints no color when the stream is not
 a terminal, when `NO_COLOR` is set, or when `TERM` is `dumb`.
 
 `celetis update check` is read-only. It prints one JSON array of the parts. An installed part
-gives its folder, source, resolved ref, installed revision, and target; another part gives
+gives its folder, source, full ref (`ref`), target ref (`to`), installed revision, and target; another part gives
 `skipped` or `error`. After the JSON, it prints the line or lines of the stop on stderr when the
 list above gives a stop. It exits 0, or 6 when a part has an error. For entry maintenance, agents run it when the person
 explicitly requests update status or update troubleshooting, and report each part and each
@@ -913,12 +983,12 @@ The update of a host plugin serializes on the updater lock of that host's profil
 discovery holds a short shared lock and releases it before a foreground starts. A busy lock
 refuses the attempt; running sessions do not reserve this mutex. The existing 120-second monotonic
 deadline and descendant cleanup apply. Revalidation under that lock must match the offered home,
-root, source, configured and resolved refs, installed revision, target, scope, registration, and
-sibling set. A changed identity or target refuses this attempt.
+root, source, configured and resolved refs, target ref, installed revision, target, scope,
+registration, Claude user entry, and sibling set. A changed identity or target refuses this attempt.
 Failures preserve native diagnostics and observed partial state. The update of the engine holds
 `<base>/.local/share/celetis/install.lock`, so a second install or update refuses while it runs. It
 clones the target into a staging folder, installs the locked packages into it, checks the source,
-the branch, and the revision of the clone, and then switches the engine as "First install" says.
+the ref, and the revision of the clone, and then switches the engine as "First install" says.
 A terminal update stops the clone and the install after 120 seconds each. An update that the board
 runs sets no time limit on them.
 
@@ -926,7 +996,8 @@ Claude keeps its native installation scope. It writes a private catalog that nam
 of the approved source with a `git-subdir` entry and the exact target SHA, then temporarily
 registers that catalog and its matching inline source for one native update. It restores the
 complete saved marketplace entry locally before it removes the catalog and releases the lock,
-including after a native failure, timeout or interruption. User and project settings stay unchanged.
+including after a native failure, timeout or interruption. Project settings stay unchanged, and
+the user settings change only by the move of a ref (below).
 If restoration fails, the error includes the observed native state. The updater keeps the catalog
 and reports its path if the registration still points to it or cannot be read. Repair the native
 registration before removing that retained catalog or making a new attempt. Codex uses command-only
@@ -935,8 +1006,69 @@ configured or listed plugins in the Celetis marketplace, including disabled or p
 Other marketplaces are unchanged. Both paths validate fresh enabled discovery and the full installed
 revision. The Codex installed revision is the `HEAD` of the marketplace clone, checked with its
 install record, and the bytes of the plugin cache must equal `plugins/celetis` at that revision.
-Product configuration, authentication and unrelated plugin policies remain unchanged. Owned Claude
-wiring continues to disable Celetis background updates. A successful update starts no workflow.
+Product configuration, authentication and unrelated plugin policies remain unchanged. Setup writes
+no Celetis marketplace entry. Keep automatic update of the marketplace `celetis` off: the policy
+check refuses a machine where the effective `autoUpdate` of that marketplace is not `false`, when a
+settings layer or the native marketplace record sets it. A successful update starts no workflow.
+
+**The move of a ref.** A plugin whose target ref is another ref (a release line that has a newer
+tag) moves its ref under the updater lock of its host:
+
+- Claude Code moves the ref before its update. It sets only the member `ref` of
+  `extraKnownMarketplaces.celetis.source` in `settings.json` of the Claude configuration folder, for
+  a `github` or a `git` source, and its own write keeps each other byte of the file. It refuses with no write
+  when that entry is missing or changed since the offer, when the file holds ambiguous JSON, or when
+  the file changed since its first read; it reads the file again right before it replaces it. Then it runs
+  `claude plugin marketplace add --scope user --json -- <source>#<ref>`, where `<source>` is the
+  `repo` of a `github` source or the `url` of a `git` source. Claude Code 2.1.328 writes the user
+  settings again in that add, with the same values in its own layout: a two-space indent, LF line
+  ends, and its own order of members. When the add fails, the report says that the user entry pins
+  the new ref and that the add failed, and prints `repair: claude plugin marketplace add <source>#<ref>`.
+  Run that command, then run `celetis update` again: the Claude part then updates with no move.
+- Codex moves the ref after its update, so that the marketplace clone and the plugin cache are
+  already at the target. It runs `codex plugin marketplace remove celetis`, then
+  `codex plugin marketplace add <source> --ref <ref>`, where `<source>` is the configured URL. The
+  sibling check comes first: a marketplace with other configured plugins refuses with no change.
+  When the add fails, Codex has no marketplace `celetis`, and the report prints
+  `update: codex has no marketplace celetis; repair: codex plugin marketplace add <source> --ref <ref>, then run celetis update --to <ref> again`.
+  After that add, the Codex part is at its target, and the next update skips it.
+- The engine installs the target as "First install" says, and its version folder holds the ref.
+
+The first failure stops the update. The report names the completed and the incomplete parts, and
+the current line of the failed part: its revision, its source, and its ref, or its `skipped` or
+`error` line. After a failed Codex add, that line is `codex  skipped: Celetis is not installed in codex`.
+After a failed Claude add, it is the error line of "The catalog ref" below. Run the repair command
+that the report prints, when it prints one. A part at its target is skipped, so the same command
+again then completes a move that stopped.
+
+**The catalog ref.** Claude Code keeps the source of the marketplace in two places: the user entry
+in `settings.json`, and the record of `plugins/known_marketplaces.json`, which names the catalog
+that it fetched. When the `ref` of the two differs (an absent ref is `HEAD`), the Claude part is an
+error part:
+`update: the Claude marketplace catalog in <known_marketplaces.json> follows <a>, and the user entry in <settings.json> pins <b>; run claude plugin marketplace add <source>#<b> in a folder with no project entry of celetis, then run celetis update again`.
+Run that command as printed. When the user entry has no ref, the command has no `#<b>`.
+
+**The cutover to releases (#64).** `celetis update --to <ref>` is a form of an engine that holds
+this change. An older engine prints the usage line of `celetis update`, exits 2, and changes
+nothing. On each machine:
+
+1. Bring the engine to this change. For an engine installed before #348, run "First install" (the
+   cutover to the lockfile above). For a later engine, run `celetis update` in a terminal, and
+   answer `y`.
+2. In each product whose `.claude/settings.json` holds the entry `extraKnownMarketplaces.celetis`
+   of an older setup, run `/celetis:setup` in the main checkout. Setup removes an entry that its
+   record owns; the [setup document](docs/setup.md) gives the review of an entry that it does not
+   own. Until then, `setup status` reports the entry as a gap, and each lane start stops there. Do
+   step 1 first on each machine that works on that product: an engine before this change reports
+   the new record `.claude/celetis/wiring.json` as invalid and the entry as missing, and each lane
+   start stops there too.
+3. To run a release, run `celetis update --to v<X.Y.Z>` in a terminal, and answer `y`. Run it in a
+   folder whose project and local settings declare no marketplace `celetis`: a product that still
+   holds the old entry stops the move at stop 2.
+4. When the move fails, run the repair command of the report, when it prints one. Then run the same
+   command again: it skips each part that is at its target.
+
+A machine that stays on `main` needs only steps 1 and 2.
 
 **The cutover from the release before #126.** That release ran each command through the long
 entry form of the installed plugin. On each machine:

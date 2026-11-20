@@ -504,6 +504,14 @@ Claude Code and Codex TUI/CLI only (ADR-0016). A desktop probe has its own recor
 UNRUN desktop probe does not block complete CLI checks, and a desktop success does not close a CLI
 gap. An observed version is no minimum version.
 
+- **Versioned releases and a pin for each machine (#64).** partial. Hosts: Claude Code 2.1.328,
+  codex-cli 0.167.0, Git 2.56.0, macOS (private homes and a fixture repository). Open: the fresh
+  interactive Claude session that loads the copy after a move (the build proved the native
+  selection and the files of the folder only); the signed-in Claude session start with a project
+  entry of `celetis` (the private start stopped at the sign-in screen, with no trust dialog); a
+  failure of Codex itself between the remove and the add of a move; the `github` source shape of the
+  user entry against a host; native Windows (no Windows host in this build). Evidence:
+  [#64](https://github.com/ddinkov10/celetis/issues/64) and ADR-0118.
 - **Native Windows as a support target (#309).** unverified. Hosts: none recorded yet. Open: each
   scenario of the Verify phase on a Windows host, with Claude Code and with Codex: the daemon with
   no window for the daemon or its children, a run, resume, and retry, the queue, the coordinator, a landing, the forced end after
