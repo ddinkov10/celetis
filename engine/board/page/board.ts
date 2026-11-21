@@ -1,3 +1,4 @@
+import { QueryObserver, type QueryObserverResult } from '@tanstack/react-query';
 import type { AgentOrder, Host } from '../../lib/config/core.ts';
 import { compareKeys, type IssueKey, parseKey } from '../../lib/tracker/key.ts';
 import type { Level, RowSource, StartPair } from '../../lib/workflow/effort.ts';
@@ -49,25 +50,28 @@ import {
   turnLine,
 } from '../view.ts';
 import { createAgentPicker, OrderConflict } from './agent-picker.ts';
-import { drawControl } from './control.ts';
 import { setupCoordinator } from './coordinator.ts';
 import { drawHome } from './home.ts';
 import { closeMenu, openMenu, openPalette, setupMenu, setupPalette } from './palette.ts';
 import { drawPanel } from './panel.ts';
+import { boardKey, pollOptions, queryClient } from './query.ts';
 import { drawQueue, setQueueOpen, setupQueue } from './queue.ts';
 import {
+  AREA_ICONS,
   AREA_NAMES,
   AREAS,
   type Area,
+  badgeText,
+  FIND_KEY,
   isChatShown,
   type Pane,
-  readShell,
   type Shell,
   TABS,
   type Tab,
 } from './shell.ts';
 import { dialogOpen, openStopDialog } from './stop-dialog.ts';
-import { applyTheme, readTheme, THEME_KEY, THEMES, type Theme, writeTheme } from './theme/choice.ts';
+import { phone, shellStore } from './store.ts';
+import { THEME_WORDS } from './theme/choice.ts';
 import {
   $,
   actionButton,
@@ -90,6 +94,13 @@ import {
 } from './ui.ts';
 import { isReconnecting, setupUpdates } from './update-dialog.ts';
 
+const panelNode = el('section', 'panel');
+panelNode.id = 'panel';
+panelNode.setAttribute('aria-label', 'Card details');
+panelNode.tabIndex = -1;
+panelNode.hidden = true;
+$('center').append(panelNode);
+
 const COPY: Record<string, string> = { 'no-progress': 'command', 'set-aside': 'command', 'dirty-tree': 'path' };
 const STOPPING = 'The daemon ends the session. The card moves to Idle when the session has ended.';
 const ON_ISSUE = new Set(['blocked']);
@@ -103,16 +114,14 @@ const STATUS_ICONS: Record<string, string> = {
   blocked: 'person',
   'quota-wait': 'clock',
 };
-const FIND_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K';
 const QUEUE_LEVEL = 'The queue starts this step at the start pair, with no override';
 
 let data: Board | null = null;
-let theme: Theme = readTheme();
-let shell: Shell = readShell({ area: store.get('area'), tab: store.get('tab') });
-let isNotifyOn = store.get('notify') === 'on';
-let isKeysOn = store.get('keys') !== 'off';
+const shell = (): Shell => shellStore.get().shell;
+const settings = () => shellStore.get().settings;
 let openEpics = parseOpenEpics(store.get('open-epics') ?? '');
-let isServerDown = false;
+const isServerDown = () => queryClient.getQueryState(boardKey)?.status === 'error';
+let drawnDown = false;
 let intakePending = false;
 let seen: Map<string, string> | null = null;
 let needsKeys: Set<string> | null = null;
@@ -144,16 +153,13 @@ const canRunLater = (card: Card) =>
   (card.state === null || card.state === 'no-progress' || card.state === 'set-aside');
 const copyWhat = (card: Card) => (card.act ? COPY[card.state as string] : null);
 const onTracker = () => ((data as Board).tracker ? ` on ${(data as Board).tracker}` : '');
-const readAgain = () => (data?.tracker ? `Read ${(data as Board).tracker} again` : 'Read the issues again');
-let refreshedUntil = 0;
-let refreshDone: ReturnType<typeof setTimeout> | undefined;
-const refreshTitle = () => (Date.now() < refreshedUntil ? `${readAgain()}: done` : `${readAgain()} (r)`);
+const readAgainText = () => (data?.tracker ? `Read ${(data as Board).tracker} again` : 'Read the issues again');
 
 const act = async (path: string, value: unknown, failure: string, onDone?: () => void) => {
   if (isReconnecting()) return false;
   const isOk = await post(path, value, failure);
   if (isOk) onDone?.();
-  await load();
+  await readAgain();
   return isOk;
 };
 
@@ -161,24 +167,13 @@ const intakeReason = () => {
   if (isReconnecting()) return 'The board is reconnecting';
   if (intakePending) return 'An intake tab is opening';
   const readAt = Date.parse(data?.source.readAt ?? '');
-  if (!data || isServerDown || data.source.error || !Number.isFinite(readAt) || Date.now() - readAt > 60_000)
+  if (!data || isServerDown() || data.source.error || !Number.isFinite(readAt) || Date.now() - readAt > 60_000)
     return null;
   return defaultReason();
 };
 
-let drawnIntake = '';
 function drawIntake(): void {
-  const button = $('intake');
-  const reason = intakeReason();
-  const state = `${intakePending}|${reason}`;
-  if (state === drawnIntake) return;
-  drawnIntake = state;
-  button.setAttribute('aria-disabled', String(reason !== null));
-  button.setAttribute('aria-busy', String(intakePending));
-  button.title = reason ?? 'Open a fresh intake session';
-  (button.querySelector('.label') as HTMLElement).textContent = intakePending ? 'Opening…' : 'New intake';
-  $('intake-reason').textContent = intakePending ? '' : (reason ?? '');
-  $('intake-reason').hidden = intakePending || reason === null;
+  shellStore.setInputs({ intake: { reason: intakeReason(), pending: intakePending } });
 }
 
 async function openIntake(): Promise<void> {
@@ -656,7 +651,7 @@ const keyFor = (card: Card) => {
 const cardShell = (card: Card, column: Column, isCompact: boolean, level: 'h2' | 'h3' | 'h4' = 'h3') => {
   const key = keyFor(card);
   byKey.set(key, { card, column });
-  const node = el('article', `card${isCompact ? ' compact' : ''}${key === shell.details ? ' is-selected' : ''}`);
+  const node = el('article', `card${isCompact ? ' compact' : ''}${key === shell().details ? ' is-selected' : ''}`);
   node.dataset.state = card.state ?? 'next';
   node.dataset.key = key;
   node.tabIndex = -1;
@@ -1043,7 +1038,7 @@ const humanPill = (card: Card) => {
   pill.dataset.wait = card.waitFor ?? '';
   const isTurn = isYourTurn(card, seenTurn);
   if (isTurn) pill.dataset.yourTurn = '';
-  const open = el('button', `human-open${key === shell.details ? ' is-selected' : ''}`);
+  const open = el('button', `human-open${key === shell().details ? ' is-selected' : ''}`);
   open.type = 'button';
   open.dataset.key = key;
   open.title = 'Show the details and the screen of this session';
@@ -1053,7 +1048,7 @@ const humanPill = (card: Card) => {
     el('i', 'human-dot'),
     el('span', 'human-state', isTurn ? 'your turn' : (stateLabel(card) as string)),
   );
-  open.addEventListener('click', () => (shell.details === key ? closeDetails(true) : openDetails(key)));
+  open.addEventListener('click', () => (shell().details === key ? closeDetails(true) : openDetails(key)));
   const [go] = actionsOf(card) as [Action];
   pill.append(
     open,
@@ -1077,10 +1072,10 @@ const visualPresses = new Set<IssueKey>();
 const makeVisual = async (number: IssueKey) => {
   if (visualPresses.has(number)) return;
   visualPresses.add(number);
-  if (shell.tab === 'history') drawHistory();
+  if (shell().tab === 'history') drawHistory();
   await act('/api/visual', { number }, 'Make visual failed');
   visualPresses.delete(number);
-  if (shell.tab === 'history') drawHistory();
+  if (shell().tab === 'history') drawHistory();
 };
 
 const visualControl = (entry: HistoryRow) => {
@@ -1124,7 +1119,7 @@ const drawHistory = () => {
   const visual = active?.dataset.visual;
   const scroll = panel.querySelector('.history-body')?.scrollTop ?? 0;
   const history = data?.history;
-  const error = isServerDown ? SERVER_DOWN : data?.source.error;
+  const error = isServerDown() ? SERVER_DOWN : data?.source.error;
   panel.dataset.state = 'history';
   const head = el('div', 'panel-head history-head');
   head.append(el('h2', '', history ? `Landed on ${history.trunk}` : 'Landed history'));
@@ -1176,15 +1171,8 @@ const drawHistory = () => {
   }
 };
 
-const phone = matchMedia('(max-width: 719px)');
 const PANEL_FOCUS = '.panel-actions .btn, .ask .btn, .icon-btn';
-const AREA_ICONS: Record<Area, string> = { home: 'home', operations: 'board', control: 'sliders', throughput: 'trend' };
-const boardView = (): 'now' | 'pipeline' => (shell.tab === 'pipeline' ? 'pipeline' : 'now');
-
-const markCurrent = (node: Element, isCurrent: boolean) => {
-  if (isCurrent) node.setAttribute('aria-current', 'page');
-  else node.removeAttribute('aria-current');
-};
+const boardView = (): 'now' | 'pipeline' => (shell().tab === 'pipeline' ? 'pipeline' : 'now');
 
 const moveTo = (node: HTMLElement, parent: HTMLElement, before: Element | null) => {
   if (node.parentElement === parent && node.nextElementSibling === before) return;
@@ -1194,24 +1182,12 @@ const moveTo = (node: HTMLElement, parent: HTMLElement, before: Element | null) 
 };
 
 const drawShell = () => {
-  const { area, tab, details, pane } = shell;
-  const isPhone = phone.matches;
-  const isOps = area === 'operations';
-  const isWide = tab === 'pipeline' && !isPhone;
-  const isChat = isChatShown(shell, isPhone);
+  const { area, tab, details, pane } = shell();
+  const isWide = tab === 'pipeline' && !phone.matches;
   const ops = $('area-operations');
-  $('work').dataset.area = area;
-  for (const each of AREAS) $(`area-${each}`).hidden = each !== area;
   ops.dataset.tab = tab;
   ops.dataset.pane = pane;
   ops.toggleAttribute('data-details', details !== null);
-  for (const node of document.querySelectorAll<HTMLElement>('.dest'))
-    markCurrent(node, !isPhone && node.dataset.area === area);
-  markCurrent($('pb-home'), isPhone && area === 'home');
-  markCurrent($('pb-chat'), isPhone && isOps && pane === 'chat');
-  markCurrent($('pb-agents'), isPhone && isOps && pane === 'agents');
-  markCurrent($('pb-control'), isPhone && area === 'control');
-  markCurrent($('board-more'), isPhone && area === 'throughput');
   for (const node of document.querySelectorAll<HTMLElement>('.tab')) {
     const isSelected = node.dataset.tab === tab;
     node.setAttribute('aria-selected', String(isSelected));
@@ -1226,16 +1202,7 @@ const drawShell = () => {
   $('panel').hidden = details === null;
   if (isWide) moveTo($('panel'), ops, null);
   else moveTo($('panel'), $('center'), null);
-  const intake = document.querySelector<HTMLElement>('.intake-control') as HTMLElement;
-  if (isPhone) moveTo(intake, $('bar'), $('pb-control'));
-  else moveTo(intake, $('side'), $('find'));
-  const isDetails = isOps && details !== null && (!isPhone || pane === 'chat');
-  const skipCenter = $('skip-center') as HTMLAnchorElement;
-  skipCenter.textContent = !isOps ? 'Skip to the work area' : isDetails ? 'Skip to the details' : 'Skip to the chat';
-  skipCenter.href = !isOps ? `#area-${area}` : isDetails ? '#panel' : '#coordinator';
-  skipCenter.hidden = isOps && !isChat && !isDetails;
-  $('skip-pane').hidden = !isOps || (isPhone && pane !== 'agents');
-  if (isChat) coordinator.show();
+  if (isChatShown(shell(), phone.matches)) coordinator.show();
   else coordinator.hide();
   if (area !== 'control') {
     updates.dismiss();
@@ -1248,16 +1215,15 @@ document.addEventListener('focusout', (event) => {
   hiddenFocus = event.target instanceof HTMLElement && !event.target.checkVisibility() ? event.target : null;
 });
 phone.addEventListener('change', () =>
-  setShell(shell, document.activeElement === document.body ? hiddenFocus : document.activeElement),
+  setShell(shell(), document.activeElement === document.body ? hiddenFocus : document.activeElement),
 );
 
 const setShell = (next: Shell, active: Element | null = document.activeElement) => {
-  const was = shell;
+  const was = shell();
   const wasView = boardView();
   const wasInPanel = active instanceof HTMLElement && $('panel').contains(active);
-  shell = next;
-  store.set('area', next.area);
-  store.set('tab', next.tab);
+  const activeId = active?.id;
+  shellStore.setShell(next);
   if (was.details !== null && next.details !== was.details) {
     $('panel').replaceChildren();
     for (const node of document.querySelectorAll<HTMLElement>('[data-key].is-selected'))
@@ -1268,23 +1234,32 @@ const setShell = (next: Shell, active: Element | null = document.activeElement) 
   const now = document.activeElement;
   const isLost = active instanceof HTMLElement && (active.isConnected ? !active.checkVisibility() : wasInPanel);
   if (isLost && (now === active || now === document.body)) {
-    const tabNode = $(`tab-${shell.tab}`);
-    (shell.area === 'operations' && tabNode.checkVisibility() ? tabNode : $('work')).focus({ preventScroll: true });
+    const tabNode = $(`tab-${shell().tab}`);
+    (shell().area === 'operations' && tabNode.checkVisibility() ? tabNode : $('work')).focus({ preventScroll: true });
   } else if (now === document.body && active instanceof HTMLElement && active.isConnected)
     active.focus({ preventScroll: true });
+  else if (now === document.body && activeId) {
+    const twin = document.getElementById(activeId);
+    if (twin?.checkVisibility()) twin.focus({ preventScroll: true });
+  }
 };
 
-const setArea = (area: Area) => setShell({ ...shell, area });
+const setArea = (area: Area) => setShell({ ...shell(), area });
 const setTab = (tab: Tab) =>
-  setShell({ ...shell, area: 'operations', tab, ...(phone.matches ? { pane: 'agents' as const, details: null } : {}) });
-const setPane = (pane: Pane) => setShell({ ...shell, area: 'operations', pane, details: null });
+  setShell({
+    ...shell(),
+    area: 'operations',
+    tab,
+    ...(phone.matches ? { pane: 'agents' as const, details: null } : {}),
+  });
+const setPane = (pane: Pane) => setShell({ ...shell(), area: 'operations', pane, details: null });
 const showChat = () =>
   setShell({
-    ...shell,
+    ...shell(),
     area: 'operations',
     details: null,
     pane: 'chat',
-    tab: shell.tab === 'pipeline' ? 'agents' : shell.tab,
+    tab: shell().tab === 'pipeline' ? 'agents' : shell().tab,
   });
 
 const markSeen = (key: string) => {
@@ -1311,25 +1286,9 @@ const drawFavicon = () => {
   if (data) $('favicon').href = favicon(tone(project(data), seenTurn), faviconColors());
 };
 
-const THEME_WORDS: Record<Theme, string> = { system: 'System', light: 'Light', dark: 'Dark' };
-const drawTheme = () => {
-  const label = `Theme: ${THEME_WORDS[theme]}. Press to change`;
-  $('theme').setAttribute('aria-label', label);
-  $('theme').title = label;
-  $('theme-words').textContent = THEME_WORDS[theme];
-};
-const setTheme = (next: Theme) => {
-  theme = next;
-  writeTheme(next);
-  applyTheme(next);
-  drawTheme();
-  drawFavicon();
-};
-const cycleTheme = () => setTheme(THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length] ?? 'system');
-
 const systemNotice = (title: string, body: string, tag: string, open: () => void) => {
   const isAway = document.hidden || !document.hasFocus();
-  if (!isNotifyOn || !isAway || !('Notification' in window) || Notification.permission !== 'granted') return;
+  if (!settings().notify || !isAway || !('Notification' in window) || Notification.permission !== 'granted') return;
   const shown = new Notification(title, { body, tag, icon: favicon('needs', faviconColors()) });
   shown.addEventListener('click', () => {
     window.focus();
@@ -1350,7 +1309,7 @@ const notify = (cards: Card[]) => {
   for (const card of fresh) {
     const { title, body } = notice(card);
     systemNotice(title, body, keyOf(card), () => {
-      if (shell.tab === 'pipeline') setTab('agents');
+      if (shell().tab === 'pipeline') setTab('agents');
       openDetails(keyOf(card));
     });
   }
@@ -1385,7 +1344,6 @@ const startNotices = (columns: Columns) => {
 };
 
 const drawHints = (card: HTMLElement | null) => {
-  const hints = $('hints');
   const entry = card ? byKey.get(card.dataset.key as string) : null;
   const pairs = entry
     ? [
@@ -1400,79 +1358,16 @@ const drawHints = (card: HTMLElement | null) => {
         ['j', 'k', 'Move'],
         [FIND_KEY, 'Search'],
       ];
-  hints.replaceChildren(
-    ...pairs
-      .filter((pair) => pair.at(-1))
-      .map((pair) => {
-        const node = el('span', 'hint');
-        node.append(...pair.slice(0, -1).map((key) => el('kbd', '', key)), pair.at(-1) as string);
-        return node;
-      }),
-  );
+  shellStore.setInputs({ hints: pairs.flatMap((pair) => (pair.at(-1) ? [pair as string[]] : [])) });
 };
 
-const statusWords = (item: HTMLElement) =>
-  `${item.querySelector('.sb-name')?.textContent}: ${item.querySelector('.sb-text')?.textContent}`;
-
-const drawStatus = (source: Board['source'], isDown: boolean) => {
-  const changed = isServerDown !== isDown;
-  isServerDown = isDown;
-  if (changed && shell.tab === 'history') drawHistory();
-  const fresh = $('fresh');
-  const state = isDown || source.error ? 'fail' : source.readAt ? 'ok' : 'wait';
-  const name = data?.tracker ?? 'Issues';
-  const text = el('span', 'sb-text');
-  if (isDown) text.append(SERVER_DOWN);
-  else if (source.error) text.append(`cannot read: ${source.error}`);
-  else if (!source.readAt) text.append('no data yet');
-  else text.append('read ', timed(source.readAt, false, ' ago'));
-  fresh.dataset.tone = state;
-  fresh.title =
-    !isDown && source.error
-      ? `cannot read: ${source.error}`
-      : source.readAt
-        ? `${name} was read at ${clock(source.readAt)}`
-        : '';
-  fresh.replaceChildren(el('i', 'dot'), el('span', 'sb-name', name), text);
-  const terminal = data?.terminal;
-  const terminalNode = $('terminal');
-  terminalNode.dataset.tone = terminal?.ok === true ? 'ok' : terminal?.ok === false ? 'fail' : 'wait';
-  terminalNode.title = terminal?.error ? `herdr: ${terminal.error}` : 'Run and Go use herdr';
-  (terminalNode.querySelector('.sb-text') as HTMLElement).textContent =
-    terminal?.ok === true ? 'up' : terminal?.ok === false ? 'down' : 'checking';
-  const failed = [fresh, terminalNode].filter((item) => item.dataset.tone === 'fail').map(statusWords);
-  const controlName = ['Control', ...failed].join(', ');
-  for (const node of [document.querySelector('.dest[data-area="control"]') as HTMLElement, $('pb-control')]) {
-    if (failed.length) {
-      node.setAttribute('aria-label', controlName);
-      node.title = controlName;
-    } else {
-      node.removeAttribute('aria-label');
-      node.removeAttribute('title');
-    }
-  }
-  drawControl({ daemon: data?.daemon ?? null, isDown });
+const drawStatus = (isDown: boolean) => {
+  const changed = drawnDown !== isDown;
+  drawnDown = isDown;
+  if (changed && shell().tab === 'history') drawHistory();
   if (data?.picker) picker.update(data.picker, data.registry);
   document.body.toggleAttribute('data-stale', isDown);
   coordinator.down(isDown);
-  $('stale').hidden = !isDown && !source.error;
-};
-
-const drawNotify = () => {
-  const button = $('notify');
-  const isBlocked = 'Notification' in window && Notification.permission === 'denied';
-  const isOn = isNotifyOn && !isBlocked;
-  button.replaceChildren(
-    icon(isOn ? 'bell' : 'bell-off'),
-    el('span', 'sb-name', 'Notify'),
-    el('b', '', isBlocked ? 'blocked' : isOn ? 'on' : 'off'),
-  );
-  button.setAttribute('aria-pressed', String(isOn));
-  button.title = isBlocked
-    ? 'The browser blocks notifications for this page'
-    : isOn
-      ? 'A system notification shows when a card needs you'
-      : 'Show a system notification when a card needs you';
 };
 
 const detailActions = (card: Card): Action[] => {
@@ -1508,7 +1403,7 @@ const panelContext = (card: Card) => ({
 });
 
 const drawPanelFor = () => {
-  const selected = shell.details as string;
+  const selected = shell().details as string;
   const entry = byKey.get(selected);
   if (!entry) return closeDetails(false);
   $('panel').setAttribute('aria-label', 'Card details');
@@ -1539,12 +1434,12 @@ const revealCard = (key: string) => {
 const openDetails = (key: string) => {
   if (!byKey.has(key)) return;
   revealCard(key);
-  setShell({ ...shell, area: 'operations', details: key, pane: 'chat' });
+  setShell({ ...shell(), area: 'operations', details: key, pane: 'chat' });
   for (const node of document.querySelectorAll<HTMLElement>('[data-key].is-selected'))
     node.classList.remove('is-selected');
   const selected = document.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
   selected?.classList.add('is-selected');
-  if (shell.tab === 'pipeline') selected?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  if (shell().tab === 'pipeline') selected?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   drawPanelFor();
   markSeen(key);
   const entry = byKey.get(key);
@@ -1553,12 +1448,12 @@ const openDetails = (key: string) => {
 };
 
 function closeDetails(refocus: boolean) {
-  const key = shell.details;
+  const key = shell().details;
   const isBack = refocus && key !== null;
   setShell({
-    ...shell,
+    ...shell(),
     details: null,
-    ...(isBack && (shell.tab === 'queue' || shell.tab === 'history') ? { tab: 'agents' as const } : {}),
+    ...(isBack && (shell().tab === 'queue' || shell().tab === 'history') ? { tab: 'agents' as const } : {}),
     ...(isBack && phone.matches ? { pane: 'agents' as const } : {}),
   });
   if (isBack) {
@@ -1623,8 +1518,6 @@ const restoreFocus = (mark: FocusMark) => {
   target?.focus({ preventScroll: true });
 };
 
-const badgeText = (count: number): string => (count === 0 ? '' : count > 999 ? '999+' : String(count));
-
 const drawBadge = (badge: HTMLElement, owner: HTMLElement, name: string, count: number): void => {
   badge.hidden = count === 0;
   badge.textContent = badgeText(count);
@@ -1632,10 +1525,8 @@ const drawBadge = (badge: HTMLElement, owner: HTMLElement, name: string, count: 
 };
 
 const drawNow = (all: number, work: number, home: number): void => {
-  drawBadge($('home-badge'), $('home-badge').closest('button') as HTMLElement, 'Home', home);
-  drawBadge($('ops-badge'), $('ops-badge').closest('button') as HTMLElement, 'Operations', all);
+  shellStore.setInputs({ badges: { home, operations: all, agents: work } });
   drawBadge($('agents-badge'), $('tab-agents'), 'Agents', work);
-  drawBadge($('now-badge'), $('pb-agents'), 'Agents', work);
 };
 
 const focusNeed = (): void => {
@@ -1665,15 +1556,9 @@ const drawBoard = (next: Board) => {
   const waiting = needsYou(next, seenTurn);
   document.title = pageTitle(next.repo, waiting.length);
   drawFavicon();
-  $('repo').textContent = next.repo;
-  $('repo').title = next.repo;
-  $('refresh').title = refreshTitle();
-  $('dirty').hidden = !next.noRun;
-  const banner = next.noRun ?? '';
-  if ($('dirty').textContent !== banner) $('dirty').textContent = banner;
   drawNow(waiting.length, waiting.filter(isCard).length, next.columns.needs.length);
   drawHome(next, { open: openDetails });
-  if (shell.tab === 'history') drawHistory();
+  if (shell().tab === 'history') drawHistory();
   const board = $('columns');
   board.dataset.view = boardView();
   board.style.setProperty('--stages', String(Math.max(1, next.flow?.stages.length ?? 0)));
@@ -1704,8 +1589,9 @@ const drawBoard = (next: Board) => {
   ];
   coordinatorLine = null;
   if (lines.length) announce(lines.join('. '));
-  if (shell.details !== null) {
-    if (byKey.has(shell.details)) drawPanelFor();
+  const { details } = shell();
+  if (details !== null) {
+    if (byKey.has(details)) drawPanelFor();
     else closeDetails(false);
   }
   syncStops();
@@ -1745,12 +1631,6 @@ const layoutOf = (next: Board) =>
   ]);
 let last = '';
 let lastLayout = '';
-let source: Board['source'] = { readAt: null, error: null };
-let hasRead = false;
-let timer: ReturnType<typeof setTimeout> | number = 0;
-let reads = 0;
-let accepted = 0;
-let settled = 0;
 type Launch = { step: string | null; phase: 'pending' | 'done' | 'failed'; at: number; isAnnounced: boolean };
 const launches = new Map<IssueKey, Launch>();
 const startFailures = new Map<IssueKey, string>();
@@ -1887,9 +1767,8 @@ const launch = async (card: Card, path: '/api/run' | '/api/resume' | '/api/assis
   );
   entry.phase = failure === null ? 'done' : 'failed';
   if (failure !== null) startFailures.set(number, failure);
-  settled = reads;
   render();
-  load();
+  void readAgain();
   return failure === null;
 };
 
@@ -1925,9 +1804,8 @@ const pressAct = async (
     pressed.set(number, 'done');
     toast(text.done, { detail: text.detail });
     announce(text.done);
-    settled = reads;
     render(false);
-    load();
+    void readAgain();
     return;
   }
   pressed.delete(number);
@@ -1948,10 +1826,25 @@ const openStop = (card: Card) => {
   });
 };
 
-let loadRequest: AbortController | undefined;
+const observer = new QueryObserver(queryClient, pollOptions);
+const waiters: (() => void)[] = [];
+const settle = () => {
+  for (const resolve of waiters.splice(0)) resolve();
+};
+const readAgain = (): Promise<void> => {
+  if (isReconnecting()) return Promise.resolve();
+  const next = new Promise<void>((resolve) => waiters.push(resolve));
+  // invalidateQueries keeps a read in flight when the query has no data yet.
+  void queryClient
+    .cancelQueries({ queryKey: boardKey })
+    .then(() => queryClient.invalidateQueries({ queryKey: boardKey }));
+  return next;
+};
 document.addEventListener('board-reconnect', () => {
   drawIntake();
-  loadRequest?.abort();
+  observer.setOptions({ ...pollOptions, enabled: false });
+  void queryClient.cancelQueries({ queryKey: boardKey });
+  settle();
   if (data) {
     data = { ...data, queue: null };
     drawQueue(project(data));
@@ -1959,57 +1852,53 @@ document.addEventListener('board-reconnect', () => {
 });
 document.addEventListener('board-connected', () => {
   drawIntake();
-  void load();
+  observer.setOptions({ ...pollOptions, enabled: true });
 });
 
-async function load() {
-  clearTimeout(timer);
-  if (isReconnecting()) return;
-  loadRequest = new AbortController();
-  const isLocal = hasRead && document.hidden;
-  const read = ++reads;
-  try {
-    const response = await fetch(`/api/board${isLocal ? '?local=1' : ''}`, { signal: loadRequest.signal });
-    if (!response.ok) throw new Error(response.statusText);
-    const next = (await response.json()) as Board;
-    if (read > accepted && read > settled) {
-      accepted = read;
-      hasRead = true;
-      for (const [number, launch] of launches) if (launch.phase !== 'pending') launches.delete(number);
-      for (const pressed of [asides, stops])
-        for (const [number, phase] of pressed) if (phase === 'done') pressed.delete(number);
-      for (const [number, refusal] of refusals)
-        if (
-          !Object.values(next.columns)
-            .flat()
-            .some(
-              (card) => card.number === number && card.sessionId === refusal.sessionId && card.state === refusal.state,
-            )
-        )
-          refusals.delete(number);
-      for (const card of Object.values(next.columns).flat())
-        if (card.sessionId !== null && card.number !== null) startFailures.delete(card.number);
-      coordinatorLine = coordinator.update(next.coordinator);
-      if (next.terminal.ok === true) {
-        const running = new Set(next.columns.human.map((card) => card.sessionId));
-        for (const name of store.keys(SEEN_TURN)) if (!running.has(name.slice(SEEN_TURN.length))) store.remove(name);
-      }
-      data = { ...next, coordinator: coordinator.view() };
-      render();
-      source = data.source;
-      drawStatus(source, false);
-    }
-  } catch {
-    if (!isReconnecting() && read > accepted && read > settled) {
-      accepted = read;
-      if (data) data = { ...data, queue: null };
-      drawStatus(source, true);
-      if (data) drawQueue(project(data));
-    }
+const accept = (next: Board) => {
+  for (const [number, launch] of launches) if (launch.phase !== 'pending') launches.delete(number);
+  for (const pressed of [asides, stops])
+    for (const [number, phase] of pressed) if (phase === 'done') pressed.delete(number);
+  for (const [number, refusal] of refusals)
+    if (
+      !Object.values(next.columns)
+        .flat()
+        .some((card) => card.number === number && card.sessionId === refusal.sessionId && card.state === refusal.state)
+    )
+      refusals.delete(number);
+  for (const card of Object.values(next.columns).flat())
+    if (card.sessionId !== null && card.number !== null) startFailures.delete(card.number);
+  coordinatorLine = coordinator.update(next.coordinator);
+  if (next.terminal.ok === true) {
+    const running = new Set(next.columns.human.map((card) => card.sessionId));
+    for (const name of store.keys(SEEN_TURN)) if (!running.has(name.slice(SEEN_TURN.length))) store.remove(name);
   }
-  tick();
-  timer = setTimeout(load, document.hidden ? 15_000 : 5000);
-}
+  data = { ...next, coordinator: coordinator.view() };
+  render();
+  drawStatus(false);
+};
+const fail = () => {
+  if (isReconnecting()) return;
+  if (data) data = { ...data, queue: null };
+  drawStatus(true);
+  if (data) drawQueue(project(data));
+};
+let dataAt = 0;
+let errorAt = 0;
+const onRead = ({ data: next, dataUpdatedAt, errorUpdatedAt }: QueryObserverResult<Board>) => {
+  const isNew = dataUpdatedAt !== dataAt && next !== undefined;
+  const isFailed = errorUpdatedAt !== errorAt;
+  if (!isNew && !isFailed) return;
+  dataAt = dataUpdatedAt;
+  errorAt = errorUpdatedAt;
+  try {
+    if (isNew) accept(next);
+    else fail();
+    tick();
+  } finally {
+    settle();
+  }
+};
 
 const move = (across: number, down: number) => {
   const lists = [...document.querySelectorAll<HTMLElement>('#columns .col')].map((col) =>
@@ -2034,30 +1923,30 @@ const move = (across: number, down: number) => {
 };
 
 const readEntry = (): MenuEntry => ({
-  label: readAgain(),
+  label: readAgainText(),
   icon: 'refresh',
   key: 'r',
-  run: () => $('refresh').click(),
+  run: () => void shellStore.refresh(),
 });
-const toggleHistory = () => setTab(shell.tab === 'history' ? 'agents' : 'history');
-const toggleView = () => setTab(shell.tab === 'pipeline' ? 'agents' : 'pipeline');
+const toggleHistory = () => setTab(shell().tab === 'history' ? 'agents' : 'history');
+const toggleView = () => setTab(shell().tab === 'pipeline' ? 'agents' : 'pipeline');
 const historyEntry = (): MenuEntry => ({
-  label: shell.tab === 'history' ? 'Hide history' : 'Show history',
+  label: shell().tab === 'history' ? 'Hide history' : 'Show history',
   icon: 'clock',
   key: 'd',
   run: toggleHistory,
 });
 const notifyEntry = (): MenuEntry => ({
-  label: isNotifyOn ? 'Turn notifications off' : 'Turn notifications on',
-  icon: isNotifyOn ? 'bell-off' : 'bell',
+  label: settings().notify ? 'Turn notifications off' : 'Turn notifications on',
+  icon: settings().notify ? 'bell-off' : 'bell',
   key: '',
-  run: toggleNotify,
+  run: () => void shellStore.toggleNotify(),
 });
 const themeEntry = (): MenuEntry => ({
-  label: `Theme: ${THEME_WORDS[theme]}`,
-  icon: `theme-${theme}`,
+  label: `Theme: ${THEME_WORDS[settings().theme]}`,
+  icon: `theme-${settings().theme}`,
   key: '',
-  run: cycleTheme,
+  run: () => shellStore.cycleTheme(),
 });
 const keysEntry = (): MenuEntry => ({
   label: 'Show the keyboard shortcuts',
@@ -2196,7 +2085,7 @@ const paletteItems = () => {
       key: '',
       run: () => {
         const row = () => document.querySelector<HTMLElement>(`.epic-row[data-epic="${number}"]`);
-        setTab(shell.tab === 'pipeline' && row() ? 'pipeline' : 'agents');
+        setTab(shell().tab === 'pipeline' && row() ? 'pipeline' : 'agents');
         setEpicOpen(number, true);
         row()?.focus();
       },
@@ -2218,9 +2107,9 @@ const paletteItems = () => {
     {
       group: 'Board',
       number: null,
-      label: shell.tab === 'pipeline' ? 'Show the agents' : 'Show the pipeline',
+      label: shell().tab === 'pipeline' ? 'Show the agents' : 'Show the pipeline',
       context: '',
-      icon: shell.tab === 'pipeline' ? 'board' : 'stages',
+      icon: shell().tab === 'pipeline' ? 'board' : 'stages',
       key: 'v',
       run: toggleView,
     },
@@ -2255,56 +2144,20 @@ const paletteItems = () => {
   return [...goTo, ...items];
 };
 
-async function toggleNotify() {
-  const button = $('notify');
-  if (button.getAttribute('aria-busy') === 'true') return;
-  if (!('Notification' in window)) return toast('This browser has no notifications', { isError: true });
-  if (!isNotifyOn && Notification.permission === 'default') {
-    button.setAttribute('aria-busy', 'true');
-    try {
-      await Notification.requestPermission();
-    } finally {
-      button.removeAttribute('aria-busy');
-    }
-  }
-  if (Notification.permission === 'denied') {
-    isNotifyOn = false;
-    toast('The browser blocks notifications for this page', {
-      detail: 'Allow them in the site settings of the browser, then press Notify again.',
-      isError: true,
-    });
-  } else if (Notification.permission === 'default') {
-    isNotifyOn = false;
-    toast('Notifications stay off', {
-      detail: 'The browser did not get your permission. Press Notify again to answer it.',
-    });
-  } else {
-    isNotifyOn = !isNotifyOn;
-    toast(isNotifyOn ? 'Notifications are on' : 'Notifications are off', {
-      detail: isNotifyOn ? 'A system notification shows when a card needs you and the board is not in front.' : '',
-    });
-  }
-  store.set('notify', isNotifyOn ? 'on' : 'off');
-  drawNotify();
-}
-
-const drawKeys = () => {
-  $('keys-on').checked = isKeysOn;
-  $('keys-switch').setAttribute('aria-pressed', String(isKeysOn));
-  $('keys-switch').textContent = isKeysOn ? 'On' : 'Off';
-};
-const setKeys = (isOn: boolean): void => {
-  isKeysOn = isOn;
-  store.set('keys', isOn ? 'on' : 'off');
-  drawKeys();
-};
+let drawnSettings = settings();
+shellStore.subscribe(() => {
+  if (settings() === drawnSettings) return;
+  drawnSettings = settings();
+  $('keys-on').checked = settings().keys;
+  drawFavicon();
+});
 
 const KEYS: Record<string, () => void> = {
   j: () => move(0, 1),
   k: () => move(0, -1),
   h: () => move(-1, 0),
   l: () => move(1, 0),
-  r: () => $('refresh').click(),
+  r: () => void shellStore.refresh(),
   d: toggleHistory,
   v: toggleView,
   '?': () => $('keys').showModal(),
@@ -2364,18 +2217,19 @@ document.addEventListener('keydown', (event) => {
     event.preventDefault();
     return;
   }
-  if (event.key === 'Escape' && shell.details !== null) {
+  if (event.key === 'Escape' && shell().details !== null) {
     event.preventDefault();
     return closeDetails(true);
   }
   const isBoardShown =
-    shell.area === 'operations' &&
-    (shell.tab === 'agents' || shell.tab === 'pipeline') &&
-    !(phone.matches && shell.pane === 'chat');
+    shell().area === 'operations' &&
+    (shell().tab === 'agents' || shell().tab === 'pipeline') &&
+    !(phone.matches && shell().pane === 'chat');
   if (!isBoardShown && !['r', 'd', 'v', '?', '/'].includes(event.key)) return;
   const card = document.activeElement?.matches?.('.card[data-key]') ? (document.activeElement as HTMLElement) : null;
   const isRow = document.activeElement?.matches?.('.epic-row');
-  const press = (card && CARD_KEYS[event.key]) || (isRow && ROW_KEYS[event.key]) || (isKeysOn && KEYS[event.key]);
+  const press =
+    (card && CARD_KEYS[event.key]) || (isRow && ROW_KEYS[event.key]) || (settings().keys && KEYS[event.key]);
   if (!press) return;
   event.preventDefault();
   (press as (card: HTMLElement | null) => void)(card);
@@ -2392,7 +2246,7 @@ columns.addEventListener('focusin', (event) => {
 columns.addEventListener('click', (event) => {
   const node = (event.target as Element).closest<HTMLElement>('.card[data-key]');
   if (!node || (event.target as Element).closest<HTMLElement>('a, button')) return;
-  if (shell.details === node.dataset.key) return closeDetails(true);
+  if (shell().details === node.dataset.key) return closeDetails(true);
   openDetails(node.dataset.key as string);
 });
 columns.addEventListener('contextmenu', (event) => {
@@ -2420,18 +2274,7 @@ columns.addEventListener('pointerover', (event) => {
 });
 $('tp-board').addEventListener('scroll', updateTail, true);
 addEventListener('resize', updateTail);
-matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
-  if (theme !== 'system') return;
-  applyTheme('system');
-  drawFavicon();
-});
 addEventListener('storage', (event) => {
-  if (event.key === null || event.key === THEME_KEY) {
-    theme = readTheme();
-    applyTheme(theme);
-    drawTheme();
-    drawFavicon();
-  }
   if (data && (event.key === null || event.key.startsWith(store.key(SEEN_TURN)))) render(false);
   if (event.key !== null && event.key !== store.key('open-epics')) return;
   const active = document.activeElement as HTMLElement | null;
@@ -2442,45 +2285,21 @@ addEventListener('storage', (event) => {
 addEventListener('blur', markAllSeen);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) markAllSeen();
-  else load();
+  else void readAgain();
 });
 
-$('logo').append(icon('logo'));
-$('refresh').prepend(icon('refresh'));
-$('refresh').addEventListener('click', async () => {
-  if ($('refresh').getAttribute('aria-busy') === 'true') return;
-  $('refresh').setAttribute('aria-busy', 'true');
-  const isOk = await act('/api/refresh', {}, 'Refresh failed');
-  $('refresh').removeAttribute('aria-busy');
-  if (!isOk) return;
-  refreshedUntil = Date.now() + 2000;
-  $('refresh').classList.add('is-done');
-  $('refresh').title = refreshTitle();
-  announce(data?.tracker ? `${(data as Board).tracker} read again` : 'Issues read again');
-  clearTimeout(refreshDone);
-  refreshDone = setTimeout(() => {
-    $('refresh').classList.remove('is-done');
-    $('refresh').title = refreshTitle();
-  }, 2000);
-});
-$('find').prepend(icon('search'));
-($('find').querySelector<HTMLElement>('kbd') as HTMLElement).textContent = FIND_KEY;
 $('find').addEventListener('click', () => openPalette(paletteItems()));
-for (const area of AREAS) {
-  const button = document.querySelector<HTMLElement>(`.dest[data-area="${area}"]`) as HTMLElement;
-  button.prepend(icon(AREA_ICONS[area]));
-  button.addEventListener('click', () => {
+shellStore.handle({
+  go: (area) => {
     setArea(area);
-    if (area === 'operations' && !$('ops-badge').hidden) focusNeed();
-  });
-}
-$('pb-home').prepend(icon('home'));
-$('pb-home').addEventListener('click', () => setArea('home'));
-$('pb-chat').addEventListener('click', showChat);
-$('pb-agents').prepend(icon('board'));
-$('pb-agents').addEventListener('click', () => setPane('agents'));
-$('pb-control').prepend(icon('sliders'));
-$('pb-control').addEventListener('click', () => setArea('control'));
+    if (area === 'operations' && shellStore.get().inputs.badges.operations > 0) focusNeed();
+  },
+  showChat,
+  agents: () => setPane('agents'),
+  intake: () => void openIntake(),
+  readAgain,
+  isReconnecting,
+});
 $('pane-chat').addEventListener('click', coordinator.open);
 const tabList = TABS.map((tab) => $(`tab-${tab}`));
 for (const [at, tab] of TABS.entries()) tabList[at]?.addEventListener('click', () => setTab(tab));
@@ -2497,39 +2316,27 @@ $('tabs').addEventListener('keydown', (event) => {
   setTab(tab);
   next.focus();
 });
-$('intake').prepend(icon('spark'));
-$('intake').addEventListener('click', () => void openIntake());
 drawIntake();
-$('notify').addEventListener('click', toggleNotify);
-$('theme').addEventListener('click', cycleTheme);
-drawTheme();
-$('board-more').prepend(icon('dots'));
 $('board-more').addEventListener('click', () =>
   openMenu($('board-more'), phoneMenu(), {
     label: 'Board actions',
   }),
 );
-$('keys-open').prepend(icon('keyboard'));
-$('keys-open').addEventListener('click', () => $('keys').showModal());
 $('keys-close').append(icon('close'));
 $('keys-close').addEventListener('click', () => $('keys').close());
 $('keys').addEventListener('click', (event) => {
   if (event.target === $('keys')) $('keys').close();
 });
-drawKeys();
-$('keys-on').addEventListener('change', () => setKeys($('keys-on').checked));
-$('keys-switch').addEventListener('click', () => setKeys(!isKeysOn));
+$('keys-on').checked = settings().keys;
+$('keys-on').addEventListener('change', () => shellStore.setKeys($('keys-on').checked));
 $('toast-close').append(icon('close'));
 setupToast();
 setupQueue({
-  refresh: async () => {
-    settled = reads;
-    await load();
-  },
+  refresh: readAgain,
 });
 const replaceOrder = async (order: readonly Host[], expectedVersion: string): Promise<AgentOrder> => {
   if (isReconnecting()) throw new Error('the board is reconnecting');
-  settled = reads;
+  void readAgain();
   try {
     let response: Response;
     try {
@@ -2551,23 +2358,20 @@ const replaceOrder = async (order: readonly Host[], expectedVersion: string): Pr
     if (response.status === 409 && body && 'latest' in body) throw new OrderConflict(body.latest, body.error);
     throw new Error(body && 'error' in body ? body.error : `the server answered ${response.status}`);
   } finally {
-    settled = reads;
-    void load();
+    void readAgain();
   }
 };
 const retryWait = async (number: IssueKey, waitId: string) => {
   const outcome = await post('/api/run', { number, waitId } satisfies RunRequest, 'Retry failed', { timeout: 150_000 });
-  settled = reads;
-  void load();
+  void readAgain();
   if (outcome.status !== 'accepted') throw new Error(outcome.error ?? SERVER_DOWN);
 };
 const picker = createAgentPicker($('agent-picker'), { replace: replaceOrder, retry: retryWait });
 setupPalette();
 setupMenu();
-drawNotify();
 drawHints(null);
 setInterval(tick, 1000);
 drawSkeleton();
 drawShell();
-drawStatus(source, false);
-load();
+drawStatus(false);
+observer.subscribe(onRead);

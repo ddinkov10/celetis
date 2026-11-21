@@ -2,6 +2,7 @@ import type { CoordinatorKey, CoordinatorState } from '../../lib/coordinator/typ
 import type { ChatEntry, CoordinatorChat, CoordinatorView } from '../types.ts';
 import { clock } from '../view.ts';
 import { createChat, KEYS } from './chat.ts';
+import { shellStore } from './store.ts';
 import { $, announce, el, icon, post, SERVER_DOWN, store, timed } from './ui.ts';
 import { isReconnecting } from './update-dialog.ts';
 
@@ -57,7 +58,7 @@ const none: CoordinatorView = {
 };
 
 export function setupCoordinator(hooks: CoordinatorHooks) {
-  const mirrors = [$('pane-chat'), $('pb-chat')];
+  const paneChat = $('pane-chat');
   const aside = $('coordinator');
   const log = $('coordinator-log');
   const toEnd = $('coordinator-to-end');
@@ -162,20 +163,22 @@ export function setupCoordinator(hooks: CoordinatorHooks) {
     const header = ended ? 'none' : state;
     const cause = staleCause();
     const unseen = isUnseen();
-    for (const control of mirrors) {
-      control.dataset.state = header;
-      control.toggleAttribute('data-stale', cause !== null);
-      control.toggleAttribute('data-new', unseen);
-      control.setAttribute(
-        'aria-label',
-        `Chat, coordinator ${WORDS[header]}${unseen ? ', new text' : ''}${cause ? ', not current' : ''}`,
-      );
-      control.title = cause
+    const mirror = {
+      state: header,
+      stale: cause !== null,
+      unseen,
+      label: `Chat, coordinator ${WORDS[header]}${unseen ? ', new text' : ''}${cause ? ', not current' : ''}`,
+      title: cause
         ? `${cause}. The state is from ${timeOf(view.readAt)}, not current.`
-        : 'Show the chat with the coordinator';
-      const words = control.querySelector<HTMLElement>('.co-open-state');
-      if (words) setText(words, WORDS[header]);
-    }
+        : 'Show the chat with the coordinator',
+    };
+    shellStore.setInputs({ chat: mirror });
+    paneChat.dataset.state = mirror.state;
+    paneChat.toggleAttribute('data-stale', mirror.stale);
+    paneChat.toggleAttribute('data-new', mirror.unseen);
+    paneChat.setAttribute('aria-label', mirror.label);
+    paneChat.title = mirror.title;
+    setText(paneChat.querySelector<HTMLElement>('.co-open-state') as HTMLElement, WORDS[header]);
 
     aside.dataset.state = state;
     const banner = $('coordinator-banner');
@@ -497,7 +500,7 @@ export function setupCoordinator(hooks: CoordinatorHooks) {
     if (view.sessionId) void post('/api/go', { sessionId: view.sessionId }, 'Go failed');
   });
   start.addEventListener('click', () => void startSession());
-  for (const control of mirrors) control.prepend(icon('message'));
+  paneChat.prepend(icon('message'));
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) clearTimeout(timer);
     else void readChat();

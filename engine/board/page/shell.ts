@@ -5,6 +5,13 @@ export type Tab = (typeof TABS)[number];
 export type Pane = 'chat' | 'agents';
 export type Shell = Readonly<{ area: Area; tab: Tab; details: string | null; pane: Pane }>;
 
+export const AREA_ICONS: Record<Area, string> = {
+  home: 'home',
+  operations: 'board',
+  control: 'sliders',
+  throughput: 'trend',
+};
+
 export const AREA_NAMES: Record<Area, string> = {
   home: 'Home',
   operations: 'Operations',
@@ -28,3 +35,7 @@ export const readShell = (stored: { area: string | null; tab: string | null }): 
 
 export const isChatShown = (shell: Shell, isPhone: boolean): boolean =>
   shell.area === 'operations' && shell.details === null && (isPhone ? shell.pane === 'chat' : shell.tab !== 'pipeline');
+
+export const FIND_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K';
+
+export const badgeText = (count: number): string => (count === 0 ? '' : count > 999 ? '999+' : String(count));

@@ -1,5 +1,6 @@
 export const THEMES = ['system', 'light', 'dark'] as const;
 export type Theme = (typeof THEMES)[number];
+export const THEME_WORDS: Record<Theme, string> = { system: 'System', light: 'Light', dark: 'Dark' };
 export const THEME_KEY = 'celetis:theme';
 
 export const readTheme = (): Theme => {

@@ -39,6 +39,7 @@ const root = dirname(import.meta.dir);
 const plugin = 'plugins/celetis/';
 export const generatedFiles = [
   'engine/board/board.js',
+  'engine/board/board.css',
   'engine/board/theme.js',
   `${plugin}hooks/entry.js`,
   'engine/celetis',
@@ -68,13 +69,13 @@ export function classify(path: string, source: Buffer): string {
     throw new Error(`verify: prohibited program: ${path}`);
   if (/[._](?:test|spec)\.(?:[cm]?[jt]s|[jt]sx)$/.test(path))
     throw new Error(`verify: test file: ${path}: this repository keeps no tests (AGENTS.md, "Verify gate")`);
-  if (path.startsWith(plugin) && /\.ts$/.test(path))
+  if (path.startsWith(plugin) && /\.tsx?$/.test(path))
     throw new Error(
       `verify: TypeScript in the plugin folder: ${path}: the plugin ships no TypeScript; keep it in engine/ or scripts/`,
     );
   if (generatedFiles.includes(path)) return 'generated';
   if (fileRoles[path]) return /\.json$/.test(path) ? 'biome' : 'role';
-  if (/\.ts$/.test(path)) return 'typescript';
+  if (/\.tsx?$/.test(path)) return 'typescript';
   if (/\.(?:json|jsonc|css)$/.test(path)) return 'biome';
   if (/^\.github\/workflows\/[^/]+\.yml$/.test(path)) return 'workflow';
   if (path === '.celetis.yaml') return 'config';
@@ -328,7 +329,7 @@ const engineState: ReadonlySet<string> = new Set([
 export function checkImports(files: ReadonlyMap<string, string>): string[] {
   const errors: string[] = [];
   for (const [file, source] of files) {
-    if (!/^engine\/(?:lib|board)\/.+\.ts$/.test(file)) continue;
+    if (!/^engine\/(?:lib|board)\/.+\.tsx?$/.test(file)) continue;
     const list = tokens(source);
     for (const [index, token] of list.entries()) {
       if (token.kind !== 'string' || !token.text.startsWith('.')) continue;
@@ -374,8 +375,8 @@ export function checkLayout(paths: readonly string[]): string[] {
     const folder = posix.dirname(path);
     if (folder === 'engine/lib')
       errors.push(`${path}: A file sits directly in engine/lib/; move it into a feature folder (rule 1, ADR-0114).`);
-    if (!/^engine\/(?:lib|board)\/.+\.ts$/.test(path)) continue;
-    const word = posix.basename(path, '.ts').split('-')[0] ?? '';
+    if (!/^engine\/(?:lib|board)\/.+\.tsx?$/.test(path)) continue;
+    const word = posix.basename(path).split(/-|\.tsx?$/)[0] ?? '';
     const words = folders.get(folder) ?? new Map<string, string[]>();
     words.set(word, [...(words.get(word) ?? []), path]);
     folders.set(folder, words);
@@ -762,9 +763,9 @@ const setupCommand =
 const relockCommands = 'run bun install --ignore-scripts and bun install --frozen-lockfile --ignore-scripts in engine/';
 const dependencyMaps = ['dependencies', 'devDependencies'] as const;
 type DependencyMaps = Partial<Record<(typeof dependencyMaps)[number], Record<string, string>>>;
+type LockMetadata = { os?: unknown; cpu?: unknown; libc?: unknown; bundled?: unknown };
 
-const platformPackage = (metadata: unknown) =>
-  typeof metadata === 'object' && metadata !== null && ('os' in metadata || 'cpu' in metadata);
+const installPath = (key: string) => (key.match(/(@[^/]+\/)?[^/]+/g) ?? []).join('/node_modules/');
 
 export async function checkDependencies(root: string): Promise<string[]> {
   const errors: string[] = [];
@@ -785,7 +786,7 @@ export async function checkDependencies(root: string): Promise<string[]> {
         refuse(`${name} has the version ${version} in ${map}, not an exact x.y.z version`);
 
   type Lock = {
-    packages?: Record<string, [string, ...unknown[]]>;
+    packages?: Record<string, [string, unknown?, LockMetadata?, ...unknown[]]>;
     workspaces?: Record<string, DependencyMaps>;
   };
   let lock: Lock;
@@ -818,14 +819,16 @@ export async function checkDependencies(root: string): Promise<string[]> {
   }
 
   for (const [name, [spec, , metadata]] of Object.entries(lock.packages ?? {})) {
-    if (platformPackage(metadata)) continue;
+    // The tarball of the parent holds a bundled package, so its files need not match the version that Bun locks.
+    if (metadata?.bundled === true) continue;
     const version = spec.slice(spec.lastIndexOf('@') + 1);
-    const installed = await installedVersion(join(root, 'engine/node_modules', name, 'package.json'));
-    if (installed === undefined) errors.push(`verify: engine/node_modules/${name} is missing; ${setupCommand}`);
-    else if (installed !== version)
-      errors.push(
-        `verify: engine/node_modules/${name} has ${installed}, and engine/bun.lock locks ${version}; ${setupCommand}`,
-      );
+    const path = `engine/node_modules/${installPath(name)}`;
+    const installed = await installedVersion(join(root, path, 'package.json'));
+    const platform = metadata?.os !== undefined || metadata?.cpu !== undefined || metadata?.libc !== undefined;
+    if (installed === undefined) {
+      if (!platform) errors.push(`verify: ${path} is missing; ${setupCommand}`);
+    } else if (installed !== version)
+      errors.push(`verify: ${path} has ${installed}, and engine/bun.lock locks ${version}; ${setupCommand}`);
   }
   return errors;
 }

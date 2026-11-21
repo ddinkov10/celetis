@@ -1,0 +1,69 @@
+@layer theme, base, board, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "./board.css" layer(board);
+@source "./";
+/* The host markup or the old modules use these names; a utility of the same name would restyle their nodes. */
+@source not inline("blur");
+@source not inline("resize");
+@source not inline("running");
+@source not inline("sr-only");
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+@custom-variant phone (@media (max-width: 719px));
+@custom-variant rail (@media (min-width: 720px) and (max-width: 1099px));
+@custom-variant wide (@media (min-width: 1100px));
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
+  --color-card: var(--card);
+  --color-card-foreground: var(--fg2);
+  --color-card-hover: var(--card-hover);
+  --color-popover: var(--card);
+  --color-popover-foreground: var(--fg);
+  --color-panel: var(--panel);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--on-primary);
+  --color-secondary: var(--fill);
+  --color-secondary-foreground: var(--fg);
+  --color-muted: var(--panel);
+  --color-muted-foreground: var(--fg3);
+  --color-accent: var(--fill-strong);
+  --color-accent-foreground: var(--fg);
+  --color-destructive: var(--danger);
+  --color-border: var(--line);
+  --color-border-strong: var(--line-strong);
+  --color-input: var(--line-strong);
+  --color-ring: var(--focus);
+  --color-selection: var(--select);
+  --color-needs: var(--needs);
+  --color-needs-tint: var(--needs-tint);
+  --color-working: var(--working);
+  --color-ready: var(--ready);
+  --color-caution: var(--amber);
+  --font-sans: var(--sans);
+  --font-mono: var(--mono);
+  --radius-xs: 5px;
+  --radius-sm: 6px;
+  --radius-md: 7px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 14px;
+  --radius-3xl: 16px;
+  --shadow-xs: var(--raise);
+  --shadow-raise: var(--raise);
+  --shadow-float: var(--float);
+}
+
+/* Base UI writes this rule in a style element, which the page does not allow; the board layer sets scrollbar-width on each node, so the rule sits above it. */
+@layer components {
+  .base-ui-disable-scrollbar {
+    scrollbar-width: none;
+  }
+  .base-ui-disable-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}

@@ -2,16 +2,34 @@
 {
   "schema": 1,
   "name": "compare-each-known-limit-with-the-spec-rule-that-it-narrows",
-  "description": "Concerns and Minor grades were judged by reach: a controller deferred two anti-goal breaks, and an implementer and a reviewer kept two spec-rule breaks because only anti-goals and goals were compared",
+  "description": "Concerns and Minor grades were judged by reach: a controller deferred two anti-goal breaks, an implementer and a reviewer kept two spec-rule breaks, and a final triage kept a parity break that a Verify oracle then failed",
   "tags": [
     "process",
     "false-negative",
-    "regression"
+    "regression",
+    "refix"
   ],
   "date": "2026-11-09",
   "status": "active",
-  "source": "Task 3 of ddinkov10/celetis#262 (commit d4800e7): the implementer report and the task review; coordinator regrade and fix 6cc32a8\n\nFinal review of ddinkov10/celetis#268",
+  "source": "The implement session of #344 on Claude Code, the final whole-branch review and the Verify phase, 2026-11-21\n\nTask 3 of ddinkov10/celetis#262 (commit d4800e7): the implementer report and the task review; coordinator regrade and fix 6cc32a8\n\nFinal review of ddinkov10/celetis#268",
   "incidents": [
+    {
+      "id": "2f4f7a33-8c3e-4a55-9e5e-3a7b4a1c2d90",
+      "date": "2026-11-21",
+      "action": "The final review of #344 triaged the deferred Minor finding of Task 5 (a base-ui Separator in the sidebar exposes role=separator) as one that can stay, because it is decorative, and did not compare the hover classes of the ghost variant with the old page.",
+      "expected": "Each deferred finding that changes a value that a Verify scenario compares with the base (the accessibility tree, a colour, a size) is triaged as must-fix before Verify, or is checked against that oracle.",
+      "observed": "Verify V5 failed on the separator node in nav Board, and V3 failed on the ghost hover background (#find 0.086 against 0.05 on the base), so the fix task verify-1 and a renewal of V1 to V7, with a third consented byte run, followed.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "Accessibility tree of nav \"Board\" at 1440×900 | no separator | `- separator` after the destination list | not named by the spec | FAIL",
+        "reference": "https://github.com/ddinkov10/celetis/issues/344#issuecomment-7062224690"
+      },
+      "inference": "Inferred: the triage judged each Minor by its visible reach, not by the oracle of the Verify bar (each value of V3 and V5 equals the base). Alternative: the task reviews of Task 5 could have measured the hover and the accessibility tree against the base.",
+      "diagnosis": [
+        "unknown"
+      ],
+      "revision": "2689c8b"
+    },
     {
       "id": "a4226dc4-f583-4948-b764-c8706b97b41b",
       "date": "2026-11-09",
@@ -77,7 +95,7 @@
       }
     }
   ],
-  "recurrences": 2,
+  "recurrences": 3,
   "reviews": [
     {
       "id": "173d562a-19ea-4af7-9121-b5c3c656ab25",
@@ -107,36 +125,54 @@
         "state": "not-needed",
         "detail": "Both rules state that the comparison needs judgment; no structural check is proposed."
       }
+    },
+    {
+      "id": "1f28e92b-b53b-4f6f-9ff9-96aa27891855",
+      "requestDigest": "6c59f18cb077bf382aa1d6be5b7a28f9835ddcae13647354b934a385cde167ed",
+      "date": "2026-11-21",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #344; claude child opus/high\n\nMerge under the reviewer rule for a proposal whose rule an active lesson states. The incident is observed: final-review.md of #344 triages Task 5 M2 (the Separator role) as can stay because it is decorative, and the Verify report (issuecomment-7062224690) records the V5 failure on the separator node and the V3 failure on the ghost hover on 2689c8b, fixed by f21b03d. The proposal rule (triage each deferred finding against the oracle of a Verify scenario, not by its visible reach) is the rule of compare-each-known-limit-with-the-spec-rule-that-it-narrows: compare each deferred Minor finding with every spec rule of the same input, whatever its reach; the spec of #344 requires the look and the behavior of the old page and names the parity captures of Verify as the proof. The final review brief of #344 did not list that lesson. Two active rules for one triage decision would overlap, so the survivor keeps its name and widens its comparison to the Verify oracles of the plan, names the final review triage and the final fix wave, and adds decorative to the detection signature. The proposal clause on interaction states of a copied component is left out: it concerns review coverage, not triage, and its evidence (the ghost hover) was in no finding. The survivor keeps all four incidents, both earlier reviews, and both source strings. The rule widens no permission and weakens no check.",
+      "related": [
+        "triage-each-deferred-finding-against-the-verify-oracle",
+        "compare-each-known-limit-with-the-spec-rule-that-it-narrows"
+      ],
+      "followUp": {
+        "state": "not-needed",
+        "detail": "Whether a finding breaks a spec rule or a Verify oracle needs judgment, so no structural check is known; the triage line that names the compared rules and oracles stays the check of the rule. The ghost hover part of the incident (a variant state that no review compared with the base) has no rule in this lesson; a later incident can capture it."
+      }
     }
   ]
 }
 ---
-# Compare each known limit and each Minor grade with every spec rule that it can narrow
+# Compare each known limit and each Minor grade with every spec rule and Verify oracle that it can narrow
 
 ## What happened
 
-Two builds. In the task loop of #268, two task reviews reported a lost state or a lost effect as Minor: the board mapped every `unsafe` outcome (also I/O reasons) to the permissions line, and a `tryFlock` throw lost the lesson lock line. The controller closed both tasks and recorded both items as deferred Minor findings for the final review. The task briefs carried the lessons `a-moved-check-keeps-the-states-of-its-old-rule` and `keep-each-effect-of-a-removed-helper-call`. The final review raised both again and anchored each in a spec anti-goal; a controller ruling sent them to the one final fix wave, which restored them. A fault-injection probe showed the old lesson lock line on an older trunk commit (06b7536) and the plugin update lock line on the branch (3ce9bb8), with exit 6 on both.
+Three builds. In the task loop of #268, two task reviews reported a lost state or a lost effect as Minor: the board mapped every `unsafe` outcome (also I/O reasons) to the permissions line, and a `tryFlock` throw lost the lesson lock line. The controller closed both tasks and recorded both items as deferred Minor findings for the final review. The task briefs carried the lessons `a-moved-check-keeps-the-states-of-its-old-rule` and `keep-each-effect-of-a-removed-helper-call`. The final review raised both again and anchored each in a spec anti-goal; a controller ruling sent them to the one final fix wave, which restored them. A fault-injection probe showed the old lesson lock line on an older trunk commit (06b7536) and the plugin update lock line on the branch (3ce9bb8), with exit 6 on both.
 
 In Task 3 of #262, the implementer named two behaviors as concerns and did not fix them. A tree at the contract path of a target gave an error part (exit 6), and the final validation said `nothing changed` after parts changed. The spec states that a target with no contract file is a mismatch with the class `prerequisite`, not an error part. The task reviewer quoted that spec rule, compared each item only with the anti-goals and goal 4, and graded both Minor by reach. The reviewer brief carried the lesson `grade-an-anti-goal-break-by-the-spec-not-by-reach`, whose action names only anti-goals and goals. The coordinator compared each item with the quoted rule, regraded both Important, and the fix round reproduced and fixed each one.
 
+In #344, the spec requires the look and the behavior of the old page, and its Verify scenarios compare each value with the base. A task review had deferred a Minor finding: a base-ui `Separator` in the sidebar exposes `role="separator"`. The final review triaged it as one that can stay, because the node is decorative. Verify V5 then failed on that node in the accessibility tree of nav "Board". V3 failed on a hover background of the ghost button variant, which no review had compared with the old page. The fix task `verify-1` (f21b03d) removed the node and restored the hover, and all scenarios ran again, with a third consented byte run.
+
 ## Root cause
 
-Inferred: in both builds the actors graded by reach (a rare race, errno path, or tree at a path; a message only). In #268, the controller accepted the grade without a check of the finding against the anti-goals of the spec. Alternative for #268: the Task 3 brief required the mapping by kind and did not restate the old states, so the plan also invited the gap. In #262, the implementer did not compare its own concerns with the spec, and the reviewer followed `grade-an-anti-goal-break-by-the-spec-not-by-reach`, so a design rule of the spec fell outside the comparison. `plan-condition-must-not-narrow-a-spec-rule` covers a review ruling, but it was not applied to the grade. Uncertain: whether the #262 reviewer read "goals" to exclude design rules by intent.
+Inferred: in all three builds the actors graded by reach (a rare race, errno path, or tree at a path; a message only; a decorative node). In #268, the controller accepted the grade without a check of the finding against the anti-goals of the spec. Alternative for #268: the Task 3 brief required the mapping by kind and did not restate the old states, so the plan also invited the gap. In #262, the implementer did not compare its own concerns with the spec, and the reviewer followed `grade-an-anti-goal-break-by-the-spec-not-by-reach`, so a design rule of the spec fell outside the comparison. `plan-condition-must-not-narrow-a-spec-rule` covers a review ruling, but it was not applied to the grade. Uncertain: whether the #262 reviewer read "goals" to exclude design rules by intent. In #344, the triage judged the finding by its visible reach, not by the parity rule of the spec and the Verify oracle that reads the value; the final review brief did not list this lesson. Alternative for #344: the task reviews could have measured the hover and the accessibility tree against the base. The ghost hover was in no finding, so this rule does not cover that part.
 
 ## Fix
 
-Proposed prevention, as text, not enforced: an implementer concern, a reviewer grade, and a controller's acceptance of a deferred Minor finding each compare the item with each anti-goal and goal of the spec and with every spec rule that covers the same input or path (an exit class, a mismatch rule, a printed claim). An item that breaks or narrows one is a missed requirement, which the review calibration grades Important, so it enters the task fix loop under its existing round limit, unless a recorded maintainer decision accepts it. This stays text: which spec rule covers an input, and whether an item breaks it, need judgment.
+Proposed prevention, as text, not enforced: an implementer concern, a reviewer grade, and a controller's acceptance or triage of a deferred Minor finding each compare the item with each anti-goal and goal of the spec, with every spec rule that covers the same input or path (an exit class, a mismatch rule, a printed claim, a parity rule), and with each Verify oracle of the plan that reads the changed value (a node of the accessibility tree, a colour, a size, a state such as hover). An item that breaks or narrows one is a missed requirement, which the review calibration grades Important, so it enters the task fix loop or the final fix wave under its existing round limit, unless a recorded maintainer decision accepts it. This stays text: which spec rule or oracle covers an input, and whether an item breaks it, need judgment, and each plan states its own oracles.
 
 ## Detection signature
 
-A concern or a Minor finding that quotes a spec rule or an anti-goal and then grades by reach ("rare", "only a message", "needs a commit with ..."); a deferred Minor finding of a ledger that names no spec rule.
+A concern or a Minor finding that quotes a spec rule or an anti-goal and then grades by reach ("rare", "only a message", "needs a commit with ...", "decorative"); a deferred Minor finding of a ledger or a triage that names no spec rule and no Verify oracle.
 
 ## Rule
 
-Applies when an implementer reports a concern or a known limit, or a task review or a controller grades a finding Minor or defers it, and the approved spec lists anti-goals or goals, or states a rule for the same input, path, exit class, or printed claim. Action: quote each such anti-goal, goal, and rule, and compare the behavior with it; when the behavior breaks or narrows one, fix it in the task, or record a ruling that grades it a missed requirement (Important) and send it through the task fix loop before close, whatever its reach, unless a recorded maintainer decision accepts it; when the comparison stays uncertain, carry it as an unresolved material risk for a maintainer decision. Check: each concern, each Minor finding, and each deferred finding of the ledger names the anti-goals, goals, and spec rules that it was compared with and the result, and none breaks or narrows one without a fix or a recorded decision.
+Applies when an implementer reports a concern or a known limit, or a task review, a final review, or a controller grades a finding Minor, defers it, or triages a deferred finding, and the approved spec lists anti-goals or goals, or states a rule for the same input, path, exit class, printed claim, or look, or a Verify scenario of the plan compares the changed value with a base or a fixed oracle. Action: quote each such anti-goal, goal, rule, and Verify oracle, and compare the behavior with it; when the behavior breaks or narrows one, fix it in the task, or record a ruling that grades it a missed requirement (Important) and send it through the task fix loop or the final fix wave before Verify, whatever its reach, unless a recorded maintainer decision accepts it; when the comparison stays uncertain, carry it as an unresolved material risk for a maintainer decision. Check: each concern, each Minor finding, and each deferred finding of the ledger or the triage names the anti-goals, goals, spec rules, and Verify oracles that it was compared with and the result, and none breaks or narrows one without a fix or a recorded decision.
 
 ## Related lessons
 
 [[keep-each-effect-of-a-removed-helper-call]]
 [[a-moved-check-keeps-the-states-of-its-old-rule]]
 [[plan-condition-must-not-narrow-a-spec-rule]]
+[[match-each-verify-oracle-to-a-producing-task-step]]

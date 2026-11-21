@@ -1,4 +1,5 @@
 import type { BoardOffer, UpdateResponse, UpdateRestartRequest, UpdateRestartResponse, UpdateView } from '../types.ts';
+import { shellStore } from './store.ts';
 import { $, icon, post } from './ui.ts';
 
 type Kind = 'update' | 'restart';
@@ -178,7 +179,9 @@ export function setupUpdates(): Controls {
     const name = `${label.textContent}, Celetis`;
     opener.setAttribute('aria-label', name);
     opener.title = name;
-    opener.classList.toggle('is-accent', phase === 'available' || phase === 'restart-needed');
+    const isAccent = phase === 'available' || phase === 'restart-needed';
+    opener.classList.toggle('is-accent', isAccent);
+    shellStore.setInputs({ updateAccent: isAccent });
     opener.setAttribute('aria-disabled', String(phase === 'checking'));
     opener.setAttribute('aria-expanded', String(dialog.open));
     const isRestart = kind === 'restart' || phase === 'restart-needed';

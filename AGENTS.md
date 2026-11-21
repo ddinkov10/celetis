@@ -65,9 +65,9 @@ Add no test to the repository. The gate refuses a tracked test file (ADR-0029).
 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros scripts/verify.ts
 ```
 
-- Install the locked packages of the engine, the gate tools of the devDependencies too, into
-  `engine/node_modules` first, in a checkout with no full install, and again after a change of
-  `engine/bun.lock`:
+- Install the locked packages of the engine, the devDependencies too (the gate tools and the
+  packages of the board page), into `engine/node_modules` first, in a checkout with no full
+  install, and again after a change of `engine/bun.lock`:
 
   ```sh
   bun --no-env-file --no-install --config=/dev/null --no-macros scripts/worktree-setup.ts "$PWD"
@@ -91,7 +91,9 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
 - The gate reads `git ls-files -z`. Stage a new file before the gate. Give each new file type
   a check or an explicit role in `scripts/verify.ts`.
 - Author each first-party program in TypeScript. Bun 1.4.4 or later runs commands.
-  `scripts/build.ts` uses exactly Bun 1.4.4 to generate browser assets, native hook modules,
+  `scripts/build.ts` uses exactly Bun 1.4.4 to generate browser assets (also the stylesheet
+  `engine/board/board.css` from `engine/board/page/app.css`; edit the rules in
+  `engine/board/page/board.css`), native hook modules,
   the generated blocks of `plugins/celetis/README.md` and `plugins/celetis/docs/issue-tracker.md` from `engine/lib/contract/contract.ts`,
   and `docs/adr/index.md` from the records of `docs/adr/`. `--check` compares bytes, and modes on macOS and Linux, without
   writes.
@@ -257,7 +259,7 @@ For installation changes, follow `plugins/celetis/README.md`, "Updates".
   `engine/board/requests.ts`, `engine/board/presses.ts`, the fixed adapter `engine/board/adapter.ts`,
   `engine/board/coordinator.ts`, `engine/board/chat/chat.ts`, `engine/board/chat/claude.ts`,
   `engine/board/chat/codex.ts`, `engine/board/update/worker.ts`, `engine/board/start.ts`, the page
-  modules of `engine/board/page/`, `engine/lib/board-read/board-read.ts`,
+  modules of `engine/board/page/` (its `.ts` and `.tsx` files), `engine/lib/board-read/board-read.ts`,
   `engine/lib/workflow/visual.ts`, `engine/lib/state/fields.ts`, `engine/lib/state/schemas.ts`,
   `engine/lib/tracker/key.ts`, `engine/lib/tracker/grammar.ts`, `engine/lib/host/names.ts`,
   `engine/lib/terminal/terminal.ts`, `engine/lib/workflow/effort.ts`, `engine/lib/process/process.ts`,
@@ -283,7 +285,8 @@ A look decision of the board uses these two facts:
   `coordinator` answers `null`. So the item `Daemon` shows `auto off`, the queue shows its read
   view, and the control Coordinator shows `no session`. The server reads its page files from its own folder
   (`HERE` in `engine/board/perimeter.ts`), so the variants show with the live issues and sessions.
-  After an edit of a page module, `scripts/build.ts` writes `engine/board/board.js` in that checkout.
+  After an edit of a page module or a page stylesheet, `scripts/build.ts` writes
+  `engine/board/board.js` and `engine/board/board.css` in that checkout.
 
 ## The engine layout
 
@@ -296,7 +299,7 @@ Put a new file of the engine library or the board in a feature folder (ADR-0114)
   (`host/claude/`).
 - The head file of a folder has the name of the folder (`queue/queue.ts`). The other files drop
   the prefix that the folder states (`queue/actions.ts`).
-- Two `.ts` files of one folder of `engine/lib/` or `engine/board/`, at any depth, never share the
+- Two `.ts` or `.tsx` files of one folder of `engine/lib/` or `engine/board/`, at any depth, never share the
   part before the first hyphen (`x-a.ts` and `x-b.ts`, or `x.ts` and `x-a.ts`): give them a folder.
 - Each import names the real file; the engine has no `index.ts` or `mod.ts`.
 

@@ -1,6 +1,6 @@
 {
   "extends": "../../../tsconfig.runtime.json",
-  "include": ["**/*.ts"],
+  "include": ["**/*.ts", "**/*.tsx"],
   "exclude": [],
-  "compilerOptions": { "lib": ["ESNext", "DOM", "DOM.Iterable"], "types": [] }
+  "compilerOptions": { "lib": ["ESNext", "DOM", "DOM.Iterable"], "types": [], "jsx": "react-jsx" }
 }

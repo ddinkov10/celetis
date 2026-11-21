@@ -64,15 +64,17 @@ agent that waits.
   keys, and the errors", is the design document and the source of truth for behavior and copy.
 - The board holds nothing of one repository: the lanes, steps, stages, and tracker name come from
   the data document. Only the folder name of the main checkout identifies the repository.
-- The board page loads nothing from the network. It carries its own fonts and has no dependency
-  of its own. A visual page served at `/visual/<sha>` is the output of `visual-explainer`: it
-  loads its CDN fonts and libraries, and it runs in a sandbox with an opaque origin.
+- The board page loads nothing from the network. It carries its own fonts, and its packages are
+  bundled into `board.js` at build time. A visual page served at `/visual/<sha>` is the output of
+  `visual-explainer`: it loads its CDN fonts and libraries, and it runs in a sandbox with an opaque
+  origin.
 - The trust files of the board are trust boundaries: the files that `AGENTS.md`, "The board",
   lists.
   `engine/board/README.md`, "The trust boundary", maps each file to its rules. UI work must not
   widen them, including the Content-Security-Policy of the board page. ADR-0065 records the one
   sandboxed route.
-- Browser sources are TypeScript. `scripts/build.ts` generates the browser bundles `theme.js` and `board.js`.
+- Browser sources are TypeScript. `scripts/build.ts` generates the browser bundles `theme.js` and `board.js`,
+  and the stylesheet `board.css` with the Tailwind CLI of the lockfile.
   Product repositories run no build.
 - `scripts/verify.ts` is the only check of this repository. The repository adds no test file.
 - Full keyboard use is part of the product: single-key shortcuts, `⌘K` search, and card focus

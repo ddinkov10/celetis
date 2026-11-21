@@ -46,6 +46,24 @@ The jobs run in bounded workers. A passing run prints the success line of
 `plugins/celetis/hooks/entry.js`, which embeds `plugins/celetis/references/procedures/entry.md`. An edit of
 that file needs a run of the build. The build installs nothing. Add the file `engine/<name>.ts` with each new declared command.
 
+The board page has two steps, in `pageArtifacts`. The bundle step builds `engine/board/page/main.tsx`
+into `engine/board/board.js`, with the production JSX runtime and the production condition and
+`NODE_ENV` of React. Its guard refuses each bundle input that is not a file of `engine/board/`, an
+issue key file of the tracker, or a file of a package that `packages` of `engine/bun.lock` holds,
+nested packages too. The CSS step runs the Tailwind CLI of the lockfile on
+`engine/board/page/app.css` and writes `engine/board/board.css`, with `--cwd engine/board`. Before
+it, its guard runs `compile` of `@tailwindcss/node`, the compile that the CLI runs, and refuses
+each path that the compile reads when the path is neither in `engine/board/` nor in a package of
+`engine/bun.lock` (the decision of the maintainer on issue #344,
+https://github.com/ddinkov10/celetis/issues/344#issuecomment-7060263068). The hooks of the compile
+refuse each `@plugin` and `@config`, and each `@import` or `@reference` id that is absolute, a
+URL, an escape, a brace pattern, a relative id with no `.css` end, or an unlocked package. Each
+stylesheet that the compile reads must be in `engine/board/` or in a locked package. Each base and
+pattern of the sources of the compile must stay in `engine/board/`, with no `..` segment. An
+`@import` that the output still holds is refused. Tailwind drops a repeated `@tailwind utilities` rule, so the guard accepts that
+repeat, and it has no effect. ADR-0123, "The limits of the checks", lists the probe of each case.
+The hand-written rules of the board are in `engine/board/page/board.css`.
+
 ```sh
 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros scripts/build.ts
 ```
@@ -53,8 +71,8 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
 ## The workflow
 
 The workflow `test.yml` has one job, `test`, on Linux. It installs the locked packages of the
-engine, the gate tools too, with `scripts/worktree-setup.ts`, then `actionlint` and Claude Code
-with `scripts/install-tools.ts`, then runs the verify gate.
+engine, the gate tools and the packages of the board page too, with `scripts/worktree-setup.ts`,
+then `actionlint` and Claude Code with `scripts/install-tools.ts`, then runs the verify gate.
 
 The workflow `docs.yml` builds the site of `website/` and deploys it to GitHub Pages on each push
 to `main`. It is no check of a change.

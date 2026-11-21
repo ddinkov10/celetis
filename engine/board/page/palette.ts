@@ -2,6 +2,7 @@ import type { Host } from '../../lib/config/core.ts';
 import { grammar } from '../../lib/tracker/grammar.ts';
 import type { MenuEntry, PaletteItem } from '../types.ts';
 import { filterItems } from '../view.ts';
+import { shellStore } from './store.ts';
 import { $, AGENT_ICONS, el, icon } from './ui.ts';
 
 let items: PaletteItem[] = [];
@@ -162,6 +163,11 @@ const menuRow = (entry: MenuEntry) => {
   return node;
 };
 
+const expand = (node: HTMLElement | null | undefined, isOpen: boolean) => {
+  if (node?.id === 'board-more') shellStore.setInputs({ moreOpen: isOpen });
+  else node?.setAttribute('aria-expanded', String(isOpen));
+};
+
 export const openMenu = (
   from: HTMLElement,
   entries: (MenuEntry | 'rule')[],
@@ -177,13 +183,13 @@ export const openMenu = (
     closed = undefined;
     done?.();
   }
-  if (anchor !== from) anchor?.setAttribute('aria-expanded', 'false');
+  if (anchor !== from) expand(anchor, false);
   anchor = from;
   anchorAlign = options.align ?? 'end';
   closed = options.onClose;
   menu.setAttribute('aria-label', options.label);
   menu.replaceChildren(...entries.map((entry) => (entry === 'rule' ? el('hr') : menuRow(entry))));
-  if (isOpen) from.setAttribute('aria-expanded', 'true');
+  if (isOpen) expand(from, true);
   else menu.showPopover();
   position(menu, from, anchorAlign);
   (
@@ -225,5 +231,5 @@ export const setupMenu = () => {
     closed = undefined;
     done?.();
   });
-  menu.addEventListener('toggle', (event) => anchor?.setAttribute('aria-expanded', String(event.newState === 'open')));
+  menu.addEventListener('toggle', (event) => expand(anchor, event.newState === 'open'));
 };

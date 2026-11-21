@@ -35,8 +35,9 @@ The board has two inputs:
   hold none of their own.
 
 The board is the folder `engine/board/` of the engine, and the
-master daemon of the repository serves it in its own process (`celetis daemon start`). It is Bun
-code with no dependency of its own.
+master daemon of the repository serves it in its own process (`celetis daemon start`). Its server
+is Bun code with no dependency of its own. Its page bundles React and the other packages of
+`engine/bun.lock` into `board.js` at build time, so the running board reads no package.
 The engine carries generated browser JavaScript. A product repository needs no build or install step.
 It runs from the installed `celetis` engine, so the repository that it shows needs no file of the
 board.
@@ -1828,11 +1829,20 @@ the texts are `Open the issue` and `Read the issues again`.
   checks the `Document` type between them.
 
 The browser sources are the files of `page/`. They also import `view.ts` and `types.ts`, which server code shares,
-so those two stay free of the DOM. The pinned Bun 1.4.4 build program, `scripts/build.ts`, bundles `page/board.ts`
+so those two stay free of the DOM. The pinned Bun 1.4.4 build program, `scripts/build.ts`, bundles `page/main.tsx`
 into `board.js` and `page/theme/theme.ts` into the classic script `theme.js`, which `index.html` loads in
 `<head>` before the style sheet, and refuses a bundle input outside `engine/board/`, except
-`engine/lib/tracker/key.ts` and `engine/lib/tracker/grammar.ts`, with which the page reads issue keys.
+`engine/lib/tracker/key.ts` and `engine/lib/tracker/grammar.ts`, with which the page reads issue keys,
+and the files of the packages of `engine/bun.lock`. It writes the style sheet `board.css` from
+`page/app.css` with the Tailwind CLI of the lockfile; the hand-written rules are in `page/board.css`.
 It compiles every target before it writes any output. Plugin users run no build.
+
+`index.html` holds the head and an empty `<body>`. `page/main.tsx` renders one React root into the body,
+then starts `page/board.ts`. The root owns the frame of "The layout, the keys, and the errors": the skip
+links, the sidebar, the bottom bar, the work area with its banners, and the box of each area. Each node
+has one owner. React renders a node of the frame in full, from the state of `page/store.ts` and the
+board read of `page/query.ts`. The host components of `page/app/hosts.tsx` render the markup of a screen
+that has not moved to React once and never again, and the older page modules fill and change that markup.
 
 ## Limits
 

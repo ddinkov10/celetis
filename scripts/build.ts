@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs';
 import { chmod, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { HostError } from '../engine/lib/command/errors.ts';
@@ -14,7 +15,7 @@ import {
 } from '../engine/lib/contract/contract.ts';
 import { entryParts } from '../engine/lib/contract/entry-text.ts';
 import { hostAdapter } from '../engine/lib/host/hosts.ts';
-import { engineEntry } from '../engine/lib/process/process.ts';
+import { bunArgs, engineEntry } from '../engine/lib/process/process.ts';
 
 const root = dirname(import.meta.dir);
 const nativeTargets = [
@@ -22,9 +23,12 @@ const nativeTargets = [
 ] as const;
 const pageTracker: ReadonlySet<string> = new Set(['engine/lib/tracker/key.ts', 'engine/lib/tracker/grammar.ts']);
 const browserTargets = [
-  { entry: 'engine/board/page/board.ts', output: 'engine/board/board.js', mode: 0o644, format: 'esm' },
   { entry: 'engine/board/page/theme/theme.ts', output: 'engine/board/theme.js', mode: 0o644, format: 'iife' },
 ] as const;
+const pageEntry = 'engine/board/page/main.tsx';
+const pageStyles = 'engine/board/page/app.css';
+const tailwindCli = 'engine/node_modules/@tailwindcss/cli/dist/index.mjs';
+const tailwindNode = 'engine/node_modules/@tailwindcss/node/dist/index.mjs';
 const marks = (name: string) => ({
   begin: `<!-- scripts/build.ts writes the ${name} from engine/lib/contract/contract.ts. Edit that file, then run scripts/build.ts. -->`,
   end: `<!-- The end of the ${name} that scripts/build.ts writes. -->`,
@@ -217,6 +221,162 @@ function adrIndex(files: readonly { name: string; text: string }[]): { errors: s
   return { errors, text: `${text.join('\n')}\n` };
 }
 
+const packageName = /^(?:@[^/]+\/)?[^/]+/;
+
+async function lockedPackages(root: string): Promise<ReadonlySet<string>> {
+  const lock = Bun.JSONC.parse(await readFile(join(root, 'engine/bun.lock'), 'utf8')) as {
+    packages?: Record<string, unknown>;
+  };
+  return new Set(Object.keys(lock.packages ?? {}));
+}
+
+function lockKey(path: string): string | undefined {
+  const names = path.split('/node_modules/').map((segment) => packageName.exec(segment)?.[0]);
+  return names.every((name) => name !== undefined) ? names.join('/') : undefined;
+}
+
+function bundleRefusals(
+  root: string,
+  output: string,
+  inputs: readonly string[],
+  locked: ReadonlySet<string>,
+): string[] {
+  if (inputs.length === 0) return [`build: ${output} has no bundle inputs to check`];
+  return inputs.flatMap((input) => {
+    const path = relative(root, resolve(root, input)).split(sep).join('/');
+    if (path.startsWith('engine/board/') || pageTracker.has(path)) return [];
+    const installed = path.startsWith('engine/node_modules/') && lockKey(path.slice('engine/node_modules/'.length));
+    if (installed && locked.has(installed)) return [];
+    return [
+      `build: ${output} bundles ${input}, a file outside engine/board/, the issue key files of the tracker, and the packages of engine/bun.lock`,
+    ];
+  });
+}
+
+type Resolver = (id: string, base: string) => Promise<string | undefined>;
+type TailwindNode = {
+  compile(
+    css: string,
+    options: {
+      base: string;
+      onDependency(path: string): void;
+      customCssResolver: Resolver;
+      customJsResolver: Resolver;
+    },
+  ): Promise<{
+    sources: { base: string; pattern: string; negated: boolean }[];
+    root: 'none' | { base: string; pattern: string } | null;
+    build(candidates: string[]): string;
+  }>;
+};
+
+const unsafePath = (path: string) =>
+  /[\\{}]/.test(path) || /^(?:[a-z][a-z0-9+.-]*:|\/)/i.test(path) || isAbsolute(path);
+
+// The guard runs the compile of @tailwindcss/node that the CLI runs, so it reads each input as Tailwind does.
+async function styleRefusals(root: string, locked: ReadonlySet<string>): Promise<string[]> {
+  const { compile } = (await import(join(root, tailwindNode))) as TailwindNode;
+  const real = (path: string) => {
+    try {
+      return realpathSync(path);
+    } catch {
+      return resolve(path);
+    }
+  };
+  const top = real(root);
+  const board = real(join(root, 'engine/board'));
+  const modules = real(join(root, 'engine/node_modules'));
+  const within = (path: string, folder: string) => {
+    const inside = relative(folder, path);
+    return !inside.startsWith('..') && !isAbsolute(inside);
+  };
+  const show = (path: string) => relative(top, real(path)).split(sep).join('/') || '.';
+  const refusals: string[] = [];
+  const refuse = (reason: string): never => {
+    refusals.push(`build: ${reason}`);
+    throw new Error(reason);
+  };
+  const customJsResolver: Resolver = async (id, base) =>
+    refuse(
+      `@plugin or @config "${id}" in ${show(base)}/ loads code; the page stylesheets take no @plugin and no @config`,
+    );
+  const customCssResolver: Resolver = async (id, base) => {
+    const named = `@import or @reference "${id}" in ${show(base)}/`;
+    if (unsafePath(id)) refuse(`${named} names an absolute path, a URL, an escape, or a brace pattern`);
+    if (id.startsWith('.') && !id.endsWith('.css')) refuse(`${named} names no .css file; write the full file name`);
+    if (!id.startsWith('.') && (id.split('/').includes('..') || !locked.has(packageName.exec(id)?.[0] ?? '')))
+      refuse(`${named} names a package that engine/bun.lock does not hold`);
+    return undefined;
+  };
+  const onDependency = (file: string) => {
+    const path = real(file);
+    const key = within(path, modules) ? lockKey(relative(modules, path).split(sep).join('/')) : undefined;
+    if (!within(path, board) && !(key && locked.has(key)))
+      refuse(`${show(path)} is a stylesheet outside engine/board/ and the packages of engine/bun.lock`);
+  };
+  const checkSource = ({ base, pattern }: { base: string; pattern: string }) => {
+    const segments = pattern.split('/');
+    const glob = segments.findIndex((segment) => /[*?[]/.test(segment));
+    const prefix = glob === -1 ? segments : segments.slice(0, glob);
+    if (unsafePath(pattern) || segments.includes('..') || !within(real(resolve(base, ...prefix)), board))
+      refusals.push(
+        `build: @source or source() "${pattern}" in ${show(base)}/ names a path that can leave engine/board/, an absolute path, an escape, or a brace pattern`,
+      );
+  };
+  try {
+    const compiler = await compile(await readFile(join(root, pageStyles), 'utf8'), {
+      base: dirname(join(root, pageStyles)),
+      onDependency,
+      customCssResolver,
+      customJsResolver,
+    });
+    for (const source of compiler.sources) checkSource(source);
+    if (compiler.root !== null && compiler.root !== 'none') checkSource(compiler.root);
+    if (/@import\b/.test(compiler.build([])))
+      refusals.push(`build: ${pageStyles} keeps an @import that Tailwind does not inline, such as a url() path`);
+  } catch (error) {
+    if (refusals.length === 0) refusals.push(`build: ${pageStyles}: ${(error as Error).message}`);
+  }
+  return refusals;
+}
+
+export async function pageArtifacts(root: string): Promise<{ js: Buffer; css: Buffer }> {
+  const locked = await lockedPackages(root);
+  const refusals = await styleRefusals(root, locked);
+  if (refusals.length > 0) throw new HostError(refusals.join('\n'), exits.internal);
+  const caller = process.cwd();
+  // Bun writes the module path comments of the bundle relative to the working folder.
+  process.chdir(root);
+  const result = await Bun.build({
+    entrypoints: [join(root, pageEntry)],
+    root,
+    target: 'browser',
+    format: 'esm',
+    minify: false,
+    sourcemap: 'none',
+    metafile: true,
+    jsx: { development: false },
+    conditions: ['production'],
+    define: { 'process.env.NODE_ENV': '"production"' },
+  }).finally(() => process.chdir(caller));
+  const artifact = result.outputs[0];
+  if (!result.success || result.outputs.length !== 1 || !artifact)
+    throw new HostError(result.logs.map(String).join('\n'), exits.internal);
+  const outside = bundleRefusals(root, 'engine/board/board.js', Object.keys(result.metafile?.inputs ?? {}), locked);
+  if (outside.length > 0) throw new HostError(outside.join('\n'), exits.internal);
+  // With no source(), the CLI scans each file under --cwd, so the scan stays in engine/board/.
+  const cli = Bun.spawnSync(
+    [process.execPath, ...bunArgs(tailwindCli, ['--cwd', 'engine/board', '-i', join(root, pageStyles)])],
+    {
+      cwd: root,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  );
+  if (cli.exitCode !== 0) throw new HostError(`build: ${tailwindCli} failed:\n${cli.stderr}`, exits.internal);
+  return { js: Buffer.from(await artifact.arrayBuffer()), css: Buffer.from(cli.stdout) };
+}
+
 function spliceBlocks(text: string, file: string, blocks: { begin: string; end: string; body: string[] }[]): string {
   const lines = text.split('\n');
   for (const { begin, end, body } of blocks) {
@@ -284,7 +444,12 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
   for (const error of adr.errors) console.error(error);
   if (adr.errors.length > 0) return 1;
   let code = 0;
-  const built: { output: string; mode: number; bytes: Buffer }[] = [];
+  const page = await pageArtifacts(root);
+  const built: { output: string; mode: number; bytes: Buffer }[] = [
+    { output: 'engine/board/board.js', mode: 0o644, bytes: page.js },
+    { output: 'engine/board/board.css', mode: 0o644, bytes: page.css },
+  ];
+  const locked = await lockedPackages(root);
   for (const target of [...browserTargets, ...nativeTargets]) {
     const browser = target.entry.startsWith('engine/board/');
     const result = await Bun.build({
@@ -303,20 +468,9 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
       return 1;
     }
     if (browser) {
-      const inputs = Object.keys(result.metafile?.inputs ?? {});
-      const outside = inputs.filter((input) => {
-        const file = resolve(process.cwd(), input);
-        const path = relative(join(root, 'engine/board'), file);
-        return (
-          (path.startsWith('..') || isAbsolute(path)) && !pageTracker.has(relative(root, file).split(sep).join('/'))
-        );
-      });
-      if (inputs.length === 0) console.error(`build: ${target.output} has no bundle inputs to check`);
-      for (const input of outside)
-        console.error(
-          `build: ${target.output} bundles ${input}, a file outside engine/board/ and the issue key files of the tracker`,
-        );
-      if (inputs.length === 0 || outside.length > 0) return 1;
+      const refusals = bundleRefusals(root, target.output, Object.keys(result.metafile?.inputs ?? {}), locked);
+      for (const refusal of refusals) console.error(refusal);
+      if (refusals.length > 0) return 1;
     }
     const bytes = Buffer.from(await artifact.arrayBuffer());
     built.push({ output: target.output, mode: target.mode, bytes });
