@@ -232,7 +232,8 @@ issue"). `.claude/settings.local.json` holds the settings of one person for the 
 three other folders are scratch of the skills, and the third is the pending folder of the lesson
 store. A file that git does not ignore makes a tree dirty too:
 
-- `docs/superpowers/` holds the drafts of the intents, the specs, and the plans;
+- `docs/superpowers/` holds the drafts of the intents, the specs, and the plans, and the ideation
+  files of `ideate`;
 - `.superpowers/` holds the review package of `critic-loop`;
 - `.celetis/lessons/_pending/` holds the lesson drafts that wait for the agent curation of the next
   landing, or for `lesson-review`.

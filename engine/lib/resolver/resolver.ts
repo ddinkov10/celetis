@@ -64,7 +64,7 @@ function reader(operation: Operation, signal?: AbortSignal) {
   const { tracker, codeHost } = services(checkout, signal);
 
   async function openIssues(): Promise<Fetched[]> {
-    const issues = (await tracker.openIssues()).filter((issue) => !issue.pull);
+    const issues = (await tracker.issues('open')).filter((issue) => !issue.pull);
     const histories = await tracker.timelines(issues);
     return issues.map((issue) => ({ issue, data: issueData(issue, histories.get(issue.key) ?? []) }));
   }

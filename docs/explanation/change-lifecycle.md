@@ -12,7 +12,9 @@ life of one change, from a request to the trunk.
 ## The path of a change
 
 A request starts as free text. `/celetis:intake` writes it as an intent and puts it on a new issue
-with the label `needs-triage`. `/celetis:triage` then picks a lane for the issue. A lane is a type
+with the label `needs-triage`. `/celetis:ideate` also puts intents on new issues: the maintainer
+picks ideas from a grounded list, and each picked idea gets its own issue with the same label.
+`/celetis:triage` then picks a lane for the issue. A lane is a type
 of change with its own ordered steps: `feature`, `bug`, `chore`, or `hotfix`. The lanes, with their
 labels, branch prefixes, and steps, are the `lanes` table of `engine/lib/workflow/workflow.ts`.
 

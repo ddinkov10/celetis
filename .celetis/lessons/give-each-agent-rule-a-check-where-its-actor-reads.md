@@ -2,17 +2,40 @@
 {
   "schema": 1,
   "name": "give-each-agent-rule-a-check-where-its-actor-reads",
-  "description": "Agent rules did not reach their actor: a research module that the build never reads, a sub-agent brief that carried only the tool and the bypass call, and an open point that a ruling closed as settled with no reading check",
+  "description": "Agent rules did not reach their actor: a research module that the build never reads, a sub-agent brief that carried only the tool and the bypass call, an open point that a ruling closed as settled with no reading check, and a code-health exclusion that only the generator of ideate read",
   "tags": [
     "process",
     "recurring",
     "ui",
-    "refix"
+    "refix",
+    "false-negative"
   ],
-  "date": "2026-11-11",
+  "date": "2026-11-21",
   "status": "active",
-  "source": "The implement session of ddinkov10/celetis#305 on Claude Code, Task 2 fix round 1 and its scoped re-review, 2026-11-11\n\nFinal review of ddinkov10/celetis#277 (final-reviewer-277, opus/xhigh, 2026-11-08), reproduced by the build\n\nFinal whole-branch review of #243 in the implement session, 2026-11-04",
+  "source": "The implement session of #272 on Claude Code, Verify scenario V7, 2026-11-20\n\nThe implement session of ddinkov10/celetis#305 on Claude Code, Task 2 fix round 1 and its scoped re-review, 2026-11-11\n\nFinal review of ddinkov10/celetis#277 (final-reviewer-277, opus/xhigh, 2026-11-08), reproduced by the build\n\nFinal whole-branch review of #243 in the implement session, 2026-11-04",
   "incidents": [
+    {
+      "id": "0dd7546c-820f-4d1f-bafe-d2b35c65b89f",
+      "date": "2026-11-20",
+      "action": "Task 1 of #272 wrote the code-health non-goal of the spec into frames.md, \"The frames\", only (\"A frame does not look for defects, security gaps, speed, test gaps, or the structure of the code.\"); \"The verdict\" and \"The cut\" had no check for it.",
+      "expected": "Spec non-goal: code health is out, and the run cuts such an idea with the reason \"code health, not product direction\".",
+      "observed": "Three live runs at 0147274 kept defect-fix survivors with the verdict sound; the fresh judge of V7 answered for them, for example, \"Yes. It fixes a packaging bug and changes the build and code structure\"; a verifier reading probe gave sound to a data-loss fix in 6 of 6 runs.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "V7 judge, V1 sample 1 round 2, survivor 2: \"(c) Yes. It fixes a packaging bug and changes the build and code structure by inlining `slug`.\" Its verdict line: \"sound — ... close to a defect fix.\"",
+        "reference": "https://github.com/ddinkov10/celetis/issues/272"
+      },
+      "inference": "Inferred: the generation-step line does not reach the verifier, whose brief names only \"The basis\", \"Trust\", and \"The verdict\", and the session treats a sound verdict as a pass. Alternative: a frame child cannot tell a user-visible fix from product direction without the rule \"also when the users notice the fix\". The fix 60c1026 added both, and V7 passed after it.",
+      "diagnosis": [
+        "wrong-or-incomplete-rule"
+      ],
+      "revision": "0147274",
+      "lesson": {
+        "name": "give-each-agent-rule-a-check-where-its-actor-reads",
+        "revision": "0730e81",
+        "digest": "e47bc28df0886a6b62212d40b1a8518556bdd546f4c33f3602d620cb9a8f8f4e"
+      }
+    },
     {
       "id": "9cd73e36-b9a4-4808-accd-318356a70bae",
       "date": "2026-11-11",
@@ -77,7 +100,7 @@
       "revision": "27a85e430451c25df4ee9137971ad912fa139744"
     }
   ],
-  "recurrences": 2,
+  "recurrences": 3,
   "reviews": [
     {
       "id": "8f1aad0e-006b-4a87-8aea-bc1c145127c5",
@@ -122,6 +145,21 @@
         "state": "not-needed",
         "detail": "No structural check is proposed: whether existing text settles an open point is a judgment of meaning that the gate cannot decide; the check is the reading run."
       }
+    },
+    {
+      "id": "4e76b304-fe52-4aa5-92a6-48cc2942d52c",
+      "requestDigest": "180057eb95a7a0f0c5dbc3aeb0857f230fdf651a4b369f270782bd139ca87a5f",
+      "date": "2026-11-21",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #272; claude child opus/high\n\nMerge under the reviewer rules: the active lesson give-each-agent-rule-a-check-where-its-actor-reads states the same rule (a constraint reaches each agent that applies it, in the files that agent reads, with a reading check), and the incident names it as the examined lesson (revision 0730e81, digest e47bc28d) with the diagnosis wrong-or-incomplete-rule. The incident is observed: the V7 judge excerpt and lane commit 60c1026, which adds the code-health check to \"The verdict\" and \"The cut\" of plugins/celetis/skills/ideate/frames.md. The survivor keeps the active name, all four incidents, and the earlier reviews. It widens the action from one agent to each agent, and names the actors of an exclusion of generated items (the generator, each critic, the final cut) with the borderline case; the body keeps the inferred cause and its alternative apart from the facts. The rule adds checks, weakens none, widens no permission, adds no network or credential act, and agrees with the placement rules of AGENTS.md and the principle encode-lessons-in-structure: it stays text, because the excluded class is a judgment.",
+      "related": [
+        "give-each-exclusion-of-generated-content-a-check-at-the-critique",
+        "give-each-agent-rule-a-check-where-its-actor-reads"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "The earlier proposed follow-up stays open and now covers exclusions of generated items: a separately authorized plan or review step that runs a reading case for each actor that can pass an item (the generator, each critic, the final cut). This review changes no skill, procedure, or instruction file."
+      }
     }
   ]
 }
@@ -136,6 +174,8 @@ In #277, step 1 of "The design review" in `docs/procedures/design.md` required t
 
 In #305, Task 2 fix round 1, the implementer's reading check named an open point: after Assessment A returns a busy, failed, or foreign background browser, does Assessment B still call that server, and which line does B get? The coordinator ruled that the existing text of `browser.md` settles it (each actor reads the roles itself) and sent the round to the scoped re-review with no reading check of that ruling. The re-review graded the ruling "DOES NOT HOLD": both final reading runs on 8c37e60 answered that the text does not settle the act of B (tool output). A second fix round (56f6dbc) added the act of B. The Task 2 brief carried this lesson.
 
+In #272, Task 1 wrote the code-health non-goal of the `ideate` spec only into "The frames" of `frames.md`, which the frame children read. "The verdict", which the verifier reads, and "The cut", which the session applies, had no check for it. Three live runs at 0147274 kept survivors whose main change fixed a defect, with the verdict `sound`. The fresh judge of V7 answered for one of them: "(c) Yes. It fixes a packaging bug and changes the build and code structure by inlining `slug`." (tool output). Commit 60c1026 stated the exclusion, with the case of a fix that users notice, in "The frames", "The verdict", and "The cut", and V7 passed after it.
+
 ## Root cause
 
 Inferred, not established: the build checked each rule against the spec wording only. It did not ask which agent acts on the rule, which file that agent reads, and what that agent can observe. Alternative: the plan brief carried the rules without a check, and the build transcribed them.
@@ -143,6 +183,8 @@ Inferred, not established: the build checked each rule against the spec wording 
 In #277, inferred: the build applied this rule to the review session that writes the brief, not to the sub-agent that acts. The expected answers of the plan's RC5 covered only the tool and the call, so that check could not fail on the gap, and its open point stayed a note. Alternative: the spec scoped the brief the same way ("adds the tool and the call to the brief of Assessment B"), so the narrower scope can also come from the spec and the plan.
 
 In #305, inferred: the coordinator answered the open point from its own reading, not from a reading of the actor's files, so the ruling closed a finding as a note. Alternative: the coordinator weighed the cost of one more check; the ledger does not say so.
+
+In #272, inferred: the session applied the rule to one actor, the generator, so the exclusion did not reach the verifier, whose brief names only "The basis", "Trust", and "The verdict", or the session, which took a `sound` verdict as a pass. Alternative: a frame child cannot tell a fix that users notice from product direction without that borderline case.
 
 ## Fix
 
@@ -152,6 +194,9 @@ The fix of #277: the brief of B cites "The page CSP" of `design.md`; on another 
 
 Proposed prevention after #305, not proven: a coordinator or a reviewer that rules "the existing text settles it" about an open point of a reading check quotes a focused reading run from the actor's files whose input is that point. With no such run, the point stays a finding of the round. Only judgment can tell whether text settles a point, so this part stays text.
 
+Proposed prevention after #272, not proven: when agent text excludes a class of item that agents generate and later critique or cut, each actor that can pass an item (the generator, each critic, the final cut) is an actor of the exclusion. State the exclusion, with its borderline case, in the section that each of them reads. The class is a judgment, so no static check finds a missing exclusion, and this part stays text.
+
 ## Rule
 
-Applies when agent text adds a constraint, also when a step delegates the act to a sub-agent through a brief. Action: name the agent that must apply the constraint and the step where it acts; for a delegated act, that agent is the sub-agent, not the session that writes the brief. Keep the canonical rule in the layer required by the project, and make it reachable from the files that agent reads at that step: a brief cites each section of rules that the act needs, whole, and states the act of the sub-agent at each exit (another origin, a sign-in, a failure, the cleanup). Give the rule a check that the agent can observe. Treat an open point that a reading check names about those files as a finding, not a note; a ruling that the existing text settles such a point closes it only with a focused reading run from those files whose input is the point, and quotes the lines that settle it. Check: a focused reading check, starting from only those files and following their applicable pointers, settles that agent's question, with a case at each exit of a delegated act, and each "settled by the text" ruling names its reading run and the quoted lines.
+Applies when agent text adds a constraint, also when a step delegates the act to a sub-agent through a brief. Action: name each agent that must apply the constraint and the step where it acts; for a delegated act, that agent is the sub-agent, not the session that writes the brief; for an exclusion of a class of item that agents generate and later critique or cut, the agents are each actor that can pass an item (the generator, each critic, the final cut), and each of them gets the exclusion with its borderline case. Keep the canonical rule in the layer required by the project, and make it reachable from the files that agent reads at that step: a brief cites each section of rules that the act needs, whole, and states the act of the sub-agent at each exit (another origin, a sign-in, a failure, the cleanup). Give the rule a check that the agent can observe. Treat an open point that a reading check names about those files as a finding, not a note; a ruling that the existing text settles such a point closes it only with a focused reading run from those files whose input is the point, and quotes the lines that settle it. Check: a focused reading check, starting from only those files and following their applicable pointers, settles that agent's question, with a case at each exit of a delegated act and, for an exclusion, a case for each actor with one item of the excluded class that passes each other check and gets the cut or the bad verdict, and each "settled by the text" ruling names its reading run and the quoted lines.
+

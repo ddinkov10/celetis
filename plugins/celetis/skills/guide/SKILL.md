@@ -25,6 +25,7 @@ Execute no recommended action and invoke no other skill.
 | ship a fix for broken production now | `/celetis:hotfix <# or text>` |
 | make a zero-behavior-change edit (dep bump, rename, docs) | `/celetis:chore <# or text>` |
 | write the documentation of the product for its readers | `/celetis:document [the readers or a topic]` |
+| find what to improve in the product, and file the ideas that you pick | `/celetis:ideate [a part of the product]` |
 | turn an approved spec (the issue body) into a plan | `/celetis:plan <#>` in a fresh context |
 | build a posted plan and land the change | `/celetis:implement <#>` in a fresh context |
 | create initial recipes for core user flows | `/celetis:create-verification` |

@@ -33,7 +33,7 @@ export type NewIssue = Readonly<{ title: string; body: string; labels: readonly 
 export type Tracker = Readonly<{
   read(n: IssueKey): Promise<Readonly<{ issue: Issue; data: IssueData }>>;
   issue(n: IssueKey): Promise<Issue>;
-  openIssues(): Promise<readonly Issue[]>;
+  issues(state: Issue['state'], label?: string): Promise<readonly Issue[]>;
   history(n: IssueKey): Promise<readonly Authored[]>;
   children(n: IssueKey): Promise<readonly Child[]>;
   link(epic: IssueKey, child: IssueKey): Promise<void>;

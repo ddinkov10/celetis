@@ -18,7 +18,7 @@ The skills use these forms:
   is `# Intent: <title>`; the act takes the title from it, posts the whole file as the body, and
   sets `needs-triage`.
 - **Read an issue**: `celetis --agent <host> issue <n> view` prints the JSON of the issue: `key`, `title`, `url`, `state`, `labels`, `body`, `parent`, `children`, and `history` (the ordered timeline; each comment has its `author`, `null` when GitHub gives no user). `view --latest '<heading>'` prints the body of the newest comment whose first line is the heading, and exits 3 when none matches. A pull request exits 3, and a read failure exits 6.
-- **List issues**: `celetis --agent <host> issue list` prints the open issues with no pull request as a JSON array of `{ key, title, url, labels }`.
+- **List issues**: `celetis --agent <host> issue list` prints the open issues with no pull request as a JSON array of `{ key, title, url, labels }`. `--state closed` lists the closed issues in place of the open issues, and `--label <label>` lists only the issues with that one label.
 - **Link a sub-issue**: `celetis --agent <host> issue <epic> link <child>` makes the child a sub-issue of the epic; it writes nothing when the link exists.
 - **Comment**: `celetis --agent <host> issue <n> comment <file>`, with one
   `--attach '<file>#<alt text>'` for each image or video.
@@ -40,7 +40,7 @@ also use the protected current-state reads in "Epic completion and repair":
 | `create <file>` | none; it takes no issue key | a new issue with the title from the first line `# Intent: <title>`, the whole file as its body, and `needs-triage`; it prints the URL of the new issue first |
 | `comment <file> [--attach <file>#<alt>]` | an issue, open or closed; not a pull request | the file as a comment, with each `--attach` file uploaded (the flag repeats, at most 50 times); it refuses a first line that is a lifecycle heading or the effort marker |
 | `view [--latest <heading>]` | an issue, open or closed; not a pull request | nothing; the JSON of the issue, or with `--latest` the body of the newest comment whose first line is the heading |
-| `list` | none; it takes no issue key | nothing; the JSON list of the open issues |
+| `list [--state open\|closed] [--label <label>]` | none; it takes no issue key | nothing; the JSON list of the issues in the state (`open` when no `--state`), not pull requests, with `--label` only those with that label |
 | `link <child>` | two open issues, not pull requests; the child has no other parent | the sub-issue link, then the refresh hint of each issue; no write when the link exists |
 | `epic <file>` | open feature or epic; valid declaration and current child references | the complete parent body, then adds `epic` and removes `enhancement` as needed; clears no hold |
 | `epic-state` | readable parent and complete children | nothing; the JSON snapshot of "Epic acceptance submission" |

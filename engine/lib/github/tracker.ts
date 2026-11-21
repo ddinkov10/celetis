@@ -288,7 +288,11 @@ export function githubTracker(client: Client): Tracker {
       await writeRefreshHint(cwd, child);
     },
     issue: (n: IssueKey) => get(`issues/${n}`, parseIssue),
-    openIssues: () => getAll('issues?state=open&per_page=100', parseIssue),
+    issues: (state: Issue['state'], label?: string) =>
+      getAll(
+        `issues?state=${state}${label === undefined ? '' : `&labels=${encodeURIComponent(label)}`}&per_page=100`,
+        parseIssue,
+      ),
     parent: (n: IssueKey) => get(`issues/${n}/parent`, parseParent),
     labels: () => getAll('labels?per_page=100', parseLabelName),
     async createLabel(fields: NewLabel) {

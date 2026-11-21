@@ -260,15 +260,34 @@ async function commentIssue(argv: string[], explicit: string | undefined): Promi
 
 const unreadable = (gh: Tracker, what: string) => () => die('blocked', `cannot read ${what} from GitHub`, gh.stderr());
 
+function listFilter(argv: string[]): { state: 'open' | 'closed'; label?: string } {
+  const options = new Map<string, string>();
+  for (let index = 1; index < argv.length; index += 2) {
+    const [name = '', value] = argv.slice(index, index + 2);
+    if (!['--state', '--label'].includes(name) || value === undefined || options.has(name))
+      die('usage', usageText('issue'));
+    options.set(name, value);
+  }
+  const state = options.get('--state') ?? 'open';
+  const label = options.get('--label');
+  // A comma makes the REST filter match several labels.
+  if (
+    (state !== 'open' && state !== 'closed') ||
+    (label !== undefined && (label === '' || label.startsWith('-') || label.includes(',')))
+  )
+    die('usage', usageText('issue'));
+  return label === undefined ? { state } : { state, label };
+}
+
 async function listIssues(argv: string[], explicit: string | undefined): Promise<ExitCode> {
-  if (argv.length !== 1) die('usage', usageText('issue'));
+  const { state, label } = listFilter(argv);
   const { main } = await enter(explicit);
   const gh = services(main).tracker;
-  const issues = await gh.openIssues().catch(unreadable(gh, 'the open issues'));
-  const open = issues
+  const issues = await gh.issues(state, label).catch(unreadable(gh, `the ${state} issues`));
+  const listed = issues
     .filter((issue) => !issue.pull)
     .map(({ key, title, url, labels }) => ({ key, title, url, labels }));
-  console.log(JSON.stringify(open, null, 2));
+  console.log(JSON.stringify(listed, null, 2));
   process.stderr.write(gh.stderr());
   return exits.done;
 }
