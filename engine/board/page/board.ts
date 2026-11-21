@@ -51,7 +51,6 @@ import {
 } from '../view.ts';
 import { createAgentPicker, OrderConflict } from './agent-picker.ts';
 import { setupCoordinator } from './coordinator.ts';
-import { drawHome } from './home.ts';
 import { closeMenu, openMenu, openPalette, setupMenu, setupPalette } from './palette.ts';
 import { drawPanel } from './panel.ts';
 import { boardKey, pollOptions, queryClient } from './query.ts';
@@ -1557,7 +1556,7 @@ const drawBoard = (next: Board) => {
   document.title = pageTitle(next.repo, waiting.length);
   drawFavicon();
   drawNow(waiting.length, waiting.filter(isCard).length, next.columns.needs.length);
-  drawHome(next, { open: openDetails });
+  shellStore.setInputs({ board: next });
   if (shell().tab === 'history') drawHistory();
   const board = $('columns');
   board.dataset.view = boardView();
@@ -2299,6 +2298,7 @@ shellStore.handle({
   intake: () => void openIntake(),
   readAgain,
   isReconnecting,
+  open: openDetails,
 });
 $('pane-chat').addEventListener('click', coordinator.open);
 const tabList = TABS.map((tab) => $(`tab-${tab}`));

@@ -15720,7 +15720,8 @@ var init_store = __esm(() => {
       hints: [],
       chat: { state: "", stale: false, unseen: false, label: "", title: "" },
       updateAccent: false,
-      moreOpen: false
+      moreOpen: false,
+      board: null
     },
     control: { isNotifying: false, refresh: "rest" }
   };
@@ -15730,7 +15731,8 @@ var init_store = __esm(() => {
     agents: () => {},
     intake: () => {},
     readAgain: () => Promise.resolve(),
-    isReconnecting: () => false
+    isReconnecting: () => false,
+    open: () => {}
   };
   shellStore = {
     get: () => state,
@@ -17641,190 +17643,6 @@ var init_coordinator = __esm(() => {
   };
 });
 
-// engine/board/page/home.ts
-var needsRow = (card, actions) => {
-  const meta = stateLabel(card) ?? card.reason ?? "";
-  const open = el("button", "btn primary", "Open");
-  open.type = "button";
-  open.setAttribute("aria-label", `Open #${card.number} ${card.title}`);
-  open.addEventListener("click", () => actions.open(keyOf(card)));
-  const text = el("div", "home-row-text");
-  text.append(el("p", "home-title", card.title), el("p", "home-meta", card.number === null ? meta : `#${card.number} · ${meta}`));
-  const row = el("li", "home-row");
-  row.dataset.key = keyOf(card);
-  row.append(text, open);
-  return row;
-}, agentRow = (card, board, actions) => {
-  const meta = [card.step, agentOf(card, board.registry)?.name, stateLabel(card)].filter(Boolean).join(" · ");
-  const button = el("button", "home-agent");
-  button.type = "button";
-  button.append(el("span", "home-title", `#${card.number} ${card.title}`), el("span", "home-meta", meta));
-  button.addEventListener("click", () => actions.open(keyOf(card)));
-  const row = el("li");
-  row.dataset.key = keyOf(card);
-  row.append(button);
-  return row;
-}, LISTS, spotOf = () => {
-  const row = document.activeElement?.closest("li");
-  for (const list of LISTS) {
-    const rows = [...$(`${list}-list`).children];
-    if (row && rows.includes(row))
-      return { list, index: rows.indexOf(row), key: row.dataset.key };
-  }
-  return null;
-}, restore = ({ list, index, key }) => {
-  const rows = (id) => [...$(`${id}-list`).children];
-  const mine = rows(list);
-  const other = rows(LISTS.find((id) => id !== list));
-  const row = mine.find((each) => each.dataset.key === key) ?? mine[Math.min(index, mine.length - 1)] ?? other[0];
-  (row?.querySelector("button") ?? $("work")).focus({ preventScroll: true });
-}, drawList = (id, cards, row) => {
-  $(`${id}-list`).hidden = cards.length === 0;
-  $(`${id}-empty`).hidden = cards.length > 0;
-  $(`${id}-list`).replaceChildren(...cards.map(row));
-}, queueText = (board) => {
-  const count = board.queue?.record?.numbers.length ?? 0;
-  return count === 0 ? "empty" : `${count} issue${count === 1 ? "" : "s"}`;
-}, facts = (board) => {
-  const names = Object.entries(board.agents ?? {}).filter(([, state]) => state.available).map(([host]) => board.registry[host].name);
-  return [
-    ["Auto mode", board.daemon.auto],
-    ["Queue", queueText(board)],
-    ["Agents", names.join(", ") || "none"],
-    ["Herdr", board.terminal.ok === null ? "checking" : board.terminal.ok ? "up" : "down"]
-  ];
-}, NS3 = "http://www.w3.org/2000/svg", NONE = "–", BEFORE = "the 7 days before", sparkPath = (points) => {
-  const known = points.filter((point) => point !== null);
-  if (known.length < 2)
-    return null;
-  const min = Math.min(...known);
-  const max = Math.max(...known);
-  const round = (n) => Math.round(n * 100) / 100;
-  let d = "";
-  let dot = { x: 0, y: 0 };
-  points.forEach((point, i) => {
-    if (point === null)
-      return;
-    const x = round(3 + i * 90 / (points.length - 1));
-    const y = round(max === min ? 16 : 3 + (max - point) / (max - min) * 26);
-    const alone = points[i - 1] == null && points[i + 1] == null;
-    d += `${points[i - 1] == null ? `${d ? " " : ""}M` : " L"}${x} ${y}${alone ? " h0" : ""}`;
-    dot = { x, y };
-  });
-  return { d, dot, last: known[known.length - 1] };
-}, tileOf = (kind, board) => {
-  const { live, delivery } = board.trends;
-  const isLive = kind === "needs" || kind === "working";
-  const read = isLive ? live : delivery;
-  const windows = delivery.windows;
-  const series = isLive ? live.error && !live.readAt ? null : live[kind] : windows?.map((each) => kind === "landed" ? each.landed : each.medianDays);
-  const span = isLive ? "last 24 hours" : "last 8 weeks";
-  const source = isLive ? "local samples" : kind === "landed" ? "the trunk history" : "the issues and the trunk history";
-  const stale = series && read.error && read.readAt ? clock(read.readAt) : null;
-  const state = !series ? read.error ? { kind: "failed", text: "The history read failed" } : { kind: "reading", text: "Reading the history" } : series.filter((point) => point !== null).length < 2 ? { kind: "few", text: isLive ? "Too few samples yet" : "Too few landings yet" } : { kind: "line", points: series };
-  const now = windows?.[7];
-  const before = windows?.[6];
-  let label = "Needs you";
-  let value = NONE;
-  let unit = "";
-  let phrase = "";
-  let change = null;
-  if (isLive) {
-    label = kind === "needs" ? "Needs you" : "Agents working";
-    value = String(board.columns[kind === "needs" ? "needs" : "running"].length);
-    unit = kind === "needs" ? "issues wait for your step" : "sessions of issues";
-    const known = (series ?? []).filter((point) => point !== null);
-    if (known.length)
-      change = { dir: null, text: `peak ${Math.max(...known)} in 24 hours` };
-  } else if (kind === "landed") {
-    label = "Landed per week";
-    unit = "issues in 7 days";
-    if (now && before) {
-      value = String(now.landed);
-      const gap = now.landed - before.landed;
-      change = gap ? { dir: gap > 0 ? "up" : "down", text: `${Math.abs(gap)} ${gap > 0 ? "more" : "fewer"} than ${BEFORE}` } : { dir: null, text: `same as ${BEFORE}` };
-    }
-  } else {
-    label = "Intent to landing";
-    unit = now ? `median of ${now.landed} landings` : "median of landings";
-    phrase = unit;
-    if (now && before) {
-      if (now.medianDays === null)
-        change = { dir: null, text: "no landing in the last 7 days" };
-      else {
-        value = `${now.medianDays.toFixed(1)} d`;
-        phrase = `median ${now.medianDays.toFixed(1)} days of ${now.landed} landings in the last 7 days`;
-        const gap = Math.round((now.medianDays - (before.medianDays ?? now.medianDays)) * 10) / 10;
-        change = before.medianDays === null ? { dir: null, text: "no landing in the 7 days before" } : gap ? {
-          dir: gap < 0 ? "down" : "up",
-          text: `${Math.abs(gap).toFixed(1)} d ${gap < 0 ? "faster" : "slower"} than ${BEFORE}`
-        } : { dir: null, text: `same as ${BEFORE}` };
-      }
-    }
-  }
-  const lead = phrase || `${value} ${unit}`;
-  const changeText = change ? `, ${change.text.replace(/^(\S+) d /, "$1 days ")}` : "";
-  const trend = state.kind === "line" ? `Trend over the ${span}, from ${source}.` : `${state.text}.`;
-  return {
-    label,
-    value,
-    unit,
-    change,
-    window: stale ? `last read ${stale}` : span,
-    source,
-    state,
-    name: `${label}: ${lead}${changeText}. ${kind === "median" ? "Down is good. " : ""}${trend}${stale ? ` Last read ${stale}.` : ""}`
-  };
-}, svgOf = (tag, attributes) => {
-  const node = document.createElementNS(NS3, tag);
-  for (const [key, value] of Object.entries(attributes))
-    node.setAttribute(key, value);
-  return node;
-}, tileNode = (tile) => {
-  const row = el("div", "trend-row");
-  row.append(el("p", "trend-value", tile.value));
-  if (tile.state.kind === "line") {
-    const spark = sparkPath(tile.state.points);
-    if (spark) {
-      const line = svgOf("svg", { class: "trend-line", viewBox: "0 0 96 32", "aria-hidden": "true" });
-      line.append(svgOf("path", { d: spark.d }), svgOf("circle", { cx: String(spark.dot.x), cy: String(spark.dot.y), r: "2.5" }));
-      const last = el("span", "trend-last", spark.last % 1 ? spark.last.toFixed(1) : String(spark.last));
-      last.setAttribute("aria-hidden", "true");
-      row.append(line, last);
-    }
-  } else
-    row.append(el("p", "trend-state", tile.state.text));
-  const change = el("p", "trend-change");
-  if (tile.change?.dir)
-    change.append(icon(tile.change.dir === "up" ? "trend-up" : "trend-down"));
-  if (tile.change)
-    change.append(el("span", "", tile.change.text));
-  const node = el("div", "trend");
-  node.setAttribute("role", "group");
-  node.setAttribute("aria-label", tile.name);
-  node.append(el("h3", "trend-label", tile.label), row, el("p", "trend-unit", tile.unit), change, el("p", "trend-window", tile.window));
-  return node;
-}, drawTiles = (board) => {
-  $("home-tiles").replaceChildren(...["needs", "working", "landed", "median"].map((kind) => tileNode(tileOf(kind, board))));
-}, drawHome = (board, actions) => {
-  const spot = spotOf();
-  drawList("home-needs", board.columns.needs, (card) => needsRow(card, actions));
-  drawList("home-agents", board.columns.running, (card) => agentRow(card, board, actions));
-  $("home-system-facts").replaceChildren(...facts(board).map(([name, value]) => {
-    const fact = el("div", "home-fact");
-    fact.append(el("dt", "", name), el("dd", "", value));
-    return fact;
-  }));
-  if (spot)
-    restore(spot);
-  drawTiles(board);
-};
-var init_home = __esm(() => {
-  init_view();
-  init_ui();
-  LISTS = ["home-needs", "home-agents"];
-});
-
 // engine/board/page/panel.ts
 var TONES, PILL_ICONS, ASKS, COPIES, section = (title, aside, ...children) => {
   const node = el("section", "sec");
@@ -18115,16 +17933,16 @@ function draw2() {
     picker.append(el("p", "", "No runnable issues are available."));
   content.append(waiting, picker);
   section2().replaceChildren(head, status, actions, content);
-  if (open)
-    restore2(active);
+  if (open2)
+    restore(active);
 }
 function setupQueue(next) {
   options2 = next;
 }
 function setQueueOpen(value) {
-  open = value;
-  section2().hidden = !open;
-  if (open)
+  open2 = value;
+  section2().hidden = !open2;
+  if (open2)
     draw2();
 }
 function drawQueue(next) {
@@ -18139,11 +17957,11 @@ function drawQueue(next) {
   if (before !== undefined && submitted?.record && before > submitted.record.numbers.length)
     announce(`${submitted.record.numbers.length} issues remain in the queue`);
 }
-var recordedHost = (record) => record?.choice?.kind === "explicit" ? record.choice.host : null, chosenHost = (record) => record?.choice ? recordedHost(record) : agent || null, board = null, submitted = null, agent = "", open = false, busy = false, uncertain = false, retired, options2, section2 = () => $("queue"), cards = () => Object.values(board?.columns ?? {}).flat(), available = () => cards().flatMap(({ number, ...card }) => number !== null && !card.sessionId && card.run && card.step ? [{ ...card, number }] : []), find = (number) => cards().find((card) => card.number === number), heading = () => section2().querySelector(".queue-status h3"), expected = () => ({
+var recordedHost = (record) => record?.choice?.kind === "explicit" ? record.choice.host : null, chosenHost = (record) => record?.choice ? recordedHost(record) : agent || null, board = null, submitted = null, agent = "", open2 = false, busy = false, uncertain = false, retired, options2, section2 = () => $("queue"), cards = () => Object.values(board?.columns ?? {}).flat(), available = () => cards().flatMap(({ number, ...card }) => number !== null && !card.sessionId && card.run && card.step ? [{ ...card, number }] : []), find = (number) => cards().find((card) => card.number === number), heading = () => section2().querySelector(".queue-status h3"), expected = () => ({
   id: submitted?.record?.id ?? null,
   revision: submitted?.record?.revision ?? 0,
   current: submitted?.record?.numbers[0] ?? null
-}), authoritative = () => Boolean(submitted && !uncertain && !board?.source.error), restore2 = (key) => {
+}), authoritative = () => Boolean(submitted && !uncertain && !board?.source.error), restore = (key) => {
   if (!key)
     return;
   const control = section2().querySelector(`[data-control="${CSS.escape(key)}"]:not([aria-disabled="true"])`);
@@ -19431,7 +19249,7 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
   document.title = pageTitle(next.repo, waiting.length);
   drawFavicon();
   drawNow(waiting.length, waiting.filter(isCard).length, next.columns.needs.length);
-  drawHome(next, { open: openDetails });
+  shellStore.setInputs({ board: next });
   if (shell().tab === "history")
     drawHistory();
   const board = $("columns");
@@ -19957,7 +19775,6 @@ var init_board = __esm(() => {
   init_view();
   init_agent_picker();
   init_coordinator();
-  init_home();
   init_palette();
   init_panel();
   init_query2();
@@ -20194,7 +20011,8 @@ var init_board = __esm(() => {
     agents: () => setPane("agents"),
     intake: () => void openIntake(),
     readAgain,
-    isReconnecting
+    isReconnecting,
+    open: openDetails
   });
   $("pane-chat").addEventListener("click", coordinator.open);
   tabList = TABS.map((tab) => $(`tab-${tab}`));
@@ -20284,88 +20102,6 @@ var import_react = __toESM(require_react());
 var jsx_runtime = __toESM(require_jsx_runtime());
 var never = () => true;
 var autofocus = (node) => node?.setAttribute("autofocus", "");
-var HomeHost = import_react.memo(() => /* @__PURE__ */ jsx_runtime.jsxs("section", {
-  className: "area-screen",
-  id: "area-home",
-  "aria-labelledby": "area-home-title",
-  children: [
-    /* @__PURE__ */ jsx_runtime.jsx("h2", {
-      id: "area-home-title",
-      children: "Home"
-    }),
-    /* @__PURE__ */ jsx_runtime.jsx("div", {
-      className: "home-tiles",
-      id: "home-tiles"
-    }),
-    /* @__PURE__ */ jsx_runtime.jsxs("div", {
-      className: "home-lists",
-      children: [
-        /* @__PURE__ */ jsx_runtime.jsxs("section", {
-          className: "home-panel",
-          id: "home-needs",
-          "aria-labelledby": "home-needs-title",
-          children: [
-            /* @__PURE__ */ jsx_runtime.jsx("h3", {
-              id: "home-needs-title",
-              children: "Needs you"
-            }),
-            /* @__PURE__ */ jsx_runtime.jsx("ul", {
-              className: "home-list",
-              id: "home-needs-list"
-            }),
-            /* @__PURE__ */ jsx_runtime.jsx("p", {
-              className: "home-empty",
-              id: "home-needs-empty",
-              hidden: true,
-              children: "No issue needs you."
-            })
-          ]
-        }),
-        /* @__PURE__ */ jsx_runtime.jsxs("div", {
-          className: "home-side",
-          children: [
-            /* @__PURE__ */ jsx_runtime.jsxs("section", {
-              className: "home-panel",
-              id: "home-agents",
-              "aria-labelledby": "home-agents-title",
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsx("h3", {
-                  id: "home-agents-title",
-                  children: "Agents now"
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("ul", {
-                  className: "home-list",
-                  id: "home-agents-list"
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("p", {
-                  className: "home-empty",
-                  id: "home-agents-empty",
-                  hidden: true,
-                  children: "No agent works now."
-                })
-              ]
-            }),
-            /* @__PURE__ */ jsx_runtime.jsxs("section", {
-              className: "home-panel",
-              id: "home-system",
-              "aria-labelledby": "home-system-title",
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsx("h3", {
-                  id: "home-system-title",
-                  children: "System"
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("dl", {
-                  className: "home-facts",
-                  id: "home-system-facts"
-                })
-              ]
-            })
-          ]
-        })
-      ]
-    })
-  ]
-}), never);
 var OperationsHost = import_react.memo(() => /* @__PURE__ */ jsx_runtime.jsxs("div", {
   className: "ops",
   id: "area-operations",
@@ -24177,8 +23913,398 @@ function Control() {
   });
 }
 
-// engine/board/page/app/shell.tsx
+// engine/board/page/app/home.tsx
+init_view();
+var import_react6 = __toESM(require_react());
+
+// engine/board/page/home.ts
+init_view();
+var queueText = (board) => {
+  const count = board.queue?.record?.numbers.length ?? 0;
+  return count === 0 ? "empty" : `${count} issue${count === 1 ? "" : "s"}`;
+};
+var facts = (board) => {
+  const names = Object.entries(board.agents ?? {}).filter(([, state]) => state.available).map(([host]) => board.registry[host].name);
+  return [
+    ["Auto mode", board.daemon.auto],
+    ["Queue", queueText(board)],
+    ["Agents", names.join(", ") || "none"],
+    ["Herdr", board.terminal.ok === null ? "checking" : board.terminal.ok ? "up" : "down"]
+  ];
+};
+var NONE = "–";
+var BEFORE = "the 7 days before";
+var sparkPath = (points) => {
+  const known = points.filter((point) => point !== null);
+  if (known.length < 2)
+    return null;
+  const min = Math.min(...known);
+  const max = Math.max(...known);
+  const round = (n) => Math.round(n * 100) / 100;
+  let d = "";
+  let dot = { x: 0, y: 0 };
+  points.forEach((point, i) => {
+    if (point === null)
+      return;
+    const x = round(3 + i * 90 / (points.length - 1));
+    const y = round(max === min ? 16 : 3 + (max - point) / (max - min) * 26);
+    const alone = points[i - 1] == null && points[i + 1] == null;
+    d += `${points[i - 1] == null ? `${d ? " " : ""}M` : " L"}${x} ${y}${alone ? " h0" : ""}`;
+    dot = { x, y };
+  });
+  return { d, dot, last: known[known.length - 1] };
+};
+var tileOf = (kind, board) => {
+  const { live, delivery } = board.trends;
+  const isLive = kind === "needs" || kind === "working";
+  const read = isLive ? live : delivery;
+  const windows = delivery.windows;
+  const series = isLive ? live.error && !live.readAt ? null : live[kind] : windows?.map((each) => kind === "landed" ? each.landed : each.medianDays);
+  const span = isLive ? "last 24 hours" : "last 8 weeks";
+  const source = isLive ? "local samples" : kind === "landed" ? "the trunk history" : "the issues and the trunk history";
+  const stale = series && read.error && read.readAt ? clock(read.readAt) : null;
+  const state = !series ? read.error ? { kind: "failed", text: "The history read failed" } : { kind: "reading", text: "Reading the history" } : series.filter((point) => point !== null).length < 2 ? { kind: "few", text: isLive ? "Too few samples yet" : "Too few landings yet" } : { kind: "line", points: series };
+  const now = windows?.[7];
+  const before = windows?.[6];
+  let label = "Needs you";
+  let value = NONE;
+  let unit = "";
+  let phrase = "";
+  let change = null;
+  if (isLive) {
+    label = kind === "needs" ? "Needs you" : "Agents working";
+    value = String(board.columns[kind === "needs" ? "needs" : "running"].length);
+    unit = kind === "needs" ? "issues wait for your step" : "sessions of issues";
+    const known = (series ?? []).filter((point) => point !== null);
+    if (known.length)
+      change = { dir: null, text: `peak ${Math.max(...known)} in 24 hours` };
+  } else if (kind === "landed") {
+    label = "Landed per week";
+    unit = "issues in 7 days";
+    if (now && before) {
+      value = String(now.landed);
+      const gap = now.landed - before.landed;
+      change = gap ? { dir: gap > 0 ? "up" : "down", text: `${Math.abs(gap)} ${gap > 0 ? "more" : "fewer"} than ${BEFORE}` } : { dir: null, text: `same as ${BEFORE}` };
+    }
+  } else {
+    label = "Intent to landing";
+    unit = now ? `median of ${now.landed} landings` : "median of landings";
+    phrase = unit;
+    if (now && before) {
+      if (now.medianDays === null)
+        change = { dir: null, text: "no landing in the last 7 days" };
+      else {
+        value = `${now.medianDays.toFixed(1)} d`;
+        phrase = `median ${now.medianDays.toFixed(1)} days of ${now.landed} landings in the last 7 days`;
+        const gap = Math.round((now.medianDays - (before.medianDays ?? now.medianDays)) * 10) / 10;
+        change = before.medianDays === null ? { dir: null, text: "no landing in the 7 days before" } : gap ? {
+          dir: gap < 0 ? "down" : "up",
+          text: `${Math.abs(gap).toFixed(1)} d ${gap < 0 ? "faster" : "slower"} than ${BEFORE}`
+        } : { dir: null, text: `same as ${BEFORE}` };
+      }
+    }
+  }
+  const lead = phrase || `${value} ${unit}`;
+  const changeText = change ? `, ${change.text.replace(/^(\S+) d /, "$1 days ")}` : "";
+  const trend = state.kind === "line" ? `Trend over the ${span}, from ${source}.` : `${state.text}.`;
+  return {
+    label,
+    value,
+    unit,
+    change,
+    window: stale ? `last read ${stale}` : span,
+    source,
+    state,
+    name: `${label}: ${lead}${changeText}. ${kind === "median" ? "Down is good. " : ""}${trend}${stale ? ` Last read ${stale}.` : ""}`
+  };
+};
+
+// engine/board/page/app/home.tsx
+init_store();
 var jsx_runtime8 = __toESM(require_jsx_runtime());
+var KINDS = ["needs", "working", "landed", "median"];
+var PAD = "p-[12px_14px] [box-shadow:var(--raise)] phone:p-[12px_14px]";
+var LIST = "mt-2 mb-0 list-none p-0 [&>li+li]:border-t [&>li+li]:border-t-border";
+var EMPTY = "mt-2 mb-0 text-[0.78125rem] text-muted-foreground";
+var TITLE = "m-0 text-[0.8125rem] leading-[1.4] text-foreground wrap-anywhere text-pretty";
+var META = "m-0 block font-mono text-[0.75rem] leading-[1.4] font-normal wrap-anywhere";
+var SMALL2 = "m-0 text-[0.75rem] leading-normal";
+var open = (card) => shellStore.handlers().open(keyOf(card));
+var rowOf = (event) => {
+  const node = event.target.closest("li");
+  return node?.parentElement === event.currentTarget ? node : null;
+};
+function TileCard({ tile }) {
+  const spark = tile.state.kind === "line" ? sparkPath(tile.state.points) : null;
+  return /* @__PURE__ */ jsx_runtime8.jsxs(Card, {
+    className: PAD,
+    role: "group",
+    "aria-label": tile.name,
+    children: [
+      /* @__PURE__ */ jsx_runtime8.jsx(CardTitle, {
+        children: tile.label
+      }),
+      /* @__PURE__ */ jsx_runtime8.jsxs("div", {
+        className: "mt-2 flex flex-wrap items-center gap-x-3 gap-y-1",
+        children: [
+          /* @__PURE__ */ jsx_runtime8.jsx("p", {
+            className: "my-0 mr-auto ml-0 font-mono text-[1.5rem] leading-8 font-semibold text-foreground",
+            children: tile.value
+          }),
+          tile.state.kind !== "line" && /* @__PURE__ */ jsx_runtime8.jsx("p", {
+            className: "m-0 text-[0.8125rem] leading-[1.4] text-muted-foreground",
+            children: tile.state.text
+          }),
+          spark && /* @__PURE__ */ jsx_runtime8.jsxs(jsx_runtime8.Fragment, {
+            children: [
+              /* @__PURE__ */ jsx_runtime8.jsxs("svg", {
+                className: "h-8 w-24 flex-none fill-none stroke-card-foreground stroke-[1.5] [stroke-linecap:round] [stroke-linejoin:round]",
+                viewBox: "0 0 96 32",
+                "aria-hidden": "true",
+                children: [
+                  /* @__PURE__ */ jsx_runtime8.jsx("path", {
+                    d: spark.d
+                  }),
+                  /* @__PURE__ */ jsx_runtime8.jsx("circle", {
+                    className: "fill-foreground stroke-none",
+                    cx: String(spark.dot.x),
+                    cy: String(spark.dot.y),
+                    r: "2.5"
+                  })
+                ]
+              }),
+              /* @__PURE__ */ jsx_runtime8.jsx("span", {
+                className: "font-mono text-[0.6875rem] leading-none font-normal text-card-foreground",
+                "aria-hidden": "true",
+                children: spark.last % 1 ? spark.last.toFixed(1) : String(spark.last)
+              })
+            ]
+          })
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime8.jsx("p", {
+        className: "mt-1 mb-0 text-[0.75rem] leading-normal text-card-foreground",
+        children: tile.unit
+      }),
+      tile.change && /* @__PURE__ */ jsx_runtime8.jsxs("p", {
+        className: `${SMALL2} flex items-center gap-1 text-card-foreground`,
+        children: [
+          tile.change.dir && /* @__PURE__ */ jsx_runtime8.jsx(Icon, {
+            name: tile.change.dir === "up" ? "trend-up" : "trend-down"
+          }),
+          /* @__PURE__ */ jsx_runtime8.jsx("span", {
+            children: tile.change.text
+          })
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime8.jsx("p", {
+        className: `${SMALL2} text-muted-foreground`,
+        children: tile.window
+      })
+    ]
+  });
+}
+function NeedsRow({ card }) {
+  const meta = stateLabel(card) ?? card.reason ?? "";
+  return /* @__PURE__ */ jsx_runtime8.jsxs("li", {
+    className: "flex min-h-11 items-center gap-3 py-2",
+    "data-key": keyOf(card),
+    children: [
+      /* @__PURE__ */ jsx_runtime8.jsxs("div", {
+        className: "min-w-0 flex-1",
+        children: [
+          /* @__PURE__ */ jsx_runtime8.jsx("p", {
+            className: TITLE,
+            children: card.title
+          }),
+          /* @__PURE__ */ jsx_runtime8.jsx("p", {
+            className: `${META} text-needs`,
+            children: card.number === null ? meta : `#${card.number} · ${meta}`
+          })
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime8.jsx(Button2, {
+        className: "min-h-7 hover:opacity-[0.88] [&:hover]:opacity-[0.88] phone:h-11 phone:min-h-11 phone:min-w-11",
+        "aria-label": `Open #${card.number} ${card.title}`,
+        onClick: () => open(card),
+        children: "Open"
+      })
+    ]
+  });
+}
+function AgentRow({ card, board }) {
+  const meta = [card.step, agentOf(card, board.registry)?.name, stateLabel(card)].filter(Boolean).join(" · ");
+  return /* @__PURE__ */ jsx_runtime8.jsx("li", {
+    "data-key": keyOf(card),
+    children: /* @__PURE__ */ jsx_runtime8.jsxs("button", {
+      type: "button",
+      className: "flex min-h-11 w-full flex-col items-start justify-center gap-0.5 [border:0] bg-transparent px-0 py-2 text-start",
+      onClick: () => open(card),
+      children: [
+        /* @__PURE__ */ jsx_runtime8.jsx("span", {
+          className: `${TITLE} [button:hover>&]:underline`,
+          children: `#${card.number} ${card.title}`
+        }),
+        /* @__PURE__ */ jsx_runtime8.jsx("span", {
+          className: `${META} text-working`,
+          children: meta
+        })
+      ]
+    })
+  });
+}
+function Home() {
+  const board = useShellStore((state) => state.inputs.board);
+  const needs = board?.columns.needs ?? [];
+  const running = board?.columns.running ?? [];
+  const spot = import_react6.useRef(null);
+  const lists = { "home-needs": import_react6.useRef(null), "home-agents": import_react6.useRef(null) };
+  const rows = (list) => [...lists[list].current?.children ?? []];
+  const focusIn = (list) => (event) => {
+    const node = rowOf(event);
+    if (node)
+      spot.current = { list, index: rows(list).indexOf(node), key: node.dataset.key ?? "", node };
+  };
+  const focusOut = (event) => {
+    const node = rowOf(event);
+    queueMicrotask(() => {
+      if (spot.current?.node === node && node?.isConnected)
+        spot.current = null;
+    });
+  };
+  import_react6.useLayoutEffect(() => {
+    const was = spot.current;
+    if (!was)
+      return;
+    if (was.node.isConnected) {
+      was.index = rows(was.list).indexOf(was.node);
+      return;
+    }
+    spot.current = null;
+    if (document.activeElement !== document.body || !document.getElementById("area-home")?.checkVisibility())
+      return;
+    const mine = rows(was.list);
+    const row = mine.find((each) => each.dataset.key === was.key) ?? mine[Math.min(was.index, mine.length - 1)] ?? rows(was.list === "home-needs" ? "home-agents" : "home-needs")[0];
+    (row?.querySelector("button") ?? document.getElementById("work"))?.focus({ preventScroll: true });
+  }, [board]);
+  return /* @__PURE__ */ jsx_runtime8.jsxs("section", {
+    className: "area-screen flex flex-col place-items-stretch gap-3 overflow-auto p-5 phone:scroll-pb-[calc(var(--dock)+8px)] phone:p-3",
+    id: "area-home",
+    "aria-labelledby": "area-home-title",
+    children: [
+      /* @__PURE__ */ jsx_runtime8.jsx("h2", {
+        className: "text-sm leading-[1.38] font-semibold tracking-[-0.012em] text-foreground",
+        id: "area-home-title",
+        children: "Home"
+      }),
+      /* @__PURE__ */ jsx_runtime8.jsx("div", {
+        className: "grid grid-cols-[minmax(0,1fr)] gap-3 empty:hidden min-[720px]:grid-cols-2 min-[1200px]:grid-cols-4 phone:order-2",
+        id: "home-tiles",
+        children: board && KINDS.map((kind) => /* @__PURE__ */ jsx_runtime8.jsx(TileCard, {
+          tile: tileOf(kind, board)
+        }, kind))
+      }),
+      /* @__PURE__ */ jsx_runtime8.jsxs("div", {
+        className: "grid grid-cols-[minmax(0,1fr)] gap-3 [align-items:start] wide:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] phone:contents",
+        children: [
+          /* @__PURE__ */ jsx_runtime8.jsxs(Card, {
+            className: `${PAD} phone:order-1`,
+            id: "home-needs",
+            "aria-labelledby": "home-needs-title",
+            children: [
+              /* @__PURE__ */ jsx_runtime8.jsx(CardTitle, {
+                id: "home-needs-title",
+                children: "Needs you"
+              }),
+              /* @__PURE__ */ jsx_runtime8.jsx("ul", {
+                className: LIST,
+                id: "home-needs-list",
+                hidden: board !== null && needs.length === 0,
+                ref: lists["home-needs"],
+                onFocus: focusIn("home-needs"),
+                onBlur: focusOut,
+                children: needs.map((card) => /* @__PURE__ */ jsx_runtime8.jsx(NeedsRow, {
+                  card
+                }, keyOf(card)))
+              }),
+              /* @__PURE__ */ jsx_runtime8.jsx("p", {
+                className: EMPTY,
+                id: "home-needs-empty",
+                hidden: board === null || needs.length > 0,
+                children: "No issue needs you."
+              })
+            ]
+          }),
+          /* @__PURE__ */ jsx_runtime8.jsxs("div", {
+            className: "grid min-w-0 gap-3 phone:order-3",
+            children: [
+              /* @__PURE__ */ jsx_runtime8.jsxs(Card, {
+                className: PAD,
+                id: "home-agents",
+                "aria-labelledby": "home-agents-title",
+                children: [
+                  /* @__PURE__ */ jsx_runtime8.jsx(CardTitle, {
+                    id: "home-agents-title",
+                    children: "Agents now"
+                  }),
+                  /* @__PURE__ */ jsx_runtime8.jsx("ul", {
+                    className: LIST,
+                    id: "home-agents-list",
+                    hidden: board !== null && running.length === 0,
+                    ref: lists["home-agents"],
+                    onFocus: focusIn("home-agents"),
+                    onBlur: focusOut,
+                    children: board && running.map((card) => /* @__PURE__ */ jsx_runtime8.jsx(AgentRow, {
+                      card,
+                      board
+                    }, keyOf(card)))
+                  }),
+                  /* @__PURE__ */ jsx_runtime8.jsx("p", {
+                    className: EMPTY,
+                    id: "home-agents-empty",
+                    hidden: board === null || running.length > 0,
+                    children: "No agent works now."
+                  })
+                ]
+              }),
+              /* @__PURE__ */ jsx_runtime8.jsxs(Card, {
+                className: PAD,
+                id: "home-system",
+                "aria-labelledby": "home-system-title",
+                children: [
+                  /* @__PURE__ */ jsx_runtime8.jsx(CardTitle, {
+                    id: "home-system-title",
+                    children: "System"
+                  }),
+                  /* @__PURE__ */ jsx_runtime8.jsx("dl", {
+                    className: "mt-2 mb-0",
+                    id: "home-system-facts",
+                    children: board && facts(board).map(([name, value]) => /* @__PURE__ */ jsx_runtime8.jsxs("div", {
+                      className: "flex min-h-7 items-center justify-between gap-3 text-[0.8125rem]",
+                      children: [
+                        /* @__PURE__ */ jsx_runtime8.jsx("dt", {
+                          className: "text-muted-foreground",
+                          children: name
+                        }),
+                        /* @__PURE__ */ jsx_runtime8.jsx("dd", {
+                          className: "m-0 text-end text-foreground wrap-anywhere",
+                          children: value
+                        })
+                      ]
+                    }, name))
+                  })
+                ]
+              })
+            ]
+          })
+        ]
+      })
+    ]
+  });
+}
+
+// engine/board/page/app/shell.tsx
+var jsx_runtime9 = __toESM(require_jsx_runtime());
 var SKIP = "absolute -top-[60px] left-2 z-[200] inline-flex min-h-8 items-center rounded-lg border border-border-strong bg-card px-3 text-[0.78125rem] leading-none font-medium text-foreground focus:top-2 focus:shadow-float phone:min-h-11";
 var BANNER = "banner m-0 flex items-center gap-2.5 rounded-xl border border-border-strong bg-secondary px-3.5 py-[9px] text-[0.78125rem] text-foreground [overflow-wrap:anywhere] before:size-[7px] before:flex-none before:rounded-full before:bg-muted-foreground before:content-['']";
 var WARN = "border-[color-mix(in_srgb,var(--amber)_30%,transparent)] bg-[color-mix(in_srgb,var(--amber)_9%,transparent)] before:bg-caution";
@@ -24206,10 +24332,10 @@ var useControlMark = () => {
 };
 function Intake({ inBar }) {
   const { reason, pending } = useShellStore((state) => state.inputs.intake);
-  return /* @__PURE__ */ jsx_runtime8.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime9.jsxs("div", {
     className: cn("flex flex-none gap-1.5", inBar ? "relative items-center justify-center" : "flex-col items-stretch"),
     children: [
-      /* @__PURE__ */ jsx_runtime8.jsxs(Button2, {
+      /* @__PURE__ */ jsx_runtime9.jsxs(Button2, {
         variant: "outline",
         id: "intake",
         "aria-describedby": "intake-reason",
@@ -24219,16 +24345,16 @@ function Intake({ inBar }) {
         onClick: () => shellStore.handlers().intake(),
         className: inBar ? "h-12 w-[calc(100%-8px)] flex-col rounded-xl gap-1 border-border-strong bg-accent p-0 text-[0.6875rem] leading-none text-foreground aria-disabled:border-border aria-disabled:bg-transparent aria-disabled:text-muted-foreground [&_.icon]:box-content [&_.icon]:size-[18px] [&_.icon]:rounded-[14px] [&_.icon]:px-[15px] [&_.icon]:py-[3px]" : "h-8 justify-start gap-2.5 px-2.5 rail:h-[50px] rail:flex-col rail:justify-center rail:gap-[5px] rail:px-0.5 rail:py-1.5 rail:text-center rail:text-[0.6875rem] rail:leading-[1.1]",
         children: [
-          /* @__PURE__ */ jsx_runtime8.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
             name: "spark"
           }),
-          /* @__PURE__ */ jsx_runtime8.jsx("span", {
+          /* @__PURE__ */ jsx_runtime9.jsx("span", {
             className: "label",
             children: pending ? "Opening…" : "New intake"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime8.jsx("span", {
+      /* @__PURE__ */ jsx_runtime9.jsx("span", {
         id: "intake-reason",
         className: cn("text-xs text-card-foreground [overflow-wrap:anywhere]", inBar ? "pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 w-max max-w-[calc(100vw-32px)] -translate-x-1/2 rounded-sm border border-border bg-card px-2 py-1" : "px-2.5 rail:p-0 rail:text-center rail:text-[0.6875rem]"),
         hidden: pending || reason === null,
@@ -24242,23 +24368,23 @@ function SkipLinks() {
   const isPhone = useShellStore((state) => state.isPhone);
   const isOps = shell.area === "operations";
   const isDetails = isOps && shell.details !== null && (!isPhone || shell.pane === "chat");
-  return /* @__PURE__ */ jsx_runtime8.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime9.jsxs("div", {
     className: "contents",
     id: "skips",
     children: [
-      /* @__PURE__ */ jsx_runtime8.jsx("a", {
+      /* @__PURE__ */ jsx_runtime9.jsx("a", {
         className: SKIP,
         href: "#side",
         children: "Skip to the sidebar"
       }),
-      /* @__PURE__ */ jsx_runtime8.jsx("a", {
+      /* @__PURE__ */ jsx_runtime9.jsx("a", {
         className: SKIP,
         id: "skip-center",
         href: !isOps ? `#area-${shell.area}` : isDetails ? "#panel" : "#coordinator",
         hidden: isOps && !isChatShown(shell, isPhone) && !isDetails,
         children: !isOps ? "Skip to the work area" : isDetails ? "Skip to the details" : "Skip to the chat"
       }),
-      /* @__PURE__ */ jsx_runtime8.jsx("a", {
+      /* @__PURE__ */ jsx_runtime9.jsx("a", {
         className: SKIP,
         id: "skip-pane",
         href: "#pane",
@@ -24273,21 +24399,21 @@ function Destination({ area, mark }) {
   const badges = useShellStore((state) => state.inputs.badges);
   const badge = BADGES[area];
   const count = badge ? badges[badge.count] : 0;
-  return /* @__PURE__ */ jsx_runtime8.jsxs(SidebarMenuButton, {
+  return /* @__PURE__ */ jsx_runtime9.jsxs(SidebarMenuButton, {
     "data-area": area,
     "aria-current": current(isCurrent),
     ...mark ?? { "aria-label": badge ? needLabel(AREA_NAMES[area], count) : undefined },
     className: cn(area === "control" && 'data-mark:after:absolute data-mark:after:top-1/2 data-mark:after:right-2.5 data-mark:after:-mt-1 data-mark:after:size-2 data-mark:after:rounded-full data-mark:after:bg-needs data-mark:after:content-[""] data-[mark=fail]:after:bg-caution rail:data-mark:after:top-1 rail:data-mark:after:right-auto rail:data-mark:after:left-[calc(50%+6px)] rail:data-mark:after:mt-0'),
     onClick: () => shellStore.handlers().go(area),
     children: [
-      /* @__PURE__ */ jsx_runtime8.jsx(Icon, {
+      /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
         name: AREA_ICONS[area]
       }),
-      /* @__PURE__ */ jsx_runtime8.jsx("span", {
+      /* @__PURE__ */ jsx_runtime9.jsx("span", {
         className: "label min-w-0 flex-1 rail:flex-none",
         children: AREA_NAMES[area]
       }),
-      badge && /* @__PURE__ */ jsx_runtime8.jsx(Badge, {
+      badge && /* @__PURE__ */ jsx_runtime9.jsx(Badge, {
         variant: "count",
         id: badge.id,
         className: "rail:absolute rail:top-[3px] rail:left-[calc(50%+4px)]",
@@ -24298,7 +24424,7 @@ function Destination({ area, mark }) {
   });
 }
 function ControlDestination() {
-  return /* @__PURE__ */ jsx_runtime8.jsx(Destination, {
+  return /* @__PURE__ */ jsx_runtime9.jsx(Destination, {
     area: "control",
     mark: useControlMark()
   });
@@ -24307,24 +24433,24 @@ function Sidebar2() {
   const { data } = useQuery(viewOptions);
   const isPhone = useShellStore((state) => state.isPhone);
   const hints = useShellStore((state) => state.inputs.hints);
-  return /* @__PURE__ */ jsx_runtime8.jsxs(Sidebar, {
+  return /* @__PURE__ */ jsx_runtime9.jsxs(Sidebar, {
     id: "side",
     "aria-label": "Board",
     children: [
-      /* @__PURE__ */ jsx_runtime8.jsxs(SidebarHeader, {
+      /* @__PURE__ */ jsx_runtime9.jsxs(SidebarHeader, {
         children: [
-          /* @__PURE__ */ jsx_runtime8.jsx("span", {
+          /* @__PURE__ */ jsx_runtime9.jsx("span", {
             className: "grid size-[26px] flex-none place-items-center rounded-lg bg-foreground text-background [&_.icon]:size-3.5",
             id: "logo",
-            children: /* @__PURE__ */ jsx_runtime8.jsx(Icon, {
+            children: /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
               name: "logo"
             })
           }),
-          /* @__PURE__ */ jsx_runtime8.jsx("h1", {
+          /* @__PURE__ */ jsx_runtime9.jsx("h1", {
             className: "sr-only",
             children: "Agent board"
           }),
-          /* @__PURE__ */ jsx_runtime8.jsx("span", {
+          /* @__PURE__ */ jsx_runtime9.jsx("span", {
             className: "min-w-0 truncate text-sm leading-none font-semibold tracking-[-0.012em] text-foreground rail:max-w-full rail:text-[0.6875rem] rail:font-medium rail:text-card-foreground",
             id: "repo",
             title: data?.repo,
@@ -24332,47 +24458,47 @@ function Sidebar2() {
           })
         ]
       }),
-      !isPhone && /* @__PURE__ */ jsx_runtime8.jsx(Intake, {
+      !isPhone && /* @__PURE__ */ jsx_runtime9.jsx(Intake, {
         inBar: false
       }),
-      /* @__PURE__ */ jsx_runtime8.jsxs(Button2, {
+      /* @__PURE__ */ jsx_runtime9.jsxs(Button2, {
         variant: "outline",
         id: "find",
         "aria-label": "Search or run a step: the cards, history, and commands",
         "aria-keyshortcuts": "Control+K Meta+K /",
         className: "h-8 w-full justify-start gap-2.5 py-0 pr-1.5 pl-2.5 text-left leading-normal font-normal text-muted-foreground hover:bg-secondary hover:text-card-foreground rail:h-[50px] rail:flex-col rail:justify-center rail:gap-[5px] rail:px-0.5 rail:py-1.5 rail:text-center rail:text-[0.6875rem] rail:leading-[1.1] rail:font-medium phone:size-11 phone:flex-none phone:justify-center phone:p-0 [&_.icon]:size-3.5",
         children: [
-          /* @__PURE__ */ jsx_runtime8.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
             name: "search"
           }),
-          /* @__PURE__ */ jsx_runtime8.jsx("span", {
+          /* @__PURE__ */ jsx_runtime9.jsx("span", {
             className: "min-w-0 flex-1 truncate rail:flex-none rail:text-card-foreground phone:hidden",
             children: "Search"
           }),
-          /* @__PURE__ */ jsx_runtime8.jsx("kbd", {
+          /* @__PURE__ */ jsx_runtime9.jsx("kbd", {
             className: "rail:hidden phone:hidden",
             children: FIND_KEY
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime8.jsx(SidebarMenu, {
+      /* @__PURE__ */ jsx_runtime9.jsx(SidebarMenu, {
         id: "dests",
-        children: AREAS.map((area) => /* @__PURE__ */ jsx_runtime8.jsx(SidebarMenuItem, {
-          children: area === "control" ? /* @__PURE__ */ jsx_runtime8.jsx(ControlDestination, {}) : /* @__PURE__ */ jsx_runtime8.jsx(Destination, {
+        children: AREAS.map((area) => /* @__PURE__ */ jsx_runtime9.jsx(SidebarMenuItem, {
+          children: area === "control" ? /* @__PURE__ */ jsx_runtime9.jsx(ControlDestination, {}) : /* @__PURE__ */ jsx_runtime9.jsx(Destination, {
             area
           })
         }, area))
       }),
-      /* @__PURE__ */ jsx_runtime8.jsx(SidebarFooter, {
+      /* @__PURE__ */ jsx_runtime9.jsx(SidebarFooter, {
         id: "side-foot",
-        children: /* @__PURE__ */ jsx_runtime8.jsx("span", {
+        children: /* @__PURE__ */ jsx_runtime9.jsx("span", {
           className: "mb-1.5 flex flex-wrap gap-x-2.5 gap-y-1.5 border-b border-border px-2 pb-2",
           id: "hints",
           "aria-hidden": "true",
-          children: hints.map((pair) => /* @__PURE__ */ jsx_runtime8.jsxs("span", {
+          children: hints.map((pair) => /* @__PURE__ */ jsx_runtime9.jsxs("span", {
             className: "inline-flex items-center gap-1.5",
             children: [
-              pair.slice(0, -1).map((key) => /* @__PURE__ */ jsx_runtime8.jsx("kbd", {
+              pair.slice(0, -1).map((key) => /* @__PURE__ */ jsx_runtime9.jsx("kbd", {
                 className: "min-h-[18px] min-w-[18px] px-1 text-[0.6875rem]",
                 children: key
               }, key)),
@@ -24386,25 +24512,25 @@ function Sidebar2() {
 }
 function AreaBox({ area, children }) {
   const isShown = useShellStore((state) => state.shell.area === area);
-  return /* @__PURE__ */ jsx_runtime8.jsx("div", {
+  return /* @__PURE__ */ jsx_runtime9.jsx("div", {
     className: isShown ? "contents" : undefined,
     hidden: !isShown,
     children
   });
 }
 function Throughput() {
-  return /* @__PURE__ */ jsx_runtime8.jsx("section", {
+  return /* @__PURE__ */ jsx_runtime9.jsx("section", {
     className: "area-screen",
     id: "area-throughput",
     "aria-labelledby": "area-throughput-title",
-    children: /* @__PURE__ */ jsx_runtime8.jsxs("div", {
+    children: /* @__PURE__ */ jsx_runtime9.jsxs("div", {
       className: "area-empty",
       children: [
-        /* @__PURE__ */ jsx_runtime8.jsx("h2", {
+        /* @__PURE__ */ jsx_runtime9.jsx("h2", {
           id: "area-throughput-title",
           children: "Throughput is not built yet."
         }),
-        /* @__PURE__ */ jsx_runtime8.jsx("p", {
+        /* @__PURE__ */ jsx_runtime9.jsx("p", {
           children: "Throughput will show how fast the issues move from intent to the trunk."
         })
       ]
@@ -24414,24 +24540,24 @@ function Throughput() {
 function Work() {
   const { data, isError } = useQuery(viewOptions);
   const area = useShellStore((state) => state.shell.area);
-  return /* @__PURE__ */ jsx_runtime8.jsxs("main", {
+  return /* @__PURE__ */ jsx_runtime9.jsxs("main", {
     className: "work",
     id: "work",
     tabIndex: -1,
     "aria-label": "Work area",
     "data-area": area,
     children: [
-      /* @__PURE__ */ jsx_runtime8.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime9.jsxs("div", {
         className: "flex-none not-has-[.banner:not([hidden])]:hidden",
         children: [
-          /* @__PURE__ */ jsx_runtime8.jsx("p", {
+          /* @__PURE__ */ jsx_runtime9.jsx("p", {
             className: cn(BANNER, WARN),
             id: "dirty",
             role: "alert",
             hidden: !data?.noRun,
             children: data?.noRun
           }),
-          /* @__PURE__ */ jsx_runtime8.jsx("p", {
+          /* @__PURE__ */ jsx_runtime9.jsx("p", {
             className: BANNER,
             id: "stale",
             role: "alert",
@@ -24440,27 +24566,27 @@ function Work() {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime8.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime9.jsx(AreaBox, {
         area: "home",
-        children: /* @__PURE__ */ jsx_runtime8.jsx(HomeHost, {})
+        children: /* @__PURE__ */ jsx_runtime9.jsx(Home, {})
       }),
-      /* @__PURE__ */ jsx_runtime8.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime9.jsx(AreaBox, {
         area: "control",
-        children: /* @__PURE__ */ jsx_runtime8.jsx(Control, {})
+        children: /* @__PURE__ */ jsx_runtime9.jsx(Control, {})
       }),
-      /* @__PURE__ */ jsx_runtime8.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime9.jsx(AreaBox, {
         area: "throughput",
-        children: /* @__PURE__ */ jsx_runtime8.jsx(Throughput, {})
+        children: /* @__PURE__ */ jsx_runtime9.jsx(Throughput, {})
       }),
-      /* @__PURE__ */ jsx_runtime8.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime9.jsx(AreaBox, {
         area: "operations",
-        children: /* @__PURE__ */ jsx_runtime8.jsx(OperationsHost, {})
+        children: /* @__PURE__ */ jsx_runtime9.jsx(OperationsHost, {})
       })
     ]
   });
 }
 function DockItem({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime8.jsx(Button2, {
+  return /* @__PURE__ */ jsx_runtime9.jsx(Button2, {
     variant: "ghost",
     className: cn("relative h-14 flex-col gap-1 rounded-xl border-0 p-0 transition-all duration-0 hover:bg-transparent text-[0.6875rem] leading-none text-muted-foreground aria-[current=page]:text-foreground aria-expanded:text-foreground [&_.icon]:box-content [&_.icon]:size-[18px] [&_.icon]:rounded-[14px] [&_.icon]:px-[15px] [&_.icon]:py-[5px] aria-[current=page]:[&_.icon]:bg-accent aria-expanded:[&_.icon]:bg-accent", className),
     ...props
@@ -24474,26 +24600,26 @@ function BottomBar() {
   const moreOpen = useShellStore((state) => state.inputs.moreOpen);
   const mark = useControlMark();
   const isOps = shell.area === "operations";
-  return /* @__PURE__ */ jsx_runtime8.jsxs("nav", {
+  return /* @__PURE__ */ jsx_runtime9.jsxs("nav", {
     id: "bar",
     "aria-label": "Panes",
     className: "fixed inset-x-0 bottom-0 z-[7] hidden h-[var(--dock)] grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.25fr)_repeat(2,minmax(0,1fr))] items-center border-t border-border bg-background px-2 py-1.5 [anchor-name:--bar] phone:grid",
     children: [
-      /* @__PURE__ */ jsx_runtime8.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime9.jsxs(DockItem, {
         id: "pb-home",
         "aria-current": current(isPhone && shell.area === "home"),
         onClick: () => shellStore.handlers().go("home"),
         children: [
-          /* @__PURE__ */ jsx_runtime8.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
             name: "home"
           }),
-          /* @__PURE__ */ jsx_runtime8.jsx("span", {
+          /* @__PURE__ */ jsx_runtime9.jsx("span", {
             className: "label",
             children: "Home"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime8.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime9.jsxs(DockItem, {
         className: "co-open",
         id: "pb-chat",
         "data-state": chat.state || undefined,
@@ -24504,33 +24630,33 @@ function BottomBar() {
         "aria-current": current(isPhone && isOps && shell.pane === "chat"),
         onClick: () => shellStore.handlers().showChat(),
         children: [
-          /* @__PURE__ */ jsx_runtime8.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
             name: "message"
           }),
-          /* @__PURE__ */ jsx_runtime8.jsx("span", {
+          /* @__PURE__ */ jsx_runtime9.jsx("span", {
             className: "label",
             children: "Chat"
           }),
-          /* @__PURE__ */ jsx_runtime8.jsx("i", {
+          /* @__PURE__ */ jsx_runtime9.jsx("i", {
             className: "co-mark absolute top-1.5 left-[calc(50%+9px)]",
             "aria-hidden": "true"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime8.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime9.jsxs(DockItem, {
         id: "pb-agents",
         "aria-label": needLabel("Agents", agents),
         "aria-current": current(isPhone && isOps && shell.pane === "agents"),
         onClick: () => shellStore.handlers().agents(),
         children: [
-          /* @__PURE__ */ jsx_runtime8.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
             name: "board"
           }),
-          /* @__PURE__ */ jsx_runtime8.jsx("span", {
+          /* @__PURE__ */ jsx_runtime9.jsx("span", {
             className: "label",
             children: "Agents"
           }),
-          /* @__PURE__ */ jsx_runtime8.jsx(Badge, {
+          /* @__PURE__ */ jsx_runtime9.jsx(Badge, {
             variant: "count",
             className: "absolute top-0.5 left-[calc(50%+6px)]",
             id: "now-badge",
@@ -24539,26 +24665,26 @@ function BottomBar() {
           })
         ]
       }),
-      isPhone && /* @__PURE__ */ jsx_runtime8.jsx(Intake, {
+      isPhone && /* @__PURE__ */ jsx_runtime9.jsx(Intake, {
         inBar: true
       }),
-      /* @__PURE__ */ jsx_runtime8.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime9.jsxs(DockItem, {
         id: "pb-control",
         className: "data-mark:after:absolute data-mark:after:top-1.5 data-mark:after:left-[calc(50%+8px)] data-mark:after:size-2 data-mark:after:rounded-full data-mark:after:bg-needs data-mark:after:content-[''] data-[mark=fail]:after:bg-caution",
         "aria-current": current(isPhone && shell.area === "control"),
         ...mark,
         onClick: () => shellStore.handlers().go("control"),
         children: [
-          /* @__PURE__ */ jsx_runtime8.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
             name: "sliders"
           }),
-          /* @__PURE__ */ jsx_runtime8.jsx("span", {
+          /* @__PURE__ */ jsx_runtime9.jsx("span", {
             className: "label",
             children: "Control"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime8.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime9.jsxs(DockItem, {
         id: "board-more",
         "aria-label": "More board actions",
         "aria-haspopup": "menu",
@@ -24566,10 +24692,10 @@ function BottomBar() {
         "aria-current": current(isPhone && shell.area === "throughput"),
         title: "More board actions",
         children: [
-          /* @__PURE__ */ jsx_runtime8.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
             name: "dots"
           }),
-          /* @__PURE__ */ jsx_runtime8.jsx("span", {
+          /* @__PURE__ */ jsx_runtime9.jsx("span", {
             className: "label",
             children: "More"
           })
@@ -24579,33 +24705,33 @@ function BottomBar() {
   });
 }
 function Shell() {
-  return /* @__PURE__ */ jsx_runtime8.jsxs(jsx_runtime8.Fragment, {
+  return /* @__PURE__ */ jsx_runtime9.jsxs(jsx_runtime9.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime8.jsx(SkipLinks, {}),
-      /* @__PURE__ */ jsx_runtime8.jsx(Sidebar2, {}),
-      /* @__PURE__ */ jsx_runtime8.jsx(Work, {}),
-      /* @__PURE__ */ jsx_runtime8.jsx(BottomBar, {})
+      /* @__PURE__ */ jsx_runtime9.jsx(SkipLinks, {}),
+      /* @__PURE__ */ jsx_runtime9.jsx(Sidebar2, {}),
+      /* @__PURE__ */ jsx_runtime9.jsx(Work, {}),
+      /* @__PURE__ */ jsx_runtime9.jsx(BottomBar, {})
     ]
   });
 }
 
 // engine/board/page/app/app.tsx
-var jsx_runtime9 = __toESM(require_jsx_runtime());
+var jsx_runtime10 = __toESM(require_jsx_runtime());
 function App() {
-  return /* @__PURE__ */ jsx_runtime9.jsx(CSPProvider, {
+  return /* @__PURE__ */ jsx_runtime10.jsx(CSPProvider, {
     disableStyleElements: true,
-    children: /* @__PURE__ */ jsx_runtime9.jsxs(QueryClientProvider, {
+    children: /* @__PURE__ */ jsx_runtime10.jsxs(QueryClientProvider, {
       client: queryClient,
       children: [
-        /* @__PURE__ */ jsx_runtime9.jsx(Shell, {}),
-        /* @__PURE__ */ jsx_runtime9.jsx(Layers, {})
+        /* @__PURE__ */ jsx_runtime10.jsx(Shell, {}),
+        /* @__PURE__ */ jsx_runtime10.jsx(Layers, {})
       ]
     })
   });
 }
 
 // engine/board/page/main.tsx
-var jsx_runtime10 = __toESM(require_jsx_runtime());
+var jsx_runtime11 = __toESM(require_jsx_runtime());
 var root2 = import_client.createRoot(document.body);
-import_react_dom2.flushSync(() => root2.render(/* @__PURE__ */ jsx_runtime10.jsx(App, {})));
+import_react_dom2.flushSync(() => root2.render(/* @__PURE__ */ jsx_runtime11.jsx(App, {})));
 await Promise.resolve().then(() => (init_board(), {}));

@@ -17,7 +17,8 @@ import {
 } from '../ui/sidebar.tsx';
 import { SERVER_DOWN } from '../ui.ts';
 import { Control } from './control.tsx';
-import { HomeHost, OperationsHost } from './hosts.tsx';
+import { Home } from './home.tsx';
+import { OperationsHost } from './hosts.tsx';
 import { Icon } from './icon.tsx';
 
 const SKIP =
@@ -255,7 +256,7 @@ function Work() {
         </p>
       </div>
       <AreaBox area="home">
-        <HomeHost />
+        <Home />
       </AreaBox>
       <AreaBox area="control">
         <Control />

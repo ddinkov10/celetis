@@ -3,38 +3,6 @@ import { memo } from 'react';
 const never = () => true;
 const autofocus = (node: HTMLElement | null) => node?.setAttribute('autofocus', '');
 
-export const HomeHost = memo(
-  () => (
-    <section className="area-screen" id="area-home" aria-labelledby="area-home-title">
-      <h2 id="area-home-title">Home</h2>
-      <div className="home-tiles" id="home-tiles" />
-      <div className="home-lists">
-        <section className="home-panel" id="home-needs" aria-labelledby="home-needs-title">
-          <h3 id="home-needs-title">Needs you</h3>
-          <ul className="home-list" id="home-needs-list" />
-          <p className="home-empty" id="home-needs-empty" hidden>
-            No issue needs you.
-          </p>
-        </section>
-        <div className="home-side">
-          <section className="home-panel" id="home-agents" aria-labelledby="home-agents-title">
-            <h3 id="home-agents-title">Agents now</h3>
-            <ul className="home-list" id="home-agents-list" />
-            <p className="home-empty" id="home-agents-empty" hidden>
-              No agent works now.
-            </p>
-          </section>
-          <section className="home-panel" id="home-system" aria-labelledby="home-system-title">
-            <h3 id="home-system-title">System</h3>
-            <dl className="home-facts" id="home-system-facts" />
-          </section>
-        </div>
-      </div>
-    </section>
-  ),
-  never,
-);
-
 export const OperationsHost = memo(
   () => (
     <div className="ops" id="area-operations" data-tab="agents" data-pane="chat">

@@ -14,6 +14,7 @@ export type Inputs = Readonly<{
   chat: { state: string; stale: boolean; unseen: boolean; label: string; title: string };
   updateAccent: boolean;
   moreOpen: boolean;
+  board: Board | null;
 }>;
 export type Control = Readonly<{ isNotifying: boolean; refresh: 'rest' | 'busy' | 'done' }>;
 export type State = Readonly<{ shell: Shell; isPhone: boolean; settings: Settings; inputs: Inputs; control: Control }>;
@@ -24,6 +25,7 @@ export type Handlers = {
   intake(): void;
   readAgain(): Promise<void>;
   isReconnecting(): boolean;
+  open(key: string): void;
 };
 
 export const phone = matchMedia('(max-width: 719px)');
@@ -41,6 +43,7 @@ let state: State = {
     chat: { state: '', stale: false, unseen: false, label: '', title: '' },
     updateAccent: false,
     moreOpen: false,
+    board: null,
   },
   control: { isNotifying: false, refresh: 'rest' },
 };
@@ -51,6 +54,7 @@ let handlers: Handlers = {
   intake: () => {},
   readAgain: () => Promise.resolve(),
   isReconnecting: () => false,
+  open: () => {},
 };
 let refreshDone: ReturnType<typeof setTimeout> | undefined;
 

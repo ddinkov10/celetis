@@ -1,70 +1,12 @@
-import type { Board, Card } from '../types.ts';
-import { agentOf, clock, keyOf, stateLabel } from '../view.ts';
-import { $, el, icon } from './ui.ts';
+import type { Board } from '../types.ts';
+import { clock } from '../view.ts';
 
-type Actions = { open(key: string): void };
-
-const needsRow = (card: Card, actions: Actions) => {
-  const meta = stateLabel(card) ?? card.reason ?? '';
-  const open = el('button', 'btn primary', 'Open');
-  open.type = 'button';
-  open.setAttribute('aria-label', `Open #${card.number} ${card.title}`);
-  open.addEventListener('click', () => actions.open(keyOf(card)));
-  const text = el('div', 'home-row-text');
-  text.append(
-    el('p', 'home-title', card.title),
-    el('p', 'home-meta', card.number === null ? meta : `#${card.number} · ${meta}`),
-  );
-  const row = el('li', 'home-row');
-  row.dataset.key = keyOf(card);
-  row.append(text, open);
-  return row;
-};
-
-const agentRow = (card: Card, board: Board, actions: Actions) => {
-  const meta = [card.step, agentOf(card, board.registry)?.name, stateLabel(card)].filter(Boolean).join(' · ');
-  const button = el('button', 'home-agent');
-  button.type = 'button';
-  button.append(el('span', 'home-title', `#${card.number} ${card.title}`), el('span', 'home-meta', meta));
-  button.addEventListener('click', () => actions.open(keyOf(card)));
-  const row = el('li');
-  row.dataset.key = keyOf(card);
-  row.append(button);
-  return row;
-};
-
-const LISTS = ['home-needs', 'home-agents'] as const;
-type Spot = { list: (typeof LISTS)[number]; index: number; key: string };
-
-const spotOf = (): Spot | null => {
-  const row = document.activeElement?.closest('li');
-  for (const list of LISTS) {
-    const rows = [...$(`${list}-list`).children];
-    if (row && rows.includes(row)) return { list, index: rows.indexOf(row), key: row.dataset.key as string };
-  }
-  return null;
-};
-
-const restore = ({ list, index, key }: Spot): void => {
-  const rows = (id: string) => [...$(`${id}-list`).children] as HTMLElement[];
-  const mine = rows(list);
-  const other = rows(LISTS.find((id) => id !== list) as string);
-  const row = mine.find((each) => each.dataset.key === key) ?? mine[Math.min(index, mine.length - 1)] ?? other[0];
-  (row?.querySelector('button') ?? $('work')).focus({ preventScroll: true });
-};
-
-const drawList = (id: string, cards: Card[], row: (card: Card) => HTMLElement) => {
-  $(`${id}-list`).hidden = cards.length === 0;
-  $(`${id}-empty`).hidden = cards.length > 0;
-  $(`${id}-list`).replaceChildren(...cards.map(row));
-};
-
-const queueText = (board: Board) => {
+export const queueText = (board: Board) => {
   const count = board.queue?.record?.numbers.length ?? 0;
   return count === 0 ? 'empty' : `${count} issue${count === 1 ? '' : 's'}`;
 };
 
-const facts = (board: Board): [string, string][] => {
+export const facts = (board: Board): [string, string][] => {
   const names = Object.entries(board.agents ?? {})
     .filter(([, state]) => state.available)
     .map(([host]) => board.registry[host as keyof Board['registry']].name);
@@ -76,7 +18,7 @@ const facts = (board: Board): [string, string][] => {
   ];
 };
 
-type Tile = {
+export type Tile = {
   label: string;
   value: string;
   unit: string;
@@ -87,13 +29,12 @@ type Tile = {
   name: string;
 };
 
-type Kind = 'needs' | 'working' | 'landed' | 'median';
+export type Kind = 'needs' | 'working' | 'landed' | 'median';
 
-const NS = 'http://www.w3.org/2000/svg';
 const NONE = '–';
 const BEFORE = 'the 7 days before';
 
-const sparkPath = (points: readonly (number | null)[]) => {
+export const sparkPath = (points: readonly (number | null)[]) => {
   const known = points.filter((point): point is number => point !== null);
   if (known.length < 2) return null;
   const min = Math.min(...known);
@@ -112,7 +53,7 @@ const sparkPath = (points: readonly (number | null)[]) => {
   return { d, dot, last: known[known.length - 1] as number };
 };
 
-const tileOf = (kind: Kind, board: Board): Tile => {
+export const tileOf = (kind: Kind, board: Board): Tile => {
   const { live, delivery } = board.trends;
   const isLive = kind === 'needs' || kind === 'working';
   const read = isLive ? live : delivery;
@@ -194,63 +135,4 @@ const tileOf = (kind: Kind, board: Board): Tile => {
     state,
     name: `${label}: ${lead}${changeText}. ${kind === 'median' ? 'Down is good. ' : ''}${trend}${stale ? ` Last read ${stale}.` : ''}`,
   };
-};
-
-const svgOf = (tag: string, attributes: Record<string, string>) => {
-  const node = document.createElementNS(NS, tag);
-  for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, value);
-  return node;
-};
-
-const tileNode = (tile: Tile) => {
-  const row = el('div', 'trend-row');
-  row.append(el('p', 'trend-value', tile.value));
-  if (tile.state.kind === 'line') {
-    const spark = sparkPath(tile.state.points);
-    if (spark) {
-      const line = svgOf('svg', { class: 'trend-line', viewBox: '0 0 96 32', 'aria-hidden': 'true' });
-      line.append(
-        svgOf('path', { d: spark.d }),
-        svgOf('circle', { cx: String(spark.dot.x), cy: String(spark.dot.y), r: '2.5' }),
-      );
-      const last = el('span', 'trend-last', spark.last % 1 ? spark.last.toFixed(1) : String(spark.last));
-      last.setAttribute('aria-hidden', 'true');
-      row.append(line, last);
-    }
-  } else row.append(el('p', 'trend-state', tile.state.text));
-  const change = el('p', 'trend-change');
-  if (tile.change?.dir) change.append(icon(tile.change.dir === 'up' ? 'trend-up' : 'trend-down'));
-  if (tile.change) change.append(el('span', '', tile.change.text));
-  const node = el('div', 'trend');
-  node.setAttribute('role', 'group');
-  node.setAttribute('aria-label', tile.name);
-  node.append(
-    el('h3', 'trend-label', tile.label),
-    row,
-    el('p', 'trend-unit', tile.unit),
-    change,
-    el('p', 'trend-window', tile.window),
-  );
-  return node;
-};
-
-const drawTiles = (board: Board): void => {
-  $('home-tiles').replaceChildren(
-    ...(['needs', 'working', 'landed', 'median'] as const).map((kind) => tileNode(tileOf(kind, board))),
-  );
-};
-
-export const drawHome = (board: Board, actions: Actions): void => {
-  const spot = spotOf();
-  drawList('home-needs', board.columns.needs, (card) => needsRow(card, actions));
-  drawList('home-agents', board.columns.running, (card) => agentRow(card, board, actions));
-  $('home-system-facts').replaceChildren(
-    ...facts(board).map(([name, value]) => {
-      const fact = el('div', 'home-fact');
-      fact.append(el('dt', '', name), el('dd', '', value));
-      return fact;
-    }),
-  );
-  if (spot) restore(spot);
-  drawTiles(board);
 };
