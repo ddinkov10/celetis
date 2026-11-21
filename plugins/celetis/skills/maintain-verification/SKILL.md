@@ -53,5 +53,8 @@ disable-model-invocation: true
      repairs.
    - Any FAIL, BLOCKED, or UNVERIFIED mapped flow makes the result **incomplete**, even
      after a successful source review.
+   - A mapped flow on a host that the project does not use is inapplicable by
+     `<plugin>/references/procedures/runtime-verification.md`, "Used hosts". It needs no PASS for
+     a complete result, keeps its entry, and the report shows it with its source and reason.
    - Save the report by the runtime procedure and link it in the final reply, with the
      changed document paths and unresolved gaps.

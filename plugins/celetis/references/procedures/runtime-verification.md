@@ -7,6 +7,7 @@ by hand after landing keep their existing roles.
 ## Contents
 
 - **Planning:** define runtime scenarios and their acceptance.
+- **Used hosts:** run each host check only on a host that the project uses.
 - **Confirming a target:** link the tested source, loaded content, target, and oracle.
 - **Evidence lifetime:** renew evidence affected by changes.
 - **Usage-limit exception:** decide whether explicit host usage limits permit landing.
@@ -19,8 +20,39 @@ identity, the methods that confirm both links below, and an independent behavior
 Use the project's existing runtime tools. A runtime with no usable identity stays unverified;
 the plan must not assume a build-ID endpoint or add instrumentation to obtain one.
 
+Apply "Used hosts" to each host scenario before you name its target and oracle.
+
 Apply "Usage-limit exception" to host checks in every lane, in interactive and step sessions.
 The plan uses that decision before requiring a new runtime hold or a separate human quota waiver.
+
+## Used hosts
+
+A host scenario is a runtime scenario that runs on a host, or whose target is a session or a CLI
+of a host. The used hosts are the hosts of the `order` that `celetis --agent <host> agents read`
+prints, and the host that runs the session. Read the order before the first host scenario is
+planned or run, and keep that output as the source.
+
+A host scenario runs only on a used host. On a used host, every other section applies unchanged:
+missing access, a missing login, or a difficult check is BLOCKED, unrun, or UNVERIFIED by those
+rules, never inapplicable.
+
+A host scenario for each other host is inapplicable. Its source is the output of the order read,
+and its reason is "the project does not use <host>". The plan gives it no target, no oracle, and
+no hold. The report shows it as inapplicable with that source and reason, apart from PASS, FAIL,
+BLOCKED, unrun, and UNVERIFIED. It is no failure, no incomplete check, and no limitation that
+stops the landing. It needs no `## Before landing` comment and no `ready-for-human` write. It is
+never a pass of that host. This inapplicability is not missing access: the project chose its
+hosts, so the check is out of scope.
+
+A criterion of an acceptance mapping gets PASS only from its checks on used hosts. A criterion
+with no check on a used host is not PASS.
+
+When the order read gives no order (it exits nonzero, does not run or finish, or prints no
+`order`), claim no inapplicability: every other section applies unchanged, and the report names
+the exit line, the cause, or the output.
+
+The order is local to a machine, so two machines of one project can check different hosts. Each
+machine checks the hosts that it uses.
 
 ## Confirming a target
 
@@ -74,24 +106,28 @@ remain unchanged. A source edit, regenerated artifact, restart, reload, deployme
 switch requires renewed confirmation and scenario results for the affected target. Preserve
 unrelated evidence and results whose inputs and instances did not change. Apply this rule after
 a review or landing repair, and on re-entry, before relying on earlier results.
+Apply "Used hosts" to each host scenario of a renewal.
 
 ## Usage-limit exception
 
 Before creating or restoring a new runtime hold, evaluate these conditions together:
 
-1. One supported host completed every required runtime scenario applicable to that host for this
-   change. Each PASS has valid source, target, loaded-resource, and independent oracle evidence
-   under "Confirming a target" and "Evidence lifetime". A project gate PASS alone is insufficient.
-2. The other host explicitly reports an exhausted weekly, usage, or session allowance that
+1. One used host ("Used hosts") completed every required runtime scenario applicable to that host
+   for this change. Each PASS has valid source, target, loaded-resource, and independent oracle
+   evidence under "Confirming a target" and "Evidence lifetime". A project gate PASS alone is
+   insufficient.
+2. Another used host explicitly reports an exhausted weekly, usage, or session allowance that
    prevents its remaining host checks from running or finishing. Keep the actual diagnostic.
    A prediction of quota exhaustion is insufficient.
-3. That usage limit is the only outstanding cause of incomplete checks on the other host.
+3. That usage limit is the only outstanding cause of incomplete checks on that other used host.
    A failed assertion or behavioral mismatch remains FAIL, including beside a quota diagnostic.
 4. The project gate, required reviews, and every other landing prerequisite pass under their
    existing rules. Existing human holds retain their completion requirements below.
 
-Apply the rule equally to Claude Code and Codex. The passing host need not execute operations
-that exist only on the blocked host. This accepts incomplete coverage, never host parity.
+Apply the rule equally to each used host. A host that the project does not use is never the
+passing host or the blocked host, so with one used host the exception cannot apply. The passing
+host need not execute operations that exist only on the blocked host. This accepts incomplete
+coverage, never host parity.
 A generic HTTP 429, timeout, connection failure, missing login, missing tool, unsupported model,
 permission denial, invalid target proof, or context-length error does not qualify by itself.
 Mixed quota and non-quota causes retain ordinary failure, renewal, and stop handling.
@@ -121,7 +157,8 @@ unchanged valid evidence needs no repeat.
 ## Reports and deferred checks
 
 Keep each source identity, target, both links, scenario result, and independent oracle together
-in the runtime report, with loaded resources, cleanup, and unresolved gaps.
+in the runtime report, with loaded resources, cleanup, and unresolved gaps. Report each host
+scenario by "Used hosts".
 
 When the plan has an acceptance mapping, read `<plugin>/references/procedures/acceptance-coverage.md`
 and apply "Reporting" to report publication and evidence renewal, including re-entry.

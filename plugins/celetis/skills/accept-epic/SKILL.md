@@ -52,7 +52,10 @@ not current proof.
   Preserve valid unrelated evidence; renew affected proof after a source change, restart,
   reload, or target switch. Clearing a hold supplies no runtime evidence. The usage-limit
   exception can permit a child landing only; a required BLOCKED parent check still prevents
-  parent completion.
+  parent completion. A scenario on a host that the project does not use is inapplicable by
+  `<plugin>/references/procedures/runtime-verification.md`, "Used hosts", and is no BLOCKED
+  parent check. A criterion with no check on a used host still needs the recorded maintainer
+  decision of "The criteria" before it is declared inapplicable.
 - **The report.** Publish the ordinary runtime report on the parent before completion. Keep
   criterion sources, separate results, source and target identities, both loading links, oracle
   observations, durable evidence references, cleanup, and remaining gaps together. Retain sourced

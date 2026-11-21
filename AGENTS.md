@@ -36,7 +36,7 @@ records this boundary and supersedes the historical coordination requirements.
 
 ## Host checks
 
-Reuse the existing Claude Code and Codex CLI installations and their existing authentication.
+Reuse the existing Claude Code installation and its existing authentication.
 Do not create separate signed-in installations or require another login for testing.
 Use temporary test data with the existing hosts. If a check lacks access, report the specific
 limitation and continue independent checks.
@@ -318,8 +318,10 @@ section that it cannot resolve.
 
 ## External facts
 
-For the lookup of `plugins/celetis/references/procedures/docs-lookup.md`, read `claude --version` or `codex --version` for the
-selected host. Claude's documents are `https://code.claude.com/docs/en/<page>`; Codex's are
+For the lookup of `plugins/celetis/references/procedures/docs-lookup.md`, read `claude --version`.
+A Codex or OpenCode fact comes from the documents of that host, recorded as `(latest)` in the form
+of `plugins/celetis/references/procedures/docs-lookup.md`, because this repository does not use
+that host. Claude's documents are `https://code.claude.com/docs/en/<page>`; Codex's are
 `https://learn.chatgpt.com/docs/`. Check the current CLI help and active tool schema before
 using a host operation. `plugins/celetis/docs/workflow.md`, "Acceptance status", separates observed versions
 from open runtime checks (ADR-0014).
