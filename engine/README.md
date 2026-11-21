@@ -808,6 +808,177 @@ read-only thread and configuration checks do not trigger startup refresh.
 its updater mutex and deadline, and native cache replacement. A restart of the daemon alone updates nothing. After
 `celetis update`, the runs of the restarted daemon use the new engine.
 
+## The MCP server
+
+`celetis --agent <host> mcp` serves the agent forms of the contract as MCP tools over stdio
+(`engine/mcp.ts` and `engine/lib/mcp/`). It needs an explicit `--agent <host>`, and it ends when its
+stdin closes. A tool call runs one form of the CLI in a child process. So a tool and the shell
+command of its form share the locks, the exit classes, the outputs, and the daemon requests. The
+tools come from `engine/lib/contract/contract.ts`: a new agent form gets its tool with no second
+table. [ADR-0125](../docs/adr/0125-each-agent-form-is-an-mcp-tool-that-runs-the-cli.md) records the
+decision. The agent text names no tool, so an agent still runs the shell commands
+([issue #358](https://github.com/ddinkov10/celetis/issues/358) is the follow-up for the agent text).
+
+**The start.**
+
+- The key `mcpServers` of `plugins/celetis/.claude-plugin/plugin.json` holds the server `celetis`:
+  the command `celetis`, the arguments `--agent claude mcp`, and the `timeout` 100000000
+  milliseconds (about 27.8 hours). The server is in the Claude manifest only. The Codex plugin
+  shares the folder `plugins/celetis/`, and it must not start a server that names the host `claude`.
+- Claude Code names each tool `mcp__plugin_celetis_celetis__<tool>`: the plugin `celetis`, the server
+  `celetis`, and the tool name.
+- The documents of Claude Code 2.1.330 say that a `timeout` of 1000 or more limits the wall-clock
+  time of one call and is also a floor of the idle window, which is 30 minutes for a stdio server.
+  They also say that a call of the main conversation that runs for more than two minutes moves to a
+  background task
+  ([Time limits on MCP tool calls](https://code.claude.com/docs/en/mcp.md)). No check of a real
+  session shows these effects yet.
+- The probe of the spec started a plugin server by a bare command name that `PATH` finds as a `.cmd`
+  shim on Windows (Claude Code 2.1.330, one run of `claude -p`). The server got the environment of the
+  session, and its working folder was the start folder of the session
+  ([issue #357](https://github.com/ddinkov10/celetis/issues/357), "Design probes"). The start on
+  macOS and Linux is unchecked: there the shim is a POSIX `sh` script. The maintainer checks it by
+  hand after the landing.
+
+**The tool set.** `toolSet` of `engine/lib/mcp/tools.ts` builds it from `commands`.
+
+- A form is covered when its entry has `agent: true`, the entry is not `internal`, and the form does
+  not hand the terminal to a host session (its `passThrough` is not the exit code of the host
+  session). The forms that are not covered:
+  - `intake`, `assist <n>`, and `visual <n> <sha>`. Each starts a host session in the terminal of the
+    caller, and an MCP call has no terminal.
+  - `update`, `install`, `agents`, `root`, and `mcp` (`agent: false` in the contract). They get no
+    tool. The agent text that runs `agents read` or `update check` keeps the shell command.
+    `update` is also under the hard limit "No agent approval of an update" of `CONSTITUTION.md`.
+  - The internal forms of `daemon`: `--daemon`, `--session-start`, and `--prepare-state`.
+- The name of a tool is the literal words of its form (a word that is no placeholder, enum word,
+  or `--x` word), joined by `_`, for example `issue_route` for
+  `issue <n> route feature|bug|chore|hotfix`, `daemon_status`, `run_resume`, and
+  `lesson-store_read`. Forms with one name make
+  one tool, for example the `run <n>` forms, `next-step <n>` with `next-step --open`, `worktree <n>`
+  with `worktree --remove <n>`, and the `setup try` forms.
+- Each placeholder word is a string parameter. An issue key is a string. A word `a|b|c` is an enum
+  parameter. A flag with a value is a string parameter, or an enum parameter when its value is
+  `a|b|c`, as in `--state open|closed`. A flag with no value is a boolean, and a flag
+  that repeats (`--attach`, `--ignore`) is an array. A word `--x` inside a form, as in
+  `worktree --remove <n>`, is a required boolean. A parameter of a tool is required when each of its
+  forms requires it. The field `names` of a form gives the name of a parameter that is not a word of
+  the form, for example `judgment`, `verification`, `consequence`, `novelty`, `scope`, and `security`
+  for the digits `J V B N S X`.
+- Each tool has the required parameter `checkout`: the absolute path of a folder that exists. The
+  form runs there. The server cannot guess the folder: its working folder is the start folder of the
+  session, and a lane session works in its lane worktree. The server accepts each such folder of the
+  machine, also a folder outside the project of the session. A permission rule that allows a tool
+  cannot limit a parameter of an MCP tool (the documents of Claude Code 2.1.330,
+  [Match by input parameter](https://code.claude.com/docs/en/permissions.md)). So a rule that allows
+  a tool, for example `issue_comment` or `land`, allows its act in each folder that a call names.
+- The description of a tool is the help summaries of its forms, or else the descriptions of its
+  entries. These texts are outside the digest of the contract.
+- The annotation `readOnlyHint` is `true` only when each form of the tool declares `read: true` in the
+  contract. A form is a read when it changes none of these: the project checkout, Git, the tracker,
+  the daemon or its state, a session, the queue, a lesson store, a dispatch record, or an
+  installation. The event-record entry that the launcher writes for a nonzero exit and a transient
+  lock file do not count. `setup check` is not a read, because it runs `git fetch`. The gate requires
+  a value on each covered form. It does not check that the value is true.
+
+**A call.**
+
+1. The SDK checks the input against the schema of the tool: a strict object with the parameters and
+   `checkout`. An input that fails, or an unknown tool, gets the error of the SDK, and the handler of
+   the server does not run.
+2. The server checks `checkout`. A path that is not absolute, or not a folder, gives code 2 and
+   starts no process. On Windows, a path whose root has no drive letter and is no UNC root, for
+   example `\Windows` or `/Windows`, is not absolute.
+3. `argumentsOf` selects the form and builds the argument list. A refusal gives code 2 with the usage
+   line of the command, and starts no process.
+4. The server reads `versionFolderGone` of `engine/lib/install/version-folder.ts`. An update can
+   remove the version folder of a running engine. When the folder is gone, the result has code 3 and a
+   line that tells the session to start a fresh session.
+5. `runForm` of `engine/lib/mcp/call.ts` starts `process.execPath` with `bunArgs` and the program
+   entry `<root>/engine/celetis` of the engine of the server, as `daemonArgv` does
+   ([ADR-0083](../docs/adr/0083-a-library-starts-a-celetis-process-through-the-program-entry.md)). The
+   arguments are `--agent <host>` and the built list. The child has `checkout` as its working folder,
+   the environment of `childEnv`, no stdin, and no shell. A file parameter is a path as on the command
+   line, so a relative path resolves against `checkout`.
+6. The server waits for the `exit` of the child, and then for `close` of its pipes for at most one
+   second, so a descendant that holds a pipe (the daemon of `daemon start`) cannot hold the call. A
+   child that cannot start gives code 6.
+
+The result is `{ code, class, stdout, stderr, json }`. `class` is the exit class of `classOf`, or
+`null` for a code that no class declares, for example an exit code of the worktree setup script that
+`setup try` passes on. `json` is the parsed stdout when the whole stdout is one JSON value, else
+`null`. The server returns the object as `structuredContent` with an `outputSchema`, and as JSON text in
+one text block. `isError` is `true` when `code` is not 0.
+
+**The selection and the guard.** The input is an MCP argument. `argumentsOf` treats it as an untrusted
+value that the CLI parses again.
+
+- A form matches an input when the input holds each required parameter of the form and no parameter
+  outside the form. A `false` boolean, an empty array, and an absent value count as not given.
+- An input that matches no form gives code 2. When two or more forms match, they must build the same
+  argument list, else the input gives code 2. For example, `run` with `n`, `effort`, and `model`
+  matches both flag forms of `run <n>`, and both build `run <n> --effort <level> --model <model>`.
+- The argument list has the words of the form in their order, with a literal word and a `--x` word as
+  written. The flags follow in the order of the flags of the tool. A boolean `true` gives the bare
+  flag, and an array gives the flag once for each element.
+- The guard refuses with code 2 and starts no process when:
+  - a string value, or an element of an array, starts with `-`;
+  - the built list matches exactly a form of the command that the input did not select, for example
+    `issue_view` with `n` set to `create` builds `issue create view`, which is `issue create <file>`;
+  - the built list starts with two or more leading literal words of a form outside the tool, because
+    the command files route by those words before they check the arity of the act. For example,
+    `issue_comment` with `n` set to `create` builds `issue create comment a.md`. Forms of the same
+    tool are exempt from this rule.
+
+**These rules also hold.**
+
+- **The revision.** The server runs the CLI of its own engine revision, not the CLI that `PATH` finds.
+  So the schemas of the tools and the forms that they run come from one revision. After an update, a
+  session keeps the tools of its start revision until a fresh session starts.
+- **No timeout and no kill.** The server sets no timer on a child and sends it no signal. A call waits
+  for its child, also for `land` and `worktree`, and a cancel of the client does not end the child.
+  So the server never stops a child in the middle of an act.
+- **Concurrent calls.** Each call starts its own child, as parallel shell calls do. The locks of the
+  CLI order them.
+- **The environment.** The child gets the environment of the server, which is the environment of the
+  session, for example `CELETIS_COORDINATOR` of the coordinator session. The six `dispatch_*` tools
+  read `CLAUDE_CODE_SESSION_ID` there. Whether Claude Code gives that variable to an MCP server is
+  unchecked.
+
+**The gate.** `checkTools` of `engine/lib/mcp/tools.ts` runs in `scripts/verify.ts`. It reports an
+error when:
+
+- the field `names` of a form names a word that is no placeholder or enum word of that form;
+- an agent form is no tool and is not in `notCovered`;
+- a covered form has no `read` value;
+- a placeholder or enum word has no parameter name, a form gives one parameter name twice, or a
+  parameter is named `checkout`;
+- a tool name breaks the MCP name rule (1 to 128 characters of `A-Z`, `a-z`, `0-9`, `_`, `-`, and `.`),
+  or two tools get one name in Claude Code, where a character outside `A-Z`, `a-z`, `0-9`, `_`, and `-`
+  becomes `_`;
+- a tool holds a form of `update`, `install`, `agents`, `root`, or `mcp`;
+- one parameter of a tool has two kinds or two value lists;
+- one input of a tool matches two forms with different argument lists;
+- the sample input of a form, with one value for each of its parameters, is refused by the guard, or
+  builds an argument list that does not match the form.
+
+The probes of [ADR-0125](../docs/adr/0125-each-agent-form-is-an-mcp-tool-that-runs-the-cli.md),
+"Constraints and evidence", show each rule: one changed or added form of `commands` gives its error,
+and `commands` as it stands gives none. The gate does not check the text of a description, and it does
+not check that a `read` value is true: a `read: true` on `land` and an empty description of `config`
+both gave no error.
+
+**Limits.**
+
+- The macOS start is unchecked ("The start"). The maintainer checks it by hand after the landing.
+- Claude Code sends a successful text result of more than 50,000 characters to a file, and it keeps
+  the first and the last 5,000 characters of an error text of more than about 11,000 characters (the
+  documents of 2.1.330,
+  [MCP output limits and warnings](https://code.claude.com/docs/en/mcp.md)). The server sets no size
+  limit of its own, and it holds the whole output of a child in memory.
+- A session that ends during a call leaves its child running, and the output goes nowhere. A shell call
+  that a session leaves has the same limit.
+
 ## The session tab
 
 For each session, also an exact resume, the daemon opens a new hc terminal

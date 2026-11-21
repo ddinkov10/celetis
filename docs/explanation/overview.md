@@ -223,7 +223,8 @@ the contract version. The plugin declares the version that it needs in
 `engine/lib/contract/versions.json`. Before each new step session, the daemon calls
 `requireContract` of `engine/lib/contract/check.ts`, so the skills, the step text, and the engine of
 a session share one contract version ([the engine document](../../engine/README.md#the-engine-and-the-plugin)).
-What crosses the line: the commands that skills call, in the forms that `engine/lib/contract/contract.ts`
+What crosses the line: the commands that skills call, and the command `celetis --agent claude mcp`
+that the Claude manifest of the plugin starts, in the forms that `engine/lib/contract/contract.ts`
 declares.
 
 **The engine and GitHub.** The engine logs in through `gh`. The GitHub adapter in

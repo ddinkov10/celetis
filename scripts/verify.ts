@@ -30,6 +30,7 @@ import {
   worktreePathLine,
 } from '../engine/lib/contract/contract.ts';
 import { entryParts } from '../engine/lib/contract/entry-text.ts';
+import { checkTools } from '../engine/lib/mcp/tools.ts';
 import { type Job, printJobs, runJobs } from '../engine/lib/process/parallel.ts';
 import { bunArgs, childEnv, run } from '../engine/lib/process/process.ts';
 import { type IssueKey, parseKey } from '../engine/lib/tracker/key.ts';
@@ -674,11 +675,18 @@ export const bindings = (files: ReadonlyMap<string, string>): readonly Binding[]
 
 export const checkContract = (files: ReadonlyMap<string, string>): string[] => scan(files).errors;
 
-const flagShape = ({ name, value, optional }: Flag) => ({ name, value: value ?? null, optional });
-const formShape = ({ words, flags, passThrough }: Form) => ({
+const flagShape = ({ name, value, optional, repeats }: Flag) => ({
+  name,
+  value: value ?? null,
+  optional,
+  repeats: repeats ?? false,
+});
+const formShape = ({ words, flags, passThrough, read, names }: Form) => ({
   words,
   flags: flags.map(flagShape),
   passThrough: passThrough !== undefined,
+  read: read ?? null,
+  names: names ?? null,
 });
 
 export function contractDigest(): string {
@@ -937,6 +945,7 @@ async function execute(argv: string[]): Promise<number> {
       ...checkImports(texts),
       ...checkLayout(files),
       ...checkContractVersion(texts),
+      ...checkTools(commands),
     ];
     for (const line of textErrors) console.error(line);
     if (unknown || textErrors.length) {

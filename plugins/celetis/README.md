@@ -724,6 +724,7 @@ setup"):
 | `celetis agents read \| agents replace '<JSON>'` | Reads the local ordered preference, or replaces it with exactly `order` and `expectedVersion`. It shares the Git common directory across worktrees and requires no YAML. It exits 2 for a replacement that is not JSON or not a valid order, and for an `agents.json` that does not validate. It exits 3 for a stale-edit conflict, and returns the latest order; a busy write lock also exits 3, with no JSON. It exits 6 for an unsafe or unreadable record. Repeating the current order succeeds. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis update \| update check \| update --to <ref>` | Updates the engine and the plugin of each host, and asks once in an interactive terminal. `check` is read-only: it prints one JSON array of the parts. `--to <ref>` moves each part to the head of the branch `<ref>` or to the release tag `<ref>` (`vX.Y.Z`). `plugins/celetis/README.md`, "Updates", gives the steps. Any other form, and a `<ref>` that is no release tag and no valid branch name, exits 2 with the usage line. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis root` | Prints the version folder that holds the running engine. It takes no argument and runs in each folder. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
+| `celetis mcp` | Serves the agent forms as MCP tools over stdio, until its stdin closes. It needs an explicit `--agent <host>`: each tool call runs its form for that host, in the folder that the call names. The host starts it from the plugin manifest, and no skill runs it. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked, 128+n signal |
 <!-- The end of the command table that scripts/build.ts writes. -->
 
 Each command gives the exit code of its class. The `Exit status:` list of a row names the classes that the command declares; the table of the classes follows:
@@ -742,6 +743,19 @@ Each command gives the exit code of its class. The `Exit status:` list of a row 
 | 8 | stop | The engine stops the task; the session escalates. |
 | 128+n | signal | The signal n ended the command. |
 <!-- The end of the exit-class table that scripts/build.ts writes. -->
+
+Claude Code also gets MCP tools for the agent forms of the commands above. Forms with one name share
+one tool, and `intake`, `assist`, and `visual` get none. The key `mcpServers` of
+`.claude-plugin/plugin.json` starts the server with `celetis --agent claude mcp`. The manifest of Codex
+declares no server. A tool runs its form as a child process and returns the exit code, the exit class,
+the stdout, and the stderr. Claude Code names a tool `mcp__plugin_celetis_celetis__<tool>`, for example
+`mcp__plugin_celetis_celetis__capscore`. A permission rule names one tool, so write one rule for each
+tool that you allow. A rule `mcp__plugin_celetis_celetis__*` allows each tool, the write tools too.
+A rule has no folder scope. Each tool takes the folder of its act in the parameter `checkout`, and a
+rule that allows a tool cannot limit a parameter. So a rule that allows
+`mcp__plugin_celetis_celetis__issue_comment` or `mcp__plugin_celetis_celetis__land` allows that act in
+each folder that a call names.
+`engine/README.md`, "The MCP server", gives the tool set, the call, and the limits.
 
 These programs are not commands of the engine. Each gives its own exit codes:
 

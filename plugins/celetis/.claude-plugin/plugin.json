@@ -3,5 +3,12 @@
   "description": "An issue-driven agent harness: lane skills, a daemon that runs steps, a landing script, and worktree setup.",
   "author": {
     "name": "ddinkov10"
+  },
+  "mcpServers": {
+    "celetis": {
+      "command": "celetis",
+      "args": ["--agent", "claude", "mcp"],
+      "timeout": 100000000
+    }
   }
 }

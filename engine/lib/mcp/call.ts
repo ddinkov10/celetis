@@ -1,0 +1,64 @@
+import { type ChildProcessByStdio, spawn } from 'node:child_process';
+import { constants } from 'node:os';
+import { join } from 'node:path';
+import type { Readable } from 'node:stream';
+import { classOf, exits, signalExit } from '../contract/contract.ts';
+import { bunArgs, childEnv } from '../process/process.ts';
+
+export type Outcome = Readonly<{ code: number; class: string | null; stdout: string; stderr: string; json: unknown }>;
+
+function parsed(stdout: string): unknown {
+  if (!stdout.trim()) return null;
+  try {
+    return JSON.parse(stdout);
+  } catch {
+    return null;
+  }
+}
+
+export const outcomeOf = (code: number, stdout: string, stderr: string): Outcome => ({
+  code,
+  class: classOf(code),
+  stdout,
+  stderr,
+  json: parsed(stdout),
+});
+
+export function runForm(root: string, host: string, argv: readonly string[], checkout: string): Promise<Outcome> {
+  return new Promise((resolve) => {
+    let child: ChildProcessByStdio<null, Readable, Readable>;
+    try {
+      child = spawn(process.execPath, bunArgs(join(root, 'engine', 'celetis'), ['--agent', host, ...argv]), {
+        cwd: checkout,
+        env: childEnv(),
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: false,
+        windowsHide: true,
+      });
+    } catch (error) {
+      resolve(outcomeOf(exits.blocked, '', `${(error as Error).message}\n`));
+      return;
+    }
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
+    child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
+    let ended = false;
+    let drain: ReturnType<typeof setTimeout> | undefined;
+    const settle = (code: number, failure = '') => {
+      if (ended) return;
+      ended = true;
+      clearTimeout(drain);
+      child.stdout.destroy();
+      child.stderr.destroy();
+      resolve(outcomeOf(code, Buffer.concat(stdout).toString(), Buffer.concat(stderr).toString() + failure));
+    };
+    child.once('error', (error) => settle(exits.blocked, `${error.message}\n`));
+    // A descendant of the form, for example the daemon of `daemon start`, can hold a pipe open after the form exits, and close waits for that descendant.
+    child.once('exit', (code, signal) => {
+      const status = code ?? (signal ? signalExit(constants.signals[signal]) : exits.internal);
+      child.once('close', () => settle(status));
+      drain = setTimeout(() => settle(status), 1_000);
+    });
+  });
+}

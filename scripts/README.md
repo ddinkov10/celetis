@@ -28,6 +28,9 @@ and the pin installer for a change.
 - `checkContractVersion`: the contract version of the plugin against the served versions, and
   the digest of the declarations of `engine/lib/contract/contract.ts`
   ([`AGENTS.md`](../AGENTS.md#verify-gate) gives the rule, ADR-0090).
+- `checkTools`: the MCP tools that `engine/lib/mcp/tools.ts` builds from the agent forms of
+  `engine/lib/contract/contract.ts`
+  ([`engine/README.md`](../engine/README.md#the-mcp-server), "The gate", lists its rules, ADR-0125).
 - The tracked-test check (ADR-0029).
 - The generated files of the build.
 
