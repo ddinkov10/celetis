@@ -102,8 +102,9 @@ agent that waits.
   board.
 - `engine/board/fonts/`: Geist and Geist Mono with `OFL.txt`.
 
-The repository is private and has no deployment, public site, customers, testimonials, pricing, or
-usage metrics. Future work must not invent them.
+The repository is private. Its only deployment is the documentation site (`.github/workflows/docs.yml`,
+ADR-0122), which is not public until the maintainer makes the repository public and sets the Pages
+source. It has no customers, testimonials, pricing, or usage metrics. Future work must not invent them.
 
 ## Product Principles
 

@@ -16,8 +16,8 @@ and the pin installer for a change.
 `scripts/verify.ts` is the verify gate. It runs these jobs, each by its name:
 
 - The role of each tracked path.
-- Biome on the authored TypeScript, JSON, and CSS.
-- Strict types.
+- Biome on the authored TypeScript, JSON, and CSS, also of `website/`.
+- Strict types, also of the TypeScript of `website/`, with no site packages.
 - Native actionlint, and YAML validation.
 - Plugin validation: `claude plugin validate plugins/celetis` and `claude plugin validate .`.
 - `checkCitations`: the citations and the links of the agent text
@@ -52,9 +52,12 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
 
 ## The workflow
 
-The workflow has one job, `test`, on Linux. It installs the locked packages of the engine, the gate
-tools too, with `scripts/worktree-setup.ts`, then `actionlint` and Claude Code with
-`scripts/install-tools.ts`, then runs the verify gate.
+The workflow `test.yml` has one job, `test`, on Linux. It installs the locked packages of the
+engine, the gate tools too, with `scripts/worktree-setup.ts`, then `actionlint` and Claude Code
+with `scripts/install-tools.ts`, then runs the verify gate.
+
+The workflow `docs.yml` builds the site of `website/` and deploys it to GitHub Pages on each push
+to `main`. It is no check of a change.
 
 ## The pin installer
 

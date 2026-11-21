@@ -1,0 +1,17 @@
+{
+  "name": "website",
+  "private": true,
+  "scripts": {
+    "build": "docusaurus build",
+    "serve": "docusaurus serve",
+    "start": "docusaurus start"
+  },
+  "dependencies": {
+    "@docusaurus/core": "3.10.2",
+    "@docusaurus/preset-classic": "3.10.2",
+    "@docusaurus/theme-mermaid": "3.10.2",
+    "@mermaid-js/layout-elk": "1.0.2",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  }
+}

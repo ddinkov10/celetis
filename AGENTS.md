@@ -12,7 +12,8 @@ This repository holds both modules. The plugin is the folder `plugins/celetis/`:
 (`plugins/celetis/skills/`), procedure modules (`plugins/celetis/references/procedures/`), principles
 (`plugins/celetis/references/principles/`), step text (`plugins/celetis/step-prompt.md`), and documents
 (`plugins/celetis/docs/`). The engine is the folder `engine/`, with its entry `engine/celetis`. The
-repository also holds maintenance (`scripts/`), the host documents (`docs/hosts/`), the explanation documents (`docs/explanation/`), and the
+repository also holds maintenance (`scripts/`), the host documents (`docs/hosts/`), the explanation documents (`docs/explanation/`), the
+documentation site (`website/`, deployed by `.github/workflows/docs.yml`), and the
 records (`docs/adr/`, `.celetis/lessons/`). It is also a product project of its own plugin.
 `plugins/celetis/README.md` holds the install, the full loop, the skills, the commands, and the
 update rule. `plugins/celetis/docs/setup.md` holds what setup writes.
@@ -99,6 +100,8 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
   installation does not get. The gate keeps `@types/bun` equal to `bunFloor` of
   `engine/lib/config/core.ts`. To change a pin, edit `engine/package.json`, run `bun install --ignore-scripts`
   in `engine/`, and commit both files.
+- The packages of `website/` stay out of the gate and the worktree setup, so no file of `website/`
+  imports one. A local build runs `bun install` in `website/` first (ADR-0122).
 - Strict types have three environments: runtime commands and server modules;
   browser DOM modules; and the native hook API and its actual globals.
 
@@ -187,7 +190,8 @@ each relative link of a Markdown file in `plugins/celetis/` names a tracked file
 each procedure module has two or more citers among the skills and the step text (a citing module
 does not count), each `SKILL.md` holds the entry line of `plugins/celetis/references/procedures/entry.md`
 once, and no skill, module, or principle cites `docs/hosts/`. The gate refuses a TypeScript file
-in `plugins/celetis/`: the TypeScript source stays in `engine/` and `scripts/`.
+in `plugins/celetis/`: the TypeScript source stays in `engine/` and `scripts/`, and the config of the
+site stays in `website/`.
 
 The same check reads three more rules. First, when a code span `<plugin>/<path>.md` is followed by
 `, "Name"` (more names follow as `, "Name"`, `and "Name"`, or `, and "Name"`), each name must equal
@@ -233,7 +237,9 @@ The lanes of this repository are the skills of the plugin itself, on the issues 
 `ddinkov10/celetis` (`plugins/celetis/README.md`, "The full loop"). The landing is `merge`
 (`landing` in `.celetis.yaml`): a build step runs the verify gate locally, then ends
 with `celetis --agent <host> land <n> '<subject>'`, which runs `suite` (`scripts/verify.ts`) on the commit that it lands and puts one squash commit on `main` without a PR.
-The landing is the last act of a change: this repository has no deployment.
+The landing is the last act of a change: this repository deploys only its documentation site, with
+`.github/workflows/docs.yml` on each push to `main`. The repository is private, so that deploy job
+fails until the maintainer makes the repository public and sets the Pages source (ADR-0122).
 A release is a separate act of the maintainer: `scripts/release.ts <X.Y.Z>` (`scripts/README.md`, "The release"; ADR-0118).
 The manifests on `main` hold no `version`: a `version` there stops each machine that follows `main` at that copy.
 For installation changes, follow `plugins/celetis/README.md`, "Updates".

@@ -55,6 +55,9 @@ export const fileRoles: Record<string, string> = {
   'engine/board/fonts/geist-mono.woff2': 'binary font delivery asset',
   'engine/board/index.html': 'HTML remains exempt until stable Biome HTML checking, per issue 83',
   '.codex/rules/celetis.rules': 'native host permission rules; Codex reads them',
+  'website/bun.lock':
+    'Bun lockfile of the site; Bun writes it, and the workflow docs installs from it with --frozen-lockfile',
+  'website/.gitignore': 'Git reads this text',
 };
 
 export function classify(path: string, source: Buffer): string {

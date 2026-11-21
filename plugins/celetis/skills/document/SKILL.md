@@ -26,15 +26,15 @@ Read `<plugin>/skills/document/types.md` before step 2.
    `PRODUCT.md` when they exist, the records of `docs/adr/`, each existing document and its home,
    and the layout and the entry points of the code. Read the code by its layout first, and read a
    part in depth only for a document that needs it. Run `git status --porcelain` for the homes
-   ("The homes"), and `git diff -- README.md`.
+   (`<plugin>/references/procedures/document-homes.md`, "The homes"), and `git diff -- README.md`.
 2. **Ask for the readers**, unless the input names them: who reads the documents, and what each
    reader wants to do. Map each reader to a type by `<plugin>/skills/document/types.md`, "The choice of a type".
 3. **Propose the set.** Show one table, with one row for each document: the type, the title, the
-   path ("The homes"), the reader, the question that the document answers, and the sources that it
-   draws from. A type gets a row only when a reader of this run needs it. A topic that an existing
-   document already covers gets no new document: its row names that document, and the new
-   documents link to it. On a project that already has documents of the set, propose only the gaps
-   ("A second run").
+   path (`<plugin>/references/procedures/document-homes.md`, "The homes"), the reader, the
+   question that the document answers, and the sources that it draws from. A type gets a row only
+   when a reader of this run needs it. A topic that an existing document already covers gets no
+   new document: its row names that document, and the new documents link to it. On a project that
+   already has documents of the set, propose only the gaps ("A second run").
 4. **Get the approval of the set** ("The approval"). Write nothing before it.
 5. **Write each document** in a child agent of its own ("The children"). The children run at the
    same time. When each child has returned, read each written file whole. Check that it answers the
@@ -101,15 +101,6 @@ lack of a source, and each step that could not run, with its cause. When a step 
 or a how-to guide, the child writes no file for the row, and it returns the step.
 
 Only this session edits `README.md` and makes the commit.
-
-## The homes
-
-- A document goes into `docs/<type>/` by default: `docs/explanation/`, `docs/tutorials/`,
-  `docs/how-to/`, or `docs/reference/`. A folder exists only when it holds a document.
-- An existing home of the same kind wins over the default. So does a home that an `AGENTS.md` of
-  the project or the custom text of the entry names.
-- The overview of the product is the first explanation document: `overview.md` in the home of the
-  explanation documents, by default `docs/explanation/overview.md`.
 
 ## A second run
 

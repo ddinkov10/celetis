@@ -24,6 +24,8 @@ This repository holds:
 
 ## Documentation
 
+The documents are also a website: https://ddinkov10.github.io/celetis/
+
 - [About Celetis](docs/explanation/overview.md): What is Celetis, what are its parts, and where in the code is each part?
 - [About the lifecycle of a change](docs/explanation/change-lifecycle.md): How does a request become a change on the trunk, and why is the issue the state store?
 - [About the skills and the agent text](docs/explanation/agent-text.md): How do the skills, the procedure modules, and the principles steer an agent, and why one copy serves both hosts?

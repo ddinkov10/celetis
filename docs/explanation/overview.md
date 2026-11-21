@@ -139,6 +139,20 @@ The folder `scripts/` holds the maintenance programs of this repository: `script
 verify gate), `scripts/build.ts`, `scripts/install-tools.ts`, and `scripts/herdr-lab.ts`
 ([the scripts document](../../scripts/README.md)).
 
+### The documentation site
+
+The folder `website/` holds a Docusaurus site that publishes the documents of the homes under
+`docs/` as a public website, `https://ddinkov10.github.io/celetis/`. The site reads the documents in
+place, so a document needs no header and no change, and a new document in a published home shows
+with no edit of the site. A link from a document to a file outside the published homes, for example
+an ADR or `AGENTS.md`, opens that file on GitHub. The workflow `.github/workflows/docs.yml` builds
+the site and deploys it to GitHub Pages on each push to `main`; it needs a public repository or a
+plan with Pages, and the maintainer sets **Pages → Source** to **GitHub Actions** once. The skill
+`docs-site` writes the same files into a product project. The verify gate installs no package of
+the site and builds nothing of it, so a document with a broken link lands, and its deploy fails
+after the landing. The failure shows only in GitHub Actions
+([ADR-0122](../../docs/adr/0122-the-documents-of-a-product-are-a-website-on-github-pages.md)).
+
 ### The records
 
 The records are `docs/adr/` (the decision records, with the generated index `docs/adr/index.md`) and
@@ -164,7 +178,7 @@ These rules hold in each part.
   the issue ([the product document](../../PRODUCT.md)).
 - The plugin names roles, never a part of a product. A product project names its own parts
   ([`AGENTS.md`](../../AGENTS.md), "General text"). The plugin folder holds no TypeScript file. The
-  TypeScript source stays in `engine/` and `scripts/`.
+  TypeScript source stays in `engine/` and `scripts/`, and the config of the site stays in `website/`.
 - One workflow definition exists, in `engine/lib/workflow/workflow.ts`
   ([the workflow document](../../plugins/celetis/docs/workflow.md)).
 - An agent lands a change only through `celetis --agent <host> land`, and only when the checks of
