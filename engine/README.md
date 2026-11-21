@@ -149,7 +149,8 @@ A new start for the issue cannot begin until the session exits. Claims and relea
 compare-and-set, and foreground registration updates all held locks in one transaction. Both
 hosts and manual resume share the issue lock.
 A landing in the master daemon holds the lock ref `land-<n>`, with the daemon as its owner and no
-session ([A landing](../plugins/celetis/docs/workflow.md#a-landing)). The `no-progress` file in `<git common dir>/celetis/` has one row for each step that ended with no progress, and one row for
+session. A direct landing, which `land` runs with no daemon, holds it with the `land` process as the session and no daemon
+([A landing](../plugins/celetis/docs/workflow.md#a-landing)). The `no-progress` file in `<git common dir>/celetis/` has one row for each step that ended with no progress, and one row for
 each step that the script refused as a skip. Auto mode and the board read it. An
 explicit issue start can start that step. `engine/lib/state/locks.ts` of the engine owns the lock refs,
 the owner records, the liveness check of an owner, and the record; the daemon and the board use it.
@@ -300,7 +301,7 @@ installation adoption remain outside this runtime-state exception (ADR-0070).
 The master daemon is one long-lived process for one repository, the Git common folder of its
 working folder. It runs many issue runs at the same time, with the run engine
 (`engine/lib/run/engine.ts`), runs each landing of `celetis --agent <host> land` in the daemon
-process, one at a time ([A landing](../plugins/celetis/docs/workflow.md#a-landing)), and serves requests over HTTP on a Unix socket
+process, one at a time, when it runs (with no daemon, `land` runs the landing in its own process) ([A landing](../plugins/celetis/docs/workflow.md#a-landing)), and serves requests over HTTP on a Unix socket
 ([ADR-0072](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0072-one-master-daemon-runs-every-issue-run.md)). Its process is
 `engine/daemon.ts --daemon` (a successor adds `--after <pid> <start>`, "The restart"), so the
 lock, step-end, and recovery checks accept it as the daemon. Nothing starts a daemon by itself. The daemon also serves the board on a loopback port
@@ -1534,8 +1535,9 @@ that passes on the exit code of a child unchanged (`passOn`) records nothing. A 
 turns the failure of a child into a new error of its own records
 that error. The `land` client passes on the status of the landing of the daemon in the same way:
 the daemon records the landing (`land-exit`, `land-defect`), and the client records only its own
-refusals, for example a missing daemon or a stream with no status, with only its own lines as the
-message, not the output of the landing that it prints.
+refusals, for example a stream with no status, with only its own lines as the
+message, not the output of the landing that it prints. A direct landing, which runs in the `land`
+process, records the landing itself: one `land-exit` or `land-defect` event for a nonzero end, none for exit 0.
 
 A process that ends with 0, 129, 130, or 143 writes no exit entry. A successful `execve`
 replacement of the launcher ends no process, so the new process records its own exit. A workflow
@@ -1556,8 +1558,8 @@ The workflow and board entries, by `name`:
 | `queue-error` | The queue of the daemon saves the state `error`, or ends with an error |
 | `run-exit` | A run of the master daemon ends with a nonzero code. `issue` and `code` are set |
 | `run-defect` | A run or auto mode of the master daemon ends with an unexpected error. A defect with its stack |
-| `land-exit` | A landing of the master daemon ends with a nonzero status, also 143, and no unexpected error. `issue` and `code` are set |
-| `land-defect` | A landing of the master daemon ends with an unexpected error. A defect with its stack. `issue` and `code` are set |
+| `land-exit` | A landing of the master daemon or a direct landing ends with a nonzero status, also 143, and no unexpected error. `issue` and `code` are set |
+| `land-defect` | A landing of the master daemon or a direct landing ends with an unexpected error. A defect with its stack. `issue` and `code` are set |
 | `board-request` | A board request ends with status 500. A defect with the stack of the cause. `code` is 500 |
 | `board-terminal` | A board request ends with status 502 because the terminal core failed. `code` is 502 |
 | `board-update` | The board cannot replace the engine in an update, or it cannot restart after a completed installation |

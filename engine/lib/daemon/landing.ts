@@ -1,9 +1,9 @@
 import { constants } from 'node:os';
 import { HostError } from '../command/errors.ts';
 import { exits, signalExit } from '../contract/contract.ts';
-import { type LandingEnd, runLanding } from '../landing/landing.ts';
+import { described, type LandingEnd, lockedLanding } from '../landing/landing.ts';
 import { recordEvent } from '../state/events.ts';
-import { createLockOwner, landLock } from '../state/locks.ts';
+import { createLockOwner } from '../state/locks.ts';
 import type { IssueKey } from '../tracker/key.ts';
 import type { DaemonRequest, LandingRow } from './types.ts';
 
@@ -34,7 +34,6 @@ const aborts = (signal: AbortSignal) =>
   new Promise<void>((resolve) =>
     signal.aborted ? resolve() : signal.addEventListener('abort', () => resolve(), { once: true }),
   );
-const described = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const abortWith = (place: Place, reason: HostError) => {
   place.reason ??= reason;
   place.abort.abort(reason);
@@ -46,34 +45,6 @@ export function createLandings(context: Context): Landings {
   const leave = (place: Place) => {
     line.splice(line.indexOf(place), 1);
     line[0]?.first.resolve();
-  };
-
-  const land = async ({ number, subject, selection, from }: LandRequest, signal: AbortSignal): Promise<LandingEnd> => {
-    const name = landLock(number);
-    const owner = createLockOwner(context.main, context.start);
-    try {
-      const holder = await owner.take(name);
-      if (holder !== null) {
-        console.error(
-          `land: prerequisite: the lock ${name} has the owner PID ${holder}; wait until that landing ends, then run celetis --agent <host> land ${number} again`,
-        );
-        return { status: exits.prerequisite, defect: null };
-      }
-      return await runLanding({ number, subject, selection, from }, context.main, signal);
-    } catch (error) {
-      if (!(error instanceof HostError)) {
-        console.error(described(error));
-        return { status: exits.internal, defect: { error } };
-      }
-      console.error(`land: blocked: ${error.message}`);
-      return { status: exits.blocked, defect: null };
-    } finally {
-      const cause = (await owner.release(name)) === null ? null : await owner.release(name);
-      if (cause !== null)
-        console.log(
-          `land: warning: cannot release the lock ${name}: ${cause}; restart the daemon: celetis daemon stop, then celetis daemon start`,
-        );
-    }
   };
 
   return {
@@ -140,7 +111,9 @@ export function createLandings(context: Context): Landings {
           } else {
             place.state = 'runs';
             place.changedMs = Date.now();
-            end = await context.enter(request.number, sink, () => land(request, place.abort.signal));
+            end = await context.enter(request.number, sink, () =>
+              lockedLanding(request, context.main, createLockOwner(context.main, context.start), place.abort.signal),
+            );
           }
         } catch (error) {
           end = { status: exits.internal, defect: { error } };

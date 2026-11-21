@@ -87,7 +87,8 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
   `actionlint` on `PATH`. Checks install nothing.
   The `merge` landing runs the gate as its suite in the master daemon, with the environment of
   the shell of `celetis daemon start`, so start the daemon from a shell with that `bin` folder on
-  `PATH`.
+  `PATH`. With no daemon, `land` runs the suite in its own process, so run `land` from a shell with
+  that `bin` folder on `PATH`.
 - The gate reads `git ls-files -z`. Stage a new file before the gate. Give each new file type
   a check or an explicit role in `scripts/verify.ts`.
 - Author each first-party program in TypeScript. Bun 1.4.4 or later runs commands.

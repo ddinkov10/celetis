@@ -12,6 +12,7 @@ import { readLessons } from '../lesson/store.ts';
 import { run } from '../process/process.ts';
 import { lineOf } from '../resolver/lines.ts';
 import { type Services, services } from '../services/services.ts';
+import { type LockOwner, landLock } from '../state/locks.ts';
 import type { IssueKey } from '../tracker/key.ts';
 import { writeRefreshHint } from '../tracker/refresh-hints.ts';
 import { TrackerError } from '../tracker/tracker.ts';
@@ -21,6 +22,7 @@ import { mergeMechanism } from './merge.ts';
 import { prMechanism } from './pr.ts';
 
 export type Landing = Readonly<{ number: IssueKey; subject: string; selection: HostSelection; from: string }>;
+export const described = (error: unknown) => (error instanceof Error ? error.message : String(error));
 export type LandingEnd = Readonly<{ status: ExitCode; defect: Readonly<{ error: unknown }> | null }>;
 
 export type Mechanism = Readonly<{ check(): Promise<void>; land(): Promise<void>; after(): Promise<void> }>;
@@ -280,5 +282,38 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
     const outcome: ExitClass = error.code === exits.usage ? 'usage' : 'blocked';
     emitError(`land: ${outcome}: ${error.message}`);
     return { status: exits[outcome], defect };
+  }
+}
+
+export async function lockedLanding(
+  landing: Landing,
+  main: string,
+  owner: LockOwner,
+  signal: AbortSignal,
+): Promise<LandingEnd> {
+  const { number } = landing;
+  const name = landLock(number);
+  try {
+    const holder = await owner.take(name);
+    if (holder !== null) {
+      console.error(
+        `land: prerequisite: the lock ${name} has the owner PID ${holder}; wait until that landing ends, then run celetis --agent <host> land ${number} again`,
+      );
+      return { status: exits.prerequisite, defect: null };
+    }
+    return await runLanding(landing, main, signal);
+  } catch (error) {
+    if (!(error instanceof HostError)) {
+      console.error(described(error));
+      return { status: exits.internal, defect: { error } };
+    }
+    console.error(`land: blocked: ${error.message}`);
+    return { status: exits.blocked, defect: null };
+  } finally {
+    const cause = (await owner.release(name)) === null ? null : await owner.release(name);
+    if (cause !== null)
+      console.log(
+        `land: warning: cannot release the lock ${name}: ${cause}; restart the daemon: celetis daemon stop, then celetis daemon start`,
+      );
   }
 }

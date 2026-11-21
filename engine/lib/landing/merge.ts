@@ -16,39 +16,37 @@ export function mergeMechanism(context: LandingContext, suite: string): Mechanis
     await gh.edit(issue, { state: 'closed', state_reason: 'completed' });
     process.stderr.write(gh.stderr());
   };
+  let offTrunk = false;
   return {
     async check() {
-      const [firstChange, ...otherChanges] = (await git(['status', '--porcelain'], undefined, main))
-        .split('\n')
-        .filter(Boolean);
-      if (firstChange !== undefined)
-        die(
-          'blocked',
-          `the main checkout has uncommitted changes, your work: ${main}: ${firstChange.slice(3)}${otherChanges.length ? ` and ${otherChanges.length} more` : ''}; commit or stash them there, then land again`,
-        );
-      const current = await git(['branch', '--show-current'], undefined, main);
-      if (current !== trunk)
-        die(
-          'blocked',
-          `the main checkout is on ${current || 'a detached HEAD'}, not on ${trunk}: ${main}; switch it to ${trunk} there, then land again`,
-        );
-      const head = await git(['rev-parse', 'HEAD'], undefined, main);
-      if (head !== base) {
-        const ancestry = await gitRaw(['merge-base', '--is-ancestor', 'HEAD', base], main);
-        process.stderr.write(ancestry.stderr);
-        if (ancestry.code === 0)
-          await git(
-            ['merge', '-q', '--ff-only', base],
-            ['blocked', `cannot fast-forward the main checkout to origin/${trunk}: ${main}`],
-            main,
-          );
-        else if (ancestry.code === 1) {
-          const ahead = (await git(['log', '--format=%h %s', `${base}..HEAD`], undefined, main)).split('\n');
+      offTrunk = (await git(['branch', '--show-current'], undefined, main)) !== trunk;
+      if (!offTrunk) {
+        const [firstChange, ...otherChanges] = (await git(['status', '--porcelain'], undefined, main))
+          .split('\n')
+          .filter(Boolean);
+        if (firstChange !== undefined)
           die(
             'blocked',
-            `the main checkout has ${ahead.length} commit(s) that origin/${trunk} does not have, your work: ${main}: ${ahead[0]}; push them, or move them to a branch there, then land again`,
+            `the main checkout has uncommitted changes, your work: ${main}: ${firstChange.slice(3)}${otherChanges.length ? ` and ${otherChanges.length} more` : ''}; commit or stash them there, then land again`,
           );
-        } else throw new HostError(ancestry.stderr.trimEnd(), exits.blocked);
+        const head = await git(['rev-parse', 'HEAD'], undefined, main);
+        if (head !== base) {
+          const ancestry = await gitRaw(['merge-base', '--is-ancestor', 'HEAD', base], main);
+          process.stderr.write(ancestry.stderr);
+          if (ancestry.code === 0)
+            await git(
+              ['merge', '-q', '--ff-only', base],
+              ['blocked', `cannot fast-forward the main checkout to origin/${trunk}: ${main}`],
+              main,
+            );
+          else if (ancestry.code === 1) {
+            const ahead = (await git(['log', '--format=%h %s', `${base}..HEAD`], undefined, main)).split('\n');
+            die(
+              'blocked',
+              `the main checkout has ${ahead.length} commit(s) that origin/${trunk} does not have, your work: ${main}: ${ahead[0]}; push them, or move them to a branch there, then land again`,
+            );
+          } else throw new HostError(ancestry.stderr.trimEnd(), exits.blocked);
+        }
       }
       const ancestor = await gitRaw(['merge-base', '--is-ancestor', base, tip]);
       process.stderr.write(ancestor.stderr);
@@ -82,15 +80,22 @@ export function mergeMechanism(context: LandingContext, suite: string): Mechanis
           ['push', '-q', 'origin', `${commit}:refs/heads/${trunk}`],
           ['blocked', `cannot push ${trunk} to origin; ${trunk} is as it was`],
         );
-        setCleanup(
-          `the change is on origin/${trunk}, but the main checkout did not move; run git pull there, then run celetis --agent <host> land again`,
-        );
-        await git(['merge', '-q', '--ff-only', commit], undefined, main);
+        if (!offTrunk) {
+          setCleanup(
+            `the change is on origin/${trunk}, but the main checkout did not move; run git pull there, then run celetis --agent <host> land again`,
+          );
+          await git(['merge', '-q', '--ff-only', commit], undefined, main);
+        }
         setCleanup(open);
       }
       const issue = await tracked(({ tracker }) => tracker.issue(n));
       if (issue.state !== 'closed') await closeIssue(n, `Landed on ${trunk}${commit ? ` in ${commit}` : ''}.`);
     },
-    async after() {},
+    async after() {
+      const current = await gitRaw(['branch', '--show-current'], main);
+      process.stderr.write(current.stderr);
+      if (offTrunk || current.code !== 0 || current.stdout.trimEnd() !== trunk)
+        console.log(`land: the main checkout did not move to origin/${trunk}; run git pull on ${trunk} there`);
+    },
   };
 }

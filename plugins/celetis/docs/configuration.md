@@ -146,9 +146,10 @@ the trunk. Exit status 0 is a pass; any other status stops the landing with the 
 `land`. A suite
 that changes the lane or the trunk stops the landing with a repair or usage line, and the trunk
 stays as it was. `land` runs the suite again on each run. The suite is a child process of the
-master daemon, which runs the landing (`docs/workflow.md`, "A landing"): it has no stdin, its
-stdout and stderr are pipes, not a terminal, and their bytes reach the stdout and stderr of the
-`land` client unchanged. It has the environment of the daemon, not of the shell that runs `land`.
+process that runs the landing, the master daemon or `land` itself (`docs/workflow.md`, "A
+landing"): it has no stdin, its stdout and stderr are pipes, not a terminal, and their bytes reach
+the stdout and stderr of `land` unchanged. With a daemon, it has the environment of the daemon, not
+of the shell that runs `land`. With no daemon, it has the environment of the shell of `land`.
 An abort of the landing sends SIGTERM to the suite, and SIGKILL when the suite still runs 10
 seconds later. A `pr` landing runs no suite: its checks are the checks of the PR.
 

@@ -319,21 +319,34 @@ ends at its next idle moment, and a Run press starts that lane.
 Before `land` puts the change on the trunk, the landing curates the lesson queue in
 the lane (`references/procedures/lesson-curation.md`, "Curation at a landing").
 
-The master daemon of the repository runs the landing
+`land` reads the daemon of the repository once. When a daemon of the same engine revision runs, it
+runs the landing
 ([The master daemon](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#the-master-daemon)).
-`land` is its client: it sends one request, writes each `out` record to its stdout and each `err`
-record to its stderr at once, waits with no time limit, and exits with the last `code`. It runs no
-Git or GitHub act of the landing, no suite, and no lock, and it never sends the request again by
-itself. Each act of the landing, the suite, and each `git` and `gh` call is a part or a child of
-the daemon process, and they get the environment of the daemon, as
+`land` is then its client: it sends one request, writes each `out` record to its stdout and each
+`err` record to its stderr at once, waits with no time limit, and exits with the last `code`. It
+runs no Git or GitHub act of the landing, no suite, and no lock, and it never sends the request
+again by itself. Each act of the landing, the suite, and each `git` and `gh` call is a part or a
+child of the daemon process, and they get the environment of the daemon, as
 [The master daemon](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#the-master-daemon) says,
 not of the shell of the client: for example the `PATH` to the tools of the suite comes from the
 shell of `celetis daemon start`, and a `GH_TOKEN` of the shell of the client does not reach the
 landing. `PORT` of that shell is the exception: only the board reads it, so no landing gets it. For
 the host `codex`, the landing checks the Codex home (`CODEX_HOME`, else `~/.codex`) as a `codex` run
-does.
+does. A daemon of another engine revision gives exit 3 with a line that names the restart of the
+daemon, and a daemon that does not answer gives exit 6.
 
-The daemon keeps one line of landings and runs the landing at its head only. A request that comes
+With no daemon, `land` runs the landing in its own process (the direct landing). It takes the lock
+ref `land-<n>`, runs the same landing code, and releases the lock, with no line of landings. The
+output goes straight to its stdout and stderr, so the `land:` lines, their order, and the exit
+classes equal those of a daemon landing, except the line `land: #<n> waits for the landing of #<m>`,
+which a direct landing never prints. The landing, the suite, and each `git` and `gh` call get the
+environment of the shell of `land`, `PORT` included. With no daemon, nothing puts two landings in one
+line: the second landing reads the trunk after the first moved it and ends at its trunk check with
+exit 4 or exit 6, as the landing of the daemon does at its start. A nonzero end of a direct
+landing records one `land-exit` event, or one `land-defect` event for a defect, and exit 0 records
+none.
+
+When a daemon runs, it keeps one line of landings and runs the landing at its head only. A request that comes
 while another landing runs, or waits, goes to the end of the line, names the landing that runs
 first, then prints only the heartbeat until its turn. A waiting landing holds no lock and does no
 Git or GitHub act, so the resolver does not see it (below). A request for an issue whose landing
@@ -345,14 +358,23 @@ whose client goes away leaves the line, with the status 143 for the client. At a
 daemon, each waiting landing ends at once with a `blocked` line on stderr, which tells you to start
 the daemon again and then run `land` again, and the status 6.
 
-The landing takes the lock ref `land-<n>` with an owner of its own, whose record names the daemon
-and no session, and it releases the lock at its end with each status, also after an abort or an
-error, while the daemon lives. A failed release is tried once more; a second failure prints a
+The landing takes the lock ref `land-<n>` with an owner of its own. In a daemon landing, the record
+names the daemon and no session. In a direct landing, it names the `land` process as the session and
+no daemon, so the lock reads as held while that process lives, and as free after it ends. The
+landing releases the lock at its end with each status, also after an abort or an error, while that
+process lives. A failed release is tried once more; a second failure prints a
 warning that names the lock and tells you to restart the daemon (`celetis daemon stop`, then
-`celetis daemon start`), and the landing keeps its status. A daemon that dies during a landing
-leaves a ref whose daemon is gone, and the next landing takes it. When another live process holds
+`celetis daemon start`), also in a direct landing, and the landing keeps its status. A daemon that
+dies during a landing, or a `land` process that ends during a direct landing, leaves a ref whose
+owner is gone, and the next landing takes it. When another live process holds
 `land-<n>`, the landing does nothing and exits 3 with a `prerequisite` line that names the holder;
 wait until that landing ends, then run `land` again.
+
+In a direct landing, the first SIGHUP, SIGINT, or SIGTERM to `land` aborts the landing as the next
+paragraph says for the daemon, and `land` exits 128 plus the number of the signal. A second signal
+records the `land-exit` event and ends `land` at once. The lock ref stays, and it reads as free
+because its owner process is gone. On macOS and Linux, a suite that traps SIGTERM can then keep
+running, because the SIGKILL timer of the abort ends with the `land` process.
 
 The client that goes away (a signal, the time limit of a background command, an ended session)
 aborts the landing, as a stop of the daemon does
@@ -401,12 +423,12 @@ The exit status and the first word of the `land` line give the result:
 | 0 | none | landed | the change is on the trunk; also with a warning, for example when the parent of the issue cannot be read |
 | 1 | none | an internal error of `land` | an unexpected exception; the 500 answer of the daemon, with its line |
 | 2 | `usage` | usage | bad arguments (the usage line); no Git checkout; a run from inside the lane worktree; a dirty lane worktree; no lane branch; nothing to land; an invalid configuration; a refusal of the request by the daemon with code 2, with its line (for example the 400 usage line of the requests, or the 413 line of a subject that makes the body more than 16 KiB) |
-| 3 | `prerequisite` | the issue is not ready to land | the landing prerequisites of `docs/issue-tracker.md`, "Branches, PRs, merge"; another live holder of `land-<n>`; no daemon (the line tells you to start it with `celetis daemon start`); a daemon at another revision (the line tells you to restart it with `celetis daemon stop`, then `celetis daemon start`) |
+| 3 | `prerequisite` | the issue is not ready to land | the landing prerequisites of `docs/issue-tracker.md`, "Branches, PRs, merge"; another live holder of `land-<n>`; a daemon at another revision (the line tells you to restart it with `celetis daemon stop`, then `celetis daemon start`) |
 | 4 | `repair` | the lane needs a repair | a conflict with the trunk; a lane branch that does not contain the head of the trunk; a trunk head, a lane branch, a lane checkout, or a PR that changed during the landing; a missing lane worktree with the landing `merge`; lane lessons that do not validate |
 | 5 | `checks` | a check is not green | a failed CI check, also after its re-run; a workflow run of the PR head that failed to start, or that ended not green with no check run; a failed `suite` with the landing `merge` (`docs/configuration.md`) |
-| 6 | `blocked` | an external block | GitHub does not answer or refuses an act; a fetch or a push fails; the checks did not finish; no check ran; the main checkout is dirty, off the trunk, or with commits that the trunk does not have; the landing mechanism or the default branch changed; two branches or two PRs match; an incomplete lesson transaction (`lesson-store recover`); a lesson lock that stays busy for 10 seconds; a daemon that cannot be read (the line tells you to read `celetis daemon status`); a request during a stop of the daemon (the 503 line); a landing that waits in the line when the daemon stops; a stream with no status (above) |
+| 6 | `blocked` | an external block | GitHub does not answer or refuses an act; a fetch or a push fails; the checks did not finish; no check ran; the main checkout is on the trunk and is dirty or has commits that the trunk does not have; the landing mechanism or the default branch changed; two branches or two PRs match; an incomplete lesson transaction (`lesson-store recover`); a lesson lock that stays busy for 10 seconds; a daemon that cannot be read (the line tells you to read `celetis daemon status`); a request during a stop of the daemon (the 503 line); a landing that waits in the line when the daemon stops; a stream with no status (above) |
 | 7 | `cleanup` | landed, the cleanup stopped | the change is on the trunk, and the removal, the pull of the main checkout, or the close of the issue stopped, also by an abort: run `land` again |
-| 128+n | none | a signal | a signal to the client stopped `land`, and the daemon aborted the landing (after the change is on the trunk, a new `land` completes the cleanup); 143 also for a stop of the daemon before the change is on the trunk |
+| 128+n | none | a signal | a signal to `land` stopped it, and the landing aborted, in the daemon or in the direct landing (after the change is on the trunk, a new `land` completes the cleanup); 143 also for a stop of the daemon before the change is on the trunk |
 
 ## Gates
 

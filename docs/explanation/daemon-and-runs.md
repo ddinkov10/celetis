@@ -29,8 +29,8 @@ trust checks of a TCP port. A restart with no takeover loses the steering of a w
 The daemon has four jobs:
 
 - It runs the issue runs. The run engine is `engine/lib/run/engine.ts`.
-- It runs each landing, one at a time. The command `celetis land` is a client: it sends one request
-  and prints what the daemon writes back
+- It runs each landing, one at a time. The command `celetis land` is then a client: it sends one request
+  and prints what the daemon writes back. With no daemon, `celetis land` runs the landing in its own process
   ([A landing](../../plugins/celetis/docs/workflow.md#a-landing)).
 - It serves the board, the local web page of the repository
   ([About the board](board.md)).

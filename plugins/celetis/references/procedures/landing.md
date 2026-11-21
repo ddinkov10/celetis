@@ -90,13 +90,13 @@ The full suite runs once, on the tree that lands, so the session runs no full su
 `land`: with the landing `merge`, `land` runs the `suite` file of `.celetis.yaml` in the lane, at
 the tip that it lands; with the landing `pr`, the CI of the lane PR runs it.
 
-The master daemon of the repository runs the landing, with the environment of the shell that
-started it, except `PORT`, which only its board reads, and `land` prints its output and exits with
-its status. So `land <n> '<subject>'` needs a running daemon of the same engine revision: with no
-daemon, or a daemon of another revision, it exits 3 with a line that names
-`celetis daemon start` or the restart of the daemon (exit 3 below).
+When a master daemon of the repository runs, it runs the landing, with the environment of the shell
+that started it, except `PORT`, which only its board reads, and `land` prints its output and exits
+with its status. With a daemon of another engine revision, `land <n> '<subject>'` exits 3 with a
+line that names the restart of the daemon (exit 3 below). With no daemon, `land` runs the landing in its own process,
+with the environment of its own shell, and the same lines and exit classes.
 
-The daemon runs one landing at a time for the repository, in the order of the requests. A landing
+When a daemon runs, it runs one landing at a time for the repository, in the order of the requests. A landing
 that waits behind another prints `land: #<n> waits for the landing of #<m> in the daemon PID
 <pid>` first and nothing more until its turn. That is no stall: wait for its exit. At its turn it
 starts from the state that the earlier landing left, so `land <n> '<subject>'` can end with exit
@@ -131,9 +131,8 @@ The exit status of `land <n> '<subject>'` gives the result (`<plugin>/docs/workf
   landing, and the line starts with `land: prerequisite:`.
   - `the lock land-<n> has the owner PID …`: another landing of the issue still runs. Wait until
     it ends, then run the script again. It is no refusal, and step 5 does not count it.
-  - `no daemon runs …` or `the daemon runs the engine at …`: the maintainer starts or restarts
-    the daemon (`celetis daemon start`, or `celetis daemon stop` and then `celetis daemon start`).
-    Show the user the line, and stop. In a step session, hand it to the issue with a `## Stopped`
+  - `the daemon runs the engine at …`: the maintainer restarts the daemon (`celetis daemon stop`
+    and then `celetis daemon start`). Show the user the line, and stop. In a step session, hand it to the issue with a `## Stopped`
     comment by `<plugin>/references/procedures/stop.md`, "A stop in a step session".
   - `#<n> is not ready to land`: the issue is not ready to land, and the line quotes the line of
     the resolver. Run `celetis --agent <host> issue <n> state`. When its `line:` is
@@ -193,7 +192,7 @@ The third refusal in one session, or a cause outside the change (status 1 of `la
 step 3 does not retry, a status 5 that the diff did not cause, a second exit 2, 3, 6, or 7 with the
 same line, a failed `recover`, or a second exit 128+n): a check that fails on an advisory for a dependency that the
 change did not touch, no check that ran, checks that did not finish, GitHub that does not answer,
-a main checkout that is dirty, off the trunk, or with commits that the trunk does not have.
+a main checkout on the trunk that is dirty or has commits that the trunk does not have.
 
 Before the stop, apply `<plugin>/references/procedures/stop.md`, "The check before a stop". At the third
 refusal, a pick between repair options that lets this session go on is a live question with the

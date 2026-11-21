@@ -117,7 +117,8 @@ call libraries in `engine/lib/`, which holds only feature folders. These are the
 
 The master daemon is one long-lived process for one repository. It starts as `engine/daemon.ts
 --daemon`. It runs many issue runs at the same time, runs each landing, and serves requests on a
-Unix socket. The commands `run`, `queue`, and `land` are its clients. A run opens each session in a
+Unix socket. The commands `run`, `queue`, and `land` are its clients. With no daemon, `land` runs the
+landing in its own process. A run opens each session in a
 tab of the Herdr app, and the daemon ends the session when its step is done
 ([the engine document](../../engine/README.md#the-master-daemon)).
 [About the daemon and its runs](daemon-and-runs.md) explains how a run works.

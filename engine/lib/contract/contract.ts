@@ -557,7 +557,7 @@ export const commands: readonly Entry[] = [
     'land',
     true,
     [form("land <n> '<subject>'")],
-    `Lands the change of the issue by the \`landing\` field of \`.celetis.yaml\`. It is the one landing path of an agent. The master daemon of the repository runs the landing, and \`land\` prints its output and exits with its status; with no daemon, or a daemon of another revision, it exits ${exits.prerequisite}, when the daemon does not answer ${exits.blocked}, and for another refusal of the request by the daemon it exits with the code of that refusal. It refuses an issue that is not ready to land. It exits ${exits.cleanup} when the change landed and its cleanup stopped; run it again`,
+    `Lands the change of the issue by the \`landing\` field of \`.celetis.yaml\`. It is the one landing path of an agent. The master daemon of the repository runs the landing when one runs, and \`land\` prints its output and exits with its status; with no daemon, \`land\` runs the landing in its own process; with a daemon of another revision it exits ${exits.prerequisite}, when the daemon does not answer ${exits.blocked}, and for another refusal of the request by the daemon it exits with the code of that refusal. It refuses an issue that is not ready to land. It exits ${exits.cleanup} when the change landed and its cleanup stopped; run it again`,
     ['done', 'internal', 'usage', 'prerequisite', 'repair', 'checks', 'blocked', 'cleanup', 'signal'],
   ),
   entry(

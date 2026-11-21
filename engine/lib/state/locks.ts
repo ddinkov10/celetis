@@ -87,7 +87,7 @@ export async function addRecord(common: string, n: string, line: string): Promis
   if (!(await isRecorded(common, n, line))) await writeFile(await recordPath(common), `${n}\t${line}\n`, { flag: 'a' });
 }
 
-export function createLockOwner(main: string, ownStart?: string): LockOwner {
+export function createLockOwner(main: string, ownStart?: string, role: 'daemon' | 'session' = 'daemon'): LockOwner {
   let owner = '';
   let session: Identity | null = null;
   const held = new Set<string>();
@@ -104,7 +104,8 @@ export function createLockOwner(main: string, ownStart?: string): LockOwner {
     if (owner) return;
     const start = ownStart ?? (await processStart(process.pid));
     if (!start) die('cannot read process identity; allow process access and start the run again');
-    owner = await blob({ daemon: { pid: process.pid, start }, session: null });
+    const self = { pid: process.pid, start };
+    owner = await blob(role === 'daemon' ? { daemon: self, session: null } : { daemon: null, session: self });
   };
   const withSession = async (next: Identity) => {
     const current = parsed((await git(main, ['cat-file', 'blob', owner])).stdout);
