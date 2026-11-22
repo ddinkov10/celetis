@@ -128,18 +128,20 @@ In the task loop, after the call, run
 `celetis --agent claude dispatch report <dispatch-id> <report-file>`. The report is agent-reported
 evidence. It records what the agent says it sent and received; the engine cannot independently
 check the native call. Save the actual arguments and complete native result. Use the returned
-`agentId` as `child`. Keep a native model ID verbatim when available; leave unreported model and
-effort null. Never infer applied effort from the requested argument. A spawn report has this
-shape:
+`agentId` as `child`. Set `outcome.model` to the `resolvedModel` of the native result, else its
+`model`, and to null only when the result names neither, as in the resume example below. Set
+`outcome.effort` to the `effort` of the result, and to null when it has none. Never infer either
+value from the requested arguments: the engine refuses a report whose model or effort differs from
+the native result. A spawn report has this shape:
 
 ```json
 {
   "call": {
     "tool": "Agent",
     "arguments": {"prompt": "<issued CAP line>\nCAP reason: <task evidence>\nReply OK.", "model": "haiku", "effort": "medium", "subagent_type": "general-purpose"},
-    "result": {"agentId": "worker-id"}
+    "result": {"agentId": "worker-id", "resolvedModel": "claude-haiku-5-5"}
   },
-  "outcome": {"result": "started", "child": "worker-id", "model": null, "effort": null}
+  "outcome": {"result": "started", "child": "worker-id", "model": "claude-haiku-5-5", "effort": null}
 }
 ```
 

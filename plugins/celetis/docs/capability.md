@@ -169,7 +169,8 @@ the host argument and validated environment; the agent supplies no copy. A non-n
 `tool`, `arguments` (a JSON object), and `result` (any JSON value). Its outcome is one of:
 
 - `{"result":"started","child":"worker-id","model":null,"effort":null}`. Both hosts require
-  a nonempty usable child; the actual stable task name is valid.
+  a nonempty usable child; the actual stable task name is valid. A `model` or `effort` that the
+  native result names must equal it; null is valid when the result names none.
 - `{"result":"failed","noWorkerStarted":true,"error":"<exact failure>"}`. A matching accepted failure alone permits
   `next` to retry the issued action. The fresh dispatch names the voided ID and keeps its action,
   attempt, round, and resume child. Earlier evidence stays intact.

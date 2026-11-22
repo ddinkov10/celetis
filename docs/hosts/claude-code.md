@@ -109,7 +109,8 @@ The engine does not intercept a native child call. A task-loop report is agent-r
 `engine/lib/capability/dispatch-record.ts` validates it against the issued action and cannot prove a
 consistent report true (ADR-0041; independent native enforcement is #151). The observed follow-up
 tool has no model or effort control, so the engine stops a changed pair before a resume. In the
-checks of #104, native results exposed no applied effort to the calling agent.
+checks of #104, native results exposed no applied effort to the calling agent. A native `Agent` result of 2.1.330
+names its model in `resolvedModel` and has no `effort` field (#367).
 
 ## Versions
 
