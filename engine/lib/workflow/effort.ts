@@ -1,4 +1,4 @@
-import { type Decision, type IssueData, lanes, type Step, steps } from './workflow.ts';
+import { type Decision, type IssueData, type LaneStep, laneSteps, lanes, type Step } from './workflow.ts';
 
 export const levels = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 export type Level = (typeof levels)[number];
@@ -21,8 +21,8 @@ export function isModel(value: unknown): value is Model {
 
 export type Pin = Readonly<{ model?: Model; effort?: Level }>;
 
-export type Decided = Exclude<Step, 'triage'>;
-export const decidable: readonly Decided[] = steps.filter((step): step is Decided => step !== 'triage');
+export type Decided = LaneStep;
+export const decidable: readonly Decided[] = laneSteps;
 export const defaultModel: Model = 'opus';
 export const defaultLevel: Level = 'medium';
 
@@ -46,16 +46,17 @@ export function effortMarker(step: Decided, model: Model, level: Level): string 
 export function decisionOf(data: IssueData, decision: Decision): EffortDecision | null {
   if (decision.kind === 'stop') return null;
   const { step, lane } = decision;
-  const order: readonly Step[] = lane === null ? [] : lanes[lane].steps;
-  const by = order[order.indexOf(step) - 1];
-  if (step === 'triage' || by === undefined) return null;
+  const order: readonly LaneStep[] = lane === null ? [] : lanes[lane].steps;
+  const own = order.find((each) => each === step);
+  if (own === undefined) return null;
+  const by: Step = order[order.indexOf(own) - 1] ?? 'triage';
   for (const entry of data.history.toReversed()) {
     if (entry.kind !== 'comment') continue;
     const first = entry.body.split('\n', 1)[0] ?? '';
     const line = first.trimEnd();
     for (const model of models)
       for (const level of levels)
-        if (line === effortMarker(step, model, level))
+        if (line === effortMarker(own, model, level))
           return { model, level, by, reason: entry.body.slice(first.length).trim() };
   }
   return null;

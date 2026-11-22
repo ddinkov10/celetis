@@ -77,8 +77,10 @@ const steps = (card: Card, flow: Flow | null, auto: DaemonView['auto']) => {
   const track = laneTrack(card, flow);
   if (!track) return null;
   const list = el('ol', 'steps');
+  list.setAttribute('aria-label', `Steps of the lane ${card.type}`);
   for (const step of track) {
     const item = el('li', step.state);
+    if (step.state === 'now') item.setAttribute('aria-current', 'step');
     const node = el('span', 'node');
     node.append(
       icon(
@@ -90,7 +92,9 @@ const steps = (card: Card, flow: Flow | null, auto: DaemonView['auto']) => {
       ),
     );
     const note = step.state === 'done' ? 'done' : step.state === 'now' ? (card.state ? stateLabel(card) : 'next') : '';
-    item.append(node, el('span', 'name', step.name), el('span', 'note', note));
+    const noteNode = el('span', 'note', note);
+    if (step.state === 'next') noteNode.append(el('span', 'sr-only', 'not started'));
+    item.append(node, el('span', 'name', step.name), noteNode);
     item.append(gateOf(flow, card.type, step.name) === 'auto' ? gateLabel(auto) : el('span'));
     list.append(item);
   }

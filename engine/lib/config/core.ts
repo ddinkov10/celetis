@@ -319,7 +319,7 @@ function checkGates(value: unknown): void {
     if (name === undefined) throw new ConfigError(path, `need one of ${autoLaneNames.join(', ')}`);
     if (name === 'triage') gate(entry, path);
     else if (typeof entry === 'object' && entry !== null && !Array.isArray(entry)) {
-      const allowed = lanes[name].steps.filter((step) => step !== 'triage');
+      const allowed = lanes[name].steps;
       for (const [step, each] of Object.entries(entry)) {
         if (!allowed.some((known) => known === step))
           throw new ConfigError([...path, step], `need one of ${allowed.join(', ')}`);

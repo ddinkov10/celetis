@@ -77,7 +77,7 @@ const STOPPING = 'The daemon ends the session. The card moves to Idle when the s
 const STOPPABLE: ReadonlySet<RunRow['state']> = new Set(['running', 'waiting', 'checking', 'stopping']);
 const QUOTA_ORPHAN = 'The run of this step stopped during a usage-limit recovery. Run starts the step again.';
 
-export const stepsOf = (flow: Flow | null | undefined): Set<string> => new Set(Object.values(flow?.lanes ?? {}).flat());
+export const stepsOf = (flow: Flow | null | undefined): Set<string> => new Set(Object.keys(flow?.steps ?? {}));
 
 export const sessionsOf = (terminals: Terminal[], isHere: (path: string) => boolean, steps: Set<string>): Session[] =>
   terminals.flatMap(({ id, host, status, turn, labels, cwd, foreground, tab }) => {

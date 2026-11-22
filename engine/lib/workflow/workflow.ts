@@ -2,38 +2,41 @@ import { headings, type Kind, type Label, marker } from '../contract/contract.ts
 import { type IssueKey, keySource, parseKey } from '../tracker/key.ts';
 
 export const lanes = {
-  feature: { label: 'enhancement', prefix: 'feat', steps: ['triage', 'specify', 'plan', 'implement'] },
-  bug: { label: 'bug', prefix: 'bugfix', steps: ['triage', 'bug', 'plan', 'implement'] },
-  chore: { label: 'chore', prefix: 'chore', steps: ['triage', 'chore'] },
-  hotfix: { label: 'hotfix', prefix: 'hotfix', steps: ['triage', 'hotfix'] },
+  feature: { label: 'enhancement', prefix: 'feat', steps: ['specify', 'plan', 'implement'] },
+  bug: { label: 'bug', prefix: 'bugfix', steps: ['bug', 'plan', 'implement'] },
+  chore: { label: 'chore', prefix: 'chore', steps: ['chore'] },
+  hotfix: { label: 'hotfix', prefix: 'hotfix', steps: ['hotfix'] },
 } as const;
 
 export type Lane = keyof typeof lanes;
-export type Step = (typeof lanes)[Lane]['steps'][number];
+export type LaneStep = (typeof lanes)[Lane]['steps'][number];
+export type Step = 'triage' | LaneStep;
 
 const laneNames = Object.keys(lanes) as Lane[];
 
 export type AutoLane = Lane | 'triage';
 export const autoLaneNames: readonly AutoLane[] = ['triage', ...laneNames];
-const stepsOf = (lane: Lane): readonly Step[] => lanes[lane].steps;
+const stepsOf = (lane: Lane): readonly LaneStep[] => lanes[lane].steps;
 
-export const steps: readonly Step[] = [...new Set(laneNames.flatMap(stepsOf))];
+export const laneSteps: readonly LaneStep[] = [...new Set(laneNames.flatMap(stepsOf))];
+export const steps: readonly Step[] = ['triage', ...laneSteps];
 export type SessionWork = Step | 'assist';
 export const sessionWorks: readonly SessionWork[] = [...steps, 'assist'];
 
-const stageNames = ['Triage', 'Define', 'Plan', 'Implement'] as const;
+const laneStageNames = ['Define', 'Plan', 'Implement'] as const;
 
-export const stages: readonly { name: (typeof stageNames)[number]; steps: readonly Step[] }[] = stageNames.map(
-  (name, position) => ({
+export const stages: readonly { name: 'Triage' | (typeof laneStageNames)[number]; steps: readonly Step[] }[] = [
+  { name: 'Triage', steps: ['triage'] },
+  ...laneStageNames.map((name, position) => ({
     name,
     steps: [...new Set(laneNames.flatMap((lane) => stepsOf(lane).slice(position, position + 1)))],
-  }),
-);
+  })),
+];
 
 export type Gate = 'manual' | 'auto';
 export type Gates = Readonly<
   { triage?: Gate } & {
-    [L in Lane]?: Gate | Readonly<Partial<Record<Exclude<(typeof lanes)[L]['steps'][number], 'triage'>, Gate>>>;
+    [L in Lane]?: Gate | Readonly<Partial<Record<(typeof lanes)[L]['steps'][number], Gate>>>;
   }
 >;
 
@@ -52,7 +55,7 @@ export function lands(step: Step): boolean {
 }
 
 export function stageOf(step: Step): number {
-  return stepsOf(laneNames.find((lane) => stepsOf(lane).includes(step)) as Lane).indexOf(step);
+  return stages.findIndex((stage) => stage.steps.includes(step));
 }
 
 const prefixes = () => laneNames.map((lane) => lanes[lane].prefix).join('|');
@@ -438,10 +441,11 @@ export function sameResult(a: Decision, b: Decision): boolean {
   );
 }
 
-const handsOn: Partial<Record<Step, Step>> = { bug: 'plan' };
+const handsOn: Partial<Record<LaneStep, LaneStep>> = { bug: 'plan' };
 
 export function skipped(from: Step, to: Step, lane: Lane | null): readonly Step[] {
-  if (lane === null) return [];
+  if (lane === null || to === 'triage') return [];
   const order = stepsOf(lane);
-  return order.slice(order.includes(from) ? order.indexOf(handsOn[from] ?? from) + 1 : 1, order.indexOf(to));
+  const own = order.find((step) => step === from);
+  return order.slice(own === undefined ? 0 : order.indexOf(handsOn[own] ?? own) + 1, order.indexOf(to));
 }

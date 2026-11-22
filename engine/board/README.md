@@ -9,9 +9,9 @@ moves by hand.
 - **Flow:** the rules of the work on an issue: its lanes and the steps of each lane. The document of
   each read gives the lanes, the steps, the stages, and the gates to the page ("The data").
 - **Lane:** one type of issue, for example `feature` or `bug`, with the list of its steps in order.
-- **Step:** one part of the work on an issue, which one agent session does, for example `plan`.
+- **Step:** one part of the work on an issue, which one agent session does, for example `plan`. `triage` is a step that stands before the lanes, so no lane lists it.
 - **Stage:** one column of Pipeline, the view of the page that shows each issue at its step. A stage
-  holds steps of the lanes.
+  holds steps: Triage holds `triage`, and each other stage holds steps of the lanes.
 - **Gate:** the rule of a pair of a lane and a step that says who starts it. `triage` of an issue with no lane has one gate. `manual` is your press of Run, and `auto` is auto
   mode of the daemon. The board shows `auto` on such a step while auto mode is on, and `auto off` while auto mode is off or stopping. The board starts no step by itself.
 - **Daemon:** `engine/daemon.ts` of the engine. Its runs start the sessions of the steps and know how
@@ -339,10 +339,10 @@ The board puts these values in the fields of its document (`Document` of
 |---|---|
 | `tracker` | The name of the tracker of the project, `GitHub` for a GitHub project and `the local tracker` for a local project. |
 | `grammar` | The tracker kind of `.celetis.yaml`, `github` or `local`. The page parses the issue keys with its grammar. |
-| `flow.lanes` | The four lanes: `feature` (triage, specify, plan, implement), `bug` (triage, bug, plan, implement), `chore` (triage, chore), and `hotfix` (triage, hotfix). |
-| `flow.stages` | Triage, Define (specify, bug, chore, hotfix), Plan, and Implement. |
-| `flow.gates.<lane>.<step>` | The gate of each step of each of the four lanes, `triage` too, by the rule of "Gates". |
-| `flow.gates.triage.triage` | The gate of the triage of an issue with no lane. |
+| `flow.lanes` | The four lanes with their own steps: `feature` (specify, plan, implement), `bug` (bug, plan, implement), `chore` (chore), and `hotfix` (hotfix). No lane lists `triage`. |
+| `flow.stages` | Triage (`triage`), Define (specify, bug, chore, hotfix), Plan (`plan`), and Implement (`implement`). |
+| `flow.gates.<lane>.<step>` | The gate of each own step of each of the four lanes, by the rule of "Gates". It has no `triage` key. |
+| `flow.gates.triage.triage` | The gate of the `triage` step, for an issue with no lane and for an issue with a lane that is at `triage`. |
 | `flow.steps.<step>.agent` | The preferred agent of the step (`agents.<step>` of `.celetis.yaml`), or `null`. |
 | `flow.steps.<step>.hint` | A hint that says the step lands the change when the build is done, for `implement`, `chore`, and `hotfix`. No other step has a hint. |
 | `noRun` | Read at each response, not in the refresh (`mainNoRun` of `engine/lib/resolver/resolver.ts`, `git status --porcelain` of the main checkout): a text that names the dirty path and tells to commit or stash first, while the main checkout is dirty, else `null`. |
@@ -527,7 +527,7 @@ a landed-history panel.
 
 The link label of the terminal, `celetis.link`, links a session to an issue: `#<n> <step>` gives
 the issue `<n>` and the step, `#<n>` alone gives the issue only, and another label gives no issue.
-The step word counts only when `flow.lanes` of the document names that step. The daemon gives
+The step word counts only when `flow.steps` of the document names that step. The daemon gives
 each session tab, also a resume tab, the link label `#<n> <step>`, and the tab of an assist run
 (`run assist <n>`) the link label `#<n> assist`: its card is the live card of the issue, with Go.
 A press that opens a tab
@@ -632,7 +632,7 @@ to the card of its row, and Run starts the step again.
   and no fill. The label is an image with no focus stop. Its title and accessible name are
   `model <model>, <source>; effort <level>, <source>`, where `<source>` is `decided by <by>`,
   `pinned by the config`, or `default`, and `<by>` is the step before the started step in the lane
-  of the issue ("The data").
+  of the issue, or `triage` for the first step of the lane ("The data").
 - On a `ready` card, the accessible name of Run is `Run <step> on <model> at <level>, #<n>`. The
   title of Run is `Start the <step> step on <model> (<source>) at <level> (<source>)`, then `. ` and
   the `hint` of that step when it has one, then ` (Enter)`.
@@ -645,7 +645,7 @@ to the card of its row, and Run starts the step again.
 - With a `noRun` text, the page shows that text above the columns and permits no Run, Resume, or Assist.
   A card that would have Run or Open agent shows it disabled with that text.
 - The lane track of a card is the list of `flow.lanes` for its `type`. A card whose step is not in
-  that list has no track.
+  that list has no track, so a card at `triage` has no track.
 
 **The order.** Needs you has the urgent cards first, then the dialogs, then the longest wait first.
 Running has the newest first, and Idle has the highest number first. In Idle, and in each Pipeline stage for its Idle cards, the cards of one epic (`epic` of the card) take one group row at the place of their first card; Needs you, Running, and Not in a step never group. History follows remote trunk traversal order.
@@ -1622,7 +1622,10 @@ loads nothing from the network.
   menu of the card lists the same entries after its actions. Search and the actions of the details
   have no level entries.
 - The lane track at the right of a card shows where the issue is in its lane. The current step has
-  the colour of the state, and it moves while an agent works.
+  the colour of the state, and it moves while an agent works. In the Lane section of the details, the
+  list of steps has the accessible name `Steps of the lane <type>`, the current step has
+  `aria-current="step"`, and the note of each step after it holds the hidden text `not started`.
+  A card with no lane track keeps the More button at the right edge of its head.
 - The head of a card has one act button before More, with a Veil Strong fill and a hairline on hover
   and on keyboard focus. Its label slides open then, and it always shows on a device with no hover.
   On a `no progress` or `dirty tree` card with `aside` true it is Set aside (a pause icon, the

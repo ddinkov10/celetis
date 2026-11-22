@@ -17,10 +17,12 @@ picks ideas from a grounded list, and each picked idea gets its own issue with t
 `/celetis:triage` then picks a lane for the issue. A lane is a type
 of change with its own ordered steps: `feature`, `bug`, `chore`, or `hotfix`. The lanes, with their
 labels, branch prefixes, and steps, are the `lanes` table of `engine/lib/workflow/workflow.ts`.
+The table holds only the own steps of each lane.
 
-After `triage`, the `feature` lane runs `specify`, `plan`, and `implement`. The `bug` lane finds
-the root cause first, and then hands on to `plan`. The `chore` and `hotfix` lanes have one step
-after `triage`. Each of them verifies, commits, and lands in one session
+The order is intake, then `triage`, then the lane with its own steps. Intake and `triage` come
+before the lanes, and neither is a step of a lane. The `feature` lane runs `specify`, `plan`, and
+`implement`. The `bug` lane finds the root cause first, and then hands on to `plan`. The `chore`
+and `hotfix` lanes have one step. Each of them verifies, commits, and lands in one session
 ([The full loop](../../plugins/celetis/README.md#the-full-loop),
 `plugins/celetis/skills/hotfix/SKILL.md`).
 

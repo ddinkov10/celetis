@@ -445,8 +445,8 @@ the command of the `run` line with no prefix: `triage`, `bug`, `chore`, `hotfix`
 
 `gates` in the main checkout's `.celetis.yaml` holds the project gates. Its keys are `triage` and
 the lane names `feature`, `bug`, `chore`, and `hotfix`, not the label names. `triage` holds the gate
-of the triage of an issue with no lane. A lane holds `manual` or `auto` for each of its steps after
-`triage`, or a mapping from each of those steps to `manual` or `auto`. Each omitted key and step is
+of the triage of an issue with no lane. A lane holds `manual` or `auto` for each of its steps, or a
+mapping from each of those steps to `manual` or `auto`. Each omitted key and step is
 `manual`, and the config refuses a step that the lane does not have (`docs/configuration.md`,
 "Fields and defaults"). `gates.bug` names the lane `bug`; `agents.bug` and `sessions.bug` name the
 step `bug`. The default gates start one step for each issue key or Run press. With `specify` of

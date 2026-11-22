@@ -45,7 +45,8 @@ agent that waits.
   `celetis daemon start` and `celetis daemon status` print its URL.
 - Sessions come from herdr-core (`hc`). The Herdr app shows the agent terminals as tabs. Issues come
   from `gh`.
-- The work is a set of lanes (`bug`, `feature`, `chore`, `hotfix`) with ordered steps. A gate says
+- The work starts with intake and triage. Triage picks one of the lanes (`bug`, `feature`, `chore`,
+  `hotfix`), and each lane has its own ordered steps. A gate says
   who starts a step: `manual` (a press of Run) or `auto` (auto mode of the daemon).
 - The maintainer works mostly on macOS. The board is checked in Chromium browsers only.
 - Each board UI change is checked at desktop width and at 375×812.

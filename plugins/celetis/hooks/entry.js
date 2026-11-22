@@ -6787,27 +6787,30 @@ var hinted = new Set([
 
 // engine/lib/workflow/workflow.ts
 var lanes = {
-  feature: { label: "enhancement", prefix: "feat", steps: ["triage", "specify", "plan", "implement"] },
-  bug: { label: "bug", prefix: "bugfix", steps: ["triage", "bug", "plan", "implement"] },
-  chore: { label: "chore", prefix: "chore", steps: ["triage", "chore"] },
-  hotfix: { label: "hotfix", prefix: "hotfix", steps: ["triage", "hotfix"] }
+  feature: { label: "enhancement", prefix: "feat", steps: ["specify", "plan", "implement"] },
+  bug: { label: "bug", prefix: "bugfix", steps: ["bug", "plan", "implement"] },
+  chore: { label: "chore", prefix: "chore", steps: ["chore"] },
+  hotfix: { label: "hotfix", prefix: "hotfix", steps: ["hotfix"] }
 };
 var laneNames = Object.keys(lanes);
 var autoLaneNames = ["triage", ...laneNames];
 var stepsOf = (lane) => lanes[lane].steps;
-var steps = [...new Set(laneNames.flatMap(stepsOf))];
+var laneSteps = [...new Set(laneNames.flatMap(stepsOf))];
+var steps = ["triage", ...laneSteps];
 var sessionWorks = [...steps, "assist"];
-var stageNames = ["Triage", "Define", "Plan", "Implement"];
-var stages = stageNames.map((name, position) => ({
-  name,
-  steps: [...new Set(laneNames.flatMap((lane) => stepsOf(lane).slice(position, position + 1)))]
-}));
+var laneStageNames = ["Define", "Plan", "Implement"];
+var stages = [
+  { name: "Triage", steps: ["triage"] },
+  ...laneStageNames.map((name, position) => ({
+    name,
+    steps: [...new Set(laneNames.flatMap((lane) => stepsOf(lane).slice(position, position + 1)))]
+  }))
+];
 
 // engine/lib/workflow/effort.ts
 var levels = ["low", "medium", "high", "xhigh", "max"];
 var reviewerLevels = levels.filter((level) => level !== "max");
 var models = ["haiku", "sonnet", "opus", "fable"];
-var decidable = steps.filter((step) => step !== "triage");
 
 // engine/lib/config/core.ts
 class ConfigError extends Error {
@@ -7047,7 +7050,7 @@ function checkGates(value) {
     if (name === "triage")
       gate(entry, path);
     else if (typeof entry === "object" && entry !== null && !Array.isArray(entry)) {
-      const allowed = lanes[name].steps.filter((step) => step !== "triage");
+      const allowed = lanes[name].steps;
       for (const [step, each] of Object.entries(entry)) {
         if (!allowed.some((known) => known === step))
           throw new ConfigError([...path, step], `need one of ${allowed.join(", ")}`);

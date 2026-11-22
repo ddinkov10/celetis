@@ -602,6 +602,9 @@ a.num:hover {
   padding-left: 8px;
   flex: none;
 }
+.card-head:not(:has(> .track)) > button:first-of-type {
+  margin-left: auto;
+}
 .seg {
   width: 14px;
   height: 6px;

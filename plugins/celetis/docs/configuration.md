@@ -40,8 +40,8 @@ The keys of `gates` are `triage` and the lane names `feature`, `bug`, `chore`, a
 label name, for example `enhancement`, is no key. The value of `triage` is `manual` or `auto`: the
 gate of the triage of an issue with no lane. The value of a lane is one of these:
 
-- `manual` or `auto`: the gate of each step of the lane after `triage`.
-- A mapping from a step of the lane after `triage` to `manual` or `auto`. The steps are `specify`,
+- `manual` or `auto`: the gate of each step of the lane.
+- A mapping from a step of the lane to `manual` or `auto`. The steps are `specify`,
   `plan`, and `implement` for `feature`; `bug`, `plan`, and `implement` for `bug`; `chore` for
   `chore`; and `hotfix` for `hotfix`.
 
@@ -51,7 +51,7 @@ is invalid with any other key, step key, or value, for example the step-keyed fo
 `me` is invalid too. There is no automatic conversion. A step-keyed file of older versions with keys
 only from `triage`, `bug`, `chore`, and `hotfix` and the values `manual` or `auto` stays valid, and
 its `gates.bug: auto` now sets each step of the lane `bug`, also `plan` and `implement`. `chore` and
-`hotfix` keep their meaning, because each of those lanes has one step after `triage`. `gates.bug`
+`hotfix` keep their meaning, because each of those lanes has one step. `gates.bug`
 names the lane `bug`, while `agents.bug` and `sessions.bug` name the step `bug`.
 The `agents` keys are the seven step names `triage`, `specify`, `bug`, `chore`, `hotfix`, `plan`,
 and `implement`, and the allowed values are `claude`, `codex`, and `opencode`. A step with no entry, an omitted `agents` field, and an empty `agents` mapping give no

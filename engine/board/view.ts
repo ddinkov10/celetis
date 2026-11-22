@@ -53,8 +53,12 @@ export const STATES: Record<string, string> = {
 
 const WAITS: Record<string, string> = { dialog: 'waits for your answer', turn: 'turn ended' };
 
-export const gateOf = (flow: Partial<Flow> | null | undefined, lane: string | null, step: string | null): Gate | null =>
-  flow?.gates?.[lane ?? 'triage']?.[step as string] ?? null;
+export const gateOf = (
+  flow: Partial<Flow> | null | undefined,
+  lane: string | null,
+  step: string | null,
+): Gate | null =>
+  step === null ? null : (flow?.gates?.[lane === null || step === 'triage' ? 'triage' : lane]?.[step] ?? null);
 
 export const sourceText = (source: RowSource, by: string | null): string =>
   source === 'decided' ? `decided by ${by}` : source === 'pinned' ? 'pinned by the config' : 'default';

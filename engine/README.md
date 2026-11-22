@@ -109,7 +109,7 @@ step of its lane. Let S be the step that ended, and T the next step in the lane 
 T can start when its position in the lane is at most one more than the position of S. A session
 of `bug` also writes the plan (step 7 of `/celetis:bug`), so in the lane `bug` the script takes
 the position of `plan` for S = `bug`. When S is not a step of that lane (a lane change), T must be
-the first or the second step of the lane. `triage` can always start. So `specify` → `plan`,
+the first step of the lane. `triage` can always start. So `specify` → `plan`,
 `bug` → `plan`, `bug` → `implement`, `plan` → `implement`, `specify` → `bug` after a relabel, and
 `implement` → `plan` can start, and `triage` → `plan`, `specify` → `implement`, and
 `triage` → `implement` cannot.

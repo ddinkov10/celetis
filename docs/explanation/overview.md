@@ -70,9 +70,9 @@ flowchart LR
 The plugin is the folder `plugins/celetis/`. It holds the agent text, in four layers
 ([`AGENTS.md`](../../AGENTS.md), "Where agent text lives"):
 
-- `plugins/celetis/skills/<name>/SKILL.md` holds one skill each, for example the lane skills
-  `intake`, `triage`, `feature`, `bug`, `chore`, and `hotfix`, and the step skills `specify`, `plan`,
-  and `implement`.
+- `plugins/celetis/skills/<name>/SKILL.md` holds one skill each, for example `intake` and `triage`,
+  the skills of the two stages before a lane, the lane skills `feature`, `bug`, `chore`, and
+  `hotfix`, and the step skills `specify`, `plan`, and `implement`.
 - `plugins/celetis/references/procedures/` holds the procedure modules that more than one caller
   loads. `entry.md` there gives the entry of each skill.
 - `plugins/celetis/references/principles/` holds one canonical file for each general engineering

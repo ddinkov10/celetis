@@ -15019,7 +15019,7 @@ var init_key = __esm(() => {
 });
 
 // engine/board/view.ts
-var COLUMNS, GROUPS, STATES, WAITS, gateOf = (flow, lane, step) => flow?.gates?.[lane ?? "triage"]?.[step] ?? null, sourceText = (source, by) => source === "decided" ? `decided by ${by}` : source === "pinned" ? "pinned by the config" : "default", modelSource = (pair) => sourceText(pair.source.model, pair.decision?.by ?? null), levelSource = (pair) => sourceText(pair.source.level, pair.decision?.by ?? null), startName = (pair) => `model ${pair.model}, ${modelSource(pair)}; effort ${pair.level}, ${levelSource(pair)}`, startTitle = (step, pair, level = pair.level) => `Start the ${step} step on ${pair.model} at ${level}, ${level === pair.level ? levelSource(pair) : "this start only"}`, runTitle = (step, flow, effort) => {
+var COLUMNS, GROUPS, STATES, WAITS, gateOf = (flow, lane, step) => step === null ? null : flow?.gates?.[lane === null || step === "triage" ? "triage" : lane]?.[step] ?? null, sourceText = (source, by) => source === "decided" ? `decided by ${by}` : source === "pinned" ? "pinned by the config" : "default", modelSource = (pair) => sourceText(pair.source.model, pair.decision?.by ?? null), levelSource = (pair) => sourceText(pair.source.level, pair.decision?.by ?? null), startName = (pair) => `model ${pair.model}, ${modelSource(pair)}; effort ${pair.level}, ${levelSource(pair)}`, startTitle = (step, pair, level = pair.level) => `Start the ${step} step on ${pair.model} at ${level}, ${level === pair.level ? levelSource(pair) : "this start only"}`, runTitle = (step, flow, effort) => {
   const hint = flow?.steps?.[step]?.hint;
   const start = effort ? `Start the ${step} step on ${effort.model} (${modelSource(effort)}) at ${effort.level} (${levelSource(effort)})` : `Start the ${step} step`;
   return `${start}${hint ? `. ${hint}` : ""} (Enter)`;
@@ -17688,12 +17688,18 @@ var TONES, PILL_ICONS, ASKS, COPIES, section = (title, aside, ...children) => {
   if (!track)
     return null;
   const list = el("ol", "steps");
+  list.setAttribute("aria-label", `Steps of the lane ${card.type}`);
   for (const step of track) {
     const item = el("li", step.state);
+    if (step.state === "now")
+      item.setAttribute("aria-current", "step");
     const node = el("span", "node");
     node.append(icon(step.state === "done" ? "check" : step.state === "now" ? PILL_ICONS[card.state] ?? "pending" : "pending"));
     const note = step.state === "done" ? "done" : step.state === "now" ? card.state ? stateLabel(card) : "next" : "";
-    item.append(node, el("span", "name", step.name), el("span", "note", note));
+    const noteNode = el("span", "note", note);
+    if (step.state === "next")
+      noteNode.append(el("span", "sr-only", "not started"));
+    item.append(node, el("span", "name", step.name), noteNode);
     item.append(gateOf(flow, card.type, step.name) === "auto" ? gateLabel(auto) : el("span"));
     list.append(item);
   }
