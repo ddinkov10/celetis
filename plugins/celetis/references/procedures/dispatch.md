@@ -123,6 +123,7 @@ it has no model or effort control. In the task loop, use the returned replacemen
 pair. Outside that loop, keep the setup stop of "One child". Put the CAP line first in the prompt
 or the message. Keep the parent settings.
 
+`dispatch` has no tool, because only the shell gives the current session ID after `/clear`.
 In the task loop, after the call, run
 `celetis --agent claude dispatch report <dispatch-id> <report-file>`. The report is agent-reported
 evidence. It records what the agent says it sent and received; the engine cannot independently

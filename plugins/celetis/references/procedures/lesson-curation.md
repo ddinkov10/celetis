@@ -126,7 +126,7 @@ entries. Commit the resolution.
 
 ## Claude Code
 
-Each curation command takes the approval procedure for a sandbox block of
+Each curation command that runs in the shell takes the approval procedure for a sandbox block of
 `<plugin>/references/procedures/entry.md`, "The contract".
 
 ## Codex

@@ -11,9 +11,10 @@ import { argumentsOf, type Input, type Parameter, type Tool, toolSet } from './t
 const outputSchema = z.object({
   code: z.number().int(),
   class: z.string().nullable(),
-  stdout: z.string(),
+  saved: z.string().optional(),
+  json: z.unknown().optional(),
+  stdout: z.string().optional(),
   stderr: z.string(),
-  json: z.unknown(),
 });
 
 function valueSchema({ kind, values }: Parameter) {
@@ -29,10 +30,14 @@ function valueSchema({ kind, values }: Parameter) {
   }
 }
 
-const inputSchema = ({ parameters }: Tool) =>
+export const inputSchema = ({ parameters }: Tool) =>
   z
     .object({
-      checkout: z.string(),
+      checkout: z
+        .string()
+        .describe(
+          'The absolute path of the checkout of the act: the lane worktree after its entry, or the main checkout where a step names it',
+        ),
       ...Object.fromEntries(
         parameters.map((parameter) => {
           const schema = valueSchema(parameter);

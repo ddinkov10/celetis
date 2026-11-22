@@ -7,8 +7,8 @@ by the script.
 
 ## The entry
 
-Run `celetis --agent <host> worktree <n>` with a 10-minute timeout, and wait for it to exit: a
-new worktree runs the worktree setup of the project. The script re-enters the lane branch of the issue and
+Run `celetis --agent <host> worktree <n>`, and wait for it to exit: a new worktree runs the
+worktree setup of the project. The script re-enters the lane branch of the issue and
 brings it up to the trunk, or creates the branch from the lane and the title when the issue has
 none. Exit 4 is a conflict
 with the trunk: follow "A conflict with the trunk" below. When it refuses with another status, show
@@ -68,12 +68,15 @@ the user its message and keep the worktree.
 
 ## Claude Code
 
-Enter the exact printed checkout with `EnterWorktree`, unless already there. Before a landing or
+The call of `worktree <n>` waits for its result, also when it moves to a background task
+(`<plugin>/references/procedures/entry.md`, "Claude Code"). Enter the exact printed checkout with
+`EnterWorktree`, unless already there. Before a landing or
 a removal, use `ExitWorktree` with keep, then verify the main checkout.
 
 ## Codex
 
-Bind the command cwd and each file path to the exact printed checkout. A Codex app worktree does
+Run `worktree <n>` with a 10-minute timeout, and wait for it to exit. Bind the command cwd and
+each file path to the exact printed checkout. A Codex app worktree does
 not replace the lane. `worktree` needs network on each entry: it reads the trunk from the code host
 and fetches it from `origin`. In a sandbox with no network, request one approved retry with the same
 command, arguments, and cwd before reporting a setup stop.

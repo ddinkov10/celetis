@@ -853,8 +853,7 @@ stdin closes. A tool call runs one form of the CLI in a child process. So a tool
 command of its form share the locks, the exit classes, the outputs, and the daemon requests. The
 tools come from `engine/lib/contract/contract.ts`: a new agent form gets its tool with no second
 table. [ADR-0125](../docs/adr/0125-each-agent-form-is-an-mcp-tool-that-runs-the-cli.md) records the
-decision. The agent text names no tool, so an agent still runs the shell commands
-([issue #358](https://github.com/ddinkov10/celetis/issues/358) is the follow-up for the agent text).
+decision.
 
 **The start.**
 
@@ -884,6 +883,9 @@ decision. The agent text names no tool, so an agent still runs the shell command
   session). The forms that are not covered:
   - `intake`, `assist <n>`, and `visual <n> <sha>`. Each starts a host session in the terminal of the
     caller, and an MCP call has no terminal.
+  - Each form of `dispatch` (`sessionBound` in the contract). An MCP server keeps the session ID of
+    its start, and `dispatch` binds its records to the current session, which changes on `/clear`.
+    The agent text keeps the shell command.
   - `update`, `install`, `agents`, `root`, and `mcp` (`agent: false` in the contract). They get no
     tool. The agent text that runs `agents read` or `update check` keeps the shell command.
     `update` is also under the hard limit "No agent approval of an update" of `CONSTITUTION.md`.
@@ -909,8 +911,12 @@ decision. The agent text names no tool, so an agent still runs the shell command
   cannot limit a parameter of an MCP tool (the documents of Claude Code 2.1.330,
   [Match by input parameter](https://code.claude.com/docs/en/permissions.md)). So a rule that allows
   a tool, for example `issue_comment` or `land`, allows its act in each folder that a call names.
-- The description of a tool is the help summaries of its forms, or else the descriptions of its
-  entries. These texts are outside the digest of the contract.
+- The description of a tool opens with what its forms do, then gives the descriptions of its entries.
+  The text of a form is its `purpose`, or else its `help` summary; the gate refuses a covered form
+  with neither. A tool of one form opens with that text. A tool of more forms gives, for each form,
+  its text, the words of the form, and its required parameters, as in `run <n> --effort <level>`
+  (`n, effort`). The `purpose` of an issue act is a field of `issueActs`. These texts are outside
+  the digest of the contract.
 - The annotation `readOnlyHint` is `true` only when each form of the tool declares `read: true` in the
   contract. A form is a read when it changes none of these: the project checkout, Git, the tracker,
   the daemon or its state, a session, the queue, a lesson store, a dispatch record, or an
@@ -941,11 +947,17 @@ decision. The agent text names no tool, so an agent still runs the shell command
    second, so a descendant that holds a pipe (the daemon of `daemon start`) cannot hold the call. A
    child that cannot start gives code 6.
 
-The result is `{ code, class, stdout, stderr, json }`. `class` is the exit class of `classOf`, or
-`null` for a code that no class declares, for example an exit code of the worktree setup script that
-`setup try` passes on. `json` is the parsed stdout when the whole stdout is one JSON value, else
-`null`. The server returns the object as `structuredContent` with an `outputSchema`, and as JSON text in
-one text block. `isError` is `true` when `code` is not 0.
+The result is `{ code, class, saved?, json | stdout, stderr }`, with the keys in this order. `class` is
+the exit class of `classOf`, or `null` for a code that no class declares, for example an exit code of the
+worktree setup script that `setup try` passes on. The result holds the output once. `json` is the
+parsed stdout when the stdout is one JSON value that `JSON.stringify(value)` or
+`JSON.stringify(value, null, 2)` prints again, with or without one final newline. Else `stdout` holds
+the text as it is, also for JSON Lines (`events`), a number that a parse changes, and any other layout.
+So the result never holds a change of the output, and an empty stdout is `stdout: ""`. For a nonzero
+code whose serialized result is longer than 10,000 characters, the server writes that serialized result
+to `result.json` in a new folder of `celetis-mcp-` in the temporary folder, and `saved` is the absolute
+path of the file. The server returns the object as `structuredContent` with an `outputSchema`, and as
+JSON text in one text block. `isError` is `true` when `code` is not 0.
 
 **The selection and the guard.** The input is an MCP argument. `argumentsOf` treats it as an untrusted
 value that the CLI parses again.
@@ -978,22 +990,20 @@ value that the CLI parses again.
 - **Concurrent calls.** Each call starts its own child, as parallel shell calls do. The locks of the
   CLI order them.
 - **The environment.** The child gets the environment of the server, which is the environment of the
-  session, for example `CELETIS_COORDINATOR` of the coordinator session. The six `dispatch_*` tools
-  read `CLAUDE_CODE_SESSION_ID` there. Whether Claude Code gives that variable to an MCP server is
-  unchecked.
+  session, for example `CELETIS_COORDINATOR` of the coordinator session.
 
 **The gate.** `checkTools` of `engine/lib/mcp/tools.ts` runs in `scripts/verify.ts`. It reports an
 error when:
 
 - the field `names` of a form names a word that is no placeholder or enum word of that form;
-- an agent form is no tool and is not in `notCovered`;
+- an agent form is no tool, is not in `notCovered`, and has no `sessionBound` entry;
 - a covered form has no `read` value;
 - a placeholder or enum word has no parameter name, a form gives one parameter name twice, or a
   parameter is named `checkout`;
 - a tool name breaks the MCP name rule (1 to 128 characters of `A-Z`, `a-z`, `0-9`, `_`, `-`, and `.`),
   or two tools get one name in Claude Code, where a character outside `A-Z`, `a-z`, `0-9`, `_`, and `-`
   becomes `_`;
-- a tool holds a form of `update`, `install`, `agents`, `root`, or `mcp`;
+- a tool holds a form of `update`, `install`, `agents`, `root`, `mcp`, or `dispatch`;
 - one parameter of a tool has two kinds or two value lists;
 - one input of a tool matches two forms with different argument lists;
 - the sample input of a form, with one value for each of its parameters, is refused by the guard, or
@@ -1012,7 +1022,8 @@ both gave no error.
   the first and the last 5,000 characters of an error text of more than about 11,000 characters (the
   documents of 2.1.330,
   [MCP output limits and warnings](https://code.claude.com/docs/en/mcp.md)). The server sets no size
-  limit of its own, and it holds the whole output of a child in memory.
+  limit of its own, and it holds the whole output of a child in memory. For a long error, `saved` is
+  in the first 5,000 characters, so the file keeps every line that the cut removes from the text block.
 - A session that ends during a call leaves its child running, and the output goes nowhere. A shell call
   that a session leaves has the same limit.
 

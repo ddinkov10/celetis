@@ -713,10 +713,11 @@ export function contractDigest(): string {
       stepHeader({ ...header, recovery: true }),
     ],
     commands: commands
-      .map(({ command, agent, internal, exits, forms }) => ({
+      .map(({ command, agent, internal, sessionBound, exits, forms }) => ({
         command,
         agent,
         internal: internal ?? false,
+        sessionBound: sessionBound ?? false,
         exits,
         forms: forms.map(formShape),
       }))

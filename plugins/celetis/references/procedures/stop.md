@@ -215,8 +215,8 @@ Each skill that cites this section names its acts that move the line, and the ac
 In auto mode, the maintainer lifts a refusal of the classifier in the session in one of two ways:
 approve the blocked action in the **Recently blocked** tab of `/permissions` (press `r`), or
 type a message in the tab that names the exact action. A general "yes" is no explicit intent, so the
-question names the exact command and both ways. The approval adds no permission rule, and the retry
-goes through the classifier again. After 3 blocks in a row or 20 in total, auto mode pauses, and
+question names the exact command or tool call and both ways. The approval adds no permission
+rule, and the retry goes through the classifier again. After 3 blocks in a row or 20 in total, auto mode pauses, and
 Claude Code asks the maintainer for each action: that prompt is the host's own control. The
 refusal of the classifier tells the session to try a safer method; the refusal of a `deny` rule
 says only that the permission has been denied, and the maintainer cannot lift it in the session.

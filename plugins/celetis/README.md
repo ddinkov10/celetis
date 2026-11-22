@@ -358,12 +358,17 @@ codex mcp add playwright-window -- npx -y @playwright/mcp@latest --isolated
 ### Personal landing permission
 
 A build step ends with `celetis --agent <host> land <n> '<subject>'`. On each machine that lands,
-give each host one personal allow rule for `land`. The rule names the engine, the host, and the
-sub-command, so one rule serves each issue and each subject:
+give each host one personal allow rule for `land`. One rule serves each issue and each subject:
 
-- Claude Code: add `Bash(celetis --agent claude land *)` to `permissions.allow` of the untracked
-  `.claude/settings.local.json` of the product. With the PowerShell tool on Windows, also add
-  `PowerShell(celetis --agent claude land *)`. Keep the other fields of the file.
+- Claude Code: add `mcp__plugin_celetis_celetis__land`, the MCP tool of `land`, to
+  `permissions.allow` of the untracked `.claude/settings.local.json` of the product. Keep the
+  other fields of the file. The rule has no folder scope: the tool takes the folder of its act in
+  the parameter `checkout`, and a rule cannot limit a parameter, so the rule allows `land` in
+  each folder that a call names. A deny rule of a tool hides the tool from the session, and the
+  agent then runs the form in the shell, as the entry text says. So a deny of an act names its
+  tool and its shell forms, for example `mcp__plugin_celetis_celetis__land`,
+  `Bash(celetis --agent claude land *)`, and on Windows the form of the PowerShell tool,
+  `PowerShell(celetis --agent claude land *)`.
 - Codex: put `prefix_rule(pattern=["celetis", "--agent", "codex", "land"], decision="allow")` in
   `~/.codex/rules/celetis-land.rules`. Keep the other rules.
 
@@ -371,25 +376,28 @@ No rule changes after an update: an update changes the version folder behind the
 its name. The rules pin no Bun: the entry of the engine finds `bun` on `PATH`, as `land` finds
 `git` and `gh`. The shared rules of the product keep the direct-merge restriction.
 
-The rule of `issue` is optional. The path for `issue` is the review of the host: in the checks of
-#103, Claude in auto mode ran it with no rule, and a Codex sandbox block of `issue` goes through
-the approval procedure of `references/procedures/entry.md`, "The contract", "Codex". The risk of the
+The rule of `issue` is optional. The path for `issue` is the review of the host: in the check
+of #358, a `claude -p` run with `--permission-mode auto` (Claude Code 2.1.330, Windows 11) ran
+the tool `mcp__plugin_celetis_celetis__issue_comment` with no rule and no prompt, and a Codex
+sandbox block of `issue` goes through the approval procedure of `references/procedures/entry.md`, "The contract", "Codex". The risk of the
 rule: an allow rule skips the review of the host for each `issue` call, and each act with a file
 posts the text of a path that the session names, so a session can post any file that it can read
 (for example a token file) on the issue. Text from an issue can steer a session. Add the rule only when the host cannot run
-`issue` through its review, for example Codex with the approval policy `never`. Its forms are
-`Bash(celetis --agent claude issue *)` and
-`prefix_rule(pattern=["celetis", "--agent", "codex", "issue"], decision="allow")`, in the files of
-the rules of `land`.
+`issue` through its review, for example Codex with the approval policy `never`. On Claude
+Code, it is one rule for each `issue_*` tool that writes, for example `mcp__plugin_celetis_celetis__issue_comment`: each
+`issue_*` tool other than the reads `issue_view`, `issue_list`, `issue_state`, and
+`issue_epic-state`. On Codex, it is
+`prefix_rule(pattern=["celetis", "--agent", "codex", "issue"], decision="allow")`. Each goes in
+the file of the rule of `land`.
 
-A Claude rule matches the whole command text, and `*` stands for any text. Each command of a
-compound command must match a rule of its own. Codex compares argument lists. It splits a shell
-script into commands only when each word is plain or quoted
+A Claude rule of an MCP tool names one tool, or each tool of the server with
+`mcp__plugin_celetis_celetis__*`, which allows the write tools too. Codex compares argument
+lists. It splits a shell script into commands only when each word is plain or quoted
 ([Codex rules](https://learn.chatgpt.com/docs/agent-configuration/rules)). A leading assignment, a
 quoted first word, or a substitution outside single quotes keeps the whole script in one shell
 argument, and the rule does not match it. A single quote in the subject, or in the file of an act,
-becomes `'\''` and stops the split, so that call needs approval. Both rules match the bare name
-`celetis`: a call through a path, such as `~/.local/bin/celetis`, matches no rule and needs
+becomes `'\''` and stops the split, so that call needs approval. The Codex rule matches the bare
+name `celetis`: a call through a path, such as `~/.local/bin/celetis`, matches no rule and needs
 approval. Codex runs a command that an `allow` rule matches outside the sandbox. The
 `workspace-write` sandbox has no network access by default: there `gh` cannot reach GitHub, and
 `issue` exits 6 before any write, unless its rule matches or an approval lets it run outside the
@@ -746,7 +754,9 @@ Each command gives the exit code of its class. The `Exit status:` list of a row 
 <!-- The end of the exit-class table that scripts/build.ts writes. -->
 
 Claude Code also gets MCP tools for the agent forms of the commands above. Forms with one name share
-one tool, and `intake`, `assist`, and `visual` get none. The key `mcpServers` of
+one tool. `intake`, `assist`, and `visual` get none, because each starts a host session in a terminal.
+`dispatch` gets none, because it binds its records to the current session and an MCP server keeps the
+session ID of its start. The key `mcpServers` of
 `.claude-plugin/plugin.json` starts the server with `celetis --agent claude mcp`. The manifest of Codex
 declares no server. A tool runs its form as a child process and returns the exit code, the exit class,
 the stdout, and the stderr. Claude Code names a tool `mcp__plugin_celetis_celetis__<tool>`, for example

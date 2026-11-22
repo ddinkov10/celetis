@@ -66,10 +66,10 @@ completion criterion of a skill.
 - **Paths.** `<plugin>` is the plugin folder of the entry. `<plugin>/<path>` is a file of the
   plugin, and a relative link in a plugin file starts in the folder of that file. A path with no
   prefix is a path of the product project.
-- **Commands.** Run each plugin command as `celetis --agent <host> <command> [<argument>...]`, with
-  `<host>` the running host: `claude` on Claude Code, `codex` on Codex, `opencode` on OpenCode.
-  The installed engine `celetis` runs the command; `<plugin>` locates only the documents that the
-  skills cite. When `celetis` is not on `PATH`, stop before the workflow command, and tell the
+- **Commands.** Each plugin act has a CLI form, `celetis --agent <host> <command> [<argument>...]`,
+  with `<host>` the running host: `claude` on Claude Code, `codex` on Codex, `opencode` on
+  OpenCode. Run each form as the part of the host says. The installed engine `celetis` runs the
+  command; `<plugin>` locates only the documents that the skills cite. When `celetis` is not on `PATH`, stop before the workflow command, and tell the
   person to install the engine (`<plugin>/README.md`, "First install") and to start a fresh session.
 - **Tracker.** The `tracker` of the project is `github` or `local`
   (`<plugin>/docs/issue-tracker.md`, "The local tracker"). With either tracker, run each issue
@@ -92,7 +92,7 @@ completion criterion of a skill.
   own checkout and its own custom text: a same-session handoff and an invocation in a child agent
   too. Keep the invocation input across a handoff. A missing required Superpowers skill stops the
   work.
-- **The daemon.** The maintainer starts the daemon and turns auto mode on; an agent starts a run only when its task says so, with an issue key, and in a terminal.
+- **The daemon.** The maintainer starts the daemon and turns auto mode on; an agent starts a run only when its task says so, and with an issue key.
 - **Modules.** Read a module of `<plugin>/references/procedures/<name>.md` whole, in one read, when a step names
   it, not before.
 - **Custom text.** The custom text of the entry is an addition to this skill, for this invocation
@@ -103,8 +103,8 @@ completion criterion of a skill.
   `<plugin>`, and prints one JSON object: `celetis --agent <host> config <checkout> <plugin>`.
   It exits 2 also when the file is missing, with the diagnostic of a symlink, so find the file
   first: with no file, the step has no value. Each other diagnostic of exit 2 names the field or
-  the plugin folder: report it to the person. With no shell, the step cannot get the value: it
-  stops and names the missing shell for that value.
+  the plugin folder: report it to the person. With no shell and no tool, the step cannot get the
+  value: it stops and names the missing shell for that value.
 - **Updates.** For entry maintenance, run `celetis --agent <host> update check` only when the person
   explicitly requests update status or update troubleshooting. Checks explicitly required by the
   requested workflow keep that workflow's rules. A new task, skill invocation, nested handoff, child
@@ -145,14 +145,48 @@ completion criterion of a skill.
 - **`.celetis.yaml` after the entry.** The hook read the file, so a later `Read` of it gives an
   unchanged result with no content. A step that needs a value of the file runs the reader CLI.
 - **Skills.** Invoke a skill with the Skill tool, with the invocation input as its arguments.
-- **The approval procedure for a sandbox block.** Run the command again once, with the same
-  command and cwd and with `dangerouslyDisableSandbox: true`, before you report a setup stop. The
-  retry goes through the permission review of Claude Code: a prompt, auto mode, or an allow rule.
-  A refused or ignored retry is a setup stop. That review is the path for `issue`.
+- **Commands.** Call the MCP tool of a form, not the shell.
+  - The tool name is `mcp__plugin_celetis_celetis__` followed by the literal words of the form,
+    joined by `_`: each word that is not a placeholder, an enum word, or a `--x` flag. For
+    example, `issue <n> route <lane>` is `mcp__plugin_celetis_celetis__issue_route`,
+    `lesson-store read active` is `mcp__plugin_celetis_celetis__lesson-store_read`, and
+    `worktree --remove <n>` is `mcp__plugin_celetis_celetis__worktree`.
+  - Each placeholder, enum word, and flag is a parameter of the tool, by the name that its schema
+    gives. The parameter `checkout` is the absolute path of the checkout of the act: the checkout
+    of the entry (the `- checkout:` line of the block), the lane worktree after its entry, or the
+    main checkout where a step names it (for example for `land`).
+  - Pass each file argument as an absolute path: the form runs in `checkout`, not in the folder of
+    the session.
+  - When the tool is deferred, load it with `ToolSearch` before its first call.
+  - The result gives the exit: `code` is the exit status of the form, and `class` is its class.
+    Each exit rule of the text applies to `code`. The stdout of the form is in `json` when it is
+    one JSON document, else in `stdout` as text; its stderr is in `stderr`. A result with
+    `saved` is a long error result: `saved` is the absolute path of a file that holds the whole
+    result, so read the lines that a step needs from that file.
+  - When the session has no tool of that name, run the form as a shell command. For example,
+    `dispatch`, `update check`, and `agents read` have no tool, and no form has a tool when the
+    server did not connect. Never run one act both ways. Run a long form in the shell (for example
+    `land`, `worktree`, or `setup`) as a background Bash command with a `timeout` of 3600000, and
+    wait for its real exit: a time limit or a move to the background is not its end.
+  - A call of the main conversation that runs longer than two minutes moves to a background task.
+    The act is complete only at the notification of its result: wait for it, and never call the act
+    again while it waits.
+  - A tool call runs outside the Bash sandbox. The permission review of Claude Code reviews it: a
+    prompt, auto mode, or an allow rule. A denied tool call is a block ("Blocks" above): never run
+    the same act in the shell after a denial.
+  - A call that ends with no result (a transport error, a server that ended, a session that ended)
+    can have run its act. Before a new attempt, read the current state with a read act, for example
+    `issue list` after `issue create`, or `issue <n> state`. Never retry blindly, through the tool
+    or the shell.
+- **The approval procedure for a sandbox block.** It applies to a shell command. Run the command
+  again once, with the same command and cwd and with `dangerouslyDisableSandbox: true`, before you
+  report a setup stop. The retry goes through the permission review of Claude Code: a prompt, auto
+  mode, or an allow rule. A refused or ignored retry is a setup stop.
 - **Session recovery.** Give the person `claude --resume '#<n> <step>'` from the main checkout.
 
 ### Codex
 
+- **Commands.** Run each form as a shell command.
 - **Skills.** Invoke a skill through its advertised `SKILL.md` path, and follow it with the
   supplied input. A prompt that starts a skill has this form, with the actual skill name:
   `Use the celetis:<name> skill for <input>. Complete its Celetis entry before any response, including commentary.`
@@ -168,6 +202,7 @@ completion criterion of a skill.
 
 ### OpenCode
 
+- **Commands.** Run each form as a shell command.
 - **Skills.** Load a skill with the `skill` tool, by its ID: the skill name with no namespace, for
   example `triage`. A prompt that starts a skill has this form, with the actual skill ID:
   `Load the skill <id> with the skill tool and follow it for <input>. Complete its Celetis entry before any response, including commentary.`

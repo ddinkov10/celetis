@@ -90,11 +90,18 @@ Code ([Limits](../../engine/README.md#limits)). The plugin root of the header is
 
 ## Permissions
 
-- The daemon starts each step with `--permission-mode auto`. In the checks of #103, auto mode ran
-  `celetis --agent claude issue` with no allow rule.
-- The personal rule of `land`, `Bash(celetis --agent claude land *)`, and the optional rule of
-  `issue` are in `plugins/celetis/README.md`, "Personal landing permission". A Claude rule matches the whole
-  command text.
+- The daemon starts each step with `--permission-mode auto`. A tool call runs outside the Bash
+  sandbox, and the permission review of Claude Code reviews it.
+- In one `claude -p` run with `--permission-mode auto` (Claude Code 2.1.330, Windows 11), the tool
+  write `mcp__plugin_celetis_celetis__issue_comment` ran with no prompt and no denial. The control
+  run with `--permission-mode default` was denied ("Claude requested permissions to use
+  mcp__plugin_celetis_celetis__issue_comment, but you haven't granted it yet.")
+  ([issue #358](https://github.com/ddinkov10/celetis/issues/358#issuecomment-7080696662)). The classifier of auto mode
+  judges each call in its context, so this run does not cover an interactive session or a step
+  session of the daemon.
+- The personal rule of `land`, `mcp__plugin_celetis_celetis__land`, and the optional rules of the
+  `issue_*` write tools are in `plugins/celetis/README.md`, "Personal landing permission". A rule of an
+  MCP tool names the whole tool and has no folder scope: it cannot limit the parameter `checkout`.
 
 ## Dispatch
 
@@ -116,7 +123,7 @@ checks of #104, native results exposed no applied effort to the calling agent.
 | Host operation | Module and section |
 | --- | --- |
 | Skill entry with no hook: the `Read` of `.celetis.yaml` | [entry.md](../../plugins/celetis/references/procedures/entry.md), "Entry without the hook" |
-| The hook block, skill invocation with the Skill tool, `.celetis.yaml` after the entry, the sandbox approval procedure, and session recovery | [entry.md](../../plugins/celetis/references/procedures/entry.md), "The contract", "Claude Code" |
+| The hook block, skill invocation with the Skill tool, the MCP tool of each form, `.celetis.yaml` after the entry, the sandbox approval procedure, and session recovery | [entry.md](../../plugins/celetis/references/procedures/entry.md), "The contract", "Claude Code" |
 | Lane worktree entry and return: `EnterWorktree`, `ExitWorktree` with keep | [worktree.md](../../plugins/celetis/references/procedures/worktree.md), "Claude Code" |
-| The return before `land`, and the run of `land` in background Bash | [landing.md](../../plugins/celetis/references/procedures/landing.md), "Claude Code" |
+| The return before `land`, and the call of the tool of `land` | [landing.md](../../plugins/celetis/references/procedures/landing.md), "Claude Code" |
 | Child spawn and resume (`Agent`, `SendMessage`), and the report shapes | [dispatch.md](../../plugins/celetis/references/procedures/dispatch.md), "Claude Code" |

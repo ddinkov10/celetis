@@ -27,6 +27,7 @@ type Arguments = { kind: 'argv'; argv: readonly string[] } | { kind: 'refused'; 
 
 export const notCovered: readonly string[] = ['intake', 'assist <n>', 'visual <n> <sha>'];
 const excluded: ReadonlySet<string> = new Set(['update', 'install', 'agents', 'root', 'mcp']);
+const sessionBoundCommands: ReadonlySet<string> = new Set(['dispatch']);
 
 const slot = (word: string) => /^[<'[]/.test(word) || /^[A-Z][A-Z0-9_]*$/.test(word);
 const choice = (word: string) => !slot(word) && word.includes('|');
@@ -37,7 +38,8 @@ const derived = (word: string) => {
   return found?.[1] ?? found?.[2] ?? found?.[3];
 };
 const nameOf = (form: Form, word: string) => form.names?.[word] ?? derived(word);
-const covered = (entry: Entry, form: Form) => entry.agent && !entry.internal && form.passThrough !== sessionCode;
+const covered = (entry: Entry, form: Form) =>
+  entry.agent && !entry.internal && !entry.sessionBound && form.passThrough !== sessionCode;
 
 function flagParameter(flag: Flag): Parameter {
   const name = flag.name.slice(2);
@@ -59,6 +61,8 @@ function parametersOf(form: Form): Parameter[] {
   });
   return [...words, ...form.flags.map(flagParameter)];
 }
+
+const textOf = ({ purpose, help }: Form) => purpose ?? help?.summary;
 
 const absent = (value: Input[string]) =>
   value === undefined || value === false || (typeof value === 'object' && value.length === 0);
@@ -121,6 +125,16 @@ function matches(argv: readonly string[], { words, flags }: Form): boolean {
   );
 }
 
+function descriptionOf(forms: readonly Form[]): string[] {
+  if (forms.length === 1) return [textOf(forms[0] as Form) ?? ''];
+  return forms.map((form) => {
+    const names = parametersOf(form)
+      .filter(({ required }) => required)
+      .map(({ name }) => name);
+    return `\`${formText(form)}\` (${names.join(', ')}): ${textOf(form)}`;
+  });
+}
+
 export function toolSet(entries: readonly Entry[]): readonly Tool[] {
   const groups = new Map<string, { name: string; command: CommandName; entries: Entry[]; forms: Form[] }>();
   for (const entry of entries)
@@ -142,11 +156,10 @@ export function toolSet(entries: readonly Entry[]): readonly Tool[] {
           ...parameter,
           required: lists.every((list) => list.some((each) => each.name === parameter.name && each.required)),
         });
-    const summaries = forms.flatMap(({ help }) => (help ? [help.summary] : []));
     return {
       name,
       command,
-      description: (summaries.length ? summaries : owners.map(({ description }) => description)).join(' '),
+      description: [...descriptionOf(forms), ...owners.map(({ description }) => description)].join(' '),
       readOnly: forms.every(({ read }) => read === true),
       parameters: [...parameters.values()],
       forms,
@@ -217,11 +230,12 @@ export function checkTools(entries: readonly Entry[]): string[] {
         if (!form.words.includes(key) || literal(key) || switched(key))
           fail(`\`${text}\` declares a name for ${key}, which is no slot or enum word of the form`);
       if (!covered(entry, form)) {
-        if (entry.agent && !entry.internal && !notCovered.includes(text))
+        if (entry.agent && !entry.internal && !entry.sessionBound && !notCovered.includes(text))
           fail(`\`${text}\` is an agent form with no tool and is not covered; give it a tool or add it to notCovered`);
         continue;
       }
       if (form.read === undefined) fail(`\`${text}\` is a covered form with no read value`);
+      if (textOf(form) === undefined) fail(`\`${text}\` is a covered form with neither purpose nor help summary`);
       for (const word of form.words)
         if ((slot(word) || choice(word)) && nameOf(form, word) === undefined)
           fail(`\`${text}\`: the word ${word} has no parameter name; declare one in names`);
@@ -243,6 +257,10 @@ export function checkTools(entries: readonly Entry[]): string[] {
     else claimed.set(mapped, tool);
     if (excluded.has(tool.command))
       fail(`the tool ${tool.name} holds a form of ${tool.command}, which an agent never runs`);
+    if (sessionBoundCommands.has(tool.command))
+      fail(
+        `the tool ${tool.name} holds a form of ${tool.command}, which binds its records to the current session, and an MCP server keeps the session ID of its start`,
+      );
     const kinds = new Map<string, Parameter>();
     for (const parameter of tool.forms.flatMap(parametersOf)) {
       const prior = kinds.get(parameter.name);

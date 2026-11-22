@@ -124,6 +124,7 @@ export type Form = Readonly<{
   words: readonly string[];
   flags: readonly Flag[];
   help?: Readonly<{ order: number; summary: string }>;
+  purpose?: string;
   passThrough?: string;
   read?: boolean;
   names?: Readonly<Record<string, string>>;
@@ -135,6 +136,7 @@ export type Entry = Readonly<{
   exits: readonly DeclaredClass[];
   agent: boolean;
   internal?: true;
+  sessionBound?: true;
 }>;
 
 const required = (name: `--${string}`, value?: string): Flag => ({
@@ -146,7 +148,7 @@ const optional = (name: `--${string}`, value?: string): Flag => ({ name, ...(val
 const form = (
   words: string | readonly string[],
   flags: readonly Flag[] = [],
-  extra: Pick<Form, 'help' | 'passThrough' | 'read' | 'names'> = {},
+  extra: Pick<Form, 'help' | 'purpose' | 'passThrough' | 'read' | 'names'> = {},
 ): Form => ({ words: typeof words === 'string' ? words.split(' ') : words, flags, ...extra });
 const helped = (order: number, summary: string) => ({ help: { order, summary } });
 export const sessionCode = 'the exit code of the host session';
@@ -189,6 +191,7 @@ type ActDeclaration = Readonly<{
   names?: Readonly<Record<string, string>>;
   argument: IssueArgument;
   numbered?: false;
+  purpose: string;
   prerequisite: string;
   writes: string;
 }>;
@@ -200,6 +203,7 @@ export const issueActs = {
     read: false,
     names: { 'feature|bug|chore|hotfix': 'lane' },
     argument: 'lane',
+    purpose: 'Sets the lane of an issue to feature, bug, chore, or hotfix.',
     prerequisite: 'open; not an epic',
     writes: 'the label of the lane; it removes the other lane labels and `needs-triage`',
   },
@@ -208,6 +212,7 @@ export const issueActs = {
     flags: [],
     read: false,
     argument: 'effort',
+    purpose: 'Records the model and the effort level that a step of an issue uses, from a file.',
     prerequisite: 'open',
     writes: 'an `Effort: <step> <model> <level>` comment ("What lives on the issue", "Effort"); no label change',
   },
@@ -217,6 +222,7 @@ export const issueActs = {
     read: false,
     argument: 'file',
     numbered: false,
+    purpose: 'Creates an issue from a file that starts with `# Intent: <title>`, and prints its URL.',
     prerequisite: 'none; it takes no issue key',
     writes:
       'a new issue with the title from the first line `# Intent: <title>`, the whole file as its body, and `needs-triage`; it prints the URL of the new issue first',
@@ -226,6 +232,7 @@ export const issueActs = {
     flags: [repeated(optional('--attach', '<file>#<alt>'))],
     read: false,
     argument: 'file',
+    purpose: 'Posts a file as a comment on an issue, with the files of `attach` uploaded.',
     prerequisite: 'an issue, open or closed; not a pull request',
     writes:
       'the file as a comment, with each `--attach` file uploaded (the flag repeats, at most 50 times); it refuses a first line that is a lifecycle heading or the effort marker',
@@ -235,6 +242,8 @@ export const issueActs = {
     flags: [optional('--latest', '<heading>')],
     read: true,
     argument: 'none',
+    purpose:
+      'Reads one issue as JSON, with its parent, its children, and its history, or the newest comment under a heading.',
     prerequisite: 'an issue, open or closed; not a pull request',
     writes:
       'nothing; the JSON of the issue, or with `--latest` the body of the newest comment whose first line is the heading',
@@ -245,6 +254,7 @@ export const issueActs = {
     read: true,
     argument: 'none',
     numbered: false,
+    purpose: 'Reads the open or the closed issues as JSON, optionally only those with one label.',
     prerequisite: 'none; it takes no issue key',
     writes:
       'nothing; the JSON list of the issues in the state (`open` when no `--state`), not pull requests, with `--label` only those with that label',
@@ -255,6 +265,7 @@ export const issueActs = {
     read: false,
     argument: 'none',
     numbered: false,
+    purpose: 'Pulls the local issues from origin, merges them, and pushes them; needs the local tracker.',
     prerequisite: 'the local tracker',
     writes: 'the local issues: it pulls them from origin, merges them, and pushes them',
   },
@@ -263,6 +274,7 @@ export const issueActs = {
     flags: [],
     read: false,
     argument: 'key',
+    purpose: 'Makes the child issue a sub-issue of the epic.',
     prerequisite: 'two open issues, not pull requests; the child has no other parent',
     writes: 'the sub-issue link, then the refresh hint of each issue; no write when the link exists',
   },
@@ -271,6 +283,8 @@ export const issueActs = {
     flags: [],
     read: false,
     argument: 'file',
+    purpose:
+      'Writes the declaration of an epic and its child references into the body of the parent issue, from a file.',
     prerequisite: 'open feature or epic; valid declaration and current child references',
     writes: 'the complete parent body, then adds `epic` and removes `enhancement` as needed; clears no hold',
   },
@@ -279,6 +293,7 @@ export const issueActs = {
     flags: [],
     read: true,
     argument: 'none',
+    purpose: 'Reads the declaration, the child snapshot, the history, and the holds of an epic.',
     prerequisite: 'readable parent and complete children',
     writes: 'nothing; the JSON snapshot of "Epic acceptance submission"',
   },
@@ -287,6 +302,8 @@ export const issueActs = {
     flags: [],
     read: false,
     argument: 'optional-file',
+    purpose:
+      'Closes an epic as completed after its accepted record; the optional file holds the repair of a refused completion.',
     prerequisite: '"Epic completion and repair"',
     writes: 'an accepted record, then closes as completed; an already closed parent has no write',
   },
@@ -295,6 +312,7 @@ export const issueActs = {
     flags: [],
     read: false,
     argument: 'file',
+    purpose: 'Asks the human for missing information: posts a file as a comment and holds the issue.',
     prerequisite: 'open',
     writes: 'the file as a comment, then `needs-info`',
   },
@@ -303,6 +321,7 @@ export const issueActs = {
     flags: [],
     read: false,
     argument: 'file',
+    purpose: 'Closes an issue as not planned, with a file as the reason.',
     prerequisite: 'open',
     writes: 'the file as a comment, then `wontfix`, then the close as not planned',
   },
@@ -311,6 +330,7 @@ export const issueActs = {
     flags: [],
     read: false,
     argument: 'file',
+    purpose: 'Writes the spec of a feature into the body of its issue, from a file.',
     prerequisite: 'open; lane `feature`',
     writes: 'the body: `Spec: YYYY-MM-DD` (the local date), a blank line, then the file',
   },
@@ -319,6 +339,7 @@ export const issueActs = {
     flags: [],
     read: false,
     argument: 'file',
+    purpose: 'Records the root cause of a bug or a hotfix as a comment, from a file.',
     prerequisite: 'open; lane `bug` or `hotfix`',
     writes: 'a `## Root cause` comment',
   },
@@ -327,6 +348,8 @@ export const issueActs = {
     flags: [],
     read: false,
     argument: 'file',
+    purpose:
+      'Records the plan of a feature or a bug as a comment, from a file, and makes the issue ready for an agent when it has no human hold.',
     prerequisite: 'open; a `feature` with a spec, or a `bug` with a `## Root cause` comment',
     writes:
       'a `## Plan` comment; then `ready-for-agent` with no human hold, else keeps `ready-for-human` and removes `ready-for-agent`',
@@ -336,6 +359,7 @@ export const issueActs = {
     flags: [],
     read: false,
     argument: 'none',
+    purpose: 'Records that the build of a planned change is done.',
     prerequisite: 'the resolver line is `implement` of a planned change',
     writes: 'a `## Built` comment, then removes `ready-for-agent` when present',
   },
@@ -344,6 +368,7 @@ export const issueActs = {
     flags: [optional('--during-the-build')],
     read: false,
     argument: 'file',
+    purpose: 'Records a human step that must happen before the landing, from a file, and hands the issue to the human.',
     prerequisite: 'the resolver line is the step that lands the lane (`implement`, `chore`, `hotfix`)',
     writes:
       'a `## Before landing` comment with the marker of its kind ("Completing a human precondition"), then it adds `ready-for-human`, and removes `ready-for-agent` when it is on',
@@ -353,6 +378,7 @@ export const issueActs = {
     flags: [],
     read: false,
     argument: 'file',
+    purpose: 'Records, from a file, why a landing was refused.',
     prerequisite: 'as `before-landing`',
     writes: 'a `## Landing refused` comment',
   },
@@ -361,6 +387,7 @@ export const issueActs = {
     flags: [],
     read: false,
     argument: 'file',
+    purpose: 'Records, from a file, why the agent stopped, and hands the issue to the human.',
     prerequisite: 'open',
     writes: 'a `## Stopped` comment, then adds `ready-for-human` and removes `ready-for-agent` when present',
   },
@@ -369,6 +396,7 @@ export const issueActs = {
     flags: [],
     read: false,
     argument: 'none',
+    purpose: 'Hands an issue to the human with no comment.',
     prerequisite: 'open',
     writes: 'adds or retains `ready-for-human`, then removes `ready-for-agent` when present',
   },
@@ -377,6 +405,8 @@ export const issueActs = {
     flags: [],
     read: false,
     argument: 'file',
+    purpose:
+      'Records the human steps that an assist session completed, from a file, and removes the holds that they cleared.',
     prerequisite: 'open; has `needs-info`, `ready-for-human`, or a current open human precondition',
     writes:
       'a `## Human steps done` comment with assistance-agent attribution, then removes present `needs-info` and `ready-for-human`; adds no label',
@@ -386,6 +416,7 @@ export const issueActs = {
     flags: [],
     read: true,
     argument: 'none',
+    purpose: 'Reads the lifecycle facts of an issue: its lane, its line, its build, its plan, and its refusal.',
     prerequisite: 'none',
     writes: 'nothing',
   },
@@ -432,7 +463,16 @@ const entry = (
   description: string,
   exitList: readonly DeclaredClass[] = base,
   internal?: true,
-): Entry => ({ command, forms, description, exits: exitList, agent, ...(internal ? { internal } : {}) });
+  sessionBound?: true,
+): Entry => ({
+  command,
+  forms,
+  description,
+  exits: exitList,
+  agent,
+  ...(internal ? { internal } : {}),
+  ...(sessionBound ? { sessionBound } : {}),
+});
 
 export const commands: readonly Entry[] = [
   entry(
@@ -583,10 +623,23 @@ export const commands: readonly Entry[] = [
         ...helped(19, 'Opens the coordinator session of the daemon in a tab, or brings its tab to the front.'),
         ...changes,
       }),
-      form('coordinator status', [], reads),
-      form('coordinator read <n>', [], reads),
-      form('coordinator send <n> <file>', [required('--as', 'maintainer|coordinator')], changes),
-      form('coordinator end <n>', [], changes),
+      form('coordinator status', [], {
+        ...reads,
+        purpose: 'Reads the status object of the daemon as one JSON line, with the runs that need a decision.',
+      }),
+      form('coordinator read <n>', [], {
+        ...reads,
+        purpose: 'Reads the screen and the history of the live session of the run of an issue.',
+      }),
+      form('coordinator send <n> <file>', [required('--as', 'maintainer|coordinator')], {
+        ...changes,
+        purpose:
+          'Types the text of a file into the session of the live run of an issue, as the maintainer or as the coordinator.',
+      }),
+      form('coordinator end <n>', [], {
+        ...changes,
+        purpose: 'Asks the assist session of an issue at an ended turn to exit.',
+      }),
     ],
     `Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. \`coordinator\` opens one interactive session with the skill \`coordinate\` in a tab \`Coordinator\`, or brings the tab of the live session to the front; \`--agent\` selects the host of a new session as \`assist\` does. \`coordinator status\` prints the status object of the daemon as one JSON line; each run row holds \`attention\`, the state that needs a decision (\`dialog\`, \`turn-ended\`, or \`quota-wait\`) or null. \`coordinator read <n>\` prints the screen and 200 history lines of the live session of the run of issue <n> on stdout and exits ${exits.done}; when hc gave only the visible screen, it also prints \`coordinator: #<n>: hc gave only the visible screen\` on stderr, with \` (the session is <why>)\` after it when hc gave a reason. It exits ${exits.prerequisite} with \`coordinator: #<n> has no live run session\` when the run has no live session, and ${exits.blocked} with \`coordinator: cannot read the screen of the tab <tab>\` when the read fails. \`coordinator send <n> <file> --as maintainer|coordinator\` asks the daemon to type one message into the session of the live run of issue <n>: a header line with the authority and the time, then the text of the file with one final newline removed; it prints \`coordinator: sent to #<n> as <authority>\` and exits ${exits.done}. It sends only from the coordinator session (\`CELETIS_COORDINATOR\`). It exits ${exits.usage} when the file cannot be read, is not valid UTF-8, or holds an empty text, a text of more than 4096 characters, or a control character other than a newline or a tab; ${exits.prerequisite} when the caller is not the coordinator session, the issue has no live run with a released session, the run starts, waits for a usage limit, ends, or gets its exit request, or the session shows a dialog; and ${exits.blocked} when the hc status cannot be read or the outcome of the send is unknown. \`coordinator end <n>\` asks the daemon to send the exit request of the host to the assist session of issue <n>; it prints \`coordinator: asked the assist session of #<n> to exit\` and exits ${exits.done}. It ends only an assist session at an ended turn, and only from the coordinator session (\`CELETIS_COORDINATOR\`). It exits ${exits.prerequisite} when the caller is not the coordinator session, the issue has no live run with a released session, the run is no assist run, the session shows a dialog or works, or the session has no live host; and ${exits.blocked} when the hc status cannot be read or the outcome of the exit request is unknown. An open prints \`coordinator: opened the coordinator session of the daemon PID <pid> in the tab Coordinator\`, and an open while the session runs prints \`coordinator: a coordinator session runs; its tab Coordinator is at the front\`; both exit ${exits.done}. A refusal prints the line of the daemon on stderr and exits with its code: ${exits.prerequisite} when the plugin of the host needs a contract version that this engine does not serve or has no coordinator skill, and ${exits.blocked} when the process of the session cannot be read, its tab cannot come to the front, or the start barrier of a new tab does not report. With no daemon, it exits ${exits.prerequisite} and starts nothing. It exits ${exits.prerequisite} when the daemon runs another revision of the engine, and ${exits.blocked} when the daemon does not answer or the outcome is unknown. Any other form exits ${exits.usage} with the usage line. \`engine/README.md\`, "The coordinator session", gives the rules`,
   ),
@@ -629,21 +682,38 @@ export const commands: readonly Entry[] = [
   entry(
     'worktree',
     true,
-    [form('worktree <n>', [], changes)],
+    [
+      form('worktree <n>', [], {
+        ...changes,
+        purpose:
+          'Makes the lane worktree and the branch of an issue, or enters the one that exists, and prints its path.',
+      }),
+    ],
     'Makes the lane worktree and the branch of the issue, or enters the one that is there and brings it up to the trunk, and prints its path',
     worktreeExits,
   ),
   entry(
     'worktree',
     true,
-    [form('worktree --remove <n>', [], changes)],
+    [
+      form('worktree --remove <n>', [], {
+        ...changes,
+        purpose: 'Removes the lane worktree and the branch of an issue that ended with no landing.',
+      }),
+    ],
     'Removes the lane worktree and the branch of an issue that ended with no landing by the script. It refuses while the issue is open and its branch has no merged PR, so close the issue first',
     worktreeExits,
   ),
   entry(
     'land',
     true,
-    [form("land <n> '<subject>'", [], changes)],
+    [
+      form("land <n> '<subject>'", [], {
+        ...changes,
+        purpose:
+          'Lands the change of an issue on the trunk with the subject of its commit, by the landing of the project.',
+      }),
+    ],
     `Lands the change of the issue by the \`landing\` field of \`.celetis.yaml\`. It is the one landing path of an agent. The master daemon of the repository runs the landing when one runs, and \`land\` prints its output and exits with its status; with no daemon, \`land\` runs the landing in its own process; with a daemon of another revision it exits ${exits.prerequisite}, when the daemon does not answer ${exits.blocked}, and for another refusal of the request by the daemon it exits with the code of that refusal. It refuses an issue that is not ready to land. It exits ${exits.cleanup} when the change landed and its cleanup stopped; run it again`,
     ['done', 'internal', 'usage', 'prerequisite', 'repair', 'checks', 'blocked', 'cleanup', 'signal'],
   ),
@@ -653,6 +723,7 @@ export const commands: readonly Entry[] = [
     Object.values(issueActs).map((act) =>
       form('numbered' in act ? ['issue', ...act.words] : ['issue', '<n>', ...act.words], act.flags, {
         read: act.read,
+        purpose: act.purpose,
         ...('names' in act ? { names: act.names } : {}),
       }),
     ),
@@ -661,19 +732,34 @@ export const commands: readonly Entry[] = [
   entry(
     'next-step',
     true,
-    [form('next-step <n>', [], reads), form('next-step', [required('--open')], reads)],
+    [
+      form('next-step <n>', [], { ...reads, purpose: 'Reads the next step of one issue.' }),
+      form('next-step', [required('--open')], { ...reads, purpose: 'Reads the next step of each open issue.' }),
+    ],
     'The resolver: the next step of one issue, or of each open issue',
   ),
   entry(
     'events',
     true,
-    [form('events', [optional('--after', '<id>')], reads)],
+    [
+      form('events', [optional('--after', '<id>')], {
+        ...reads,
+        purpose:
+          'Reads the kept entries of the event record as JSON lines, oldest first, optionally only those after an entry.',
+      }),
+    ],
     `Prints each kept entry of the event record of the user as one JSON line, oldest first; \`--after <id>\` prints only the entries after that entry. \`engine/README.md\`, "The event record", gives the record. It exits ${exits.usage} for a relative \`CELETIS_HOME\`, ${exits.prerequisite} when the record lock is busy, and ${exits.blocked} for an unsafe folder or lock file`,
   ),
   entry(
     'config',
     true,
-    [form('config <checkout> <plugin>', [], { ...reads, names: { '<checkout>': 'project' } })],
+    [
+      form('config <checkout> <plugin>', [], {
+        ...reads,
+        names: { '<checkout>': 'project' },
+        purpose: 'Reads and validates `.celetis.yaml` of a project, and prints its configuration as one JSON line.',
+      }),
+    ],
     `The reader of \`.celetis.yaml\` for the agent. It first checks that \`<plugin>\` is a Celetis plugin: a folder whose \`.claude-plugin/plugin.json\` has \`"name": "celetis"\`. It then validates the whole file of \`<checkout>\`, and checks each \`custom\` key against \`<plugin>/skills/<key>/SKILL.md\`, a regular file with no symbolic link. It prints the configuration as one compact JSON line. \`--agent\` selects nothing. It exits ${exits.usage} for another form, a folder that is not a Celetis plugin, or a missing or invalid file; the line names the field or the plugin folder`,
   ),
   entry(
@@ -690,7 +776,11 @@ export const commands: readonly Entry[] = [
           optional('--profile', 'FILE'),
           optional('--runtime-models', 'FILE'),
         ],
-        { ...reads, names: digitNames },
+        {
+          ...reads,
+          names: digitNames,
+          purpose: 'Reads the score and the model choice that the six digits of a task give.',
+        },
       ),
     ],
     'Resolves the six digits. `--json` gives the score of the selected host and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null',
@@ -701,6 +791,8 @@ export const commands: readonly Entry[] = [
     dispatchForms,
     `Acts: ${dispatchForms.map(({ words }) => `\`${words[1]}\``).join(', ')}. The task loop applies each returned pair and reports exact native arguments/results. Evidence is agent-reported, not independently checked. Records: \`/tmp/celetis-<uid>/dispatch/<host>-<session>.json\` on macOS and Linux; \`<os.tmpdir()>/celetis/dispatch/<host>-<session>.json\` on Windows. It exits ${exits.done} for a ready, reported, or closed result (also \`show\`), ${exits.usage} for bad usage or an invalid \`.celetis.yaml\`, ${exits.prerequisite} for a refusal or a busy dispatch lock, ${exits.blocked} for a setup failure, and ${exits.stop} when the engine stops the task`,
     ['done', 'internal', 'usage', 'prerequisite', 'blocked', 'stop'],
+    undefined,
+    true,
   ),
   entry(
     'install',
@@ -712,12 +804,31 @@ export const commands: readonly Entry[] = [
     'setup',
     true,
     [
-      form('setup check', [], changes),
-      form('setup write', setupOptions, changes),
-      form('setup try', setupOptions, { passThrough: 'the exit code of the worktree setup script', ...changes }),
-      form('setup try', [required('--remove')], changes),
-      form('setup lane <path>', [], changes),
-      form('setup push', [], changes),
+      form('setup check', [], {
+        ...changes,
+        purpose: 'Reads the saved answers of setup and checks that they are valid.',
+      }),
+      form('setup write', setupOptions, {
+        ...changes,
+        purpose: 'Writes the files that setup owns from the answers, and removes the ones that it no longer owns.',
+      }),
+      form('setup try', setupOptions, {
+        passThrough: 'the exit code of the worktree setup script',
+        ...changes,
+        purpose: 'Makes the test lane of setup and runs the worktree setup there.',
+      }),
+      form('setup try', [required('--remove')], {
+        ...changes,
+        purpose: 'Removes the test lane of setup.',
+      }),
+      form('setup lane <path>', [], {
+        ...changes,
+        purpose: 'Runs the worktree setup in a lane that exists.',
+      }),
+      form('setup push', [], {
+        ...changes,
+        purpose: 'Commits the planned paths of setup, deletions too, and pushes them.',
+      }),
     ],
     'The deterministic part of `/celetis:setup`: validated saved answers from `check`, bounded owned refresh and removal in `write`, the test lane (`try` makes it and runs the worktree setup there, and `try --remove` removes it), the run of the worktree setup in a lane that exists (`lane`), and the commit of planned paths, including deletions, with the push. Every setup run calls the engine; no product launcher is written',
   ),

@@ -114,7 +114,7 @@ of `engine/lib/contract/contract.ts` that keeps the digest of the newest served 
 add the printed digest to `engine/lib/contract/versions.json`. At each raise, the maintainer chooses
 whether the old version stays served (the old plugin text still runs with the new engine) or goes (it
 cannot). Raise `plugins/celetis/contract.json` too when the plugin text needs the new version. The
-digest covers no prose field (`description`, `help`, `meaning`, `prerequisite`, `writes`).
+digest covers no prose field (`description`, `help`, `purpose`, `meaning`, `prerequisite`, `writes`).
 [ADR-0090](docs/adr/0090-a-contract-version-replaces-the-same-revision-rule.md) records the rule and the known gaps of the digest.
 
 ## General text
@@ -248,7 +248,7 @@ The manifests on `main` hold no `version`: a `version` there stops each machine 
 For installation changes, follow `plugins/celetis/README.md`, "Updates".
 
 - The maintainer starts the daemon and turns auto mode on; an agent starts a run only when its task
-  says so, with a number, and in a terminal.
+  says so, and with a number.
 - A change of `plugins/celetis/skills/`, `plugins/celetis/step-prompt.md`, `engine/`, or `scripts/` changes the behavior of each product
   project, so its lane is `bug` or `feature`, not `chore`.
 

@@ -206,9 +206,10 @@ argument: a message of `gh` can hold a backtick, and the shell runs it inside do
 
 ## Claude Code
 
-Before `land`, use `ExitWorktree` with keep, then verify the main checkout. Run `land` in
-background Bash with `run_in_background: true` and `timeout: 3600000`. Wait for its real exit; the
-checks can take thirty minutes.
+Before `land`, use `ExitWorktree` with keep, then verify the main checkout. Call the tool of
+`land` with `checkout` the main checkout (`<plugin>/references/procedures/entry.md`, "Claude Code").
+Wait for its real result, also when the call moves to a background task: the checks can take
+thirty minutes. For step 5, when the result has `saved`, write the file of step 5 from that file.
 
 ## Codex
 

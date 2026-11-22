@@ -156,7 +156,7 @@ adds no shared allow and no project Celetis enablement. A new file holds these b
 ```
 
 Shared rules keep the direct-merge restriction. The `land` allow is personal:
-`Bash(celetis --agent claude land *)` in the untracked `.claude/settings.local.json` of each
+`mcp__plugin_celetis_celetis__land` in the untracked `.claude/settings.local.json` of each
 person. An `issue` allow is optional, and it has a risk.
 [Personal landing permission](../README.md#personal-landing-permission) gives the rules, the risk of the
 `issue` allow, and their lifetime across an update.
