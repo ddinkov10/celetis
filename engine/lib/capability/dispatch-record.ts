@@ -766,8 +766,8 @@ function nativeFields(value: JsonValue): { child: JsonValue[]; model: JsonValue[
   const identities = ['agentId', 'resumedAgentId', 'task_name'];
   function metadata(value: { [key: string]: JsonValue }): void {
     for (const key of identities) if (Object.hasOwn(value, key)) fields.child.push(value[key] as JsonValue);
-    for (const key of ['model', 'resolvedModel'])
-      if (Object.hasOwn(value, key)) fields.model.push(value[key] as JsonValue);
+    const model = Object.hasOwn(value, 'resolvedModel') ? 'resolvedModel' : 'model';
+    if (Object.hasOwn(value, model)) fields.model.push(value[model] as JsonValue);
     for (const key of ['effort', 'reasoning_effort'])
       if (Object.hasOwn(value, key)) fields.effort.push(value[key] as JsonValue);
     if (value.type === 'text') text(value.text ?? null);
