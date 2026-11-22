@@ -112,7 +112,7 @@ A table entry takes a state and an event and returns the next state and an order
 The driver is the only code that sets the state of a run.
 
 A takeover uses the same table. A run that a new daemon adopts starts in the state `adopting`. A
-resume run starts in `admitting`, and each other new run starts in `starting` (`initial` in
+resume run and an assist run start in `admitting`, and each other new run starts in `starting` (`initial` in
 `engine/lib/run/machine.ts`). The machine has 17 states. The main path of an issue is:
 
 ```mermaid

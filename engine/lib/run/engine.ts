@@ -12,7 +12,7 @@ import type { RepositoryLayout } from '../state/state.ts';
 import { closeTerminal, requireTerminals, TerminalError } from '../terminal/terminal.ts';
 import type { IssueKey } from '../tracker/key.ts';
 import type { Level, Model } from '../workflow/effort.ts';
-import { autoTakes, gateOf, type Step } from '../workflow/workflow.ts';
+import { autoTakes, gateOf, type SessionWork } from '../workflow/workflow.ts';
 import { activities, createIo, detachRun, die, failedOf, type Io, type Options, perform } from './activities.ts';
 import { type Effect, type Event, initial, on, type RunFacts, type State, type Working } from './machine.ts';
 import type { RunRecord } from './record.ts';
@@ -22,7 +22,8 @@ export type RunInput =
   | Readonly<{ kind: 'number'; number: IssueKey; selection: HostSelection; effort: Level | null; model: Model | null }>
   | Readonly<{ kind: 'auto'; number: IssueKey; selection: HostSelection }>
   | Readonly<{ kind: 'queue'; id: string; token: string; selection: HostSelection }>
-  | Readonly<{ kind: 'resume'; number: IssueKey; selection: HostSelection }>;
+  | Readonly<{ kind: 'resume'; number: IssueKey; selection: HostSelection }>
+  | Readonly<{ kind: 'assist'; number: IssueKey; selection: HostSelection }>;
 export type RunState =
   | 'starting'
   | 'running'
@@ -40,7 +41,7 @@ export type RunHooks = Readonly<{ ready?: () => Promise<void>; removed: () => vo
 export type RunView = Readonly<{
   issue: IssueKey | null;
   numbers: readonly IssueKey[] | null;
-  step: Step | null;
+  step: SessionWork | null;
   host: Host | null;
   tab: string | null;
   state: RunState;
@@ -60,6 +61,7 @@ export interface RunHandle {
 }
 
 export { barrierOf, removed } from './activities.ts';
+export { unwatched } from './machine.ts';
 
 export async function requireSetup(gh: boolean, main: string): Promise<void> {
   if (gh && projectNeedsGh(main) && !Bun.which('gh', { PATH: childEnv().PATH }))

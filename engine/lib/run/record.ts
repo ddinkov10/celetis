@@ -11,7 +11,7 @@ import { writeAtomic } from '../state/state.ts';
 import { isSafeId } from '../terminal/terminal.ts';
 import { type IssueKey, isKey, parseKey } from '../tracker/key.ts';
 import { isLevel, isModel } from '../workflow/effort.ts';
-import { lanes, type Run, type Step, steps } from '../workflow/workflow.ts';
+import { lanes, type Run, type SessionWork, type Step, steps } from '../workflow/workflow.ts';
 import type { RunInput, RunState } from './engine.ts';
 import type { RecoveryAttempt, RecoveryAuthority } from './quota-recovery.ts';
 import { convertSession, type SessionRecord, validateSession } from './session.ts';
@@ -43,12 +43,12 @@ export type RunRecord = {
     seen: Record<Host, { ordinal: number; sequence: number } | null>;
   } | null;
   session: {
-    step: Step;
+    step: SessionWork;
     host: Host;
     next: Run | null;
     authority: RecoveryAuthority | null;
     choice: AgentChoice | null;
-    record: SessionRecord;
+    record: SessionRecord | null;
     announced: string;
     ticket: UsageTicket | null;
     capture: string | null;
@@ -141,6 +141,8 @@ function input(value: unknown, schema: Schema): value is Record<string, unknown>
       return keys(value, 'id,kind,selection,token') && id(value.id) && id(value.token);
     case 'resume':
       return keys(value, 'kind,number,selection') && issue(value.number);
+    case 'assist':
+      return schema === 5 && keys(value, 'kind,number,selection') && issue(value.number);
     default:
       return false;
   }
@@ -225,14 +227,14 @@ function barrier(value: unknown): value is NonNullable<NonNullable<RunRecord['se
   );
 }
 
-function session(value: unknown, issue: IssueKey | null, resume: boolean, schema: Schema): boolean {
+function session(value: unknown, issue: IssueKey | null, kind: RunInput['kind'], schema: Schema): boolean {
   if (
     !keys(
       value,
       'announced,authority,barrier,capture,choice,folder,host,next,owned,record,startedMs,step,tab,terminal,ticket',
     ) ||
     issue === null ||
-    !step(value.step) ||
+    !(kind === 'assist' ? value.step === 'assist' : step(value.step)) ||
     !isHost(value.host) ||
     typeof value.announced !== 'string' ||
     !filled(value.folder) ||
@@ -244,6 +246,8 @@ function session(value: unknown, issue: IssueKey | null, resume: boolean, schema
     (value.barrier === null) !== (value.startedMs === null)
   )
     return false;
+  const facts = [value.next, value.authority, value.choice, value.ticket, value.capture];
+  if (kind === 'assist') return value.record === null && facts.every((each) => each === null) && attempt(value.owned);
   try {
     const record = value.record;
     const checkout = object(record) ? String(record.checkout) : '';
@@ -253,8 +257,7 @@ function session(value: unknown, issue: IssueKey | null, resume: boolean, schema
   } catch {
     return false;
   }
-  const facts = [value.next, value.authority, value.choice, value.ticket, value.capture];
-  if (resume) return facts.every((each) => each === null) && attempt(value.owned);
+  if (kind === 'resume') return facts.every((each) => each === null) && attempt(value.owned);
   return (
     run(value.next) &&
     authority(value.authority) &&
@@ -292,7 +295,7 @@ function validFields(value: unknown, schema: Schema): boolean {
     ) ||
     !loop(value.loop) ||
     !nullable(wait)(value.wait) ||
-    !(value.session === null || session(value.session, issue, value.input.kind === 'resume', schema)) ||
+    !(value.session === null || session(value.session, issue, value.input.kind as RunInput['kind'], schema)) ||
     typeof value.state !== 'string' ||
     !Object.hasOwn(runStates, value.state) ||
     !positive(value.changedMs)

@@ -8,7 +8,8 @@ argument-hint: "#<issue key>"
 
 # /celetis:assist — complete the current block
 
-Input: `#<n>`. This is an interactive helper.
+Input: `#<n>`, or `#<n> coordinator`: the daemon started this session for the coordinator session
+(`celetis --agent <host> run assist <n>`). This is an interactive helper.
 
 ## 1. Bind the checkout
 

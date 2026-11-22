@@ -13,7 +13,7 @@ import { isSafeId } from '../terminal/terminal.ts';
 import type { DialogKind } from '../terminal/types.ts';
 import type { IssueKey } from '../tracker/key.ts';
 import { levels, models } from '../workflow/effort.ts';
-import { keyedSubject, steps } from '../workflow/workflow.ts';
+import { keyedSubject, sessionWorks } from '../workflow/workflow.ts';
 
 export const textLimit = 4096;
 export const stopLine = 'daemon: the daemon stops; start it again, then send the request';
@@ -22,7 +22,7 @@ export const unprovedStopAct =
   'End those processes, then restart the daemon: celetis daemon stop, then celetis daemon start.';
 export const codexStopLine = 'The daemon cannot prove the end of a Codex session. Close its tab, then use Set aside.';
 export const requestUsage =
-  'usage: GET /status | POST /run {"number":<issue>,"selection":<selection>,"effort":<level>|null,"model":<model>|null} | POST /auto {"on":<boolean>,"selection":<selection>} | POST /queue {"id":<uuid>,"token":<uuid>,"selection":<selection>} | POST /resume {"number":<issue>,"selection":<selection>} | POST /stop {} | POST /retry {"number":<issue>,"waitId":<text>} | POST /aside {"number":<issue>} | POST /halt {"number":<issue>,"terminal":<id>} | POST /queue/action {"action":<action>,"selection":<selection>} | POST /queue/reconcile {} | POST /land {"number":<issue>,"subject":<subject>,"selection":<selection>,"from":<path>} | POST /coordinator/open {"selection":<selection>} | POST /coordinator/read {"number":<issue>} | POST /coordinator/send {"number":<issue>,"authority":"maintainer"|"coordinator","text":<text>,"token":<uuid>}; <selection> is {"explicit"?:"claude"|"codex"|"opencode","environment"?:<text>}; <level> is low|medium|high|xhigh|max; <model> is haiku|sonnet|opus|fable; <action> is a queue action of celetis queue action';
+  'usage: GET /status | POST /run {"number":<issue>,"selection":<selection>,"effort":<level>|null,"model":<model>|null} | POST /auto {"on":<boolean>,"selection":<selection>} | POST /queue {"id":<uuid>,"token":<uuid>,"selection":<selection>} | POST /resume {"number":<issue>,"selection":<selection>} | POST /assist {"number":<issue>,"selection":<selection>} | POST /stop {} | POST /retry {"number":<issue>,"waitId":<text>} | POST /aside {"number":<issue>} | POST /halt {"number":<issue>,"terminal":<id>} | POST /queue/action {"action":<action>,"selection":<selection>} | POST /queue/reconcile {} | POST /land {"number":<issue>,"subject":<subject>,"selection":<selection>,"from":<path>} | POST /coordinator/open {"selection":<selection>} | POST /coordinator/read {"number":<issue>} | POST /coordinator/send {"number":<issue>,"authority":"maintainer"|"coordinator","text":<text>,"token":<uuid>} | POST /coordinator/end-assist {"number":<issue>,"token":<uuid>}; <selection> is {"explicit"?:"claude"|"codex"|"opencode","environment"?:<text>}; <level> is low|medium|high|xhigh|max; <model> is haiku|sonnet|opus|fable; <action> is a queue action of celetis queue action';
 
 const text = bounded(textLimit);
 const filled = text.refine((value) => value.length > 0);
@@ -50,6 +50,7 @@ const bodies = {
   auto: routed('auto', z.strictObject({ on: z.boolean(), selection })),
   queue: routed('queue', z.strictObject({ id: uuidText, token: uuidText, selection })),
   resume: routed('resume', z.strictObject({ number: issueKey, selection })),
+  assist: routed('assist', z.strictObject({ number: issueKey, selection })),
   retry: routed('retry', z.strictObject({ number: issueKey, waitId: filled })),
   aside: routed('aside', z.strictObject({ number: issueKey })),
   halt: routed('halt', z.strictObject({ number: issueKey, terminal: z.string().refine(isSafeId) })),
@@ -68,6 +69,7 @@ const bodies = {
     'coordinator-send',
     z.strictObject({ number: issueKey, authority, text: z.string(), token: uuidText }),
   ),
+  'coordinator-end-assist': routed('coordinator-end-assist', z.strictObject({ number: issueKey, token: uuidText })),
 };
 
 const refusal = z.strictObject({ accepted: z.literal(false), line: text, code: exitCode });
@@ -97,7 +99,7 @@ const daemonIdentity = z.strictObject({
   socket: absolute,
 });
 
-const kinds: Record<RunInput['kind'], true> = { number: true, auto: true, queue: true, resume: true };
+const kinds: Record<RunInput['kind'], true> = { number: true, auto: true, queue: true, resume: true, assist: true };
 const states: Record<RunState, true> = {
   starting: true,
   running: true,
@@ -127,7 +129,7 @@ const runRow = z.strictObject({
   kind: members(kinds),
   issue: issueKey.nullable(),
   numbers: z.array(issueKey).nullable(),
-  step: z.enum(steps).nullable(),
+  step: z.enum(sessionWorks).nullable(),
   host: z.enum(hosts).nullable(),
   tab: text.nullable(),
   terminal: text.nullable(),
@@ -173,6 +175,7 @@ export const requestPaths: Readonly<Record<Exclude<DaemonRequest['kind'], 'statu
   auto: '/auto',
   queue: '/queue',
   resume: '/resume',
+  assist: '/assist',
   retry: '/retry',
   aside: '/aside',
   halt: '/halt',
@@ -183,6 +186,7 @@ export const requestPaths: Readonly<Record<Exclude<DaemonRequest['kind'], 'statu
   'coordinator-open': '/coordinator/open',
   'coordinator-read': '/coordinator/read',
   'coordinator-send': '/coordinator/send',
+  'coordinator-end-assist': '/coordinator/end-assist',
 };
 const routes: Readonly<Record<string, 'GET' | 'POST'>> = Object.fromEntries([
   ['/status', 'GET'],

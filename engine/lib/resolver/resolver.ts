@@ -57,7 +57,8 @@ function branchPull(pr: CodeHostPull, details: PullDetails | undefined): BranchP
   };
 }
 
-const unreadable: Observed = { kind: 'observed', reason: 'unreadable' };
+type Unreadable = Extract<Observed, { reason: 'unreadable' }>;
+const unreadable: Unreadable = { kind: 'observed', reason: 'unreadable' };
 
 async function isDirty(path: string, cwd: string, signal?: AbortSignal): Promise<boolean> {
   if (!(await stat(path).catch(() => null))?.isDirectory()) return false;
@@ -159,6 +160,21 @@ export async function nextIssue(
     }
   });
   return { ...value, stderr };
+}
+
+export async function readDecision(
+  n: IssueKey,
+  operation: Operation,
+): Promise<{ next: Decision | Unreadable; stderr: string }> {
+  const read = reader(operation);
+  const { value, stderr } = await read.settle<Decision | Unreadable>(unreadable, async () => {
+    try {
+      return decide((await read.tracker.read(n)).data);
+    } catch {
+      return unreadable;
+    }
+  });
+  return { next: value, stderr };
 }
 
 export async function nextOpen(

@@ -1,19 +1,33 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:os';
+import { join } from 'node:path';
 import { readAgentOrder } from '../agent/order.ts';
 import { beginUsageAttempt, readUsage, recordUsage, selectAgent } from '../agent/usage.ts';
-import { HostError } from '../command/errors.ts';
+import { HostError, unsupported } from '../command/errors.ts';
 import type { Operation } from '../command/operation.ts';
 import { type CommandName, exits } from '../contract/contract.ts';
 import { requireUpdatePolicy } from '../plugin/policy.ts';
 import { childEnv } from '../process/process.ts';
 import { repositoryLayout } from '../state/state.ts';
+import type { IssueKey } from '../tracker/key.ts';
 import { withPluginRead } from '../update/lock.ts';
 import { hostAvailability } from './host.ts';
 import { capableOrder, hostAdapter, type Need, requireCan } from './hosts.ts';
 import type { Host } from './names.ts';
 import type { UsageAttempt } from './usage.ts';
+
+const assistPrompts: Record<Host, (input: string, plugin: string) => string> = {
+  claude: (input) => `/celetis:assist ${input}`,
+  codex: (input, plugin) =>
+    `Use the celetis:assist skill for ${input}. Complete its Celetis entry before any response, including commentary.\n` +
+    `Read the skill from ${JSON.stringify(join(plugin, 'skills/assist/SKILL.md'))}.`,
+  opencode: () => unsupported('opencode', 'assist session'),
+};
+
+export function assistPrompt(host: Host, issue: IssueKey, plugin: string, forCoordinator: boolean): string {
+  return assistPrompts[host](forCoordinator ? `#${issue} coordinator` : `#${issue}`, plugin);
+}
 
 export async function interactiveHost(
   operation: Operation,

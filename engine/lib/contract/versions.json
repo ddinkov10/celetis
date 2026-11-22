@@ -1,1 +1,6 @@
-{ "serves": [{ "contract": 11, "digest": "11763850efd041a20a5d9cd810232df9fbc06a21afb5879f2ab46cf5b581ec90" }] }
+{
+  "serves": [
+    { "contract": 11, "digest": "11763850efd041a20a5d9cd810232df9fbc06a21afb5879f2ab46cf5b581ec90" },
+    { "contract": 12, "digest": "2490d270697ab635454453b28770570ea3dd3e86917c5607366ae0f8410d72e6" }
+  ]
+}

@@ -2,6 +2,7 @@ import { AsyncResource } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { constants } from 'node:os';
+import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { readAgentOrder } from '../agent/order.ts';
 import { beginUsageAttempt, readUsage, recordUsage, type UsageTicket } from '../agent/usage.ts';
@@ -13,7 +14,8 @@ import { type ExitCode, exits, signalExit } from '../contract/contract.ts';
 import { daemonArgv } from '../daemon/start.ts';
 import { stopKeptLine } from '../daemon/types.ts';
 import { hostAvailability } from '../host/host.ts';
-import { canRun, hostAdapter, requireCan, writeSessionEnv } from '../host/hosts.ts';
+import { canRun, hostAdapter, type Need, requireCan, writeSessionEnv } from '../host/hosts.ts';
+import { assistPrompt, interactiveHost } from '../host/interactive.ts';
 import { hosts } from '../host/names.ts';
 import type { SessionStart } from '../host/types.ts';
 import type { ObservedUsage, UsageAttempt } from '../host/usage.ts';
@@ -49,7 +51,7 @@ import {
 import type { TerminalStatus } from '../terminal/types.ts';
 import type { IssueKey } from '../tracker/key.ts';
 import { startPair } from '../workflow/effort.ts';
-import { type Run, type Step, sameResult, tabLabel } from '../workflow/workflow.ts';
+import { type Run, type SessionWork, sameResult, tabLabel } from '../workflow/workflow.ts';
 import {
   type AttemptEnd,
   endOwnedAttempt,
@@ -58,19 +60,20 @@ import {
   type StopEvidence,
 } from './attempt-end.ts';
 import type { Admission, Place, RunHooks, RunInput, RunState, RunView } from './engine.ts';
-import type {
-  Basis,
-  Effect,
-  EventOf,
-  Facts,
-  Flags,
-  Loop,
-  Own,
-  Request,
-  Seen,
-  StateOf,
-  Steered,
-  Working,
+import {
+  type Basis,
+  type Effect,
+  type EventOf,
+  type Facts,
+  type Flags,
+  type Loop,
+  type Own,
+  type Request,
+  type Seen,
+  type StateOf,
+  type Steered,
+  unwatched,
+  type Working,
 } from './machine.ts';
 import {
   archiveSession,
@@ -166,11 +169,24 @@ async function releasedLive(dir: string): Promise<boolean> {
 }
 
 function steered(session: Facts): Steered & Readonly<{ barrier: Identity; startedMs: number }> {
-  const { next, authority, choice, ticket, capture, owned, barrier, startedMs } = session;
-  if (!next || !authority || !choice || !ticket || !capture || !owned || !barrier || startedMs === null)
+  const { step, record, next, authority, choice, ticket, capture, owned, barrier, startedMs } = session;
+  if (
+    step === 'assist' ||
+    !record ||
+    !next ||
+    !authority ||
+    !choice ||
+    !ticket ||
+    !capture ||
+    !owned ||
+    !barrier ||
+    startedMs === null
+  )
     throw new Error('run record: the session of an issue run lacks its facts');
   return {
     ...session,
+    step,
+    record,
     next,
     authority,
     choice,
@@ -419,8 +435,8 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     initial = undefined;
     return current;
   };
-  const requireStart = async (host: Host, cwd: string, step: Step) => {
-    requireCan(host, { kind: 'step', step }, 'daemon');
+  const requireStart = async (host: Host, cwd: string, need: Need) => {
+    requireCan(host, need, 'daemon');
     await hostAdapter(host).checkHome();
     const { requireUpdatePolicy } = await import('../plugin/policy.ts');
     await (await import('../update/lock.ts')).withPluginRead(host, async () => {
@@ -713,7 +729,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
   };
   const startSession = async (
     n: IssueKey,
-    step: Step,
+    work: SessionWork,
     host: Host,
     args: string[],
     facts: Omit<Facts, 'folder' | 'terminal' | 'tab' | 'barrier' | 'startedMs'>,
@@ -725,8 +741,8 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     args = [...(await hostAdapter(host).pin(main)), ...args];
     const dir = await mkdtemp(state.startPrefix);
     watchDir = dir;
-    tab = tabLabel(n, step);
-    shown = { ...shown, issue: n, step, host, tab, barrier: null, terminal: null, turn: null };
+    tab = tabLabel(n, work);
+    shown = { ...shown, issue: n, step: work, host, tab, barrier: null, terminal: null, turn: null };
     const unstarted = async () => {
       if (!detach.signal.aborted) return;
       await note({ session: null });
@@ -1176,10 +1192,10 @@ const basisOf = (queue: QueueRecord | null): Basis => ({
   lastHost: explicitHost(queue?.choice) ?? 'claude',
   last: queue?.last ?? null,
 });
-const resumeEnded = (code: number | null): EventOf<'session-ended'> => ({
+const unwatchedEnded = (code: number | null): EventOf<'session-ended'> => ({
   kind: 'session-ended',
   code,
-  end: { scope: 'resume', passed: code === null ? exits.blocked : passOn(code) },
+  end: { scope: 'unwatched', passed: code === null ? exits.blocked : passOn(code) },
 });
 
 async function daemonOf(): Promise<Identity> {
@@ -1222,12 +1238,15 @@ async function halting(io: Io, s: Steered, barrier: Identity, tab: string): Prom
   return { kind: 'halted', ownership, host: s.host, tab, resume: resumeOf(s) };
 }
 
-async function haltingResume(io: Io, barrier: Identity): Promise<EventOf<'halted'>> {
+async function haltingUnwatched(io: Io, barrier: Identity, n: IssueKey): Promise<EventOf<'halted'>> {
   const session = io.recorded?.session;
-  if (!session) throw new Error('run record: a resume run has no session');
+  if (!session) throw new Error('run record: an unwatched run has no session');
   const { host, record, owned, tab } = session;
-  const args = hostAdapter(host).resumeArguments({ ...record, session_id: record.session_id ?? '' });
-  const resume = `${host} ${args.join(' ')}`;
+  const resume = record
+    ? `${host} ${hostAdapter(host)
+        .resumeArguments({ ...record, session_id: record.session_id ?? '' })
+        .join(' ')}`
+    : `celetis --agent ${host} assist ${n}`;
   const ownership: AttemptEnd = owned
     ? await endOwnedAttempt({ ...owned, main: io.place.main }, io.ownedOf(barrier), io.takeEvidence())
     : { kind: 'unverified', reason: 'the session has no attempt marker', running: [], signalled: [] };
@@ -1395,7 +1414,7 @@ async function quotaWait(at: StateOf<'quota-wait'>, io: Io): Promise<EventOf<Own
 }
 
 async function prepareResume(
-  at: Extract<StateOf<'preparing'>, { scope: 'resume' }>,
+  at: Extract<StateOf<'preparing'>, { scope: 'unwatched' }>,
   io: Io,
 ): Promise<EventOf<'prepared'>> {
   const { selection, checkout, locks, stopped, requireStart, hooks, admit } = io;
@@ -1407,7 +1426,7 @@ async function prepareResume(
   const { landing } = io.operation.mainConfig as Config;
   await preflight(async () => {
     stopped();
-    await requireStart(host, io.operation.checkout.cwd, saved.step);
+    await requireStart(host, io.operation.checkout.cwd, { kind: 'step', step: saved.step });
   });
   stopped();
   if (at.ready) await hooks.ready?.();
@@ -1419,11 +1438,74 @@ async function prepareResume(
     plugin,
     stepText: async () => stepText({ issue: n, step: saved.step, host, main, pluginRoot: await plugin(), landing }),
   };
-  return { kind: 'prepared', start: { scope: 'resume', saved, host, args, session } };
+  return {
+    kind: 'prepared',
+    start: {
+      scope: 'unwatched',
+      work: saved.step,
+      host,
+      args,
+      record: saved,
+      sessionId: saved.session_id,
+      attempt: randomUUID(),
+      session,
+    },
+  };
+}
+
+async function prepareAssist(
+  at: Extract<StateOf<'preparing'>, { scope: 'unwatched' }>,
+  io: Io,
+): Promise<EventOf<'prepared'>> {
+  const { selection, checkout, stopped, requireStart, hooks, admit } = io;
+  const { main } = io.place;
+  const n = at.number;
+  io.operation = await createOperation(checkout, selection, 'main');
+  if (at.ready) await hooks.ready?.();
+  const { readDecision } = await import('../resolver/resolver.ts');
+  const { lineOf } = await import('../resolver/lines.ts');
+  const { next, stderr } = await readDecision(n, io.operation);
+  process.stderr.write(stderr);
+  if (next.kind === 'observed') die(lineOf(n, next), exits.blocked);
+  if (next.kind === 'stop' && (next.reason === 'finished' || next.reason === 'wontfix'))
+    die(`#${n} is closed; no assist session starts`, exits.prerequisite);
+  if (next.kind !== 'stop' || (next.reason !== 'needs-info' && next.reason !== 'ready-for-human'))
+    die(`#${n} has no hold (needs-info or ready-for-human); no assist session starts`, exits.prerequisite);
+  const host = await interactiveHost(io.operation, 'assist', 'celetis');
+  await preflight(async () => {
+    stopped();
+    await requireStart(host, io.operation.checkout.cwd, { kind: 'interactive', command: 'assist' });
+  });
+  stopped();
+  const plugin = await requireContract(host, main);
+  const skill = join(plugin, 'skills/assist/SKILL.md');
+  if (!(await stat(skill).catch(() => null))?.isFile())
+    die(`cannot read the assistance skill: ${skill}`, exits.prerequisite);
+  admit({ ok: true });
+  const adapter = hostAdapter(host);
+  const attempt = randomUUID();
+  const sessionId = adapter.startId();
+  const args = [
+    ...(sessionId === null ? [] : adapter.sessionArguments(sessionId)),
+    ...adapter.interactiveArguments(tabLabel(n, 'assist'), assistPrompt(host, n, plugin, true), attempt),
+  ];
+  return {
+    kind: 'prepared',
+    start: {
+      scope: 'unwatched',
+      work: 'assist',
+      host,
+      args,
+      record: null,
+      sessionId,
+      attempt,
+      session: { plugin: async () => plugin, stepText: null },
+    },
+  };
 }
 
 async function preparing(at: StateOf<'preparing'>, io: Io): Promise<EventOf<Own['preparing']>> {
-  if (at.scope === 'resume') return prepareResume(at, io);
+  if (at.scope === 'unwatched') return io.input.kind === 'assist' ? prepareAssist(at, io) : prepareResume(at, io);
   const { stopped, requireStart, removal, say } = io;
   const { main, root, state } = io.place;
   const { operation: current, config, next, authority, decided, prompt } = at.resolution;
@@ -1436,7 +1518,7 @@ async function preparing(at: StateOf<'preparing'>, io: Io): Promise<EventOf<Own[
   const sessionId = adapter.startId();
   const prepared = await preflight(async () => {
     stopped();
-    await requireStart(stepHost, current.checkout.cwd, step);
+    await requireStart(stepHost, current.checkout.cwd, { kind: 'step', step });
     const pluginRoot = await requireContract(stepHost, main);
     if (await versionFolderGone(root)) return null;
     const pair = startPair(decided, config.sessions?.[step], override);
@@ -1495,39 +1577,38 @@ async function preparing(at: StateOf<'preparing'>, io: Io): Promise<EventOf<Own[
   return { kind: 'prepared', start: { scope: 'issue', args: sessionArgs, facts, attempt, session } };
 }
 
-async function openResume(
-  at: Extract<StateOf<'opening'>, { scope: 'resume' }>,
+async function openUnwatched(
+  at: Extract<StateOf<'opening'>, { scope: 'unwatched' }>,
   io: Io,
 ): Promise<EventOf<'barrier-reported'>> {
   const { startSession } = io;
   const n = at.number;
-  const { saved, host, args, session } = at.start;
-  const id = randomUUID();
+  const { work, host, args, record, sessionId, attempt, session } = at.start;
   const { ended, barrier } = await startSession(
     n,
-    saved.step,
+    work,
     host,
     args,
     {
-      step: saved.step,
+      step: work,
       host,
       next: null,
       authority: null,
       choice: null,
-      record: saved,
+      record,
       announced: '',
       ticket: null,
       capture: null,
-      owned: { id, host, startedAt: Date.now(), sessionId: saved.session_id },
+      owned: { id: attempt, host, startedAt: Date.now(), sessionId },
     },
     session,
-    id,
+    attempt,
   );
   return { kind: 'barrier-reported', terminal: io.terminal, tab: io.tab, barrier, exit: ended, ticket: null };
 }
 
 async function opening(at: StateOf<'opening'>, io: Io): Promise<EventOf<Own['opening']>> {
-  if (at.scope === 'resume') return openResume(at, io);
+  if (at.scope === 'unwatched') return openUnwatched(at, io);
   const { admit, startSession, locks } = io;
   const { main, common } = io.place;
   const { args: sessionArgs, facts, attempt, session } = at.start;
@@ -1588,29 +1669,34 @@ async function adoptedLive(at: Extract<StateOf<'live'>, { scope: 'issue'; fresh:
   return { ...s, ended: sessionExit(session.folder, s.barrier) };
 }
 
-async function resumeEnd(io: Io, ended: Promise<number | null>, barrier: Identity): Promise<EventOf<Own['live']>> {
+async function unwatchedEnd(
+  io: Io,
+  n: IssueKey,
+  ended: Promise<number | null>,
+  barrier: Identity,
+): Promise<EventOf<Own['live']>> {
   io.openStop();
   try {
     const code = await io.sessionEnd(ended);
-    return io.claimStop() ? await haltingResume(io, barrier) : resumeEnded(code);
+    return io.claimStop() ? await haltingUnwatched(io, barrier, n) : unwatchedEnded(code);
   } finally {
     io.claimStop();
   }
 }
 
-async function liveResume(
-  at: Extract<StateOf<'live'>, { scope: 'resume'; fresh: true }>,
+async function liveUnwatched(
+  at: Extract<StateOf<'live'>, { scope: 'unwatched'; fresh: true }>,
   io: Io,
 ): Promise<EventOf<Own['live']>> {
   const { noteBarrier, releaseBarrier } = io;
   const { barrier, exit: ended } = at;
   await noteBarrier(barrier, Date.now());
   await releaseBarrier();
-  return resumeEnd(io, ended, barrier);
+  return unwatchedEnd(io, at.number, ended, barrier);
 }
 
-async function adoptedResume(
-  at: Extract<StateOf<'live'>, { scope: 'resume'; fresh: false }>,
+async function adoptedUnwatched(
+  at: Extract<StateOf<'live'>, { scope: 'unwatched'; fresh: false }>,
   io: Io,
 ): Promise<EventOf<Own['live']>> {
   const { sessionExit, mark, ledger } = io;
@@ -1618,11 +1704,11 @@ async function adoptedResume(
   const exit = sessionExit(session.folder, session.barrier);
   mark('running');
   ledger.watchDir = session.folder;
-  return resumeEnd(io, exit, session.barrier);
+  return unwatchedEnd(io, at.number, exit, session.barrier);
 }
 
 async function live(at: StateOf<'live'>, io: Io): Promise<EventOf<Own['live']>> {
-  if (at.scope === 'resume') return at.fresh ? liveResume(at, io) : adoptedResume(at, io);
+  if (at.scope === 'unwatched') return at.fresh ? liveUnwatched(at, io) : adoptedUnwatched(at, io);
   const { clearStepEnd, endWhenDone, watchUsage, detach, noteBarrier, releaseBarrier, sessionEnd, say } = io;
   const { watch, stepEnd } = io.ledger;
   const hooks = io.issueHooks;
@@ -1699,9 +1785,9 @@ async function live(at: StateOf<'live'>, io: Io): Promise<EventOf<Own['live']>> 
 
 async function ended(at: StateOf<'ended'>, io: Io): Promise<EventOf<Own['ended']>> {
   const stop = io.claimStop();
-  if (at.scope === 'resume') {
+  if (at.scope === 'unwatched') {
     const code = await io.sessionExit(at.session.folder, at.session.barrier);
-    return stop ? haltingResume(io, at.session.barrier) : resumeEnded(code);
+    return stop ? haltingUnwatched(io, at.session.barrier, at.number) : unwatchedEnded(code);
   }
   const { sessionExit, observeUsage, usageWarning, locks } = io;
   const { main, common } = io.place;
@@ -1875,7 +1961,7 @@ async function observing(at: StateOf<'observing'>, io: Io): Promise<EventOf<Own[
       return { kind: 'observed', seen: { kind: 'not-started', session }, basis: basisOf(io.queue) };
     seen = { kind: read, session };
   }
-  if (record.input.kind !== 'resume') {
+  if (!unwatched(record.input.kind)) {
     io.operation = await createOperation(checkout, io.selection, 'main');
     io.initial = io.operation;
     io.daemon = await daemonOf();

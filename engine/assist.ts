@@ -1,24 +1,15 @@
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { HostError, unsupported } from './lib/command/errors.ts';
+import { HostError } from './lib/command/errors.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/command/operation.ts';
 import { requireContract } from './lib/contract/check.ts';
 import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
 import { requireBun } from './lib/host/host.ts';
-import { interactiveHost, runInteractive } from './lib/host/interactive.ts';
-import type { Host } from './lib/host/names.ts';
+import { assistPrompt, interactiveHost, runInteractive } from './lib/host/interactive.ts';
 import { childEnv } from './lib/process/process.ts';
 import { installRecorder, markDefect, passOn } from './lib/state/events.ts';
-import { type IssueKey, parseHandle } from './lib/tracker/key.ts';
+import { parseHandle } from './lib/tracker/key.ts';
 import { tabLabel } from './lib/workflow/workflow.ts';
-
-const promptFor: Record<Host, (issue: IssueKey, plugin: string) => string> = {
-  claude: (issue) => `/celetis:assist #${issue}`,
-  codex: (issue, plugin) =>
-    `Use the celetis:assist skill for #${issue}. Complete its Celetis entry before any response, including commentary.\n` +
-    `Read the skill from ${JSON.stringify(join(plugin, 'skills/assist/SKILL.md'))}.`,
-  opencode: () => unsupported('opencode', 'assist session'),
-};
 
 export async function main(argv: string[]): Promise<ExitCode> {
   try {
@@ -41,7 +32,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
         const skill = join(plugin, 'skills/assist/SKILL.md');
         if (!(await stat(skill).catch(() => null))?.isFile())
           throw new HostError(`celetis-assist: cannot read the assistance skill: ${skill}`, exits.prerequisite);
-        return { title: tabLabel(issue, 'assist'), prompt: promptFor[host](issue, plugin) };
+        return { title: tabLabel(issue, 'assist'), prompt: assistPrompt(host, issue, plugin, false) };
       }),
     );
   } catch (error) {

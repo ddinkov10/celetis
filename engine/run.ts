@@ -22,7 +22,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
       return error.code;
     }
   } else if (argv[0] === '--agent') argv = argv.slice(2);
-  let mode: 'number' | 'resume' | 'retry' = 'number';
+  let mode: 'number' | 'resume' | 'assist' | 'retry' = 'number';
   let handles: string[];
   let waitId = '';
   let override: Level | undefined;
@@ -33,6 +33,9 @@ export async function main(argv: string[]): Promise<ExitCode> {
     waitId = argv[2] as string;
   } else if (argv.length === 2 && argv[0] === 'resume') {
     mode = 'resume';
+    handles = [argv[1] ?? ''];
+  } else if (argv.length === 2 && argv[0] === 'assist') {
+    mode = 'assist';
     handles = [argv[1] ?? ''];
   } else {
     const effort = unavailable ? null : await import('./lib/workflow/effort.ts');
@@ -78,6 +81,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
     }
     const selection = requestSelection(explicit);
     if (mode === 'resume') return await sendRun(common, { kind: 'resume', number: key, selection }, 'run', subject);
+    if (mode === 'assist') return await sendRun(common, { kind: 'assist', number: key, selection }, 'run', subject);
     return await sendRun(
       common,
       { kind: 'run', number: key, selection, effort: override ?? null, model: model ?? null },

@@ -18,6 +18,8 @@ export const autoLaneNames: readonly AutoLane[] = ['triage', ...laneNames];
 const stepsOf = (lane: Lane): readonly Step[] => lanes[lane].steps;
 
 export const steps: readonly Step[] = [...new Set(laneNames.flatMap(stepsOf))];
+export type SessionWork = Step | 'assist';
+export const sessionWorks: readonly SessionWork[] = [...steps, 'assist'];
 
 const stageNames = ['Triage', 'Define', 'Plan', 'Implement'] as const;
 

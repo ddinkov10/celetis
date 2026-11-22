@@ -253,6 +253,8 @@ A live question waits in the tab of the session; the board shows it in Needs you
 tab or with Go, or the coordinator session answers it. You talk with that session in its tab or in the
 Coordinator panel of the board, and it asks you in the text of its message
 ([The coordinator session](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#the-coordinator-session)).
+On your request, the coordinator session starts an assist session for a held issue, brings you its
+question to allow the removal of the hold, and ends the assist session.
 A step session hands a stop to the issue with the act `stopped`,
 `ready-for-human`, or `before-landing` of `celetis --agent <host> issue`. The act table of
 `docs/issue-tracker.md`, "Conventions", gives the effect of each act. After a hold, the resolver
@@ -544,6 +546,16 @@ Claude Code and Codex TUI/CLI only (ADR-0016). A desktop probe has its own recor
 UNRUN desktop probe does not block complete CLI checks, and a desktop success does not close a CLI
 gap. An observed version is no minimum version.
 
+- **The coordinator session starts assist runs for held issues (#361).** partial. Hosts: Claude
+  Code 2.1.330 (the reading checks of the skills `coordinate` and `assist`, 60 of 60 PASS), Bun 1.4.4
+  on Windows 11 (probes of the engine modules), and a lab of `scripts/herdr-lab.ts` with hc 0.1.21
+  and herdr-app 0.1.16 (the scenarios V1 to V5: 25 PASS, 1 FAIL, 1 UNVERIFIED; a synthetic host, no
+  real host). The FAIL is an exit 6 of `run assist <n>` at the end of a daemon stop. It is a known
+  limit of ADR-0128, "Known limits". Open: an exit request of `coordinator end` into a composer that
+  holds a draft, with a real host; the takeover by the restart successor of an update restart (the
+  lab ran a plain `daemon stop` and `daemon start`); a coordinator session of the installed engine
+  with a real host; Codex (the project does not use codex). Evidence: the Verify evidence of
+  [#361](https://github.com/ddinkov10/celetis/issues/361).
 - **Versioned releases and a pin for each machine (#64).** partial. Hosts: Claude Code 2.1.328,
   codex-cli 0.167.0, Git 2.56.0, macOS (private homes and a fixture repository). Open: the fresh
   interactive Claude session that loads the copy after a move (the build proved the native

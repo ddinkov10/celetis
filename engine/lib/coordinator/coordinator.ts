@@ -25,7 +25,7 @@ import { type Host, isHost } from '../host/names.ts';
 import { requireUpdatePolicy } from '../plugin/policy.ts';
 import { processState } from '../process/identity.ts';
 import { run } from '../process/process.ts';
-import { barrierOf, type Place, type RunView, requireSetup } from '../run/engine.ts';
+import { barrierOf, type Place, type RunInput, type RunView, requireSetup, unwatched } from '../run/engine.ts';
 import { isSessionId, uuid } from '../state/fields.ts';
 import type { Identity } from '../state/locks.ts';
 import { type RepositoryLayout, startFiles, writeAtomic } from '../state/state.ts';
@@ -49,7 +49,7 @@ import {
 import type { DialogKind, Terminal } from '../terminal/types.ts';
 import type { IssueKey } from '../tracker/key.ts';
 import { withPluginRead } from '../update/lock.ts';
-import type { Step } from '../workflow/workflow.ts';
+import type { SessionWork } from '../workflow/workflow.ts';
 import {
   type CoordinatorAct,
   type CoordinatorFacts,
@@ -73,7 +73,7 @@ export type CoordinatorRecord = Readonly<{
 }>;
 export type RunFacts = Readonly<{
   id: string;
-  resume: boolean;
+  kind: RunInput['kind'];
   refused: boolean;
   view: RunView;
   outcome: RunRow['outcome'];
@@ -90,6 +90,7 @@ export type Coordinator = Readonly<{
     status: number;
     answer: DaemonAnswer;
   }>;
+  end(request: { number: IssueKey; token: string }): Promise<{ status: number; answer: DaemonAnswer }>;
   live(): boolean;
   adopt(): Promise<void>;
   watch(): void;
@@ -164,7 +165,7 @@ const meaning: Record<Authority, string> = {
 };
 
 export const noteMarker = '[celetis daemon note]';
-export type NoteItem = Readonly<{ issue: IssueKey | null; step: Step | null }> &
+export type NoteItem = Readonly<{ issue: IssueKey | null; step: SessionWork | null }> &
   (
     | Readonly<{ kind: 'attention'; state: Attention['state']; dialog: DialogKind | null }>
     | Readonly<{ kind: 'ended'; outcome: 'closed' | 'gate' | 'stopped'; code: number }>
@@ -217,7 +218,7 @@ function actProblem(request: unknown): string | null {
 
 export function attentionOf(
   view: Pick<RunView, 'state' | 'terminal' | 'turn'>,
-  resume: boolean,
+  unwatched: boolean,
   terminal: Pick<Terminal, 'status' | 'kind' | 'turn'> | null,
 ): { state: Attention['state']; kind: DialogKind | null; turn: number | null } | null | 'unknown' {
   if (view.state === 'quota-wait') return { state: 'quota-wait', kind: null, turn: null };
@@ -227,7 +228,7 @@ export function attentionOf(
   if (
     terminal.status !== null &&
     settled.has(terminal.status) &&
-    ((view.state === 'waiting' && view.turn === terminal.turn) || (resume && view.state === 'running'))
+    ((view.state === 'waiting' && view.turn === terminal.turn) || (unwatched && view.state === 'running'))
   )
     return { state: 'turn-ended', kind: null, turn: terminal.turn };
   return null;
@@ -280,6 +281,12 @@ export function createCoordinator(
   const halt = new AbortController();
   const stopped = () => {
     if (halt.signal.aborted) throw new HostError(stopLine, exits.prerequisite);
+  };
+
+  const holder = async (token: string): Promise<CoordinatorRecord | null> => {
+    const record = current;
+    if (!record || token !== record.token) return null;
+    return (await processState(record.barrier.pid, record.barrier.start)) === 'gone' ? null : record;
   };
 
   const serial = <T>(work: () => Promise<T>): Promise<T> => {
@@ -446,9 +453,9 @@ export function createCoordinator(
     const facts = runs();
     const reads = await Promise.all(
       facts.map(async (fact) => {
-        const { view, resume } = fact;
+        const { view, kind } = fact;
         const terminal = view.terminal === null ? null : await readTerminal(view.terminal, { exec }).catch(() => null);
-        let found = attentionOf(view, resume, terminal);
+        let found = attentionOf(view, unwatched(kind), terminal);
         if (found === 'unknown' && view.terminal !== null && (await terminalState(view.terminal, exec)) === 'ended')
           found = null;
         return { fact, found };
@@ -634,11 +641,56 @@ export function createCoordinator(
         return refused(`coordinator: cannot read the screen of ${whereOf(view, number)}`, exits.blocked);
       return { status: 200, answer: { accepted: true, ...screen } };
     },
+    end: async ({ number, token }) => {
+      const record = await holder(token);
+      if (!record) return refused(notCoordinator, exits.prerequisite);
+      const lookup = () => runs().find(({ view }) => view.issue === number && view.terminal !== null);
+      const found = lookup();
+      if (!found) return refused(noRun(number), exits.prerequisite);
+      if (found.kind !== 'assist')
+        return refused(
+          `coordinator: the run of #${number} is no assist run; coordinator end ends only an assist session`,
+          exits.prerequisite,
+        );
+      const { terminal } = found.view;
+      if (terminal === null) return refused(noRun(number), exits.prerequisite);
+      return inSequence(terminal, async () => {
+        const again = lookup();
+        if (again?.id !== found.id || again.view.terminal !== terminal)
+          return refused(noRun(number), exits.prerequisite);
+        const where = whereOf(again.view, number);
+        const seen = await readTerminal(terminal, { exec }).catch(() => null);
+        if (!seen || seen.status === null)
+          return refused(`coordinator: cannot read the hc status of ${where}; nothing was sent`, exits.blocked);
+        if (seen.status === 'blocked')
+          return refused(
+            `coordinator: the session of #${number} shows a dialog (${seen.kind ?? 'no kind'}); answer it in ${where}`,
+            exits.prerequisite,
+          );
+        if (seen.status === 'working')
+          return refused(
+            `coordinator: the session of #${number} works; end it after its turn ends`,
+            exits.prerequisite,
+          );
+        if (seen.host === null)
+          return refused(
+            `coordinator: the session of #${number} has no live host in ${where}; no exit request is sent`,
+            exits.prerequisite,
+          );
+        if (await requestExit(terminal, seen.host, undefined, exec, draftBound)) {
+          console.log(`daemon: coordinator: exit request to #${number} assist`);
+          return { status: 200, answer: { accepted: true, run: null } };
+        }
+        console.log(`daemon: coordinator: the outcome of an exit request to #${number} assist is unknown`);
+        return refused(
+          `coordinator: the outcome of the exit request to #${number} is unknown; read its screen before you end it again: celetis --agent ${record.host} coordinator read ${number}`,
+          exits.blocked,
+        );
+      });
+    },
     send: async ({ number, authority, text, token }) => {
-      const record = current;
-      if (!record || token !== record.token) return refused(notCoordinator, exits.prerequisite);
-      if ((await processState(record.barrier.pid, record.barrier.start)) === 'gone')
-        return refused(notCoordinator, exits.prerequisite);
+      const record = await holder(token);
+      if (!record) return refused(notCoordinator, exits.prerequisite);
       const problem = textProblem(text);
       if (problem !== null)
         return { status: 400, answer: { accepted: false, line: `coordinator: ${problem}`, code: exits.usage } };

@@ -96,7 +96,8 @@ export async function sendRequest(
         | 'land'
         | 'coordinator-open'
         | 'coordinator-read'
-        | 'coordinator-send';
+        | 'coordinator-send'
+        | 'coordinator-end-assist';
     }
   >,
   signal?: AbortSignal,
@@ -172,7 +173,8 @@ export async function askDaemon(
         | 'land'
         | 'coordinator-open'
         | 'coordinator-read'
-        | 'coordinator-send';
+        | 'coordinator-send'
+        | 'coordinator-end-assist';
     }
   >,
   prefix: Prefix,
@@ -188,7 +190,10 @@ export async function askDaemon(
 
 export async function askCoordinator<T>(
   common: string,
-  request: Extract<DaemonRequest, { kind: 'coordinator-open' | 'coordinator-read' | 'coordinator-send' }>,
+  request: Extract<
+    DaemonRequest,
+    { kind: 'coordinator-open' | 'coordinator-read' | 'coordinator-send' | 'coordinator-end-assist' }
+  >,
   parse: (value: unknown) => T,
 ): Promise<Readonly<{ identity: DaemonIdentity; answer: T }>> {
   const identity = await requireDaemon(common, 'coordinator');
@@ -209,7 +214,7 @@ export async function askCoordinator<T>(
 
 export async function sendRun(
   common: string,
-  request: Extract<DaemonRequest, { kind: 'run' | 'resume' | 'queue' }>,
+  request: Extract<DaemonRequest, { kind: 'run' | 'resume' | 'assist' | 'queue' }>,
   prefix: 'run' | 'queue',
   subject: string,
 ): Promise<ExitCode> {

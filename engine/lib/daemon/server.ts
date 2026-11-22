@@ -32,6 +32,7 @@ import {
   type RunState,
   type RunView,
   requireSetup,
+  unwatched,
 } from '../run/engine.ts';
 import { type QuotaRecovery, recoveryOwner, retryQuota } from '../run/quota-recovery.ts';
 import { type RunRecord, readRunRecords, removeRunRecord, writeRunRecord } from '../run/record.ts';
@@ -84,6 +85,7 @@ const removedLine = 'daemon: the engine version of this daemon was removed after
 const boardRequests: ReadonlySet<DaemonRequest['kind']> = new Set([
   'run',
   'resume',
+  'assist',
   'retry',
   'aside',
   'halt',
@@ -326,7 +328,7 @@ async function serve(
   const coordinator = createCoordinator(place, checkout, () =>
     [...entries.values()].map(({ handle, outcome, answer }) => ({
       id: handle.id,
-      resume: handle.input.kind === 'resume',
+      kind: handle.input.kind,
       refused: answer === 'refused',
       view: handle.view(),
       outcome,
@@ -616,12 +618,18 @@ async function serve(
         const { status, answer } = await coordinator.send(parsed);
         return reply(status, answer);
       }
+      case 'coordinator-end-assist': {
+        const { status, answer } = await coordinator.end(parsed);
+        return reply(status, answer);
+      }
       case 'run': {
         const { number, selection, effort, model } = parsed;
         return answerRun(begin({ kind: 'number', number: number, selection, effort, model }, true));
       }
       case 'resume':
         return answerRun(begin({ kind: 'resume', number: parsed.number, selection: parsed.selection }, false));
+      case 'assist':
+        return answerRun(begin({ kind: 'assist', number: parsed.number, selection: parsed.selection }, true));
       case 'aside': {
         const { number } = parsed;
         const asideOwner = createLockOwner(main, start);
@@ -750,7 +758,7 @@ async function serve(
       const { record } = read;
       const run = launch(() => ({
         handle: createRun(place, record.input, {
-          hooks: hooksOf(record.input.kind !== 'resume'),
+          hooks: hooksOf(!unwatched(record.input.kind)),
           locks: createLockOwner(main),
           journal,
           from: record,

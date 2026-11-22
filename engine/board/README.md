@@ -528,7 +528,9 @@ a landed-history panel.
 The link label of the terminal, `celetis.link`, links a session to an issue: `#<n> <step>` gives
 the issue `<n>` and the step, `#<n>` alone gives the issue only, and another label gives no issue.
 The step word counts only when `flow.lanes` of the document names that step. The daemon gives
-each session tab, also a resume tab, the link label `#<n> <step>`. A press that opens a tab
+each session tab, also a resume tab, the link label `#<n> <step>`, and the tab of an assist run
+(`run assist <n>`) the link label `#<n> assist`: its card is the live card of the issue, with Go.
+A press that opens a tab
 (New intake, Assist, Make visual, and Open shell) sets the link label to the tab name. Assist uses
 `#<n> assist`, and Make visual uses `#<n> visual`: each links the issue but gives no workflow step.
 A tab that you rename by hand links no session. A session with no link label, for example a resume that

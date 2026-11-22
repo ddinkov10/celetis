@@ -18,6 +18,7 @@ import {
   gateOf,
   invocation,
   type Run,
+  type SessionWork,
   type Step as StepName,
   sameResult,
   skipped,
@@ -29,6 +30,7 @@ import type { RunRecord } from './record.ts';
 import type { SessionRecord } from './session.ts';
 
 export type RunFacts = Readonly<{ input: RunInput; shared: boolean }>;
+export const unwatched = (kind: RunInput['kind']): boolean => kind === 'resume' || kind === 'assist';
 
 export type Request = NonNullable<RunRecord['request']>;
 export type Loop = Readonly<{
@@ -93,14 +95,17 @@ export type StepStart = Readonly<{
   attempt: UsageAttempt;
   session: SessionInput;
 }>;
-export type ResumeStart = Readonly<{
-  scope: 'resume';
-  saved: SessionRecord;
+export type UnwatchedStart = Readonly<{
+  scope: 'unwatched';
+  work: SessionWork;
   host: Host;
   args: string[];
+  record: SessionRecord | null;
+  sessionId: string | null;
+  attempt: string;
   session: SessionInput;
 }>;
-export type Start = StepStart | ResumeStart;
+export type Start = StepStart | UnwatchedStart;
 export type Outcome = Readonly<{
   kind: 'closed' | 'gate' | 'stopped';
   started: boolean;
@@ -120,13 +125,13 @@ type IssueSession = Readonly<{
   tab: string;
   wait: KeptWait | null;
 }>;
-type ResumeSession = Readonly<{ scope: 'resume'; number: IssueKey; terminal: string }>;
+type UnwatchedSession = Readonly<{ scope: 'unwatched'; number: IssueKey; terminal: string }>;
 type Opened = Readonly<{ barrier: Identity; exit: Promise<number | null> }>;
 
 export type State =
   | Readonly<{ kind: 'starting' }>
   | Readonly<{ kind: 'admitting'; scope: 'issue'; issue: IssueFacts }>
-  | Readonly<{ kind: 'admitting'; scope: 'resume'; number: IssueKey }>
+  | Readonly<{ kind: 'admitting'; scope: 'unwatched'; number: IssueKey }>
   | Readonly<{
       kind: 'binding';
       issue: IssueFacts;
@@ -139,14 +144,14 @@ export type State =
   | Readonly<{ kind: 'selecting'; issue: IssueFacts; resolution: Resolution }>
   | Readonly<{ kind: 'quota-wait'; issue: IssueFacts; wait: QuotaWait }>
   | Readonly<{ kind: 'preparing'; scope: 'issue'; issue: IssueFacts; resolution: Resolution; host: Host }>
-  | Readonly<{ kind: 'preparing'; scope: 'resume'; number: IssueKey; ready: boolean }>
+  | Readonly<{ kind: 'preparing'; scope: 'unwatched'; number: IssueKey; ready: boolean }>
   | Readonly<{ kind: 'opening'; scope: 'issue'; issue: IssueFacts; start: StepStart }>
-  | Readonly<{ kind: 'opening'; scope: 'resume'; number: IssueKey; start: ResumeStart }>
+  | Readonly<{ kind: 'opening'; scope: 'unwatched'; number: IssueKey; start: UnwatchedStart }>
   | (Readonly<{ kind: 'live' }> &
       IssueSession &
       ((Opened & Readonly<{ fresh: true; session: Steered }>) | Readonly<{ fresh: false; session: Facts }>))
   | (Readonly<{ kind: 'live' }> &
-      ResumeSession &
+      UnwatchedSession &
       ((Opened & Readonly<{ fresh: true }>) | Readonly<{ fresh: false; session: Released }>))
   | Readonly<{ kind: 'closing'; number: IssueKey; cause: Cause }>
   | Readonly<{ kind: 'advancing'; number: IssueKey }>
@@ -154,7 +159,7 @@ export type State =
   | Readonly<{ kind: 'adopting'; record: RunRecord }>
   | Readonly<{ kind: 'observing'; record: RunRecord; claimed: Identity | null; lock: string | null }>
   | (Readonly<{ kind: 'ended'; session: Facts }> & IssueSession)
-  | (Readonly<{ kind: 'ended'; session: Released }> & ResumeSession)
+  | (Readonly<{ kind: 'ended'; session: Released }> & UnwatchedSession)
   | Readonly<{ kind: 'ending'; result: Result }>
   | Readonly<{ kind: 'finished'; result: Result }>;
 
@@ -168,7 +173,7 @@ export type Seen = Readonly<
   | { kind: 'ended'; session: Facts }
 >;
 export type SessionEnd = Readonly<
-  { scope: 'issue'; session: Steered; saved: boolean; reported: boolean } | { scope: 'resume'; passed: ExitCode }
+  { scope: 'issue'; session: Steered; saved: boolean; reported: boolean } | { scope: 'unwatched'; passed: ExitCode }
 >;
 
 export type Event =
@@ -392,17 +397,23 @@ const outside = (_state: unknown, event: EventOf<'failed'>, run: RunFacts) => fa
 const inside = (state: Readonly<{ issue: IssueFacts }>, event: EventOf<'failed'>) =>
   fail(state.issue.number, event.failure.error);
 const scoped = (
-  state: Readonly<{ scope: 'issue'; issue: IssueFacts }> | Readonly<{ scope: 'resume' }>,
+  state: Readonly<{ scope: 'issue'; issue: IssueFacts }> | Readonly<{ scope: 'unwatched' }>,
   event: EventOf<'failed'>,
   run: RunFacts,
 ) => (state.scope === 'issue' ? fail(state.issue.number, event.failure.error) : failure(event.failure, run));
 function astray(
-  state: Readonly<{ scope: 'issue'; issue: IssueFacts }> | Readonly<{ scope: 'resume' }>,
+  state: Readonly<{ scope: 'issue'; issue: IssueFacts }> | Readonly<{ scope: 'unwatched' }>,
   event: Event['kind'],
 ): Step<'closing' | 'ending'> {
   if (state.scope === 'issue')
-    return fail(state.issue.number, new Error(`run machine: an issue run cannot take the ${event} of a resume run`));
-  return ending({ ok: false, error: new Error(`run machine: a resume run cannot take the ${event} of an issue run`) });
+    return fail(
+      state.issue.number,
+      new Error(`run machine: an issue run cannot take the ${event} of an unwatched run`),
+    );
+  return ending({
+    ok: false,
+    error: new Error(`run machine: an unwatched run cannot take the ${event} of an issue run`),
+  });
 }
 
 function endIssue(outcome: Outcome, number: IssueKey, run: RunFacts, effects: readonly Effect[]): Step<'ending'> {
@@ -625,7 +636,7 @@ function settle(
 
 const stoppedLine = (number: IssueKey) => `#${number}: stopped by the maintainer; set aside`;
 
-function halt(state: IssueSession | ResumeSession, event: EventOf<'halted'>): Step<'closing' | 'ending'> {
+function halt(state: IssueSession | UnwatchedSession, event: EventOf<'halted'>): Step<'closing' | 'ending'> {
   const { ownership, host, resume } = event;
   const number = state.scope === 'issue' ? state.issue.number : state.number;
   const signalled = signalledSay(number, ownership);
@@ -643,7 +654,7 @@ function halt(state: IssueSession | ResumeSession, event: EventOf<'halted'>): St
   }
   const reason = stoppedLine(number);
   const effects: Effect[] = [...signalled, { kind: 'set-aside', issue: number }, say(reason)];
-  if (state.scope === 'resume') return stopped(exits.done, reason, effects);
+  if (state.scope === 'unwatched') return stopped(exits.done, reason, effects);
   return close(state.issue, 'stopped', reason, null, [
     ...effects,
     noteLoop(state.issue.loop, { session: null }),
@@ -692,16 +703,19 @@ function observe(record: RunRecord, event: EventOf<'observed'>, run: RunFacts): 
   }
   const session = seen.kind === 'no-session' ? null : seen.session;
   const { input } = record;
-  if (input.kind === 'resume') {
+  if (unwatched(input.kind)) {
     const barrier = session?.barrier;
     if (session && barrier) {
       const released: Released = { ...session, barrier };
       const terminal = session.terminal ?? '';
       return seen.kind === 'live'
-        ? { state: { kind: 'live', scope: 'resume', number, terminal, fresh: false, session: released }, effects: [] }
-        : { state: { kind: 'ended', scope: 'resume', number, terminal, session: released }, effects: [] };
+        ? {
+            state: { kind: 'live', scope: 'unwatched', number, terminal, fresh: false, session: released },
+            effects: [],
+          }
+        : { state: { kind: 'ended', scope: 'unwatched', number, terminal, session: released }, effects: [] };
     }
-    return { state: { kind: 'preparing', scope: 'resume', number, ready: false }, effects: [] };
+    return { state: { kind: 'preparing', scope: 'unwatched', number, ready: false }, effects: [] };
   }
   const before = session === null && !record.loop.started;
   const kept = record.loop;
@@ -759,11 +773,13 @@ export const on: Table = {
   },
   admitting: {
     admitted: (state, _event, run) => {
-      const issue = state.scope === 'resume' ? state.number : state.issue.number;
-      const clear: Effect[] = run.input.kind === 'auto' ? [] : [{ kind: 'clear-aside', issue }];
-      return state.scope === 'resume'
+      const issue = state.scope === 'unwatched' ? state.number : state.issue.number;
+      const { kind } = run.input;
+      const clears = kind === 'number' || kind === 'queue' || kind === 'resume';
+      const clear: Effect[] = clears ? [{ kind: 'clear-aside', issue }] : [];
+      return state.scope === 'unwatched'
         ? {
-            state: { kind: 'preparing', scope: 'resume', number: state.number, ready: true },
+            state: { kind: 'preparing', scope: 'unwatched', number: state.number, ready: true },
             effects: [{ kind: 'note', change: { issue: issue, lock: issueLock(issue) } }, ...clear],
           }
         : {
@@ -780,7 +796,7 @@ export const on: Table = {
           };
     },
     'lock-held': (state, event, run) => {
-      if (state.scope === 'resume')
+      if (state.scope === 'unwatched')
         return failure(
           {
             ...event.flags,
@@ -800,8 +816,8 @@ export const on: Table = {
       );
     },
     aside: (state, event, run) =>
-      state.scope === 'resume'
-        ? ending({ ok: false, error: new Error('run machine: a resume run cannot take the aside of an auto run') })
+      state.scope === 'unwatched'
+        ? ending({ ok: false, error: new Error('run machine: an unwatched run cannot take the aside of an auto run') })
         : endIssue(outcomeOf(state.issue, 'stopped', event.reason, null), state.issue.number, run, [say(event.reason)]),
     failed: outside,
   },
@@ -884,8 +900,8 @@ export const on: Table = {
           },
           effects: [],
         };
-      if (state.scope === 'resume' && start.scope === 'resume')
-        return { state: { kind: 'opening', scope: 'resume', number: state.number, start }, effects: [] };
+      if (state.scope === 'unwatched' && start.scope === 'unwatched')
+        return { state: { kind: 'opening', scope: 'unwatched', number: state.number, start }, effects: [] };
       return astray(state, event.kind);
     },
     failed: scoped,
@@ -893,9 +909,9 @@ export const on: Table = {
   opening: {
     'barrier-reported': (state, event) => {
       const { terminal, tab, barrier, exit, ticket } = event;
-      if (state.scope === 'resume')
+      if (state.scope === 'unwatched')
         return {
-          state: { kind: 'live', scope: 'resume', number: state.number, terminal, fresh: true, barrier, exit },
+          state: { kind: 'live', scope: 'unwatched', number: state.number, terminal, fresh: true, barrier, exit },
           effects: [],
         };
       if (ticket === null) return fail(state.issue.number, new Error('usage: a session started with no usage attempt'));
@@ -920,15 +936,15 @@ export const on: Table = {
   live: {
     'session-ended': (state, event) => {
       const { end } = event;
-      if (state.scope === 'resume')
-        return end.scope === 'resume'
+      if (state.scope === 'unwatched')
+        return end.scope === 'unwatched'
           ? stopped(end.passed, '', event.code === exits.done ? [finishTab(state.terminal)] : [])
           : astray(state, event.kind);
-      if (end.scope === 'resume') return astray(state, event.kind);
+      if (end.scope === 'unwatched') return astray(state, event.kind);
       return sessionDone(state, state.fresh, event.code, end);
     },
     'usage-blocked': (state, event) =>
-      state.scope === 'resume' ? astray(state, event.kind) : settle(state, state.fresh, event),
+      state.scope === 'unwatched' ? astray(state, event.kind) : settle(state, state.fresh, event),
     halted: halt,
     failed: scoped,
   },
@@ -993,15 +1009,15 @@ export const on: Table = {
   ended: {
     'session-ended': (state, event) => {
       const { end } = event;
-      if (state.scope === 'resume')
-        return end.scope === 'resume'
+      if (state.scope === 'unwatched')
+        return end.scope === 'unwatched'
           ? stopped(end.passed, '', event.code === exits.done ? [finishTab(state.terminal)] : [])
           : astray(state, event.kind);
-      if (end.scope === 'resume') return astray(state, event.kind);
+      if (end.scope === 'unwatched') return astray(state, event.kind);
       return sessionDone(state, false, event.code, end);
     },
     'usage-blocked': (state, event) =>
-      state.scope === 'resume' ? astray(state, event.kind) : settle(state, false, event),
+      state.scope === 'unwatched' ? astray(state, event.kind) : settle(state, false, event),
     halted: halt,
     failed: scoped,
   },
@@ -1016,6 +1032,6 @@ export const on: Table = {
 
 export function initial(input: RunInput, record: RunRecord | undefined): State {
   if (record) return { kind: 'adopting', record };
-  if (input.kind === 'resume') return { kind: 'admitting', scope: 'resume', number: input.number };
-  return { kind: 'starting' };
+  if (input.kind === 'queue' || !unwatched(input.kind)) return { kind: 'starting' };
+  return { kind: 'admitting', scope: 'unwatched', number: input.number };
 }

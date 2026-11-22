@@ -11,6 +11,9 @@ import { installRecorder, markDefect } from './lib/state/events.ts';
 import { uuid } from './lib/state/fields.ts';
 import { parseHandle } from './lib/tracker/key.ts';
 
+const notCoordinator =
+  'coordinator: this session is not the coordinator session of the daemon; run celetis coordinator in a terminal';
+
 export async function main(argv: string[]): Promise<ExitCode> {
   try {
     requireBun();
@@ -29,7 +32,9 @@ export async function main(argv: string[]): Promise<ExitCode> {
             ? 'read'
             : words.length === 3 && words[0] === 'send' && key !== null && authority
               ? 'send'
-              : null;
+              : words.length === 2 && words[0] === 'end' && key !== null
+                ? 'end'
+                : null;
     if (form === null) throw new HostError(usage('coordinator'), exits.usage);
     const { common, main } = await locateCheckouts(process.cwd());
     if (common === null || main === null)
@@ -37,6 +42,21 @@ export async function main(argv: string[]): Promise<ExitCode> {
     if (form === 'status') {
       await requireDaemon(common, 'coordinator');
       console.log(JSON.stringify(await readStatus(common)));
+      return exits.done;
+    }
+    if (form === 'end' && key !== null) {
+      const token = process.env.CELETIS_COORDINATOR ?? '';
+      if (!uuid.test(token)) throw new HostError(notCoordinator, exits.prerequisite);
+      const { answer } = await askCoordinator(
+        common,
+        { kind: 'coordinator-end-assist', number: key, token },
+        parseAnswer,
+      );
+      if (!answer.accepted) {
+        console.error(answer.line);
+        return answer.code;
+      }
+      console.log(`coordinator: asked the assist session of #${key} to exit`);
       return exits.done;
     }
     if (form === 'send' && authority && key !== null) {
@@ -54,11 +74,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
         throw new HostError(`coordinator: ${file} is not valid UTF-8`, exits.usage);
       }
       const token = process.env.CELETIS_COORDINATOR ?? '';
-      if (!uuid.test(token))
-        throw new HostError(
-          'coordinator: this session is not the coordinator session of the daemon; run celetis coordinator in a terminal',
-          exits.prerequisite,
-        );
+      if (!uuid.test(token)) throw new HostError(notCoordinator, exits.prerequisite);
       const { answer } = await askCoordinator(
         common,
         {

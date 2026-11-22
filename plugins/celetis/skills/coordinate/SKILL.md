@@ -54,8 +54,11 @@ did not act on it. For each note:
      instruction of part 10.
    - An ended run whose issue has a hold (`needs-info` or `ready-for-human`): read the issue with
      its comments (`celetis --agent <host> issue <n> view`, the `history` of its JSON; on exit 6 report the `issue: blocked:` line), and report the hold and the act that its last
-     hold comment names, for example a `## Stopped` comment. The maintainer completes the hold, with
-     the skill `celetis:assist`; you do not complete it.
+     hold comment names, for example a `## Stopped` comment. When an instruction of the maintainer
+     covers an assist run of the issue (part 10, with its rule after the end of an assist run),
+     start it with `celetis --agent <host> run assist <n>`.
+     With no such instruction, the maintainer completes the hold, with the skill `celetis:assist`;
+     you do not complete it.
 
 ## 5. The delegation line
 
@@ -66,7 +69,9 @@ First, the maintainer answers each of these questions at the time that the run a
 - a consent: a destructive act, an act on the accounts or the live tools of the maintainer, data
   to an outside service;
 - a look pick, the approval of a spec, and each other product decision (what to build) that the
-  approved spec and plan do not hold.
+  approved spec and plan do not hold;
+- the allow of the removal of a hold, which an assist session asks before `issue <n> assisted`:
+  your recommended answer is the suggested answer of the assist session.
 
 Never answer such a question with `--as coordinator`, also when earlier words of the maintainer in
 this session cover it. Ask the maintainer, with your recommended answer. When earlier words of the
@@ -98,6 +103,10 @@ tab (`tab` of the run row).
 When the screen shows a session that stopped with no question, and the spec and the plan permit
 its next act, send a text with `--as coordinator` that tells the session to continue its step, and
 name that part of the plan. Else report the session to the maintainer.
+
+An assist run (`kind` `assist` in its run row) whose screen shows its final report gets no
+continue text: run `celetis --agent <host> coordinator end <n>` (part 10), then report the result
+and the next step to the maintainer.
 
 ## 8. A steering text
 
@@ -138,9 +147,24 @@ instruction when you act on it. When you cannot quote it, ask the maintainer.
   `celetis --agent <host> queue status` holds the wait ID of a queue run (`waitId`); for another
   run, ask the maintainer for the Retry line of the wait.
 - Change the queue: `celetis --agent <host> queue action '<QueueAction JSON>'`.
+- Start an assist run for an issue with a hold (part 4): `celetis --agent <host> run assist <n>`.
+  At exit 0, 3, or 6, report the printed line. When an assist run of the issue ends and the hold
+  of the issue is still on, for any reason (a denial, a deferral, an act outside the session, no
+  machine work), report the end and the hold. Then only a new request of the maintainer that
+  names the issue covers another assist run of that issue. The other instructions of the
+  maintainer stay.
 
 A `manual` gate with no such instruction is a report. Run `celetis --agent <host> daemon auto on|off`
 only on a direct instruction. Give a new request with no issue to the skill `celetis:intake`.
+
+Part 7 ends an assist run with no instruction of the maintainer:
+`celetis --agent <host> coordinator end <n>`. Act by its exit code:
+
+- 0: the session got its exit request. Report the end.
+- 3: the printed line names the cause. When the session works, wait for the next note. For a
+  dialog, apply part 6. For each other line, report it to the maintainer.
+- 6: the outcome can be unknown. Run `celetis --agent <host> coordinator read <n>` before another
+  end.
 
 ## 11. The report
 

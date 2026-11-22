@@ -14,7 +14,7 @@ tools, and their versions. The engine adds these rules:
   before it spawns the daemon. It also checks `gh` on `PATH`, except in a project with the local
   tracker and the `merge` landing; a project with no valid `.celetis.yaml` counts as GitHub; the row of `daemon` in
   [The commands](../plugins/celetis/README.md#the-commands) gives its exit codes. The daemon checks them again before each run reads its issue (a
-  number, auto mode, a queue wake, and `run resume`), with `gh` by the same rule. A failed check there is the refusal of the
+  number, auto mode, a queue wake, `run resume`, and `run assist`), with `gh` by the same rule. A failed check there is the refusal of the
   request, with the same code and a line that names the missing part and how to start it; for a
   queue wake, the line becomes the queue error.
 - Complete the normal folder trust of the host before a run. The daemon never answers that prompt.
@@ -65,7 +65,7 @@ also a Resume or the next step of a run, and each command that it cannot run (`l
 the hosts that can. No other host starts. The default order and the quota recovery skip such a host for the
 step, except the preferred host of `agents.<step>`; when no host is left, the start refuses with that line.
 
-**The answer.** Each form that starts work (`run <n>`, `run resume`, `run retry`, and a `queue action`
+**The answer.** Each form that starts work (`run <n>`, `run resume`, `run assist`, `run retry`, and a `queue action`
 with a wake) sends one request to the master daemon of the Git common folder of the
 current folder, so a linked worktree reaches the daemon of its main checkout. It waits at most 120
 seconds for the answer, prints it, and exits; it never sends the request again. The daemon answers
@@ -145,8 +145,8 @@ takes the next issue. The lane test comes before the check for no progress and t
 the end adds no row to the record: the lane test of the pick keeps the issue out. The quota
 recovery of a step that already started has no lane test, as it has no gate test; the test applies
 again before the next step. A run of auto mode that a successor daemon takes over keeps the test.
-No other run has a lane test: a start with a number, a Run press, a queue run, and `run resume`
-work in each lane, and `run retry` only wakes the quota wait of a run. The engine reads `autoLanes`
+No other run has a lane test: a start with a number, a Run press, a queue run, `run resume`, and
+`run assist` work in each lane, and `run retry` only wakes the quota wait of a run. The engine reads `autoLanes`
 from the main checkout at each pick of auto mode and before each step of its run. So an edit of the
 list applies with no restart of the daemon and no new auto on, and a session that runs keeps
 running. An invalid list is an invalid configuration: it refuses the next operation of auto mode,
@@ -155,6 +155,16 @@ and that refusal ends auto mode, as each other invalid field does.
 **The form `run resume <n>`** asks the daemon to reopen the exact session of the record
 `<git common dir>/celetis/sessions/<n>.json`, with its saved host and checkout, in a new tab that
 opens in the background ([Sessions](#sessions)). A Resume press of the board types this form.
+
+**The form `run assist <n>`** asks the daemon to open an assist session for an issue with
+`needs-info` or `ready-for-human`, in the main checkout, in a new tab `#<n> assist` that opens in
+the background. The run takes the issue lock, then reads the issue: an unreadable issue refuses
+with code 6, a closed issue refuses with `daemon: #<n> is closed; no assist session starts`, and an
+issue with no hold refuses with
+`daemon: #<n> has no hold (needs-info or ready-for-human); no assist session starts`, both with code
+3. The session starts the skill `assist` with the input `#<n> coordinator`, with no saved session
+record, so the record of a stopped step stays for `run resume <n>`. The run has no step-end watch,
+as a resume run, and ends with the session. The direct command `celetis assist <n>` is no run.
 
 Issue locks and the lock `auto` of auto mode use shared Git refs under
 `refs/celetis/locks/`. Their owner records are `{ daemon, session }`: the daemon and foreground
@@ -177,9 +187,9 @@ The `set-aside` file in the same folder holds one issue key per line, for each i
 maintainer set aside. It is keyed by the issue only, so it holds across a step change. Auto mode
 starts no issue of the file, and the board shows the issue as set aside in Idle. That state comes
 after a held issue lock and before a dirty lane worktree and a no-progress row. A run of the issue
-with an input other than auto mode (`celetis run <n>`, `celetis run resume <n>`, the board Run and
+with the input of a number, a resume, or a queue (`celetis run <n>`, `celetis run resume <n>`, the board Run and
 Resume, and each issue that a queue run takes) removes the number when it takes the issue lock, so
-a refused start keeps it. Only the master daemon writes the file, one write at a time (the request `POST /aside` adds a number, under the issue lock, and a Stop adds the number of its
+a refused start keeps it. An assist run (`celetis run assist <n>`), as auto mode, removes no number. Only the master daemon writes the file, one write at a time (the request `POST /aside` adds a number, under the issue lock, and a Stop adds the number of its
 run after the proven end of the session, [A stop of a run](#a-stop-of-a-run)), and each
 write replaces the whole file. A missing file holds no issue, and a line that is not a positive
 number has no effect. Each other read failure is an error of the board read, and auto mode starts
@@ -434,6 +444,7 @@ dispatcher throws is the 500 answer below. A body is JSON of at most 16 KiB, wit
 | `POST /auto` | `{on, selection}` | Auto mode on or off |
 | `POST /queue` | `{id, token, selection}` | The claim and the run of a queue wake that a `queue action` issued |
 | `POST /resume` | `{number, selection}` | `run resume <number>` |
+| `POST /assist` | `{number, selection}` | `run assist <number>` |
 | `POST /retry` | `{number, waitId}` | The wake of the live quota wait, as `run retry <number> <waitId>` |
 | `POST /aside` | `{number}` | The Set aside of an issue: the daemon takes the issue lock, then adds the number to the `set-aside` file. It refuses with 409 and `daemon: #<n> runs now; use Stop` when another owner holds the lock or an entry of the daemon has the issue in a state other than `finished`; it releases the lock at the end of the request |
 | `POST /halt` | `{number, terminal}` | The Stop of a run ([A stop of a run](#a-stop-of-a-run)); `terminal` is a safe terminal ID |
@@ -444,6 +455,7 @@ dispatcher throws is the 500 answer below. A body is JSON of at most 16 KiB, wit
 | `POST /coordinator/open` | `{selection}` | The open of the coordinator session, as `celetis coordinator`; the answer is `{accepted: true, opened}` ([The coordinator session](#the-coordinator-session)) |
 | `POST /coordinator/read` | `{number}` | The screen read, as `celetis coordinator read <number>`; the answer is `{accepted: true, text, complete, why}` ([The coordinator session](#the-coordinator-session)) |
 | `POST /coordinator/send` | `{number, authority, text, token}` | The send, as `celetis coordinator send <number> <file> --as <authority>`; `authority` is `maintainer` or `coordinator`, `text` is a string, and `token` is a UUID; the answer is `{accepted: true, run: null}` ([The coordinator session](#the-coordinator-session)) |
+| `POST /coordinator/end-assist` | `{number, token}` | The end, as `celetis coordinator end <number>`; `token` is a UUID; the answer is `{accepted: true, run: null}` ([The coordinator session](#the-coordinator-session)) |
 
 Each `number` is an issue key as a JSON string (`"12"`) that the grammar of the tracker accepts. A
 JSON number (`12`) or a string that the grammar refuses (`"012"`) gives the 400 answer with the usage line.
@@ -486,18 +498,22 @@ code of its cause:
 | 404, 405 | Another path, or another method for a path; code 2 |
 | 409 | A refused admission or an end before the first session, with its line and code: for example a busy issue lock with code 3, a failed GitHub read of the issue with code 6, and a finished issue with code 0. A refused queue action or reconcile, with the line and code of `queue action`: for example a stale `expected` with code 3 |
 | 413 | A body of more than 16 KiB; code 2 |
-| 503 | A request that arrives during a stop (except `POST /stop` during a restart, "The restart"), and the answer of a run, queue, resume, or auto on request, or of a queue action or reconcile with a wake, that comes after a stop began, code 3. A status read that began before the stop answers 200. A run, resume, retry, aside, halt, queue action, or reconcile request of the board before the end of the takeover, code 3 |
+| 503 | A request that arrives during a stop (except `POST /stop` during a restart, "The restart"), and the answer of a run, queue, resume, assist, or auto on request, or of a queue action or reconcile with a wake, that comes after a stop began, code 3. A status read that began before the stop answers 200. A run, resume, retry, aside, halt, queue action, or reconcile request of the board before the end of the takeover, code 3 |
 | 500 | An unexpected error of the daemon while it answers: its message, code 1 |
 
-A run, queue, or resume request answers after every check before the first session of its run:
+A run, queue, resume, or assist request answers after every check before the first session of its run:
 the issue lock, the host selection, the setup checks of `gh` (not for a resume), `hc`, and the
-Herdr app, a stale launch token, the first decision read for a run and a queue, and the saved
-session for a resume. The answer comes directly before the session tab opens, or at a quota
+Herdr app, a stale launch token, the first decision read for a run and a queue, the saved
+session for a resume, and, for an assist request, the read of the hold, the contract version of
+the plugin, and the skill `assist`. The answer comes directly before the session tab opens, or at a quota
 wait. An end at the first decision is a refusal with the line and the code of that end, for
-example code 0 for a finished issue. The code of the answer is not the code of the
+example code 0 for a finished issue. An assist request refuses a closed issue and an
+issue with no hold with code 3 ("The form `run assist <n>`"). The code of the answer is not the code of the
 run outcome: a busy issue lock (code 3) and a failed GitHub read of the issue (code 6) end the run
 with the outcome code 0, as each other end before a session, so auto mode takes the next issue and
-the daemon writes no `run-exit` event. When a stop begins before the answer,
+the daemon writes no `run-exit` event. A resume run and an assist run are the exception: a refusal
+before the session ends the run with the code of that refusal, so the daemon writes a `run-exit`
+event for code 3 or 6. When a stop begins before the answer,
 the answer is 503. The stop detaches that run: it starts no session and keeps no lock and no run
 record. A queue wake that the run claimed before the stop leaves the queue record `running` with
 no owner, and a deliberate Try again of the queue starts it. Auto on starts the loop of
@@ -546,7 +562,7 @@ run, not the machine state. The machine has 17 states. Each state except `finish
 | `resolving` | The next step of the issue from the resolver |
 | `selecting` | The agent order and the usage records |
 | `quota-wait` | A reset, a renewed agent that can run the step, or Retry |
-| `preparing` | The preflight of the host and the session arguments; a resume run selects its saved session here |
+| `preparing` | The preflight of the host and the session arguments; a resume run selects its saved session here, and an assist run reads the hold of its issue here |
 | `opening` | The session tab and its start barrier |
 | `live` | The release of the barrier of a new session, then the end of the session, with the step-end watch and the usage watch for a step session; after a Stop, the proof of the end ([A stop of a run](#a-stop-of-a-run)) |
 | `closing` | The end of an issue: the watch stops, the step-end record goes, the unreleased tab closes, and the lock of the issue is released, except after an unproved Stop |
@@ -694,7 +710,7 @@ issue whose record still reads unknown gets the lock refusal.
 | Between two steps | Reads the resolver again and continues with the gates of a continuing run |
 | Before the first step | Starts the accepted request with its gate rule, its effort, and its queue request |
 
-A resume run has the same phases with no step-end watch. The finished tab of a record closes by the
+A resume run and an assist run have the same phases with no step-end watch. The finished tab of a record closes by the
 normal rule: when the next session tab opens, or at the end of the run. A run of the loop
 continues as a run after a takeover, and it keeps the lane test of auto mode
 ([The start of a step](#the-start-of-a-step), "The lanes of auto mode"). Auto mode stays off, except
@@ -1050,7 +1066,7 @@ for example after a person closed the tab, is an unknown status, and it counts a
 before issue progress, the daemon stops with the recovery line and `status unknown`.
 
 The session gets the login environment of its tab, not the environment of the daemon. The barrier
-sets `CELETIS_SESSION_AGENT` to the host and `CELETIS_ATTEMPT` to the attempt ID of a step or a resume session, removes `CLAUDE_CODE_EFFORT_LEVEL` for Claude, and sets
+sets `CELETIS_SESSION_AGENT` to the host and `CELETIS_ATTEMPT` to the attempt ID of a step session, a resume session, or the session of an assist run, removes `CLAUDE_CODE_EFFORT_LEVEL` for Claude, and sets
 `CODEX_HOME` to the resolved native home for Codex. For OpenCode it removes `OPENCODE_CONFIG_CONTENT`,
 `OPENCODE_CONFIG`, and `OPENCODE_CONFIG_DIR`. It sets the values of `env` last, so they replace a
 value of the tab. hc gives the terminal of the tab its own
@@ -1087,7 +1103,8 @@ the selection of `--agent` and `CELETIS_AGENT`, as `run` does, and waits at most
 `celetis coordinator status` reads `GET /status` and prints the status object as one JSON line.
 `celetis coordinator read <n>` sends `POST /coordinator/read` ("The screen read"), and
 `celetis coordinator send <n> <file> --as maintainer|coordinator` sends `POST /coordinator/send`
-("The send"). The row of `coordinator` in [The commands](../plugins/celetis/README.md#the-commands)
+("The send"), and `celetis coordinator end <n>` sends `POST /coordinator/end-assist` ("The end").
+The row of `coordinator` in [The commands](../plugins/celetis/README.md#the-commands)
 gives the lines and the exit codes. The board opens the session with the default agent order and
 no focus move (the quiet open), and it carries the acts of "The board acts".
 
@@ -1178,11 +1195,11 @@ terminal, and the first row that matches decides:
 | 3a | The read failed, and the second `hc get` says that the terminal finished or is gone | `null` |
 | 4 | The status of the terminal is `blocked` | `dialog`, with the kind that the host reported, else `null` |
 | 5 | The status is `idle`, `done`, or `error`, the state is `waiting`, and the turn of the terminal equals the turn of the state | `turn-ended` |
-| 6 | The status is `idle`, `done`, or `error`, the run is a `resume` run, and its state is `running` | `turn-ended` |
+| 6 | The status is `idle`, `done`, or `error`, the run is a `resume` or an `assist` run, and its state is `running` | `turn-ended` |
 | 7 | Each other case, also a terminal with no status | `null` |
 
 A turn that ended after the last step-end verdict gives no state until the step-end watch gives
-its verdict for that turn. A resume run has no step-end watch, so row 6 stands for it. A result
+its verdict for that turn. A resume run and an assist run have no step-end watch, so row 6 stands for them. A result
 whose state, kind, and turn equal the last result keeps its `changedMs`.
 
 **The notes.** The daemon types a note into the coordinator tab when a run needs attention. It
@@ -1270,6 +1287,37 @@ can be in the session, so the daemon prints
 to the log, also with no part of the text. A session at an ended turn
 starts a new turn with the message; a working session gets it as its host delivers typed text
 during a turn.
+
+**The end.** `celetis coordinator end <n>` asks the assist session of issue `<n>` to exit. With no
+`CELETIS_COORDINATOR` that is a UUID, it sends no request and exits 3. Else it sends
+`{number, token}` and prints `coordinator: asked the assist session of #<n> to exit` at an accepted
+answer. The daemon checks in this order, and each refusal types nothing:
+
+1. the token, as "The send" does: no record, another value, or a barrier that a read shows gone
+   refuses with code 3; a failed read of the barrier is no end;
+2. the run: the run of the issue with a terminal. None refuses with code 3 (`coordinator: #<n> has
+   no live run with a released session`). A run whose kind is not `assist` refuses with code 3
+   (`coordinator: the run of #<n> is no assist run; coordinator end ends only an assist session`);
+3. inside the sequence of the terminal, shared with the send and the notes: the run again (another
+   terminal or none refuses with code 3). Then `hc get` of the terminal: a failed read or no status
+   refuses with code 6; `blocked` refuses with code 3 and the dialog line of the send; `working`
+   refuses with code 3 (`coordinator: the session of #<n> works; end it after its turn ends`); a
+   status whose app is no host refuses with code 3 and a line that names the tab;
+4. the exit request of the host, as the step end sends it. A sent request prints
+   `daemon: coordinator: exit request to #<n> assist` to the log and answers `{accepted: true, run:
+   null}`. A failed request prints
+   `daemon: coordinator: the outcome of an exit request to #<n> assist is unknown` and refuses with
+   code 6; its line tells the coordinator session to read the screen before it ends again.
+
+The run ends by the rule of an unwatched session when the host exits. The end adds no `set-aside`
+row and starts no step.
+
+The daemon keeps no state of a sent exit request, because an assist run has no state `exiting`.
+Until the host exits, a second end sends a second exit request when the checks pass again, and a
+send is typed into the session. On Claude Code the exit request is `hc send <terminal> /exit`, the
+hc call of a send, and it has no header. So it can join unsent text of the maintainer in the
+composer ("The limit of the composer"), and the end can then answer `{accepted: true, run: null}`
+while the session stays open. No check of this build observed that case with a real host.
 
 **The limit of the composer.** hc pastes the message into the composer of the run session. When
 the maintainer left unsent text there, that text comes before the header, and hc has no option
@@ -1601,7 +1649,7 @@ requests outside its sandbox; they do not create a stronger sandbox.
 ## Sessions
 
 The hc terminal of each session tab, also a resume tab, has the label `celetis.link` with the
-value `#<n> <step>`. It links the live card to the issue on the board. The label and the tab name
+value `#<n> <step>`, and the tab of an assist run has the value `#<n> assist`. It links the live card to the issue on the board. The label and the tab name
 are not the saved session ID. From the main checkout, `celetis --agent <host> run resume 402`
 asks the daemon to resume. The daemon run first takes the shared issue lock and keeps it until the
 session exits. Under that lock, it reads and validates the current record for #402 and opens its exact host and session ID at the
