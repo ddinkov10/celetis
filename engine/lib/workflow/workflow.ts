@@ -28,7 +28,14 @@ export const stages: readonly { name: (typeof stageNames)[number]; steps: readon
   }),
 );
 
-export const defaultGate = 'manual';
+export type Gate = 'manual' | 'auto';
+export type Gates = Readonly<
+  { triage?: Gate } & {
+    [L in Lane]?: Gate | Readonly<Partial<Record<Exclude<(typeof lanes)[L]['steps'][number], 'triage'>, Gate>>>;
+  }
+>;
+
+export const defaultGate: Gate = 'manual';
 
 export function command(step: Step): string {
   return step === 'specify' ? 'feature' : step;
@@ -364,6 +371,14 @@ export type RunState =
   | 'built';
 
 export type Run = Readonly<{ kind: 'run'; step: Step; lane: Lane | null; state: RunState }>;
+
+export function gateOf(gates: Gates | undefined, run: Pick<Run, 'lane' | 'step'>): Gate {
+  if (run.lane === null || run.step === 'triage') return gates?.triage ?? defaultGate;
+  const value = gates?.[run.lane];
+  if (typeof value === 'string') return value;
+  const mapping: Readonly<Partial<Record<Step, Gate>>> | undefined = value;
+  return mapping?.[run.step] ?? defaultGate;
+}
 
 export function autoTakes(list: readonly AutoLane[] | undefined, run: Run): boolean {
   return list === undefined || list.includes(run.lane ?? 'triage');

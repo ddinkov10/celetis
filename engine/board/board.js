@@ -15019,7 +15019,7 @@ var init_key = __esm(() => {
 });
 
 // engine/board/view.ts
-var COLUMNS, GROUPS, STATES, WAITS, gateOf = (flow, step) => flow?.steps?.[step]?.gate ?? null, sourceText = (source, by) => source === "decided" ? `decided by ${by}` : source === "pinned" ? "pinned by the config" : "default", modelSource = (pair) => sourceText(pair.source.model, pair.decision?.by ?? null), levelSource = (pair) => sourceText(pair.source.level, pair.decision?.by ?? null), startName = (pair) => `model ${pair.model}, ${modelSource(pair)}; effort ${pair.level}, ${levelSource(pair)}`, startTitle = (step, pair, level = pair.level) => `Start the ${step} step on ${pair.model} at ${level}, ${level === pair.level ? levelSource(pair) : "this start only"}`, runTitle = (step, flow, effort) => {
+var COLUMNS, GROUPS, STATES, WAITS, gateOf = (flow, lane, step) => flow?.gates?.[lane ?? "triage"]?.[step] ?? null, sourceText = (source, by) => source === "decided" ? `decided by ${by}` : source === "pinned" ? "pinned by the config" : "default", modelSource = (pair) => sourceText(pair.source.model, pair.decision?.by ?? null), levelSource = (pair) => sourceText(pair.source.level, pair.decision?.by ?? null), startName = (pair) => `model ${pair.model}, ${modelSource(pair)}; effort ${pair.level}, ${levelSource(pair)}`, startTitle = (step, pair, level = pair.level) => `Start the ${step} step on ${pair.model} at ${level}, ${level === pair.level ? levelSource(pair) : "this start only"}`, runTitle = (step, flow, effort) => {
   const hint = flow?.steps?.[step]?.hint;
   const start = effort ? `Start the ${step} step on ${effort.model} (${modelSource(effort)}) at ${effort.level} (${levelSource(effort)})` : `Start the ${step} step`;
   return `${start}${hint ? `. ${hint}` : ""} (Enter)`;
@@ -17694,7 +17694,7 @@ var TONES, PILL_ICONS, ASKS, COPIES, section = (title, aside, ...children) => {
     node.append(icon(step.state === "done" ? "check" : step.state === "now" ? PILL_ICONS[card.state] ?? "pending" : "pending"));
     const note = step.state === "done" ? "done" : step.state === "now" ? card.state ? stateLabel(card) : "next" : "";
     item.append(node, el("span", "name", step.name), el("span", "note", note));
-    item.append(gateOf(flow, step.name) === "auto" ? gateLabel(auto) : el("span"));
+    item.append(gateOf(flow, card.type, step.name) === "auto" ? gateLabel(auto) : el("span"));
     list.append(item);
   }
   return section("Lane", `${card.type} · step ${track.findIndex((step) => step.state === "now") + 1} of ${track.length}`, list);

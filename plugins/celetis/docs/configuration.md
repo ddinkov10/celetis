@@ -11,7 +11,7 @@ nothing after a `---` marker on its line.
 | --- | --- | --- |
 | `tracker` | Required: `github` or `local`: the issue tracker of the project. `local` keeps the issues in the repository and needs `landing: merge`; with `landing: pr`, the config is refused. The key form of each command follows it: a number for `github`, the 7 hexadecimal characters of a local issue for `local` | None: the config is refused |
 | `landing` | Required: `pr` or `merge`. `pr` squash-merges a PR when each check is green. `merge` creates one squash commit on the trunk, with no PR; a project with no PR check uses `merge` (`docs/issue-tracker.md`, "Branches, PRs, merge") | None: the config is refused |
-| `gates` | Mapping from a step name to `manual` or `auto` (`docs/workflow.md`, "Gates") | `manual` for each omitted step |
+| `gates` | Mapping from `triage` and each lane name to a gate (`docs/workflow.md`, "Gates") | `manual` for each omitted key and step |
 | `agents` | Mapping from a step name to `claude`, `codex`, or `opencode`: the preferred agent of that step ([Agent selection and model setup](#agent-selection-and-model-setup)) | Each step uses the local order |
 | `sessions` | Mapping from a step name to a mapping with an optional `model` (`haiku`, `sonnet`, `opus`, or `fable`) and an optional `effort` (`low`, `medium`, `high`, `xhigh`, or `max`): a pin of the model, the level, or both for each step session that the daemon starts. A pinned value wins over the decision of the step before. A `--model` or `--effort` of one start wins over the pin ([Agent selection and model setup](#agent-selection-and-model-setup)) | No pin |
 | `autoLanes` | A sequence with one or more of `triage`, `feature`, `bug`, `chore`, and `hotfix`: the lanes that auto mode of the daemon takes. `triage` stands for an issue with no lane (`docs/workflow.md`, "Gates") | Auto mode takes each lane and each issue with no lane |
@@ -36,11 +36,25 @@ of setup, see `docs/setup.md`, "`setup write`".
 For the repository setting of the squash title with the landing `pr`, see
 `docs/issue-tracker.md`, "Branches, PRs, merge".
 
-The allowed gate names are `triage`, `specify`, `bug`, `chore`, `hotfix`, `plan`, and
-`implement`. No other step is accepted. An empty `gates` mapping uses `manual` for all seven.
-The former value `me` is invalid; there is no automatic conversion.
-The `agents` keys are the same seven step names, and the allowed values are `claude`, `codex`,
-and `opencode`. A step with no entry, an omitted `agents` field, and an empty `agents` mapping give no
+The keys of `gates` are `triage` and the lane names `feature`, `bug`, `chore`, and `hotfix`. A
+label name, for example `enhancement`, is no key. The value of `triage` is `manual` or `auto`: the
+gate of the triage of an issue with no lane. The value of a lane is one of these:
+
+- `manual` or `auto`: the gate of each step of the lane after `triage`.
+- A mapping from a step of the lane after `triage` to `manual` or `auto`. The steps are `specify`,
+  `plan`, and `implement` for `feature`; `bug`, `plan`, and `implement` for `bug`; `chore` for
+  `chore`; and `hotfix` for `hotfix`.
+
+An omitted `gates`, an omitted key, an empty mapping, and an omitted step give `manual`. The config
+is invalid with any other key, step key, or value, for example the step-keyed form
+`gates: {plan: auto}` of older versions, `gates.chore.plan`, or `gates.bug.triage`. The former value
+`me` is invalid too. There is no automatic conversion. A step-keyed file of older versions with keys
+only from `triage`, `bug`, `chore`, and `hotfix` and the values `manual` or `auto` stays valid, and
+its `gates.bug: auto` now sets each step of the lane `bug`, also `plan` and `implement`. `chore` and
+`hotfix` keep their meaning, because each of those lanes has one step after `triage`. `gates.bug`
+names the lane `bug`, while `agents.bug` and `sessions.bug` name the step `bug`.
+The `agents` keys are the seven step names `triage`, `specify`, `bug`, `chore`, `hotfix`, `plan`,
+and `implement`, and the allowed values are `claude`, `codex`, and `opencode`. A step with no entry, an omitted `agents` field, and an empty `agents` mapping give no
 preference.
 An empty `board` mapping starts the automatic port search at 4403. An effective `PORT` takes
 precedence and requests one exact port ("Start the board").

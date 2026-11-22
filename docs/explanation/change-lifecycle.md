@@ -61,7 +61,8 @@ a hotfix goes from its lane step straight to the landing.
 
 A person can walk this path in sessions by hand, or the daemon can walk it. The daemon asks the
 resolver for the next step of an issue, starts that step in a new session, and ends the session
-when the issue shows that the step is done. A gate decides who starts each step: `manual` waits
+when the issue shows that the step is done. A gate of each lane and step decides who starts the
+step: `manual` waits
 for a person, and `auto` lets the daemon continue by itself
 ([Gates](../../plugins/celetis/docs/workflow.md#gates)).
 [About the daemon and its runs](daemon-and-runs.md) explains the daemon.

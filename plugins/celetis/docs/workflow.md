@@ -433,23 +433,34 @@ The exit status and the first word of the `land` line give the result:
 
 ## Gates
 
-Each step has a gate. An `auto` step starts by itself. A `manual` step starts with an explicit
+Each step of each lane has a gate, and so has the triage of an issue with no lane. A lane does not
+share its gates: `plan` of `feature` and `plan` of `bug` have a gate each. An `auto` step starts by
+itself. A `manual` step starts with an explicit
 single-issue start, an Add to an empty queue, or Continue for its displayed queue step. The step is
 the command of the `run` line with no prefix: `triage`, `bug`, `chore`, `hotfix`, `plan`, or
 `implement`. One command has another step name: `run /celetis:feature #<n>`, the line of an
 `enhancement` with no spec, is the step `specify`.
 
-`gates` in the main checkout's `.celetis.yaml` holds the project gates; each omitted step is `manual`
-(`docs/configuration.md`, "Fields and defaults"). The default gates start one step for each issue key
-or Run press. With `specify` as `auto`, the daemon starts a design session and waits for your first
-answer.
+`gates` in the main checkout's `.celetis.yaml` holds the project gates. Its keys are `triage` and
+the lane names `feature`, `bug`, `chore`, and `hotfix`, not the label names. `triage` holds the gate
+of the triage of an issue with no lane. A lane holds `manual` or `auto` for each of its steps after
+`triage`, or a mapping from each of those steps to `manual` or `auto`. Each omitted key and step is
+`manual`, and the config refuses a step that the lane does not have (`docs/configuration.md`,
+"Fields and defaults"). `gates.bug` names the lane `bug`; `agents.bug` and `sessions.bug` name the
+step `bug`. The default gates start one step for each issue key or Run press. With `specify` of
+`feature` as `auto`, the daemon starts a design session and waits for your first answer.
 
 ```yaml
 tracker: github
 landing: pr
 gates:
-  implement: auto
+  bug: auto
+  feature: {implement: auto}
 ```
+
+At a `manual` gate, a run prints
+`the gate of <step> in the lane <lane> is manual: celetis --agent <host> run <n> starts <command>`,
+or `the gate of triage is manual: …` for an issue with no lane, and ends.
 
 `autoLanes` in the same file names the lanes that auto mode takes: a sequence with one or more of
 `triage`, `feature`, `bug`, `chore`, and `hotfix`. The four last names are the lane names, not the
@@ -469,10 +480,14 @@ landing: pr
 gates:
   triage: auto
   bug: auto
-  plan: auto
-  implement: auto
+  feature: {specify: auto, implement: auto}
 autoLanes: [triage, bug]
 ```
+
+With this file, auto mode takes a bug issue at its `bug`, `plan`, or `implement` step, and its run
+continues through each step to the landing. Auto mode starts no step of a feature. A start of a
+feature with its number runs `specify` and stops before `plan` at its `manual` gate. A start of
+`plan` by hand continues into `implement`.
 
 ## The board
 

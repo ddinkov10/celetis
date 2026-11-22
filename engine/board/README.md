@@ -12,7 +12,7 @@ moves by hand.
 - **Step:** one part of the work on an issue, which one agent session does, for example `plan`.
 - **Stage:** one column of Pipeline, the view of the page that shows each issue at its step. A stage
   holds steps of the lanes.
-- **Gate:** the rule of a step that says who starts it. `manual` is your press of Run, and `auto` is auto
+- **Gate:** the rule of a pair of a lane and a step that says who starts it. `triage` of an issue with no lane has one gate. `manual` is your press of Run, and `auto` is auto
   mode of the daemon. The board shows `auto` on such a step while auto mode is on, and `auto off` while auto mode is off or stopping. The board starts no step by itself.
 - **Daemon:** `engine/daemon.ts` of the engine. Its runs start the sessions of the steps and know how
   each one ended. Auto mode of the daemon starts each step with the gate `auto` by itself, in the
@@ -341,7 +341,8 @@ The board puts these values in the fields of its document (`Document` of
 | `grammar` | The tracker kind of `.celetis.yaml`, `github` or `local`. The page parses the issue keys with its grammar. |
 | `flow.lanes` | The four lanes: `feature` (triage, specify, plan, implement), `bug` (triage, bug, plan, implement), `chore` (triage, chore), and `hotfix` (triage, hotfix). |
 | `flow.stages` | Triage, Define (specify, bug, chore, hotfix), Plan, and Implement. |
-| `flow.steps.<step>.gate` | The gate of each of the seven steps, by the rule of "Gates". |
+| `flow.gates.<lane>.<step>` | The gate of each step of each of the four lanes, `triage` too, by the rule of "Gates". |
+| `flow.gates.triage.triage` | The gate of the triage of an issue with no lane. |
 | `flow.steps.<step>.agent` | The preferred agent of the step (`agents.<step>` of `.celetis.yaml`), or `null`. |
 | `flow.steps.<step>.hint` | A hint that says the step lands the change when the build is done, for `implement`, `chore`, and `hotfix`. No other step has a hint. |
 | `noRun` | Read at each response, not in the refresh (`mainNoRun` of `engine/lib/resolver/resolver.ts`, `git status --porcelain` of the main checkout): a text that names the dirty path and tells to commit or stash first, while the main checkout is dirty, else `null`. |
@@ -621,7 +622,7 @@ to the card of its row, and Run starts the step again.
 - A `starting` card shows a warning when a run row of its issue has the `outcome` `stopped`, and
   the reason ends with the act of a Stop that the daemon cannot prove. The warning is that reason,
   from the last such row. The issue lock stays after that Stop, so the card stays in Running.
-- A `ready` card shows `auto` when the `gate` of its step is `auto` and auto mode is on, and `auto off` when auto mode is off or stopping. The label follows the mode at the next read, also when no card changed.
+- A `ready` card shows `auto` when `flow.gates` gives `auto` for its lane and its step and auto mode is on, and `auto off` when auto mode is off or stopping. The label follows the mode at the next read, also when no card changed.
 - A `ready` card shows the start pair of its step, the `effort` of its row, in one label after
   `next <step>` and before `auto`. The label has two segments, the model and then the level. The
   model segment has the stronger fill. A segment of a pinned value starts with a pin icon, a
@@ -1661,7 +1662,7 @@ loads nothing from the network.
   chat; with the wide Pipeline they open at the right of the stage columns, after the right pane.
   No list hides while the details show. The details show: for a session, the last 16
   lines of its terminal screen (with no empty line, rule, or box border), so you can read the dialog or the end
-  of the answer; the lane steps, with `auto` on a step whose gate is `auto` while auto mode is on, and
+  of the answer; the lane steps, with `auto` on a step whose gate in the lane of the card is `auto` while auto mode is on, and
   `auto off` while it is off or stopping; the pull request, the
   folder, and the lines changed; for a `ready` card, `Model` and `Effort` (`<value> · decided by <by>`,
   `<value> · pinned by the config`, or `<value> · default`) and `Why` before `Updated`. `Why` is the

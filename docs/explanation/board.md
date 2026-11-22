@@ -110,7 +110,7 @@ The design of the board follows this rule in three ways:
   `Starting` and gives the cause
   ([The commands of the board](../../engine/board/README.md#the-commands-of-the-board)).
 
-The board also does not start a step on its own. Each step has a gate. A `manual` gate means that a
+The board also does not start a step on its own. Each step of a lane has a gate. A `manual` gate means that a
 person starts the step. The person presses Run, adds the issue to an empty queue, or continues the
 queue. An `auto` gate means that auto mode of the daemon starts the step. The board only shows
 `auto` or `auto off` on such a card. The daemon decides, and the board mirrors it ([The

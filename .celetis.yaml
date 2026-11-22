@@ -4,11 +4,9 @@ suite: scripts/verify.ts
 worktreeSetup: scripts/worktree-setup.ts
 gates:
   triage: auto
-  specify: auto
+  feature: auto
   bug: auto
   chore: auto
   hotfix: auto
-  plan: auto
-  implement: auto
 board:
   port: 4404

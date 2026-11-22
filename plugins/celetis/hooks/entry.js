@@ -7027,6 +7027,30 @@ function profile(value, path) {
   integer(reviewer.rank, 0, 3, [...reviewerPath, "rank"]);
   oneOf(reviewer.effort, reviewerLevels, [...reviewerPath, "effort"]);
 }
+function gate(value, path) {
+  if (value !== "manual" && value !== "auto")
+    throw new ConfigError(path, "need manual or auto");
+}
+function checkGates(value) {
+  const gates = object(value, ["gates"]);
+  for (const [key, entry] of Object.entries(gates)) {
+    const path = ["gates", key];
+    const name = autoLaneNames.find((each) => each === key);
+    if (name === undefined)
+      throw new ConfigError(path, `need one of ${autoLaneNames.join(", ")}`);
+    if (name === "triage")
+      gate(entry, path);
+    else if (typeof entry === "object" && entry !== null && !Array.isArray(entry)) {
+      const allowed = lanes[name].steps.filter((step) => step !== "triage");
+      for (const [step, each] of Object.entries(entry)) {
+        if (!allowed.some((known) => known === step))
+          throw new ConfigError([...path, step], `need one of ${allowed.join(", ")}`);
+        gate(each, [...path, step]);
+      }
+    } else if (entry !== "manual" && entry !== "auto")
+      throw new ConfigError(path, "need manual, auto, or a mapping from a step of the lane to manual or auto");
+  }
+}
 function checkSchema(value) {
   const config = object(value, []);
   keysOnly(config, [
@@ -7048,14 +7072,8 @@ function checkSchema(value) {
   oneOf(config.landing, ["pr", "merge"], ["landing"]);
   if (config.tracker === "local" && config.landing === "pr")
     throw new ConfigError(["tracker"], "the tracker local needs the landing merge");
-  if (Object.hasOwn(config, "gates")) {
-    const gates = object(config.gates, ["gates"]);
-    keysOnly(gates, steps, ["gates"]);
-    for (const [step, gate] of Object.entries(gates)) {
-      if (gate !== "manual" && gate !== "auto")
-        throw new ConfigError(["gates", step], "need manual or auto");
-    }
-  }
+  if (Object.hasOwn(config, "gates"))
+    checkGates(config.gates);
   if (Object.hasOwn(config, "agents")) {
     const agents = object(config.agents, ["agents"]);
     keysOnly(agents, steps, ["agents"]);

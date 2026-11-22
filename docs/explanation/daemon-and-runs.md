@@ -77,8 +77,8 @@ The path of one step is:
    the one that started the session, the daemon ends the session
    ([The step end](../../plugins/celetis/docs/workflow.md#the-step-end)). The exit status of the
    host decides nothing: the resolver decides.
-5. The daemon reads the decision again. When the next step has the gate `auto`, it starts that step.
-   Otherwise the run ends.
+5. The daemon reads the decision again. When the next step has the gate `auto` in its lane, it
+   starts that step. Otherwise the run ends.
 
 A start with one number, `celetis run <n>`, shows the rule. The daemon starts the first step
 whatever its gate is. After each session, it starts a next step only when its gate is `auto`. The
@@ -171,6 +171,8 @@ and holds the lock `auto`
 
 The gates decide how far an issue goes. With the default gates, no step is `auto`, so auto mode
 starts nothing. A project sets `gates` and `autoLanes` in the `.celetis.yaml` of the main checkout.
+`gates` holds the gates of each lane apart, so the bug lane can run with no stop while the feature
+lane stops before `plan`.
 `autoLanes` limits only auto mode. A numbered start, a Run press, a queue run, and a resume work in
 each lane ([Gates](../../plugins/celetis/docs/workflow.md#gates)).
 

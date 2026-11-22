@@ -4,11 +4,13 @@ import type { IssueRow } from '../resolver/types.ts';
 import type { TrackerKind } from '../tracker/grammar.ts';
 import type { IssueKey } from '../tracker/key.ts';
 import type { Level } from '../workflow/effort.ts';
+import type { Gate } from '../workflow/workflow.ts';
 
 export type Flow = {
   lanes: Record<string, string[]>;
   stages: { name: string; steps: string[] }[];
-  steps: Record<string, { gate: 'manual' | 'auto'; agent: Host | null; hint?: string }>;
+  gates: Record<string, Record<string, Gate>>;
+  steps: Record<string, { agent: Host | null; hint?: string }>;
   levels: Level[];
 };
 export type LandedIssue = {

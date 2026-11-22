@@ -79,6 +79,20 @@
         "files": ["http://localhost:4471/celetis", "http://localhost:4471/celetis/**"],
         "createdAt": "2026-11-21T09:01:32.369Z",
         "reason": "Spec of #355 (the standard classic theme, no custom look): the edge labels of the Mermaid diagram (div.labelBkg) are the Mermaid markup, which the site does not style; no custom CSS is allowed."
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": ["http://127.0.0.1:*"],
+        "createdAt": "2026-11-22T08:17:23.143Z",
+        "reason": "The gate mark (auto, or auto off while auto mode is off) of each auto step of the lane track is the existing mark of base 8365fe7 (engine/board/page/panel.ts); the spec of #363, rule 8, keeps its look."
+      },
+      {
+        "rule": "repeated-container-text",
+        "value": "*",
+        "files": ["http://127.0.0.1:*/"],
+        "createdAt": "2026-11-22T08:17:23.281Z",
+        "reason": "The gate mark (auto, or auto off while auto mode is off) of each auto step of the lane track is the existing mark of base 8365fe7 (engine/board/page/panel.ts); the spec of #363, rule 8, keeps its look."
       }
     ]
   }

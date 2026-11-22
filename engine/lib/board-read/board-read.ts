@@ -24,8 +24,9 @@ import { levels } from '../workflow/effort.ts';
 import { hasPage, visualPage } from '../workflow/visual.ts';
 import {
   closedKeys,
-  defaultGate,
   folderPrefix,
+  gateOf,
+  type Lane,
   lands,
   laneKey,
   lanes,
@@ -92,11 +93,21 @@ async function readDocument(
   const flow: Flow = {
     lanes: Object.fromEntries(Object.entries(lanes).map(([lane, definition]) => [lane, [...definition.steps]])),
     stages: stages.map((stage) => ({ name: stage.name, steps: [...stage.steps] })),
+    gates: {
+      triage: { triage: gateOf(operation.mainConfig?.gates, { lane: null, step: 'triage' }) },
+      ...Object.fromEntries(
+        (Object.keys(lanes) as Lane[]).map((lane) => [
+          lane,
+          Object.fromEntries(
+            lanes[lane].steps.map((step) => [step, gateOf(operation.mainConfig?.gates, { lane, step })]),
+          ),
+        ]),
+      ),
+    },
     steps: Object.fromEntries(
       [...steps].sort().map((step) => [
         step,
         {
-          gate: operation.mainConfig?.gates?.[step] ?? defaultGate,
           agent: operation.mainConfig?.agents?.[step] ?? null,
           ...(lands(step) ? { hint: 'It lands the change when the build is done.' } : {}),
         },

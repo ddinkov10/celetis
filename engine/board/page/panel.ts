@@ -91,7 +91,7 @@ const steps = (card: Card, flow: Flow | null, auto: DaemonView['auto']) => {
     );
     const note = step.state === 'done' ? 'done' : step.state === 'now' ? (card.state ? stateLabel(card) : 'next') : '';
     item.append(node, el('span', 'name', step.name), el('span', 'note', note));
-    item.append(gateOf(flow, step.name) === 'auto' ? gateLabel(auto) : el('span'));
+    item.append(gateOf(flow, card.type, step.name) === 'auto' ? gateLabel(auto) : el('span'));
     list.append(item);
   }
   return section(

@@ -181,7 +181,12 @@ const PLACERS: Record<
   ],
   ready: (issue, { flow, isOpen }) => [
     issue.started || issue.urgent ? 'needs' : 'idle',
-    issueCard(issue, { step: issue.step, gate: gateOf(flow, issue.step), run: isOpen, effort: issue.effort }),
+    issueCard(issue, {
+      step: issue.step,
+      gate: gateOf(flow, issue.type, issue.step),
+      run: isOpen,
+      effort: issue.effort,
+    }),
   ],
 };
 

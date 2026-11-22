@@ -2,7 +2,7 @@ import { type Document, isAlias, isMap, isScalar, isSeq, parseAllDocuments } fro
 import { type Host, hosts } from '../host/names.ts';
 import type { TrackerKind } from '../tracker/grammar.ts';
 import { levels, models, type Pin, type ReviewerLevel, reviewerLevels } from '../workflow/effort.ts';
-import { type AutoLane, autoLaneNames, type Step, steps } from '../workflow/workflow.ts';
+import { type AutoLane, autoLaneNames, type Gates, lanes, type Step, steps } from '../workflow/workflow.ts';
 
 export const bunFloor = '1.4.4';
 
@@ -55,7 +55,7 @@ export type ConfigSource = Readonly<{
 }>;
 
 export type Config = Readonly<{
-  gates?: Readonly<Partial<Record<Step, 'manual' | 'auto'>>>;
+  gates?: Gates;
   agents?: Readonly<Partial<Record<Step, Host>>>;
   sessions?: Readonly<Partial<Record<Step, Pin>>>;
   autoLanes?: readonly AutoLane[];
@@ -307,6 +307,29 @@ function profile(value: unknown, path: Path): void {
   oneOf(reviewer.effort, reviewerLevels, [...reviewerPath, 'effort']);
 }
 
+function gate(value: unknown, path: Path): void {
+  if (value !== 'manual' && value !== 'auto') throw new ConfigError(path, 'need manual or auto');
+}
+
+function checkGates(value: unknown): void {
+  const gates = object(value, ['gates']);
+  for (const [key, entry] of Object.entries(gates)) {
+    const path = ['gates', key];
+    const name = autoLaneNames.find((each) => each === key);
+    if (name === undefined) throw new ConfigError(path, `need one of ${autoLaneNames.join(', ')}`);
+    if (name === 'triage') gate(entry, path);
+    else if (typeof entry === 'object' && entry !== null && !Array.isArray(entry)) {
+      const allowed = lanes[name].steps.filter((step) => step !== 'triage');
+      for (const [step, each] of Object.entries(entry)) {
+        if (!allowed.some((known) => known === step))
+          throw new ConfigError([...path, step], `need one of ${allowed.join(', ')}`);
+        gate(each, [...path, step]);
+      }
+    } else if (entry !== 'manual' && entry !== 'auto')
+      throw new ConfigError(path, 'need manual, auto, or a mapping from a step of the lane to manual or auto');
+  }
+}
+
 function checkSchema(value: unknown): asserts value is Config {
   const config = object(value, []);
   keysOnly(
@@ -332,13 +355,7 @@ function checkSchema(value: unknown): asserts value is Config {
   oneOf(config.landing, ['pr', 'merge'], ['landing']);
   if (config.tracker === 'local' && config.landing === 'pr')
     throw new ConfigError(['tracker'], 'the tracker local needs the landing merge');
-  if (Object.hasOwn(config, 'gates')) {
-    const gates = object(config.gates, ['gates']);
-    keysOnly(gates, steps, ['gates']);
-    for (const [step, gate] of Object.entries(gates)) {
-      if (gate !== 'manual' && gate !== 'auto') throw new ConfigError(['gates', step], 'need manual or auto');
-    }
-  }
+  if (Object.hasOwn(config, 'gates')) checkGates(config.gates);
   if (Object.hasOwn(config, 'agents')) {
     const agents = object(config.agents, ['agents']);
     keysOnly(agents, steps, ['agents']);

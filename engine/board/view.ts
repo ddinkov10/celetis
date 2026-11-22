@@ -2,6 +2,7 @@ import type { Host, Registry } from '../lib/host/names.ts';
 import { grammar } from '../lib/tracker/grammar.ts';
 import { type IssueKey, isKey } from '../lib/tracker/key.ts';
 import type { Level, RowSource, StartPair } from '../lib/workflow/effort.ts';
+import type { Gate } from '../lib/workflow/workflow.ts';
 import type { Board, Card, Column, CoordinatorView, Diff, Flow, ParentEpic, Pull } from './types.ts';
 export const COLUMNS: { key: Column; name: string; note: string; empty: [string, string] }[] = [
   {
@@ -52,8 +53,8 @@ export const STATES: Record<string, string> = {
 
 const WAITS: Record<string, string> = { dialog: 'waits for your answer', turn: 'turn ended' };
 
-export const gateOf = (flow: Partial<Flow> | null | undefined, step: string | null) =>
-  flow?.steps?.[step as string]?.gate ?? null;
+export const gateOf = (flow: Partial<Flow> | null | undefined, lane: string | null, step: string | null): Gate | null =>
+  flow?.gates?.[lane ?? 'triage']?.[step as string] ?? null;
 
 export const sourceText = (source: RowSource, by: string | null): string =>
   source === 'decided' ? `decided by ${by}` : source === 'pinned' ? 'pinned by the config' : 'default';

@@ -15,7 +15,7 @@ import type { IssueKey } from '../tracker/key.ts';
 import { type EffortDecision, noOverride, type Override } from '../workflow/effort.ts';
 import {
   autoTakes,
-  defaultGate,
+  gateOf,
   invocation,
   type Run,
   type Step as StepName,
@@ -503,8 +503,9 @@ function resolve(state: StateOf<'resolving'>, event: EventOf<'resolved'>, run: R
         { kind: 'no-progress', issue: number, line },
       ]);
     }
-    if (loop.first !== 'any' && (config.gates?.[step] ?? defaultGate) !== 'auto') {
-      const reason = `the gate of ${step} is manual: celetis --agent <host> run ${number} starts ${prompt}`;
+    if (loop.first !== 'any' && gateOf(config.gates, next) !== 'auto') {
+      const lane = next.lane === null ? '' : ` in the lane ${next.lane}`;
+      const reason = `the gate of ${step}${lane} is manual: celetis --agent <host> run ${number} starts ${prompt}`;
       return close(issue, 'gate', reason, 'Use Continue queue to start this displayed step.', [say(reason)]);
     }
   }

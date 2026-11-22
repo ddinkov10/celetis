@@ -79,9 +79,13 @@ answer.
 **A start with one number** asks the daemon for a run of the issue. The daemon run reads the
 decision of the issue from the in-process resolver (`nextIssue` of `engine/lib/resolver/resolver.ts`), a Run of a step or a stop, and starts the step
 of a Run, whatever its gate. When the session ends, it reads the decision again and starts each
-next step whose gate is `auto`. It ends the issue at the first of these, in this order: a stop,
-the same step again ("no progress"), a refused skip, or a `manual` gate. With the default gates, each
-next step is a `manual` step.
+next step whose gate is `auto`. The gate of a Run is the value of its lane and its step in `gates`,
+or `gates.triage` for a Run with no lane (`gateOf` of `engine/lib/workflow/workflow.ts`). It ends
+the issue at the first of these, in this order: a stop, the same step again ("no progress"), a
+refused skip, or a `manual` gate. At a `manual` gate it prints
+`the gate of <step> in the lane <lane> is manual: celetis --agent <host> run <n> starts <command>`,
+or `the gate of triage is manual: …` for a Run with no lane. With the default gates, each next
+step is a `manual` step.
 
 **The model and the effort level.** The daemon resolves one start pair, a model and an effort
 level, for each session that it starts (`startPair` of `engine/lib/workflow/effort.ts`). Each value is the
@@ -118,7 +122,7 @@ starts T.
 
 **Auto mode** of the daemon reads the decision of each open issue from the same resolver (`nextOpen`)
 and takes the lowest open issue whose decision is a Run,
-whose step has the gate `auto`, whose lane is in `autoLanes` of the main `.celetis.yaml`,
+whose Run has the gate `auto`, whose lane is in `autoLanes` of the main `.celetis.yaml`,
 whose step has no row in the record, whose number is not in the `set-aside` file, and
 whose lock is free. A Run with no lane, the `triage` step of an issue with no lane label, counts as
 the name `triage` of the list. With no `autoLanes`, each lane and each issue with no lane passes

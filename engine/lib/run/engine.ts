@@ -12,7 +12,7 @@ import type { RepositoryLayout } from '../state/state.ts';
 import { closeTerminal, requireTerminals, TerminalError } from '../terminal/terminal.ts';
 import type { IssueKey } from '../tracker/key.ts';
 import type { Level, Model } from '../workflow/effort.ts';
-import { autoTakes, defaultGate, type Step } from '../workflow/workflow.ts';
+import { autoTakes, gateOf, type Step } from '../workflow/workflow.ts';
 import { activities, createIo, detachRun, die, failedOf, type Io, type Options, perform } from './activities.ts';
 import { type Effect, type Event, initial, on, type RunFacts, type State, type Working } from './machine.ts';
 import type { RunRecord } from './record.ts';
@@ -242,7 +242,7 @@ export function autoLoop(
         } else if (rows && aside) {
           let pick: IssueKey | null = null;
           for (const { number: key, next } of rows) {
-            if (next.kind !== 'run' || (config.gates?.[next.step] ?? defaultGate) !== 'auto') continue;
+            if (next.kind !== 'run' || gateOf(config.gates, next) !== 'auto') continue;
             if (!autoTakes(config.autoLanes, next)) continue;
             if (aside.has(key)) continue;
             if ((await lockHolder(main, issueLock(key))) || (await isRecorded(common, key, lineOf(key, next))))
