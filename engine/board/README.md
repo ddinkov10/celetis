@@ -1863,6 +1863,10 @@ has one owner. React renders a node of the frame in full, from the state of `pag
 board read of `page/query.ts`. The host components of `page/app/hosts.tsx` render the markup of a screen
 that has not moved to React once and never again, and the older page modules fill and change that markup.
 
+The Operations screen renders through React from `page/operations/`: the tabs, the issues of Agents and
+Pipeline, the details, the card menus, and the Stop dialog. The coordinator section, the Chat button, and the
+queue section stay host markup of `page/app/hosts.tsx` until #359 and #360.
+
 ## Limits
 
 Of the distribution:

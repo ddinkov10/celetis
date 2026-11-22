@@ -1,7 +1,5 @@
-import type { Host, Registry } from '../../lib/host/names.ts';
-import type { Pull } from '../../lib/resolver/types.ts';
-import type { Action, Card, DaemonView } from '../types.ts';
-import { age, agentOf, clock, knownAgent, prFacts } from '../view.ts';
+import type { Host } from '../../lib/host/names.ts';
+import { age, clock } from '../view.ts';
 
 const CODEX_ICON =
   'data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjFlbSIgc3R5bGU9ImZsZXg6bm9uZTtsaW5lLWhlaWdodDoxIiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIxZW0iIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHRpdGxlPkNvZGV4PC90aXRsZT48cGF0aCBkPSJNMTkuNTAzIDBINC40OTZBNC40OTYgNC40OTYgMCAwMDAgNC40OTZ2MTUuMDA3QTQuNDk2IDQuNDk2IDAgMDA0LjQ5NiAyNGgxNS4wMDdBNC40OTYgNC40OTYgMCAwMDI0IDE5LjUwM1Y0LjQ5NkE0LjQ5NiA0LjQ5NiAwIDAwMTkuNTAzIDB6IiBmaWxsPSIjZmZmIj48L3BhdGg+PHBhdGggZD0iTTkuMDY0IDMuMzQ0YTQuNTc4IDQuNTc4IDAgMDEyLjI4NS0uMzEyYzEgLjExNSAxLjg5MS41NCAyLjY3MyAxLjI3NS4wMS4wMS4wMjQuMDE3LjAzNy4wMjFhLjA5LjA5IDAgMDAuMDQzIDAgNC41NSA0LjU1IDAgMDEzLjA0Ni4yNzVsLjA0Ny4wMjIuMTE2LjA1N2E0LjU4MSA0LjU4MSAwIDAxMi4xODggMi4zOTljLjIwOS41MS4zMTMgMS4wNDEuMzE1IDEuNTk1YTQuMjQgNC4yNCAwIDAxLS4xMzQgMS4yMjMuMTIzLjEyMyAwIDAwLjAzLjExNWMuNTk0LjYwNy45ODggMS4zMyAxLjE4MyAyLjE3LjI4OSAxLjQyNS0uMDA3IDIuNzEtLjg4NyAzLjg1NGwtLjEzNi4xNjZhNC41NDggNC41NDggMCAwMS0yLjIwMSAxLjM4OC4xMjMuMTIzIDAgMDAtLjA4MS4wNzZjLS4xOTEuNTUxLS4zODMgMS4wMjMtLjc0IDEuNDk0LS45IDEuMTg3LTIuMjIyIDEuODQ2LTMuNzExIDEuODM4LTEuMTg3LS4wMDYtMi4yMzktLjQ0LTMuMTU3LTEuMzAyYS4xMDcuMTA3IDAgMDAtLjEwNS0uMDI0Yy0uMzg4LjEyNS0uNzguMTQzLTEuMjA0LjEzOGE0LjQ0MSA0LjQ0MSAwIDAxLTEuOTQ1LS40NjYgNC41NDQgNC41NDQgMCAwMS0xLjYxLTEuMzM1Yy0uMTUyLS4yMDItLjMwMy0uMzkyLS40MTQtLjYxN2E1LjgxIDUuODEgMCAwMS0uMzctLjk2MSA0LjU4MiA0LjU4MiAwIDAxLS4wMTQtMi4yOTguMTI0LjEyNCAwIDAwLjAwNi0uMDU2LjA4NS4wODUgMCAwMC0uMDI3LS4wNDggNC40NjcgNC40NjcgMCAwMS0xLjAzNC0xLjY1MSAzLjg5NiAzLjg5NiAwIDAxLS4yNTEtMS4xOTIgNS4xODkgNS4xODkgMCAwMS4xNDEtMS42Yy4zMzctMS4xMTIuOTgyLTEuOTg1IDEuOTMzLTIuNjE4LjIxMi0uMTQxLjQxMy0uMjUxLjYwMS0uMzMuMjE1LS4wODkuNDMtLjE2NC42NDYtLjIyN2EuMDk4LjA5OCAwIDAwLjA2NS0uMDY2IDQuNTEgNC41MSAwIDAxLjgyOS0xLjYxNSA0LjUzNSA0LjUzNSAwIDAxMS44MzctMS4zODh6bTMuNDgyIDEwLjU2NWEuNjM3LjYzNyAwIDAwMCAxLjI3MmgzLjYzNmEuNjM3LjYzNyAwIDEwMC0xLjI3MmgtMy42MzZ6TTguNDYyIDkuMjNhLjYzNy42MzcgMCAwMC0xLjEwNi42MzFsMS4yNzIgMi4yMjQtMS4yNjYgMi4xMzZhLjYzNi42MzYgMCAxMDEuMDk1LjY0OWwxLjQ1NC0yLjQ1NWEuNjM2LjYzNiAwIDAwLjAwNS0uNjRMOC40NjIgOS4yM3oiIGZpbGw9InVybCgjbG9iZS1pY29ucy1jb2RleC1fUl8wXykiPjwvcGF0aD48ZGVmcz48bGluZWFyR3JhZGllbnQgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiIGlkPSJsb2JlLWljb25zLWNvZGV4LV9SXzBfIiB4MT0iMTIiIHgyPSIxMiIgeTE9IjMiIHkyPSIyMSI+PHN0b3Agc3RvcC1jb2xvcj0iI0IxQTdGRiI+PC9zdG9wPjxzdG9wIG9mZnNldD0iLjUiIHN0b3AtY29sb3I9IiM3QTlERkYiPjwvc3RvcD48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMzOTQxRkYiPjwvc3RvcD48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48L3N2Zz4=';
@@ -242,39 +240,25 @@ export const icon = (name: string) => {
   return svg;
 };
 
-export const link = (className: string, text: string, url?: string | null) => {
+export const safeUrl = (url?: string | null): string | null => {
   if (url && !/[\u0000-\u0020\u007f-\u009f]/.test(url)) {
     try {
       const parsed = new URL(url);
-      if (['http:', 'https:'].includes(parsed.protocol) && !parsed.username && !parsed.password)
-        return Object.assign(el('a', className, text), { href: url, target: '_blank', rel: 'noreferrer' });
+      if (['http:', 'https:'].includes(parsed.protocol) && !parsed.username && !parsed.password) return url;
     } catch {}
   }
-  return el('span', className, text);
+  return null;
 };
 
-export const prChips = (pr: Pull | null | undefined) => {
-  const items = prFacts(pr);
-  if (items.length === 0) return null;
-  const node = el('div', 'chips');
-  for (const item of items) {
-    const chip = link(`chip2 chip-${item.kind}`, '', item.url);
-    chip.append(
-      icon(
-        item.kind === 'pr'
-          ? 'pr'
-          : item.kind.startsWith('checks-fail')
-            ? 'xcircle'
-            : item.kind.startsWith('checks-pass') || item.kind === 'review-approved'
-              ? 'check'
-              : 'clock',
-      ),
-      item.text,
-    );
-    if (item.url) chip.addEventListener('click', (event) => event.stopPropagation());
-    node.append(chip);
-  }
-  return node;
+export const openUrl = (url?: string | null) => {
+  const href = safeUrl(url);
+  if (href) window.open(href, '_blank', 'noopener,noreferrer');
+};
+
+export const link = (className: string, text: string, url?: string | null) => {
+  const href = safeUrl(url);
+  if (href) return Object.assign(el('a', className, text), { href, target: '_blank', rel: 'noreferrer' });
+  return el('span', className, text);
 };
 
 export const timed = (iso: string, isFine = false, suffix = '') => {
@@ -395,36 +379,6 @@ export const copy = async (text: string, what: string) => {
   }
 };
 
-export const pressable = <T extends HTMLElement>(node: T, press: () => unknown, busy?: string) => {
-  node.addEventListener('click', async (event) => {
-    event.stopPropagation();
-    if (node.getAttribute('aria-busy') === 'true') return;
-    const label = node.querySelector<HTMLElement>('.label');
-    const text = label?.textContent;
-    node.setAttribute('aria-busy', 'true');
-    if (label && busy) label.textContent = busy;
-    await press();
-    node.removeAttribute('aria-busy');
-    if (label && busy) label.textContent = text as string;
-  });
-  return node;
-};
-
-export const actionButton = (action: Action, isQuiet = false) => {
-  const kind = `btn ${isQuiet || action.isGhost ? 'ghost' : 'primary'}${action.isMain ? ' main-action' : ''}`;
-  const node = action.href
-    ? Object.assign(el('a', kind), { href: action.href, target: '_blank', rel: 'noreferrer' })
-    : el('button', kind);
-  if (!action.href) node.type = 'button';
-  node.append(icon(action.icon), el('span', 'label', action.label));
-  node.title = action.title;
-  node.setAttribute('aria-label', action.name);
-  if (action.isDisabled) node.setAttribute('aria-disabled', 'true');
-  if (action.href) node.addEventListener('click', (event) => event.stopPropagation());
-  else pressable(node, action.run as () => unknown, action.busy);
-  return node;
-};
-
 export const iconButton = (name: string, label: string, press: (event: MouseEvent) => unknown, className = '') => {
   const node = el('button', `icon-btn ${className}`.trim());
   node.type = 'button';
@@ -483,40 +437,4 @@ export const announce = (text: string) => {
   }, 100);
 };
 
-const TYPES: Record<string, string> = { bug: 'bug', feature: 'spark', chore: 'wrench', hotfix: 'flame' };
-
-export const gateLabel = (mode: DaemonView['auto']) => {
-  const on = mode === 'on';
-  const node = el('span', on ? 'gate gate-auto' : 'gate gate-auto is-off', on ? 'auto' : 'auto off');
-  node.title = on ? 'Auto mode of the daemon starts this step by itself' : 'Auto mode is off: this step waits for Run.';
-  return node;
-};
-
-export const mark = (card: Card, registry: Registry, identifiedByText = false) => {
-  const agent = agentOf(card, registry);
-  if (agent) {
-    const known = knownAgent(registry, card.agent) ? card.agent : null;
-    const node = el('span', `mark agent agent-${known ?? 'other'}`);
-    node.title = agent.name;
-    if (known) {
-      const image = el('img');
-      image.src = AGENT_ICONS[known];
-      image.alt = identifiedByText ? '' : agent.name;
-      node.classList.add('agent-image');
-      node.append(image);
-    } else node.textContent = agent.letter;
-    return node;
-  }
-  const node = el('span', `mark type-${card.type ?? 'none'}`);
-  node.append(
-    icon(
-      Object.hasOwn(TYPES, card.type as string)
-        ? (TYPES[card.type as string] as string)
-        : card.number === null
-          ? 'terminal'
-          : 'nolane',
-    ),
-  );
-  if (!card.type && card.number !== null) node.title = 'No lane yet';
-  return node;
-};
+export const TYPES: Record<string, string> = { bug: 'bug', feature: 'spark', chore: 'wrench', hotfix: 'flame' };

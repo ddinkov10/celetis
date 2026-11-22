@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { cn } from 'cn';
 import type { ComponentProps, ReactNode } from 'react';
 import type { Board } from '../../types.ts';
+import { Operations } from '../operations/operations.tsx';
 import { viewOptions } from '../query.ts';
 import { AREA_ICONS, AREA_NAMES, AREAS, type Area, badgeText, FIND_KEY, isChatShown } from '../shell.ts';
 import { shellStore, useShellStore } from '../store.ts';
@@ -18,7 +19,6 @@ import {
 import { capital, SERVER_DOWN } from '../ui.ts';
 import { Control } from './control.tsx';
 import { Home } from './home.tsx';
-import { OperationsHost } from './hosts.tsx';
 import { Icon } from './icon.tsx';
 
 const SKIP =
@@ -265,7 +265,7 @@ function Work() {
         <Throughput />
       </AreaBox>
       <AreaBox area="operations">
-        <OperationsHost />
+        <Operations />
       </AreaBox>
     </main>
   );

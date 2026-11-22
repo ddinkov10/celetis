@@ -31,6 +31,19 @@ var __toESM = (mod, isNodeMode, target) => {
   return to;
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
+var __returnValue = (v) => v;
+function __exportSetter(name, newValue) {
+  this[name] = __returnValue.bind(null, newValue);
+}
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, {
+      get: all[name],
+      enumerable: true,
+      configurable: true,
+      set: __exportSetter.bind(all, name)
+    });
+};
 var __esm = (fn, res, err) => () => {
   if (fn)
     try {
@@ -14895,82 +14908,124 @@ var init_modern2 = __esm(() => {
   init_modern();
 });
 
-// engine/board/page/query.ts
-var queryClient, boardKey, readBoard = async ({ signal }) => {
-  const isLocal = document.hidden && queryClient.getQueryData(boardKey) !== undefined;
-  const response = await fetch(`/api/board${isLocal ? "?local=1" : ""}`, { signal });
-  if (!response.ok)
-    throw new Error(response.statusText);
-  return await response.json();
-}, pollOptions, viewOptions;
-var init_query2 = __esm(() => {
-  init_modern2();
-  queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false, networkMode: "always" }
-    }
-  });
-  boardKey = ["board"];
-  pollOptions = {
-    queryKey: boardKey,
-    queryFn: readBoard,
-    refetchInterval: () => document.hidden ? 15000 : 5000,
-    refetchIntervalInBackground: true
-  };
-  viewOptions = { queryKey: boardKey, queryFn: readBoard, enabled: false };
-});
-
-// engine/board/page/shell.ts
-var AREAS, TABS, AREA_ICONS, AREA_NAMES, member = (list, value) => list.find((each) => each === value), readShell = (stored) => {
-  const tab = member(TABS, stored.tab);
-  return {
-    area: member(AREAS, stored.area) ?? "home",
-    tab: tab === undefined || tab === "pipeline" ? "agents" : tab,
-    details: null,
-    pane: "chat"
-  };
-}, isChatShown = (shell, isPhone) => shell.area === "operations" && shell.details === null && (isPhone ? shell.pane === "chat" : shell.tab !== "pipeline"), FIND_KEY, badgeText = (count) => count === 0 ? "" : count > 999 ? "999+" : String(count);
-var init_shell = __esm(() => {
-  AREAS = ["home", "operations", "control", "throughput"];
-  TABS = ["agents", "pipeline", "queue", "history"];
-  AREA_ICONS = {
-    home: "home",
-    operations: "board",
-    control: "sliders",
-    throughput: "trend"
-  };
-  AREA_NAMES = {
-    home: "Home",
-    operations: "Operations",
-    control: "Control",
-    throughput: "Throughput"
-  };
-  FIND_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
-});
-
-// engine/board/page/theme/choice.ts
-var THEMES, THEME_WORDS, THEME_KEY = "celetis:theme", readTheme = () => {
-  try {
-    const value = localStorage.getItem(THEME_KEY);
-    return value === "light" || value === "dark" ? value : "system";
-  } catch {
-    return "system";
+// engine/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim.production.js
+var require_use_sync_external_store_shim_production = __commonJS(function(exports) {
+  var React = __toESM(require_react());
+  function is(x, y) {
+    return x === y && (x !== 0 || 1 / x === 1 / y) || x !== x && y !== y;
   }
-}, writeTheme = (theme) => {
-  try {
-    if (theme === "system")
-      localStorage.removeItem(THEME_KEY);
-    else
-      localStorage.setItem(THEME_KEY, theme);
-  } catch {}
-}, applyTheme = (theme) => {
-  const root = document.documentElement.dataset;
-  root.themeChoice = theme;
-  root.theme = theme !== "system" ? theme : matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-};
-var init_choice = __esm(() => {
-  THEMES = ["system", "light", "dark"];
-  THEME_WORDS = { system: "System", light: "Light", dark: "Dark" };
+  var objectIs = typeof Object.is === "function" ? Object.is : is;
+  var useState = React.useState;
+  var useEffect = React.useEffect;
+  var useLayoutEffect = React.useLayoutEffect;
+  var useDebugValue = React.useDebugValue;
+  function useSyncExternalStore$2(subscribe, getSnapshot) {
+    var value = getSnapshot(), _useState = useState({ inst: { value, getSnapshot } }), inst = _useState[0].inst, forceUpdate = _useState[1];
+    useLayoutEffect(function() {
+      inst.value = value;
+      inst.getSnapshot = getSnapshot;
+      checkIfSnapshotChanged(inst) && forceUpdate({ inst });
+    }, [subscribe, value, getSnapshot]);
+    useEffect(function() {
+      checkIfSnapshotChanged(inst) && forceUpdate({ inst });
+      return subscribe(function() {
+        checkIfSnapshotChanged(inst) && forceUpdate({ inst });
+      });
+    }, [subscribe]);
+    useDebugValue(value);
+    return value;
+  }
+  function checkIfSnapshotChanged(inst) {
+    var latestGetSnapshot = inst.getSnapshot;
+    inst = inst.value;
+    try {
+      var nextValue = latestGetSnapshot();
+      return !objectIs(inst, nextValue);
+    } catch (error) {
+      return true;
+    }
+  }
+  function useSyncExternalStore$1(subscribe, getSnapshot) {
+    return getSnapshot();
+  }
+  var shim = typeof window === "undefined" || typeof window.document === "undefined" || typeof window.document.createElement === "undefined" ? useSyncExternalStore$1 : useSyncExternalStore$2;
+  exports.useSyncExternalStore = React.useSyncExternalStore !== undefined ? React.useSyncExternalStore : shim;
+});
+
+// engine/node_modules/use-sync-external-store/shim/index.js
+var require_shim = __commonJS(function(exports, module) {
+  if (true) {
+    module.exports = require_use_sync_external_store_shim_production();
+  }
+});
+
+// engine/node_modules/use-sync-external-store/cjs/use-sync-external-store-shim/with-selector.production.js
+var require_with_selector_production = __commonJS(function(exports) {
+  var React = __toESM(require_react());
+  var shim = require_shim();
+  function is(x, y) {
+    return x === y && (x !== 0 || 1 / x === 1 / y) || x !== x && y !== y;
+  }
+  var objectIs = typeof Object.is === "function" ? Object.is : is;
+  var useSyncExternalStore = shim.useSyncExternalStore;
+  var useRef = React.useRef;
+  var useEffect = React.useEffect;
+  var useMemo = React.useMemo;
+  var useDebugValue = React.useDebugValue;
+  exports.useSyncExternalStoreWithSelector = function(subscribe, getSnapshot, getServerSnapshot, selector, isEqual) {
+    var instRef = useRef(null);
+    if (instRef.current === null) {
+      var inst = { hasValue: false, value: null };
+      instRef.current = inst;
+    } else
+      inst = instRef.current;
+    instRef = useMemo(function() {
+      function memoizedSelector(nextSnapshot) {
+        if (!hasMemo) {
+          hasMemo = true;
+          memoizedSnapshot = nextSnapshot;
+          nextSnapshot = selector(nextSnapshot);
+          if (isEqual !== undefined && inst.hasValue) {
+            var currentSelection = inst.value;
+            if (isEqual(currentSelection, nextSnapshot))
+              return memoizedSelection = currentSelection;
+          }
+          return memoizedSelection = nextSnapshot;
+        }
+        currentSelection = memoizedSelection;
+        if (objectIs(memoizedSnapshot, nextSnapshot))
+          return currentSelection;
+        var nextSelection = selector(nextSnapshot);
+        if (isEqual !== undefined && isEqual(currentSelection, nextSelection))
+          return memoizedSnapshot = nextSnapshot, currentSelection;
+        memoizedSnapshot = nextSnapshot;
+        return memoizedSelection = nextSelection;
+      }
+      var hasMemo = false, memoizedSnapshot, memoizedSelection, maybeGetServerSnapshot = getServerSnapshot === undefined ? null : getServerSnapshot;
+      return [
+        function() {
+          return memoizedSelector(getSnapshot());
+        },
+        maybeGetServerSnapshot === null ? undefined : function() {
+          return memoizedSelector(maybeGetServerSnapshot());
+        }
+      ];
+    }, [getSnapshot, getServerSnapshot, selector, isEqual]);
+    var value = useSyncExternalStore(subscribe, instRef[0], instRef[1]);
+    useEffect(function() {
+      inst.hasValue = true;
+      inst.value = value;
+    }, [value]);
+    useDebugValue(value);
+    return value;
+  };
+});
+
+// engine/node_modules/use-sync-external-store/shim/with-selector.js
+var require_with_selector = __commonJS(function(exports, module) {
+  if (true) {
+    module.exports = require_with_selector_production();
+  }
 });
 
 // engine/lib/tracker/grammar.ts
@@ -15211,6 +15266,84 @@ var init_view = __esm(() => {
   };
 });
 
+// engine/board/page/query.ts
+var queryClient, boardKey, readBoard = async ({ signal }) => {
+  const isLocal = document.hidden && queryClient.getQueryData(boardKey) !== undefined;
+  const response = await fetch(`/api/board${isLocal ? "?local=1" : ""}`, { signal });
+  if (!response.ok)
+    throw new Error(response.statusText);
+  return await response.json();
+}, pollOptions, viewOptions;
+var init_query2 = __esm(() => {
+  init_modern2();
+  queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false, networkMode: "always" }
+    }
+  });
+  boardKey = ["board"];
+  pollOptions = {
+    queryKey: boardKey,
+    queryFn: readBoard,
+    refetchInterval: () => document.hidden ? 15000 : 5000,
+    refetchIntervalInBackground: true
+  };
+  viewOptions = { queryKey: boardKey, queryFn: readBoard, enabled: false };
+});
+
+// engine/board/page/shell.ts
+var AREAS, TABS, AREA_ICONS, AREA_NAMES, member = (list, value) => list.find((each) => each === value), readShell = (stored) => {
+  const tab = member(TABS, stored.tab);
+  return {
+    area: member(AREAS, stored.area) ?? "home",
+    tab: tab === undefined || tab === "pipeline" ? "agents" : tab,
+    details: null,
+    pane: "chat"
+  };
+}, isChatShown = (shell, isPhone) => shell.area === "operations" && shell.details === null && (isPhone ? shell.pane === "chat" : shell.tab !== "pipeline"), FIND_KEY, badgeText = (count) => count === 0 ? "" : count > 999 ? "999+" : String(count);
+var init_shell = __esm(() => {
+  AREAS = ["home", "operations", "control", "throughput"];
+  TABS = ["agents", "pipeline", "queue", "history"];
+  AREA_ICONS = {
+    home: "home",
+    operations: "board",
+    control: "sliders",
+    throughput: "trend"
+  };
+  AREA_NAMES = {
+    home: "Home",
+    operations: "Operations",
+    control: "Control",
+    throughput: "Throughput"
+  };
+  FIND_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
+});
+
+// engine/board/page/theme/choice.ts
+var THEMES, THEME_WORDS, THEME_KEY = "celetis:theme", readTheme = () => {
+  try {
+    const value = localStorage.getItem(THEME_KEY);
+    return value === "light" || value === "dark" ? value : "system";
+  } catch {
+    return "system";
+  }
+}, writeTheme = (theme) => {
+  try {
+    if (theme === "system")
+      localStorage.removeItem(THEME_KEY);
+    else
+      localStorage.setItem(THEME_KEY, theme);
+  } catch {}
+}, applyTheme = (theme) => {
+  const root = document.documentElement.dataset;
+  root.themeChoice = theme;
+  root.theme = theme !== "system" ? theme : matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+};
+var init_choice = __esm(() => {
+  THEMES = ["system", "light", "dark"];
+  THEME_WORDS = { system: "System", light: "Light", dark: "Dark" };
+});
+
 // engine/board/page/ui.ts
 async function send(path, value, failure) {
   try {
@@ -15277,28 +15410,24 @@ var CODEX_ICON = "data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjFlbSIgc3R5bGU9ImZs
     svg.append(part);
   }
   return svg;
-}, link = (className, text, url) => {
+}, safeUrl = (url) => {
   if (url && !/[\u0000-\u0020\u007f-\u009f]/.test(url)) {
     try {
       const parsed = new URL(url);
       if (["http:", "https:"].includes(parsed.protocol) && !parsed.username && !parsed.password)
-        return Object.assign(el("a", className, text), { href: url, target: "_blank", rel: "noreferrer" });
+        return url;
     } catch {}
   }
+  return null;
+}, openUrl = (url) => {
+  const href = safeUrl(url);
+  if (href)
+    window.open(href, "_blank", "noopener,noreferrer");
+}, link = (className, text, url) => {
+  const href = safeUrl(url);
+  if (href)
+    return Object.assign(el("a", className, text), { href, target: "_blank", rel: "noreferrer" });
   return el("span", className, text);
-}, prChips = (pr) => {
-  const items = prFacts(pr);
-  if (items.length === 0)
-    return null;
-  const node = el("div", "chips");
-  for (const item of items) {
-    const chip = link(`chip2 chip-${item.kind}`, "", item.url);
-    chip.append(icon(item.kind === "pr" ? "pr" : item.kind.startsWith("checks-fail") ? "xcircle" : item.kind.startsWith("checks-pass") || item.kind === "review-approved" ? "check" : "clock"), item.text);
-    if (item.url)
-      chip.addEventListener("click", (event) => event.stopPropagation());
-    node.append(chip);
-  }
-  return node;
 }, timed = (iso, isFine = false, suffix = "") => {
   const node = el("time", "time", `${age(iso, Date.now(), isFine)}${suffix}`);
   node.dateTime = iso;
@@ -15354,37 +15483,6 @@ var CODEX_ICON = "data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjFlbSIgc3R5bGU9ImZs
   } catch {
     toast("Copy failed", { detail: "The browser did not allow access to the clipboard.", isError: true });
   }
-}, pressable = (node, press, busy) => {
-  node.addEventListener("click", async (event) => {
-    event.stopPropagation();
-    if (node.getAttribute("aria-busy") === "true")
-      return;
-    const label = node.querySelector(".label");
-    const text = label?.textContent;
-    node.setAttribute("aria-busy", "true");
-    if (label && busy)
-      label.textContent = busy;
-    await press();
-    node.removeAttribute("aria-busy");
-    if (label && busy)
-      label.textContent = text;
-  });
-  return node;
-}, actionButton = (action, isQuiet = false) => {
-  const kind = `btn ${isQuiet || action.isGhost ? "ghost" : "primary"}${action.isMain ? " main-action" : ""}`;
-  const node = action.href ? Object.assign(el("a", kind), { href: action.href, target: "_blank", rel: "noreferrer" }) : el("button", kind);
-  if (!action.href)
-    node.type = "button";
-  node.append(icon(action.icon), el("span", "label", action.label));
-  node.title = action.title;
-  node.setAttribute("aria-label", action.name);
-  if (action.isDisabled)
-    node.setAttribute("aria-disabled", "true");
-  if (action.href)
-    node.addEventListener("click", (event) => event.stopPropagation());
-  else
-    pressable(node, action.run, action.busy);
-  return node;
 }, iconButton = (name, label, press, className = "") => {
   const node = el("button", `icon-btn ${className}`.trim());
   node.type = "button";
@@ -15408,33 +15506,7 @@ var CODEX_ICON = "data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjFlbSIgc3R5bGU9ImZs
   announcing = setTimeout(() => {
     live.textContent = text;
   }, 100);
-}, TYPES, gateLabel = (mode) => {
-  const on = mode === "on";
-  const node = el("span", on ? "gate gate-auto" : "gate gate-auto is-off", on ? "auto" : "auto off");
-  node.title = on ? "Auto mode of the daemon starts this step by itself" : "Auto mode is off: this step waits for Run.";
-  return node;
-}, mark = (card, registry, identifiedByText = false) => {
-  const agent = agentOf(card, registry);
-  if (agent) {
-    const known = knownAgent(registry, card.agent) ? card.agent : null;
-    const node = el("span", `mark agent agent-${known ?? "other"}`);
-    node.title = agent.name;
-    if (known) {
-      const image = el("img");
-      image.src = AGENT_ICONS[known];
-      image.alt = identifiedByText ? "" : agent.name;
-      node.classList.add("agent-image");
-      node.append(image);
-    } else
-      node.textContent = agent.letter;
-    return node;
-  }
-  const node = el("span", `mark type-${card.type ?? "none"}`);
-  node.append(icon(Object.hasOwn(TYPES, card.type) ? TYPES[card.type] : card.number === null ? "terminal" : "nolane"));
-  if (!card.type && card.number !== null)
-    node.title = "No lane yet";
-  return node;
-};
+}, TYPES;
 var init_ui = __esm(() => {
   init_view();
   AGENT_ICONS = { claude: CLAUDE_ICON, codex: CODEX_ICON, opencode: OPENCODE_ICON };
@@ -15704,32 +15776,39 @@ async function refresh() {
   clearTimeout(refreshDone);
   refreshDone = setTimeout(() => setControl({ refresh: "rest" }), 2000);
 }
-var import_react2, import_react_dom, phone, light, listeners, state, handlers, refreshDone, emit = (next) => {
+var import_react3, import_react_dom2, phone, light, listeners, committed, state, handlers, refreshDone, emit = (next) => {
   state = next;
-  import_react_dom.flushSync(() => {
+  import_react_dom2.flushSync(() => {
     for (const listener of listeners)
       listener();
   });
+  for (const listener of committed)
+    listener();
 }, setSettings = (change) => emit({ ...state, settings: { ...state.settings, ...change } }), setControl = (change) => emit({ ...state, control: { ...state.control, ...change } }), setNotify = (notify) => {
   store.set("notify", notify ? "on" : "off");
   setSettings({ notify });
-}, cycleTheme = () => shellStore.setTheme(THEMES[(THEMES.indexOf(state.settings.theme) + 1) % THEMES.length] ?? "system"), shellStore, useShellStore = (select) => import_react2.useSyncExternalStore(shellStore.subscribe, () => select(state));
+}, cycleTheme = () => shellStore.setTheme(THEMES[(THEMES.indexOf(state.settings.theme) + 1) % THEMES.length] ?? "system"), shellStore, subscribeView = (listener) => {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}, useShellStore = (select) => import_react3.useSyncExternalStore(subscribeView, () => select(state));
 var init_store = __esm(() => {
   init_query2();
   init_shell();
   init_choice();
   init_ui();
-  import_react2 = __toESM(require_react());
-  import_react_dom = __toESM(require_react_dom());
+  import_react3 = __toESM(require_react());
+  import_react_dom2 = __toESM(require_react_dom());
   phone = matchMedia("(max-width: 719px)");
   light = matchMedia("(prefers-color-scheme: light)");
   listeners = new Set;
+  committed = new Set;
   state = {
     shell: readShell({ area: store.get("area"), tab: store.get("tab") }),
     isPhone: phone.matches,
     settings: { theme: readTheme(), notify: store.get("notify") === "on", keys: store.get("keys") !== "off" },
     inputs: {
       badges: { home: 0, operations: 0, agents: 0 },
+      queueCount: 0,
       intake: { reason: null, pending: false },
       hints: [],
       chat: { state: "", stale: false, unseen: false, label: "", title: "" },
@@ -15744,6 +15823,7 @@ var init_store = __esm(() => {
     showChat: () => {},
     agents: () => {},
     intake: () => {},
+    agentOrder: () => {},
     readAgain: () => Promise.resolve(),
     isReconnecting: () => false,
     open: () => {}
@@ -15751,8 +15831,8 @@ var init_store = __esm(() => {
   shellStore = {
     get: () => state,
     subscribe: (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
+      committed.add(listener);
+      return () => committed.delete(listener);
     },
     setShell: (next) => {
       store.set("area", next.area);
@@ -15796,8 +15876,914 @@ var init_store = __esm(() => {
   });
 });
 
+// engine/board/page/operations/cards.ts
+var SLOW_START = 5000, SLOW_START_TEXT = "The daemon still checks the start", project = (board, launches) => {
+  if (launches.size === 0)
+    return board;
+  const columns = { needs: [], running: [], idle: [], human: [] };
+  for (const [key, cards] of Object.entries(board.columns))
+    for (const card of cards) {
+      const launch = card.sessionId === null && card.number !== null ? launches.get(card.number) : undefined;
+      if (!launch)
+        columns[key].push(card);
+      else if (launch.phase !== "failed" && card.step === launch.step && (card.state === null || card.state === "no-progress" || card.state === "set-aside" || card.state === "blocked" && launch.step === null))
+        columns.running.unshift({
+          ...card,
+          state: "starts",
+          act: null,
+          assist: false,
+          run: false,
+          resume: false,
+          go: false,
+          aside: false,
+          warning: null,
+          effort: null
+        });
+      else
+        columns[key].push({ ...card, assist: false, run: false, resume: false, aside: false });
+    }
+  return { ...board, columns };
+}, layoutOf = (next, view) => JSON.stringify([
+  view,
+  Object.entries(next.columns).map(([key, cards]) => [key, cards.map((card) => keyOf(card))])
+]), cardsOf = (item) => item.kind === "group" ? item.cards : [item.card], indexCards = (board, view) => {
+  const used = new Set;
+  const byKey = new Map;
+  const keys = new Map;
+  const keyFor = (card) => {
+    let key = keyOf(card);
+    while (used.has(key))
+      key += "-x";
+    used.add(key);
+    return key;
+  };
+  const add = (card, column) => {
+    const key = keyFor(card);
+    byKey.set(key, { card, column });
+    keys.set(card, key);
+  };
+  const { columns } = board;
+  if (view === "pipeline") {
+    const where = new Map([
+      ...columns.needs.map((card) => [card, "needs"]),
+      ...columns.running.map((card) => [card, "running"]),
+      ...columns.idle.map((card) => [card, "idle"])
+    ]);
+    const { stages, hold } = pipeline([...columns.needs, ...columns.running, ...columns.idle], board.flow);
+    for (const card of hold)
+      add(card, where.get(card));
+    for (const stage of stages)
+      for (const item of groupEpics(stage.cards, (card) => where.get(card) === "idle"))
+        for (const card of cardsOf(item))
+          add(card, where.get(card));
+  } else
+    for (const { key } of COLUMNS) {
+      const cards = columns[key];
+      if (key === "needs")
+        for (const group of groupNeeds(cards))
+          for (const card of group.cards)
+            add(card, key);
+      else if (key === "idle")
+        for (const item of groupEpics(cards, () => true))
+          for (const card of cardsOf(item))
+            add(card, key);
+      else
+        for (const card of cards)
+          add(card, key);
+    }
+  for (const card of columns.human)
+    add(card, "human");
+  return { byKey, keyOf: keys };
+};
+var init_cards = __esm(() => {
+  init_view();
+});
+
+// engine/board/page/operations/state.ts
+function closeDetails(refocus) {
+  const key = shell().details;
+  const isBack = refocus && key !== null;
+  setShell({
+    ...shell(),
+    details: null,
+    ...isBack && (shell().tab === "queue" || shell().tab === "history") ? { tab: "agents" } : {},
+    ...isBack && phone.matches ? { pane: "agents" } : {}
+  });
+  if (isBack) {
+    revealCard(key);
+    document.querySelector(`#tp-board [data-key="${CSS.escape(key)}"]`)?.focus({ preventScroll: true });
+  }
+}
+var import_react4, import_react_dom3, listeners2, handlers2, state2, emit2 = (next, isSync = true) => {
+  state2 = next;
+  const notify = () => {
+    for (const listener of listeners2)
+      listener();
+  };
+  if (isSync)
+    import_react_dom3.flushSync(notify);
+  else
+    notify();
+}, cause = null, emitFor = (reason, next, isSync = true) => {
+  const was = cause;
+  cause = reason;
+  try {
+    emit2(next, isSync);
+  } finally {
+    cause = was;
+  }
+}, edited = (value, change) => {
+  change(value);
+  return value;
+}, view = () => shellStore.get().shell.tab === "pipeline" ? "pipeline" : "now", projected = null, board = () => {
+  const { read, launches } = state2;
+  if (read === null)
+    return null;
+  if (projected === null || projected.read !== read || projected.launches !== launches)
+    projected = { read, launches, board: project(read, launches) };
+  return projected.board;
+}, NO_CARDS, indexed = null, index3 = () => {
+  const shown = board();
+  const at = view();
+  if (indexed === null || indexed.board !== shown || indexed.view !== at)
+    indexed = { board: shown, view: at, index: shown ? indexCards(shown, at) : NO_CARDS };
+  return indexed.index;
+}, SEEN_TURN = "seen-turn:", seenTurn = (terminal) => parseSeenTurn(store.get(`${SEEN_TURN}${terminal}`)), seeTurn = (card) => {
+  if (card.sessionId === null || card.waitFor !== "turn" || typeof card.turn !== "number")
+    return;
+  const name = `${SEEN_TURN}${card.sessionId}`;
+  if (store.get(name) === String(card.turn))
+    return;
+  store.set(name, String(card.turn));
+  emit2({ ...state2, turns: state2.turns + 1 });
+}, setEpicsOpen = (change) => {
+  const stored = store.get("open-epics");
+  const next = new Set(stored === null ? state2.openEpics : parseOpenEpics(stored));
+  change(next);
+  store.set("open-epics", JSON.stringify([...next].sort(compareKeys)));
+  emit2({ ...state2, openEpics: next });
+}, markSeen = (key) => {
+  const entry = index3().byKey.get(key);
+  if (!entry || state2.seen === null)
+    return;
+  emitFor("quiet", { ...state2, seen: new Map(state2.seen).set(key, signature(entry.card, entry.column)) });
+}, markAllSeen = () => {
+  if (state2.seen === null)
+    return;
+  const seen = new Map(state2.seen);
+  for (const [key, { card, column }] of index3().byKey)
+    seen.set(key, signature(card, column));
+  emitFor("quiet", { ...state2, seen });
+}, isUnseen = (key) => {
+  const entry = index3().byKey.get(key);
+  return entry !== undefined && state2.seen !== null && state2.seen.get(key) !== signature(entry.card, entry.column);
+}, accept = (next) => {
+  let { openEpics } = state2;
+  if (next.grammar !== grammar().kind) {
+    useGrammar(next.grammar);
+    openEpics = parseOpenEpics(store.get("open-epics") ?? "");
+  }
+  const launches = new Map(state2.launches);
+  const asides = new Map(state2.asides);
+  const stops = new Map(state2.stops);
+  const refusals = new Map(state2.refusals);
+  const startFailures = new Map(state2.startFailures);
+  for (const [number, launch] of launches)
+    if (launch.phase !== "pending")
+      launches.delete(number);
+  for (const pressed of [asides, stops])
+    for (const [number, phase] of pressed)
+      if (phase === "done")
+        pressed.delete(number);
+  for (const [number, refusal] of refusals)
+    if (!Object.values(next.columns).flat().some((card) => card.number === number && card.sessionId === refusal.sessionId && card.state === refusal.state))
+      refusals.delete(number);
+  for (const card of Object.values(next.columns).flat())
+    if (card.sessionId !== null && card.number !== null)
+      startFailures.delete(card.number);
+  if (next.terminal.ok === true) {
+    const running = new Set(next.columns.human.map((card) => card.sessionId));
+    for (const name of store.keys(SEEN_TURN))
+      if (!running.has(name.slice(SEEN_TURN.length)))
+        store.remove(name);
+  }
+  const isFirst = state2.seen === null;
+  emitFor("read", {
+    ...state2,
+    read: next,
+    openEpics,
+    launches,
+    asides,
+    stops,
+    refusals,
+    startFailures,
+    seen: state2.seen ?? new Map
+  });
+  if (isFirst)
+    markAllSeen();
+  if (state2.menu !== null && !index3().byKey.has(state2.menu.key))
+    emitFor("quiet", { ...state2, menu: null });
+}, pressId = (card, action) => `${keyOf(card)} ${action.id}`, press = async (card, action) => {
+  const id = pressId(card, action);
+  if (state2.pressing.has(id))
+    return;
+  emitFor("quiet", { ...state2, pressing: new Set(state2.pressing).add(id) });
+  try {
+    await action.run?.();
+  } finally {
+    const pressing = new Set(state2.pressing);
+    pressing.delete(id);
+    emitFor("quiet", { ...state2, pressing });
+  }
+}, announced, announceStart = (number) => {
+  const launch = state2.launches.get(number);
+  if (!launch || announced.has(launch))
+    return;
+  announced.add(launch);
+  announce(`#${number}: ${SLOW_START_TEXT}`);
+}, fail = () => {
+  if (state2.read)
+    emit2({ ...state2, read: { ...state2.read, queue: null } });
+}, shell = () => shellStore.get().shell, PANEL_FOCUS = '[data-slot="button"]', hiddenFocus = null, setShell = (next, active = document.activeElement) => {
+  const wasInPanel = active instanceof HTMLElement && $("panel").contains(active);
+  const wasInBoard = active instanceof HTMLElement && Boolean(document.getElementById("tp-board")?.contains(active));
+  const activeId = active?.id;
+  shellStore.setShell(next);
+  const now = document.activeElement;
+  const isHidden = wasInPanel || wasInBoard && document.getElementById("tp-board") === null;
+  const isLost = active instanceof HTMLElement && (active.isConnected ? !active.checkVisibility() : isHidden);
+  if (isLost && (now === active || now === document.body)) {
+    const tabNode = $(`tab-${shell().tab}`);
+    (shell().area === "operations" && tabNode.checkVisibility() ? tabNode : $("work")).focus({ preventScroll: true });
+  } else if (now === document.body && active instanceof HTMLElement && active.isConnected)
+    active.focus({ preventScroll: true });
+  else if (now === document.body && activeId) {
+    const twin = document.getElementById(activeId);
+    if (twin?.checkVisibility())
+      twin.focus({ preventScroll: true });
+  }
+}, setArea = (area) => setShell({ ...shell(), area }), setTab = (tab) => setShell({
+  ...shell(),
+  area: "operations",
+  tab,
+  ...phone.matches ? { pane: "agents", details: null } : {}
+}), setPane = (pane) => setShell({ ...shell(), area: "operations", pane, details: null }), showChat = () => setShell({
+  ...shell(),
+  area: "operations",
+  details: null,
+  pane: "chat",
+  tab: shell().tab === "pipeline" ? "agents" : shell().tab
+}), openDetails = (key) => {
+  if (!screen.index().byKey.has(key))
+    return;
+  revealCard(key);
+  markSeen(key);
+  setShell({ ...shell(), area: "operations", details: key, pane: "chat" });
+  const selected = document.querySelector(`#tp-board [data-key="${CSS.escape(key)}"]`);
+  if (shell().tab === "pipeline")
+    selected?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  const entry = screen.index().byKey.get(key);
+  if (entry?.column === "human")
+    seeTurn(entry.card);
+  $("panel").querySelector(PANEL_FOCUS)?.focus({ preventScroll: true });
+}, revealCard = (key) => {
+  const shown = board();
+  const entry = index3().byKey.get(key);
+  if (!shown || entry?.column !== "idle" || !entry.card.epic || state2.openEpics.has(entry.card.epic.number))
+    return;
+  const { columns, flow } = shown;
+  if (view() === "pipeline" && pipeline([...columns.needs, ...columns.running, ...columns.idle], flow).hold.includes(entry.card))
+    return;
+  screen.setEpicOpen(entry.card.epic.number, true);
+}, focusNeed = () => {
+  const shown = board();
+  if (!shown)
+    return;
+  if (needsYou(shown, seenTurn).length === 0)
+    return;
+  if (shown.coordinator.state === "dialog") {
+    showChat();
+    handlers2.openChat();
+    return;
+  }
+  setTab("agents");
+  const { human } = shown.columns;
+  const session = human.find((card) => card.waitFor === "dialog") ?? human.find((card) => isYourTurn(card, seenTurn));
+  const target = session ? document.querySelector(`#human [data-key="${CSS.escape(keyOf(session))}"]`) : document.querySelector("#col-needs .card");
+  target?.focus();
+}, screen, useScreen = (select) => import_react4.useSyncExternalStore(screen.subscribe, () => select(state2));
+var init_state = __esm(() => {
+  init_grammar();
+  init_key();
+  init_view();
+  init_store();
+  init_ui();
+  init_cards();
+  import_react4 = __toESM(require_react());
+  import_react_dom3 = __toESM(require_react_dom());
+  listeners2 = new Set;
+  handlers2 = { openChat: () => {}, render: () => {} };
+  state2 = {
+    read: null,
+    seen: null,
+    turns: 0,
+    openEpics: parseOpenEpics(store.get("open-epics") ?? ""),
+    launches: new Map,
+    startFailures: new Map,
+    asides: new Map,
+    stops: new Map,
+    stopFor: null,
+    refusals: new Map,
+    visualPresses: new Set,
+    pressing: new Set,
+    menu: null,
+    columnStops: new Map,
+    now: Date.now()
+  };
+  NO_CARDS = { byKey: new Map, keyOf: new Map };
+  announced = new WeakSet;
+  document.addEventListener("focusout", (event) => {
+    hiddenFocus = event.target instanceof HTMLElement && !event.target.checkVisibility() ? event.target : null;
+  });
+  phone.addEventListener("change", () => setShell(shell(), document.activeElement === document.body ? hiddenFocus : document.activeElement));
+  screen = {
+    get: () => state2,
+    subscribe: (listener) => {
+      listeners2.add(listener);
+      return () => listeners2.delete(listener);
+    },
+    handle: (next) => {
+      handlers2 = next;
+    },
+    handlers: () => handlers2,
+    read: () => state2.read,
+    board,
+    index: index3,
+    accept,
+    fail,
+    setCoordinator: (coordinator) => {
+      if (state2.read)
+        emit2({ ...state2, read: { ...state2.read, coordinator } });
+    },
+    markSeen,
+    markAllSeen,
+    isUnseen,
+    seenTurn,
+    seeTurn,
+    openEpics: () => state2.openEpics,
+    setEpicOpen: (epic, isOpen) => setEpicsOpen((open) => isOpen ? open.add(epic) : open.delete(epic)),
+    setEpicsOpen,
+    launches: () => state2.launches,
+    setLaunches: (change) => emit2({ ...state2, launches: edited(new Map(state2.launches), change) }),
+    startFailures: () => state2.startFailures,
+    setStartFailures: (change) => emit2({ ...state2, startFailures: edited(new Map(state2.startFailures), change) }),
+    asides: () => state2.asides,
+    setAsides: (change) => emit2({ ...state2, asides: edited(new Map(state2.asides), change) }),
+    stops: () => state2.stops,
+    setStops: (change) => emit2({ ...state2, stops: edited(new Map(state2.stops), change) }),
+    refusals: () => state2.refusals,
+    setRefusals: (change) => emit2({ ...state2, refusals: edited(new Map(state2.refusals), change) }),
+    visualPresses: () => state2.visualPresses,
+    setVisualPresses: (change) => emitFor("quiet", { ...state2, visualPresses: edited(new Set(state2.visualPresses), change) }),
+    press,
+    openStop: (card) => {
+      if (state2.stops.has(card.number))
+        return;
+      emitFor("quiet", { ...state2, stopFor: { card, key: screen.index().keyOf.get(card) ?? keyOf(card) } });
+    },
+    closeStop: () => emitFor("quiet", { ...state2, stopFor: null }),
+    openMenu: (key, kind, isCompact) => emitFor("quiet", { ...state2, menu: { key, kind, isCompact } }),
+    closeMenu: (key, kind) => {
+      if (state2.menu?.key === key && state2.menu.kind === kind)
+        emitFor("quiet", { ...state2, menu: null });
+    },
+    setColumnStop: (column, key) => {
+      if (state2.columnStops.get(column) !== key)
+        emitFor("quiet", { ...state2, columnStops: new Map(state2.columnStops).set(column, key) });
+    },
+    announceStart,
+    cause: () => cause,
+    now: () => state2.now
+  };
+  setInterval(() => emitFor("quiet", { ...state2, now: Date.now() }, false), 1000);
+  addEventListener("storage", (event) => {
+    if (event.key === null || event.key.startsWith(store.key(SEEN_TURN)))
+      emit2({ ...state2, turns: state2.turns + 1 });
+    if (event.key !== null && event.key !== store.key("open-epics"))
+      return;
+    emitFor("read", { ...state2, openEpics: parseOpenEpics(event.newValue ?? "") });
+  });
+});
+
+// engine/board/page/operations/actions.ts
+var isReconnecting = () => shellStore.handlers().isReconnecting(), readAgain = () => shellStore.handlers().readAgain(), render = () => screen.handlers().render(), seeTurn2, COPY, STOPPING = "The daemon ends the session. The card moves to Idle when the session has ended.", ON_ISSUE, QUEUE_LEVEL = "The queue starts this step at the start pair, with no override", who2 = (card) => card.number === null ? card.title ? `human session "${card.title}"` : "a human session" : `#${card.number}`, canRunLater = (card) => card.sessionId === null && card.step && (card.state === null || card.state === "no-progress" || card.state === "set-aside"), copyWhat = (card) => card.act ? COPY[card.state] : null, onTracker = () => screen.read().tracker ? ` on ${screen.read().tracker}` : "", act = async (path, value, failure, onDone) => {
+  if (isReconnecting())
+    return false;
+  const isOk = await post(path, value, failure);
+  if (isOk)
+    onDone?.();
+  await readAgain();
+  return isOk;
+}, registry = () => screen.read().registry, agentDisplay = (id) => agentOf({ agent: id }, registry())?.name ?? id, defaultReason = (work = "session") => {
+  const next = screen.read()?.next;
+  if (next?.kind === "wait")
+    return work === "session" ? "Every included agent is limited. See the agent order." : null;
+  const entry = next ? screen.read()?.agents?.[next.host] : undefined;
+  return entry?.available === false ? cleanCause(entry.cause) : null;
+}, runReason = (agent, number) => {
+  const data = screen.read();
+  if (data?.noRun)
+    return data.noRun;
+  const record = data?.queue?.record;
+  if (record?.state === "me-gate" && number != null && record.numbers[0] === number && record.choice) {
+    if (record.choice.kind === "default") {
+      if (agent !== null)
+        return "queue: recorded agent choice is the default order";
+    } else {
+      if (agent !== null && agent !== record.choice.host)
+        return `queue: recorded agent choice is ${record.choice.host}`;
+      agent = record.choice.host;
+    }
+  }
+  const agents = data?.agents;
+  if (agent) {
+    const entry = data && knownAgent(data.registry, agent) ? agents?.[agent] : undefined;
+    if (entry && entry.available === false)
+      return cleanCause(entry.cause);
+    return null;
+  }
+  return defaultReason("run");
+}, runName = ({ step, effort, number }) => `Run ${step}${effort ? ` on ${effort.model} at ${effort.level}` : ""}, #${number}`, runAction = (card, agent = null) => {
+  const display = agent ? agentDisplay(agent) : null;
+  const reason = runReason(agent, card.number);
+  const name = agent ? `Run with ${display}, ${card.step} of #${card.number}` : runName(card);
+  return {
+    id: agent ? `run:${agent}` : "run",
+    label: agent ? `Run with ${display}` : "Run",
+    icon: "run",
+    busy: "Starting",
+    name,
+    title: reason ?? runTitle(card.step, screen.read().flow, card.effort),
+    isDisabled: Boolean(reason),
+    run: reason ? async () => toast(reason, { isError: true }) : async () => {
+      if (await launch(card, "/api/run", agent ?? undefined))
+        toast(`Started the ${card.step} step of #${card.number} in a new herdr tab`);
+    }
+  };
+}, overrideActionsOf = (card, isAgain) => {
+  const agents = screen.read()?.agents;
+  if (!card.run || !agents || screen.read()?.noRun)
+    return [];
+  return Object.keys(agents).map((id) => {
+    const display = agentDisplay(id);
+    const base = runAction(card, id);
+    return isAgain ? {
+      ...base,
+      label: `Run again with ${display}`,
+      name: `Run again with ${display}, ${card.step} of #${card.number}`,
+      isGhost: true,
+      title: base.isDisabled ? base.title : `Start the ${card.step} step again. It made no progress last time.`
+    } : base;
+  });
+}, levelEntries = (card) => {
+  const { effort } = card;
+  if (!effort || !(card.run || screen.read()?.noRun))
+    return [];
+  const record = screen.read()?.queue?.record;
+  const reason = screen.read()?.noRun || (record?.state === "me-gate" && record.numbers[0] === card.number ? QUEUE_LEVEL : runReason(null, card.number));
+  return [
+    "rule",
+    ...(screen.read()?.flow?.levels ?? []).map((level) => ({
+      icon: level === effort.level ? "check" : "run",
+      label: `Run at ${level}${level === effort.level ? ` (${levelSource(effort)})` : ""}`,
+      title: reason ?? startTitle(card.step, effort, level),
+      isDisabled: Boolean(reason),
+      run: reason ? async () => toast(reason, { isError: true }) : async () => {
+        if (await launch(card, "/api/run", undefined, level))
+          toast(`Started the ${card.step} step of #${card.number} at ${level} in a new herdr tab`);
+      }
+    }))
+  ];
+}, namedHost = (card) => {
+  const record = screen.read()?.queue?.record;
+  if (record?.state === "me-gate" && record.numbers[0] === card.number && record.choice?.kind === "explicit")
+    return record.choice.host;
+  const start = card.step ? screen.read()?.starts?.[card.step] : undefined;
+  return start?.kind === "start" ? start.host : null;
+}, toMenuEntry = (action, card) => {
+  const data = screen.read();
+  const host = action.id.startsWith("run:") ? action.id.slice(4) : null;
+  if (host && data && knownAgent(data.registry, host))
+    return {
+      icon: action.icon,
+      host,
+      label: action.label,
+      tag: host === namedHost(card) ? "Default" : undefined,
+      isDisabled: action.isDisabled,
+      title: action.title,
+      run: action.run
+    };
+  return {
+    icon: action.icon,
+    label: action.name,
+    key: action.isMain ? "Enter" : action.key ?? "",
+    isDisabled: action.isDisabled,
+    title: action.title,
+    run: action.href ? () => openUrl(action.href) : action.run
+  };
+}, refusedRun = (isError, reason) => async () => {
+  toast(reason, { isError });
+  announce(reason);
+}, actionsOf = (card) => {
+  const data = screen.read();
+  const list = [];
+  if (card.go) {
+    list.push({
+      id: "go",
+      label: "Go",
+      icon: "go",
+      busy: "Focusing",
+      name: `Go to the pane of ${who2(card)}`,
+      title: "Focus its pane in herdr (Enter)",
+      run: () => {
+        if (card.number === null)
+          seeTurn2(card);
+        return act("/api/go", { sessionId: card.sessionId }, "Go failed", () => toast(`Focused the pane of ${who2(card)} in herdr`, { detail: "Switch to your terminal to see it." }));
+      }
+    });
+  }
+  if (card.state === "quota-wait")
+    list.push({
+      id: "agent-order",
+      label: "Agent order",
+      icon: "person",
+      name: `Show the agent order and Retry of #${card.number}`,
+      title: "Show the usage limits and Retry in the agent order (Enter)",
+      run: () => shellStore.handlers().agentOrder()
+    });
+  if (card.state === "blocked") {
+    const reason = data?.noRun || defaultReason();
+    list.push({
+      id: "assist",
+      label: "Open agent",
+      icon: "terminal",
+      busy: "Starting",
+      name: `Open agent, #${card.number}`,
+      title: reason ?? "Open an assistance session in a new herdr tab (Enter)",
+      isDisabled: Boolean(reason) || !card.assist,
+      run: async () => {
+        if (await launch(card, "/api/assist"))
+          toast(`Opened an assistance session for #${card.number} in a new herdr tab`, {
+            detail: "Switch to your terminal to see it."
+          });
+      }
+    });
+  }
+  if (card.state === "no-progress" || card.state === "set-aside") {
+    if (card.resume) {
+      list.push({
+        id: "resume",
+        label: "Resume",
+        icon: "terminal",
+        busy: "Opening",
+        name: `Resume the ${card.step} session of #${card.number}`,
+        title: "Open the session of this step again in a new herdr tab (Enter)",
+        run: async () => {
+          if (await launch(card, "/api/resume"))
+            toast(`Opened the ${card.step} session of #${card.number} in a new herdr tab`, {
+              detail: "Switch to your terminal to see it."
+            });
+        }
+      });
+    }
+    if (card.run) {
+      const base = runAction(card);
+      list.push({
+        ...base,
+        label: "Run again",
+        name: `Run again, #${card.number}`,
+        isGhost: true,
+        title: base.isDisabled ? base.title : card.state === "no-progress" ? `Start the ${card.step} step again. It made no progress last time.` : `Start the ${card.step} step again`
+      });
+      list.push(...overrideActionsOf(card, true));
+    }
+  } else if (card.run) {
+    list.push(runAction(card));
+    list.push(...overrideActionsOf(card, false));
+  }
+  if (card.state === "dirty-tree" || card.state === "set-aside" && card.path) {
+    list.push({
+      id: "shell",
+      label: "Open shell",
+      icon: "terminal",
+      busy: "Opening",
+      name: `Open shell, #${card.number}`,
+      title: `Open a shell in the worktree in a new herdr tab${card.state === "dirty-tree" ? " (Enter)" : ""}`,
+      run: () => act("/api/shell", { number: card.number }, "Open shell failed", () => toast(`Opened a shell in the worktree of #${card.number}`, {
+        detail: card.state === "dirty-tree" ? "Commit or stash the changes there; then the card moves on." : "Commit or stash the changes there."
+      }))
+    });
+  }
+  if (ON_ISSUE.has(card.state) && card.url) {
+    list.push({
+      id: "open",
+      label: "Open issue",
+      icon: "open",
+      name: `Open issue #${card.number}${onTracker()}`,
+      title: `Open the issue${onTracker()}${list.length === 0 ? " (Enter)" : ""}`,
+      href: card.url
+    });
+  }
+  const { noRun } = data;
+  if (noRun && canRunLater(card)) {
+    list.push({
+      id: "blocked",
+      label: "Run",
+      icon: "run",
+      name: runName(card),
+      title: noRun,
+      isDisabled: true,
+      run: async () => toast(noRun, { isError: true })
+    });
+    if (data?.agents)
+      for (const id of Object.keys(data.agents)) {
+        const display = agentDisplay(id);
+        list.push({
+          id: `run:${id}`,
+          label: `Run with ${display}`,
+          icon: "run",
+          name: `Run ${card.step}, #${card.number} with ${display}`,
+          title: noRun,
+          isDisabled: true,
+          run: async () => toast(noRun, { isError: true })
+        });
+      }
+  }
+  if (card.aside) {
+    const isBusy = screen.asides().has(card.number);
+    list.push({
+      id: "aside",
+      label: isBusy ? "Setting aside" : "Set aside",
+      icon: "aside",
+      name: `Set aside #${card.number}`,
+      key: "s",
+      isGhost: true,
+      isBusy,
+      isDisabled: isBusy,
+      title: isBusy ? "The daemon sets this issue aside." : "Move this issue to Idle. Auto mode skips it until you press Run or Resume (s)",
+      run: () => pressAct("asides", card, "/api/aside", { number: card.number }, asideText(card))
+    });
+  }
+  if (card.stop) {
+    const isBusy = card.state === "stopping" || screen.stops().has(card.number);
+    const reason = isBusy ? STOPPING : card.stop.reason;
+    list.push({
+      id: "stop",
+      label: isBusy ? "Stopping" : "Stop",
+      icon: "stop",
+      name: `Stop the ${card.step} session of #${card.number}`,
+      key: "s",
+      isGhost: true,
+      isBusy,
+      isDisabled: Boolean(reason),
+      title: reason ?? "End this session and set the issue aside (s)",
+      run: card.stop.reason ? refusedRun(card.state !== "stopping", card.stop.reason) : () => screen.openStop(card)
+    });
+  }
+  list.forEach((action, index) => {
+    action.isMain = index === 0;
+  });
+  return list;
+}, menuOf = (card, key) => [
+  ...actionsOf(card).map((action) => toMenuEntry(action, card)),
+  ...levelEntries(card),
+  "rule",
+  { icon: "panel", label: "Show the details", key: "Space", run: () => openDetails(key) },
+  ...card.url && !ON_ISSUE.has(card.state) ? [
+    {
+      icon: "open",
+      label: `Open the issue${onTracker()}`,
+      key: "o",
+      run: () => openUrl(card.url)
+    }
+  ] : [],
+  ...copyWhat(card) ? [
+    {
+      icon: "copy",
+      label: `Copy the ${copyWhat(card)}`,
+      key: "c",
+      run: () => copy(card.act, copyWhat(card))
+    }
+  ] : []
+], menuName = (card, prefix) => `${prefix} ${card.number === null ? card.title : `#${card.number}`}`, detailActions = (card) => {
+  const list = actionsOf(card);
+  const isAgain = card.state === "no-progress" || card.state === "set-aside";
+  const host = namedHost(card);
+  const mainId = list.find((action) => action.id === "run" || action.id === "blocked")?.id;
+  const matching = host ? list.find((action) => action.id === `run:${host}`) : undefined;
+  if (!mainId || !matching)
+    return list;
+  return list.filter((action) => action !== matching).map((action) => {
+    if (action.id === mainId)
+      return {
+        ...action,
+        label: matching.label,
+        name: matching.name,
+        ...isAgain ? { help: "Starts a new session of the step." } : {}
+      };
+    if (action.id.startsWith("run:"))
+      return { ...action, isGhost: true, group: "Other agents" };
+    if (action.id === "resume")
+      return { ...action, help: "Opens the same session again." };
+    return action;
+  });
+}, runEntries = (card) => {
+  const actions = actionsOf(card);
+  if (!["run", "blocked"].includes(actions[0]?.id))
+    return [];
+  const entries = actions.filter((action) => action.id.startsWith("run:")).map((action) => toMenuEntry(action, card));
+  return entries.length === 0 ? [] : [...entries, ...levelEntries(card)];
+}, launch = async (card, path, agent, effort) => {
+  const { number } = card;
+  if (isReconnecting() || number === null)
+    return false;
+  const board = screen.board();
+  const current = board && Object.values(board.columns).flat().find((other) => other.sessionId === null && other.number === number);
+  if (!current?.[path === "/api/run" ? "run" : path === "/api/assist" ? "assist" : "resume"])
+    return false;
+  if (screen.startFailures().has(number)) {
+    screen.setStartFailures((failures) => failures.delete(number));
+    render();
+  }
+  const reason = path === "/api/resume" ? screen.read()?.noRun : path === "/api/assist" ? screen.read()?.noRun || defaultReason() : runReason(agent ?? null, number);
+  if (reason) {
+    toast(reason, { isError: true });
+    return false;
+  }
+  const entry = { step: current.step, phase: "pending", at: Date.now() };
+  screen.setLaunches((launches) => launches.set(number, entry));
+  render();
+  if (document.activeElement === document.body)
+    document.querySelector(`#tp-board [data-key="${CSS.escape(keyOf(card))}"]`)?.focus({ preventScroll: true });
+  const failure = await send(path, {
+    number,
+    ...path === "/api/run" && agent ? { agent } : {},
+    ...path === "/api/run" && effort ? { effort } : {}
+  }, path === "/api/run" ? "Run failed" : path === "/api/assist" ? "Open agent failed" : "Resume failed");
+  const phase = failure === null ? "done" : "failed";
+  screen.setLaunches((launches) => {
+    const latest = launches.get(number);
+    if (latest)
+      launches.set(number, { ...latest, phase });
+  });
+  if (failure !== null)
+    screen.setStartFailures((failures) => failures.set(number, failure));
+  render();
+  readAgain();
+  return failure === null;
+}, asideText = (card) => ({
+  busy: `Setting aside #${card.number}`,
+  failure: "Set aside failed",
+  done: `Set #${card.number} aside`,
+  detail: "It shows in Idle. Run or Resume starts it again."
+}), stopText = (card) => ({
+  busy: `Stopping the ${card.step} session of #${card.number}`,
+  failure: "Stop failed",
+  done: `Stopping the ${card.step} session of #${card.number}`,
+  detail: "The card moves to Idle when the session has ended."
+}), pressAct = async (kind, card, path, value, text) => {
+  const { number } = card;
+  const press = kind === "asides" ? screen.setAsides : screen.setStops;
+  if (isReconnecting() || screen[kind]().has(number))
+    return;
+  press((pressed) => pressed.set(number, "pending"));
+  screen.setRefusals((refusals) => refusals.delete(number));
+  announce(text.busy);
+  render();
+  const error = await send(path, value, text.failure);
+  if (error === null) {
+    press((pressed) => pressed.set(number, "done"));
+    toast(text.done, { detail: text.detail });
+    announce(text.done);
+    render();
+    readAgain();
+    return;
+  }
+  press((pressed) => pressed.delete(number));
+  screen.setRefusals((refusals) => refusals.set(number, { sessionId: card.sessionId, state: card.state, line: error }));
+  announce(`${text.failure}. ${error}`);
+  render();
+};
+var init_actions = __esm(() => {
+  init_view();
+  init_store();
+  init_ui();
+  init_state();
+  ({ seeTurn: seeTurn2 } = screen);
+  COPY = { "no-progress": "command", "set-aside": "command", "dirty-tree": "path" };
+  ON_ISSUE = new Set(["blocked"]);
+});
+
+// engine/board/page/operations/keys.ts
+var STOPS = ".card[data-key], .epic-row", isStop = (node) => !node.closest(".epic-children[hidden]"), columnId = (col) => col.id || col.getAttribute("aria-labelledby") || "hold", stopKey = (node) => node.dataset.key ?? node.dataset.group ?? "", columnStop = (column) => [...document.querySelectorAll("#columns .col")].find((col) => columnId(col) === column)?.querySelector(`:is(${STOPS})[tabindex="0"], .empty`), move = (across, down) => {
+  const lists = [...document.querySelectorAll("#columns .col")].map((col) => [...col.querySelectorAll(STOPS)].filter(isStop));
+  const current = document.activeElement?.closest?.(STOPS) ?? null;
+  const at = lists.findIndex((list) => current !== null && list.includes(current));
+  const list = lists[at];
+  if (!list || !current)
+    return lists.flat()[0]?.focus();
+  const row = list.indexOf(current);
+  if (down)
+    return list[Math.min(Math.max(row + down, 0), list.length - 1)]?.focus();
+  for (let next = at + across;next >= 0 && next < lists.length; next += across) {
+    const other = lists[next];
+    if (other.length)
+      return other[Math.min(row, other.length - 1)]?.focus();
+  }
+}, showHints = (key) => {
+  const entry = key === null ? undefined : screen.index().byKey.get(key);
+  const pairs = entry ? [
+    ["Enter", actionsOf(entry.card)[0]?.label],
+    ["Space", "Details"],
+    ["o", entry.card.url ? "Open" : null],
+    ["c", copyWhat(entry.card) ? "Copy" : null],
+    ["s", entry.card.aside ? "Set aside" : entry.card.stop ? "Stop" : null],
+    ["m", "Menu"]
+  ] : [
+    ["j", "k", "Move"],
+    [FIND_KEY, "Search"]
+  ];
+  shellStore.setInputs({ hints: pairs.flatMap((pair) => pair.at(-1) ? [pair] : []) });
+}, shell2 = () => shellStore.get().shell, toggleHistory = () => setTab(shell2().tab === "history" ? "agents" : "history"), toggleView = () => setTab(shell2().tab === "pipeline" ? "agents" : "pipeline"), SHORT, ARROWS, cardPress = (node, key) => {
+  const cardKey = node.dataset.key;
+  const entry = screen.index().byKey.get(cardKey);
+  if (ARROWS[key])
+    return ARROWS[key];
+  if (!entry)
+    return;
+  const { card } = entry;
+  const act = (action = actionsOf(card)[0]) => action && (action.href ? openUrl(action.href) : void screen.press(card, action));
+  const presses = {
+    Enter: () => act(),
+    " ": () => openDetails(cardKey),
+    o: () => openUrl(card.url),
+    c: () => {
+      const what = copyWhat(card);
+      if (what)
+        copy(card.act, what);
+    },
+    s: () => {
+      if (!node.classList.contains("compact"))
+        act(actionsOf(card).find((action) => action.id === "aside" || action.id === "stop"));
+    },
+    m: () => screen.openMenu(cardKey, "actions", node.classList.contains("compact"))
+  };
+  return presses[key];
+}, pressOf = (event) => {
+  const { key } = event;
+  if (key === "Escape")
+    return shell2().details !== null && screen.get().menu === null && !$("menu").matches(":popover-open") ? () => closeDetails(true) : undefined;
+  const isBoardShown = shell2().area === "operations" && (shell2().tab === "agents" || shell2().tab === "pipeline") && !(phone.matches && shell2().pane === "chat");
+  if (!isBoardShown && key !== "d" && key !== "v")
+    return;
+  const active = document.activeElement;
+  const press = active?.matches(".card[data-key]") && cardPress(active, key) || active?.matches(".epic-row") && ARROWS[key] || undefined;
+  return press ?? (shellStore.get().settings.keys ? SHORT[key] : undefined);
+}, handleKey = (event) => {
+  const target = event.target;
+  if (screen.get().stopFor !== null || target.closest?.('[data-slot="dropdown-menu-content"], [data-slot="alert-dialog-content"]'))
+    return false;
+  const press = pressOf(event);
+  if (!press)
+    return false;
+  event.preventDefault();
+  press();
+  return true;
+};
+var init_keys = __esm(() => {
+  init_shell();
+  init_store();
+  init_ui();
+  init_actions();
+  init_state();
+  SHORT = {
+    j: () => move(0, 1),
+    k: () => move(0, -1),
+    h: () => move(-1, 0),
+    l: () => move(1, 0),
+    d: toggleHistory,
+    v: toggleView
+  };
+  ARROWS = {
+    ArrowDown: () => move(0, 1),
+    ArrowUp: () => move(0, -1),
+    ArrowLeft: () => move(-1, 0),
+    ArrowRight: () => move(1, 0)
+  };
+});
+
 // engine/board/page/palette.ts
-var items, shown, active = 0, exactNumber = () => new RegExp(`^#?(${grammar().query})$`).exec($("pal-input").value.trim())?.[1], option = (item, index) => {
+var items, shown2, active = 0, exactNumber = () => new RegExp(`^#?(${grammar().query})$`).exec($("pal-input").value.trim())?.[1], option = (item, index) => {
   const node = el("div", `pal-row${index === active ? " on" : ""}${item.isGoTo ? " go" : ""}${item.tone ? ` tone-${item.tone}` : ""}`);
   node.id = `pal-${index}`;
   node.setAttribute("role", "option");
@@ -15826,7 +16812,7 @@ var items, shown, active = 0, exactNumber = () => new RegExp(`^#?(${grammar().qu
   let group = null;
   let section = null;
   const exact = exactNumber();
-  shown.forEach((item, index) => {
+  shown2.forEach((item, index) => {
     const keyed = exact && !item.isGoTo && item.number === exact;
     const label = keyed ? `Actions for #${exact}` : item.group;
     if (section === null || label !== group) {
@@ -15843,28 +16829,28 @@ var items, shown, active = 0, exactNumber = () => new RegExp(`^#?(${grammar().qu
     }
     section.append(option(item, index));
   });
-  if (shown.length === 0)
+  if (shown2.length === 0)
     rows.push(el("p", "pal-empty", "No card or command matches."));
   list.replaceChildren(...rows);
-  $("pal-input").setAttribute("aria-activedescendant", shown.length ? `pal-${active}` : "");
-}, mark2 = (index, isOn) => {
+  $("pal-input").setAttribute("aria-activedescendant", shown2.length ? `pal-${active}` : "");
+}, mark = (index, isOn) => {
   const row = $(`pal-${index}`);
   row.classList.toggle("on", isOn);
   row.setAttribute("aria-selected", String(isOn));
 }, select = (index) => {
-  mark2(active, false);
+  mark(active, false);
   active = index;
-  mark2(active, true);
+  mark(active, true);
   $("pal-input").setAttribute("aria-activedescendant", `pal-${active}`);
   $(`pal-${active}`).scrollIntoView({ block: "nearest" });
 }, pick = (index) => {
-  const item = shown[index];
+  const item = shown2[index];
   if (!item)
     return;
   $("palette").close();
   item.run();
 }, filter = () => {
-  shown = filterItems(items, $("pal-input").value);
+  shown2 = filterItems(items, $("pal-input").value);
   active = 0;
   draw();
 }, openPalette = (next) => {
@@ -15878,9 +16864,9 @@ var items, shown, active = 0, exactNumber = () => new RegExp(`^#?(${grammar().qu
   $("pal-input").addEventListener("input", filter);
   $("pal-input").addEventListener("keydown", (event) => {
     const moves = { ArrowDown: 1, ArrowUp: -1 };
-    if (event.key in moves && shown.length) {
+    if (event.key in moves && shown2.length) {
       event.preventDefault();
-      select((active + moves[event.key] + shown.length) % shown.length);
+      select((active + moves[event.key] + shown2.length) % shown2.length);
     } else if (event.key === "Enter") {
       event.preventDefault();
       pick(active);
@@ -15890,7 +16876,7 @@ var items, shown, active = 0, exactNumber = () => new RegExp(`^#?(${grammar().qu
     if (event.target === $("palette"))
       $("palette").close();
   });
-}, anchor = null, anchorAlign = "end", closed, position = (menu, from, align) => {
+}, anchor = null, anchorAlign = "end", closed3, position = (menu, from, align) => {
   menu.style.left = "12px";
   const box = from.getBoundingClientRect();
   const width = menu.offsetWidth;
@@ -15939,15 +16925,15 @@ var items, shown, active = 0, exactNumber = () => new RegExp(`^#?(${grammar().qu
   const active = document.activeElement;
   const kept = options.focus === "keep" && active instanceof HTMLElement && menu.contains(active) ? active.dataset.id : undefined;
   if (isOpen && options.focus !== "keep") {
-    const done = closed;
-    closed = undefined;
+    const done = closed3;
+    closed3 = undefined;
     done?.();
   }
   if (anchor !== from)
     expand(anchor, false);
   anchor = from;
   anchorAlign = options.align ?? "end";
-  closed = options.onClose;
+  closed3 = options.onClose;
   menu.setAttribute("aria-label", options.label);
   menu.replaceChildren(...entries.map((entry) => entry === "rule" ? el("hr") : menuRow(entry)));
   if (isOpen)
@@ -15985,8 +16971,8 @@ var items, shown, active = 0, exactNumber = () => new RegExp(`^#?(${grammar().qu
       return;
     if (menu.contains(document.activeElement))
       anchor?.focus();
-    const done = closed;
-    closed = undefined;
+    const done = closed3;
+    closed3 = undefined;
     done?.();
   });
   menu.addEventListener("toggle", (event) => expand(anchor, event.newState === "open"));
@@ -15997,7 +16983,7 @@ var init_palette = __esm(() => {
   init_store();
   init_ui();
   items = [];
-  shown = [];
+  shown2 = [];
 });
 
 // engine/board/page/agent-picker.ts
@@ -16654,18 +17640,18 @@ function createChat(log, pressKey) {
 var KEYS, VERBS, MARKS, HEADINGS, put = (node, children) => {
   node.append(...children);
   return node;
-}, inline = (parts) => parts.map((part) => {
+}, inline4 = (parts) => parts.map((part) => {
   if (typeof part === "string")
     return part;
   if (part.k === "link")
-    return put(link("co-link", "", part.href), inline(part.c));
-  return put(el(part.k), inline(part.c));
+    return put(link("co-link", "", part.href), inline4(part.c));
+  return put(el(part.k), inline4(part.c));
 }), block = (part) => {
   switch (part.k) {
     case "p":
-      return put(el("p"), inline(part.c));
+      return put(el("p"), inline4(part.c));
     case "h":
-      return put(el(HEADINGS[part.level - 1] ?? "h6", "co-h"), inline(part.c));
+      return put(el(HEADINGS[part.level - 1] ?? "h6", "co-h"), inline4(part.c));
     case "code":
       return el("pre", "co-pre", part.text);
     case "list": {
@@ -17120,7 +18106,7 @@ var session, readPending = () => {
 }, isRestartAnswer = (value) => {
   const answer = value;
   return typeof answer?.target === "string" && typeof answer.runtime?.revision === "string" && typeof answer.runtime.instance === "string";
-}, names, reconnecting = false, isReconnecting = () => reconnecting, controls;
+}, names, reconnecting = false, isReconnecting2 = () => reconnecting, controls;
 var init_update_dialog = __esm(() => {
   init_store();
   init_ui();
@@ -17421,7 +18407,7 @@ function setupCoordinator(hooks) {
   const act = async (kind, path, body) => {
     if (busy)
       return false;
-    if (isReconnecting()) {
+    if (isReconnecting2()) {
       line = { act: kind, text: RECONNECT, tone: "status" };
       draw();
       return false;
@@ -17483,7 +18469,7 @@ function setupCoordinator(hooks) {
   const startSession = async () => {
     if (busy || !view.actions.includes("open"))
       return;
-    if (isReconnecting()) {
+    if (isReconnecting2()) {
       line = { act: "open", text: RECONNECT, tone: "status" };
       hooks.reveal();
       draw();
@@ -17661,193 +18647,8 @@ var init_coordinator = __esm(() => {
   };
 });
 
-// engine/board/page/panel.ts
-var TONES, PILL_ICONS, ASKS, COPIES, section = (title, aside, ...children) => {
-  const node = el("section", "sec");
-  const head = el("h3", "sec-label", title);
-  if (aside)
-    head.append(el("span", "aside", aside));
-  node.append(head, ...children);
-  return node;
-}, screen = (card) => card.screen?.length ? el("pre", "screen", card.screen.join(`
-`)) : null, ask = (card, actions, registry) => {
-  const [glyph, verb] = ASKS[card.waitFor] ?? ["target", "waits for your answer"];
-  const node = el("div", "ask");
-  const head = el("div", "ask-who");
-  head.append(icon(glyph), el("b", "", agentOf(card, registry)?.name ?? "The agent"), el("span", "", verb), timed(card.since, LIVE.has(card.state), " ago"));
-  node.append(head);
-  const lines = screen(card);
-  if (lines)
-    node.append(lines);
-  const foot = el("div", "ask-foot");
-  foot.append(el("span", "hint", "Answer it in the terminal pane."), ...actions.slice(0, 1).map((action) => actionButton(action)));
-  node.append(foot);
-  return node;
-}, steps2 = (card, flow, auto) => {
-  const track = laneTrack(card, flow);
-  if (!track)
-    return null;
-  const list = el("ol", "steps");
-  list.setAttribute("aria-label", `Steps of the lane ${card.type}`);
-  for (const step of track) {
-    const item = el("li", step.state);
-    if (step.state === "now")
-      item.setAttribute("aria-current", "step");
-    const node = el("span", "node");
-    node.append(icon(step.state === "done" ? "check" : step.state === "now" ? PILL_ICONS[card.state] ?? "pending" : "pending"));
-    const note = step.state === "done" ? "done" : step.state === "now" ? card.state ? stateLabel(card) : "next" : "";
-    const noteNode = el("span", "note", note);
-    if (step.state === "next")
-      noteNode.append(el("span", "sr-only", "not started"));
-    item.append(node, el("span", "name", step.name), noteNode);
-    item.append(gateOf(flow, card.type, step.name) === "auto" ? gateLabel(auto) : el("span"));
-    list.append(item);
-  }
-  return section("Lane", `${card.type} · step ${track.findIndex((step) => step.state === "now") + 1} of ${track.length}`, list);
-}, facts2 = (rows) => {
-  const list = el("dl", "facts");
-  for (const [term, value, copyable] of rows.filter((row) => Boolean(row))) {
-    const dd = el("dd", typeof value === "string" ? "mono" : "");
-    dd.append(value);
-    list.append(el("dt", "", term), dd);
-    list.append(copyable ? iconButton("copy", `Copy the ${copyable[1]}`, () => copy(copyable[0], copyable[1])) : el("span"));
-  }
-  return list;
-}, whyOf = (pair) => {
-  const pinned = ["model", "level"].filter((part) => pair.source[part] === "pinned");
-  const pin = pinned.length ? `The config pins ${pinned.length === 2 ? "the model and the level" : `the ${pinned[0]}`} of this step.` : "";
-  const decision = pair.decision ? pair.decision.reason || "No reason given." : pin ? "" : "No decision on the issue; the default applies.";
-  return [decision, pin].filter(Boolean).join(" ");
-}, effortFacts = (pair) => pair ? [
-  ["Model", `${pair.model} · ${modelSource(pair)}`],
-  ["Effort", `${pair.level} · ${levelSource(pair)}`],
-  ["Why", el("span", "why", whyOf(pair))]
-] : [], pr = (card) => {
-  const row = prChips(card.pr);
-  return row && section("Pull request", null, row);
-}, drawPanel = (card, {
-  actions,
-  flow,
-  registry,
-  on,
-  close,
-  auto
-}) => {
-  const { state } = card;
-  const asks = state === "waits" && (card.number !== null || card.waitFor === "dialog");
-  const head = el("div", "panel-head");
-  const crumbs = el("div", "crumbs");
-  crumbs.append(mark(card, registry, true), card.number === null ? el("span", "num none", "human session") : link("num", `#${card.number}`, card.url));
-  for (const part of [card.type, card.step === card.type ? null : card.step])
-    if (part)
-      crumbs.append(el("span", "sep", "·"), el("span", "", part));
-  head.append(crumbs);
-  if (card.url) {
-    const open = Object.assign(el("a", "icon-btn"), {
-      href: card.url,
-      target: "_blank",
-      rel: "noreferrer",
-      title: `Open the issue${on} (o)`
-    });
-    open.setAttribute("aria-label", `Open the issue${on}`);
-    open.append(icon("open"));
-    head.append(open);
-  }
-  head.append(iconButton("close", "Close the details (Esc)", close));
-  const top = el("div", "panel-top");
-  const title = el("h2", "panel-title", card.title || (card.number === null ? "A session" : `Issue #${card.number}`));
-  title.id = "panel-title";
-  const line = el("div", "panel-state");
-  if (state) {
-    const pill = el("span", `pill pill-${(state !== "waits" || asks ? TONES[state] : null) ?? "muted"}`);
-    pill.append(icon(PILL_ICONS[state] ?? "pending"), el("span", "pill-label", stateLabel(card)));
-    line.append(pill);
-  } else {
-    const pill = el("span", "pill pill-muted");
-    pill.append(icon("pending"), el("span", "pill-label", `next: ${card.step}`));
-    line.append(pill);
-  }
-  if (card.state !== "starts")
-    line.append(el("span", "", "since"), timed(card.since, Boolean(card.sessionId) && LIVE.has(card.state)));
-  top.append(title, line);
-  if (card.warning)
-    top.append(el("p", "warning", card.warning));
-  const body = el("div", "panel-body");
-  body.append(top);
-  if (asks)
-    body.append(ask(card, actions, registry));
-  else if (actions.length) {
-    const row = el("div", "panel-actions");
-    actions.forEach((action, index) => {
-      if (action.group && action.group !== actions[index - 1]?.group)
-        row.append(el("span", "action-group", action.group));
-      row.append(actionButton(action));
-      if (action.help)
-        row.append(el("span", "action-help", action.help));
-    });
-    body.append(row);
-  }
-  const isSession = Boolean(card.sessionId);
-  const details = isSession ? [
-    ["Agent", agentOf(card, registry)?.name ?? "unknown"],
-    card.cwd && ["Folder", card.cwd, [card.cwd, "folder"]],
-    card.diff && [
-      "Changes",
-      `${diffText(card.diff)} · ${card.diff.files} ${card.diff.files === 1 ? "file" : "files"}`
-    ]
-  ] : [
-    card.act && COPIES[card.state] && [
-      COPIES[card.state] === "path" ? "Worktree" : "Command",
-      shortPath(card.act),
-      [card.act, COPIES[card.state]]
-    ],
-    card.act && !COPIES[card.state] && ["Your act", card.act],
-    ...effortFacts(card.effort),
-    ["Updated", clock(card.since)]
-  ];
-  const pane = isSession && !asks ? screen(card) : null;
-  body.append(...[
-    pr(card),
-    steps2(card, flow, auto),
-    section(isSession ? "Session" : "Issue", null, facts2(details)),
-    pane && section("Screen", "the last lines of its pane", pane)
-  ].filter((node) => Boolean(node)));
-  $("panel").setAttribute("aria-labelledby", "panel-title");
-  $("panel").dataset.state = state ?? "next";
-  return [head, body];
-};
-var init_panel = __esm(() => {
-  init_view();
-  init_ui();
-  TONES = {
-    waits: "needs",
-    blocked: "needs",
-    works: "working",
-    starts: "working",
-    "no-progress": "danger",
-    "quota-wait": "muted",
-    "dirty-tree": "amber"
-  };
-  PILL_ICONS = {
-    works: "works",
-    starts: "works",
-    waits: "target",
-    "no-progress": "alert",
-    "set-aside": "aside",
-    stopping: "stop",
-    "dirty-tree": "diff",
-    blocked: "person",
-    "quota-wait": "clock"
-  };
-  ASKS = {
-    dialog: ["question", "waits for your answer"],
-    turn: ["message", "ended its turn"]
-  };
-  COPIES = { "no-progress": "command", "set-aside": "command", "dirty-tree": "path" };
-});
-
 // engine/board/page/queue.ts
-function accept(view) {
+function accept2(view) {
   const old = submitted?.record;
   const next = view.record;
   if (next && (retired.has(next.id) || old?.id === next.id && next.revision < old.revision))
@@ -17865,15 +18666,15 @@ function accept(view) {
   submitted = view;
 }
 function draw2() {
-  if (!board)
+  if (!board2)
     return;
-  const active = section2().contains(document.activeElement) ? document.activeElement.dataset.control : undefined;
+  const active = section().contains(document.activeElement) ? document.activeElement.dataset.control : undefined;
   const record = submitted?.record;
   const numbers = record?.numbers ?? [];
   const state = stateOf();
-  section2().dataset.state = state;
-  section2().setAttribute("aria-busy", String(busy));
-  $("tab-queue").querySelector(".label").textContent = `Queue${numbers.length ? ` ${numbers.length}` : ""}`;
+  section().dataset.state = state;
+  section().setAttribute("aria-busy", String(busy));
+  shellStore.setInputs({ queueCount: numbers.length });
   const head = el("header", "queue-head");
   const title = el("div", "queue-heading");
   title.append(el("h2", "", "Issue queue"), el("span", "queue-count", `${numbers.length} remaining`));
@@ -17883,7 +18684,7 @@ function draw2() {
   headingNode.tabIndex = -1;
   headingNode.dataset.control = "heading";
   status.append(headingNode, el("p", "", state === "starting" ? "Your issue is saved. Waiting for a verified session." : state === "me-gate" ? "Continue starts the displayed step. Later issues stay queued." : "Add issues at any time. Finished issues leave automatically."));
-  const warning = !authoritative() ? "The queue state is unavailable. Refresh before acting." : submitted?.error ?? board.noRun;
+  const warning = !authoritative() ? "The queue state is unavailable. Refresh before acting." : submitted?.error ?? board2.noRun;
   if (warning) {
     const node = el("p", "queue-warning", warning);
     node.setAttribute("role", "alert");
@@ -17907,8 +18708,8 @@ function draw2() {
   group.setAttribute("aria-label", "Queue agent");
   const chosen = chosenHost(record) ?? "";
   const choices = [["", "Default order", true]];
-  for (const host of Object.keys(board.registry))
-    choices.push([host, board.registry[host].short, board.agents?.[host]?.available === true]);
+  for (const host of Object.keys(board2.registry))
+    choices.push([host, board2.registry[host].short, board2.agents?.[host]?.available === true]);
   for (const [value, text, usable] of choices) {
     const segment = el("button", "", text);
     segment.type = "button";
@@ -17948,7 +18749,7 @@ function draw2() {
     const copy = el("div");
     copy.append(el("span", "queue-number", `#${number}`), el("span", "queue-title", card.title), el("span", "queue-step", `next ${card.step} · ${card.state ? stateLabel(card) : "ready"}`));
     const selected = numbers.includes(number);
-    const add = button(selected ? "In queue" : "Add", `add-${number}`, () => request({ kind: "add", number, step: card.step, expected: expected() }), selected || busy || !authoritative() || !submitted?.actions.add || !hostAvailable(chosenHost(record)) || Boolean(board.noRun));
+    const add = button(selected ? "In queue" : "Add", `add-${number}`, () => request({ kind: "add", number, step: card.step, expected: expected() }), selected || busy || !authoritative() || !submitted?.actions.add || !hostAvailable(chosenHost(record)) || Boolean(board2.noRun));
     add.setAttribute("aria-label", `Add #${number} to queue`);
     item.append(copy, add);
     picker.append(item);
@@ -17956,40 +18757,40 @@ function draw2() {
   if (!available().length)
     picker.append(el("p", "", "No runnable issues are available."));
   content.append(waiting, picker);
-  section2().replaceChildren(head, status, actions, content);
-  if (open2)
+  section().replaceChildren(head, status, actions, content);
+  if (open4)
     restore(active);
 }
 function setupQueue(next) {
   options2 = next;
 }
 function setQueueOpen(value) {
-  open2 = value;
-  section2().hidden = !open2;
-  if (open2)
+  open4 = value;
+  section().hidden = !open4;
+  if (open4)
     draw2();
 }
 function drawQueue(next) {
-  board = next;
+  board2 = next;
   const before = submitted?.record?.numbers.length;
-  if (board.queue) {
-    accept(board.queue);
-    if (!board.source.error && Object.values(board.queue.actions).some(Boolean))
+  if (board2.queue) {
+    accept2(board2.queue);
+    if (!board2.source.error && Object.values(board2.queue.actions).some(Boolean))
       uncertain = false;
   }
   draw2();
   if (before !== undefined && submitted?.record && before > submitted.record.numbers.length)
     announce(`${submitted.record.numbers.length} issues remain in the queue`);
 }
-var recordedHost = (record) => record?.choice?.kind === "explicit" ? record.choice.host : null, chosenHost = (record) => record?.choice ? recordedHost(record) : agent || null, board = null, submitted = null, agent = "", open2 = false, busy = false, uncertain = false, retired, options2, section2 = () => $("queue"), cards = () => Object.values(board?.columns ?? {}).flat(), available = () => cards().flatMap(({ number, ...card }) => number !== null && !card.sessionId && card.run && card.step ? [{ ...card, number }] : []), find = (number) => cards().find((card) => card.number === number), heading = () => section2().querySelector(".queue-status h3"), expected = () => ({
+var recordedHost = (record) => record?.choice?.kind === "explicit" ? record.choice.host : null, chosenHost = (record) => record?.choice ? recordedHost(record) : agent || null, board2 = null, submitted = null, agent = "", open4 = false, busy = false, uncertain = false, retired, options2, section = () => $("queue"), cards = () => Object.values(board2?.columns ?? {}).flat(), available = () => cards().flatMap(({ number, ...card }) => number !== null && !card.sessionId && card.run && card.step ? [{ ...card, number }] : []), find = (number) => cards().find((card) => card.number === number), heading = () => section().querySelector(".queue-status h3"), expected = () => ({
   id: submitted?.record?.id ?? null,
   revision: submitted?.record?.revision ?? 0,
   current: submitted?.record?.numbers[0] ?? null
-}), authoritative = () => Boolean(submitted && !uncertain && !board?.source.error), restore = (key) => {
+}), authoritative = () => Boolean(submitted && !uncertain && !board2?.source.error), restore = (key) => {
   if (!key)
     return;
-  const control = section2().querySelector(`[data-control="${CSS.escape(key)}"]:not([aria-disabled="true"])`);
-  (control ?? section2().querySelector('.queue-move button:not([aria-disabled="true"]), .queue-pick button:not([aria-disabled="true"])') ?? heading())?.focus({ preventScroll: true });
+  const control = section().querySelector(`[data-control="${CSS.escape(key)}"]:not([aria-disabled="true"])`);
+  (control ?? section().querySelector('.queue-move button:not([aria-disabled="true"]), .queue-pick button:not([aria-disabled="true"])') ?? heading())?.focus({ preventScroll: true });
 }, button = (text, key, action, disabled = false) => {
   const node = el("button", "btn ghost", text);
   node.type = "button";
@@ -18018,7 +18819,7 @@ var recordedHost = (record) => record?.choice?.kind === "explicit" ? record.choi
     });
     if (!response.ok)
       throw new Error((await response.json()).error);
-    accept(await response.json());
+    accept2(await response.json());
     announce(action.kind === "add" ? `#${action.number} is saved in the queue` : "The queue is saved");
   } catch (error) {
     uncertain = true;
@@ -18031,7 +18832,7 @@ var recordedHost = (record) => record?.choice?.kind === "explicit" ? record.choi
       if (!response.ok)
         throw new Error("Queue state is unavailable");
       const view = await response.json();
-      accept(view);
+      accept2(view);
       uncertain = !view.actions.add && !view.actions.edit && !view.actions.continue && !view.actions.retry;
     } catch {
       uncertain = true;
@@ -18076,34 +18877,14 @@ var recordedHost = (record) => record?.choice?.kind === "explicit" ? record.choi
   }
   return node;
 }, hostAvailable = (host) => {
-  const next = host ?? (board?.next?.kind === "start" ? board.next.host : null);
-  return next === null || !!board && knownAgent(board.registry, next) && board.agents?.[next]?.available === true;
+  const next = host ?? (board2?.next?.kind === "start" ? board2.next.host : null);
+  return next === null || !!board2 && knownAgent(board2.registry, next) && board2.agents?.[next]?.available === true;
 };
 var init_queue = __esm(() => {
   init_view();
+  init_store();
   init_ui();
   retired = new Set;
-});
-
-// engine/board/page/stop-dialog.ts
-var dialogOpen = () => $("stop-dialog").open, openStopDialog = ({ title, stop, done }) => {
-  const dialog = $("stop-dialog");
-  let isConfirmed = false;
-  $("stop-title").textContent = title;
-  $("stop-confirm").onclick = () => {
-    isConfirmed = true;
-    dialog.close();
-  };
-  $("stop-cancel").onclick = () => dialog.close();
-  dialog.onclose = () => {
-    done();
-    if (isConfirmed)
-      stop();
-  };
-  dialog.showModal();
-};
-var init_stop_dialog = __esm(() => {
-  init_ui();
 });
 
 // engine/board/page/board.ts
@@ -18133,939 +18914,28 @@ async function openIntake() {
     drawIntake();
   }
 }
-function closeDetails(refocus) {
-  const key = shell().details;
-  const isBack = refocus && key !== null;
-  setShell({
-    ...shell(),
-    details: null,
-    ...isBack && (shell().tab === "queue" || shell().tab === "history") ? { tab: "agents" } : {},
-    ...isBack && phone.matches ? { pane: "agents" } : {}
-  });
-  if (isBack) {
-    revealCard(key);
-    document.querySelector(`#tp-board [data-key="${CSS.escape(key)}"]`)?.focus({ preventScroll: true });
-  }
-}
-var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to Idle when the session has ended.", ON_ISSUE, STATUS_ICONS, QUEUE_LEVEL = "The queue starts this step at the start pair, with no override", data = null, shell = () => shellStore.get().shell, settings = () => shellStore.get().settings, openEpics, isServerDown = () => queryClient.getQueryState(boardKey)?.status === "error", drawnDown = false, intakePending = false, seen = null, needsKeys = null, starting = null, startupWarnings, byKey, used, coordinatorLine = null, asides, stops, refusals, SEEN_TURN = "seen-turn:", seenTurn = (terminal) => parseSeenTurn(store.get(`${SEEN_TURN}${terminal}`)), seeTurn = (card) => {
-  if (card.sessionId === null || card.waitFor !== "turn" || typeof card.turn !== "number")
-    return;
-  const name = `${SEEN_TURN}${card.sessionId}`;
-  if (store.get(name) === String(card.turn))
-    return;
-  store.set(name, String(card.turn));
-  render(false);
-}, who2 = (card) => card.number === null ? card.title ? `human session "${card.title}"` : "a human session" : `#${card.number}`, canRunLater = (card) => card.sessionId === null && card.step && (card.state === null || card.state === "no-progress" || card.state === "set-aside"), copyWhat = (card) => card.act ? COPY[card.state] : null, onTracker = () => data.tracker ? ` on ${data.tracker}` : "", readAgainText = () => data?.tracker ? `Read ${data.tracker} again` : "Read the issues again", act = async (path, value, failure, onDone) => {
-  if (isReconnecting())
-    return false;
-  const isOk = await post(path, value, failure);
-  if (isOk)
-    onDone?.();
-  await readAgain();
-  return isOk;
-}, intakeReason = () => {
-  if (isReconnecting())
+var shell3 = () => shellStore.get().shell, settings = () => shellStore.get().settings, isServerDown = () => queryClient.getQueryState(boardKey)?.status === "error", intakePending = false, needsKeys = null, starting = null, startupWarnings, coordinatorLine = null, seenTurn2, setEpicOpen, readAgainText = () => screen.read()?.tracker ? `Read ${screen.read().tracker} again` : "Read the issues again", intakeReason = () => {
+  if (isReconnecting2())
     return "The board is reconnecting";
   if (intakePending)
     return "An intake tab is opening";
+  const data = screen.read();
   const readAt = Date.parse(data?.source.readAt ?? "");
   if (!data || isServerDown() || data.source.error || !Number.isFinite(readAt) || Date.now() - readAt > 60000)
     return null;
   return defaultReason();
-}, registry = () => data.registry, agentDisplay = (id) => agentOf({ agent: id }, registry())?.name ?? id, defaultReason = (work = "session") => {
-  const next = data?.next;
-  if (next?.kind === "wait")
-    return work === "session" ? "Every included agent is limited. See the agent order." : null;
-  const entry = next ? data?.agents?.[next.host] : undefined;
-  return entry?.available === false ? cleanCause(entry.cause) : null;
-}, runReason = (agent, number) => {
-  if (data?.noRun)
-    return data.noRun;
-  const record = data?.queue?.record;
-  if (record?.state === "me-gate" && number != null && record.numbers[0] === number && record.choice) {
-    if (record.choice.kind === "default") {
-      if (agent !== null)
-        return "queue: recorded agent choice is the default order";
-    } else {
-      if (agent !== null && agent !== record.choice.host)
-        return `queue: recorded agent choice is ${record.choice.host}`;
-      agent = record.choice.host;
-    }
-  }
-  const agents = data?.agents;
-  if (agent) {
-    const entry = data && knownAgent(data.registry, agent) ? agents?.[agent] : undefined;
-    if (entry && entry.available === false)
-      return cleanCause(entry.cause);
-    return null;
-  }
-  return defaultReason("run");
-}, runName = ({ step, effort, number }) => `Run ${step}${effort ? ` on ${effort.model} at ${effort.level}` : ""}, #${number}`, runAction = (card, agent = null) => {
-  const display = agent ? agentDisplay(agent) : null;
-  const reason = runReason(agent, card.number);
-  const name = agent ? `Run with ${display}, ${card.step} of #${card.number}` : runName(card);
-  return {
-    id: agent ? `run:${agent}` : "run",
-    label: agent ? `Run with ${display}` : "Run",
-    icon: "run",
-    busy: "Starting",
-    name,
-    title: reason ?? runTitle(card.step, data.flow, card.effort),
-    isDisabled: Boolean(reason),
-    run: reason ? async () => toast(reason, { isError: true }) : async () => {
-      if (await launch(card, "/api/run", agent ?? undefined))
-        toast(`Started the ${card.step} step of #${card.number} in a new herdr tab`);
-    }
-  };
-}, overrideActionsOf = (card, isAgain) => {
-  const agents = data?.agents;
-  if (!card.run || !agents || data?.noRun)
-    return [];
-  return Object.keys(agents).map((id) => {
-    const display = agentDisplay(id);
-    const base = runAction(card, id);
-    return isAgain ? {
-      ...base,
-      label: `Run again with ${display}`,
-      name: `Run again with ${display}, ${card.step} of #${card.number}`,
-      isGhost: true,
-      title: base.isDisabled ? base.title : `Start the ${card.step} step again. It made no progress last time.`
-    } : base;
-  });
-}, levelEntries = (card) => {
-  const { effort } = card;
-  if (!effort || !(card.run || data?.noRun))
-    return [];
-  const record = data?.queue?.record;
-  const reason = data?.noRun || (record?.state === "me-gate" && record.numbers[0] === card.number ? QUEUE_LEVEL : runReason(null, card.number));
-  return [
-    "rule",
-    ...(data?.flow?.levels ?? []).map((level) => ({
-      icon: level === effort.level ? "check" : "run",
-      label: `Run at ${level}${level === effort.level ? ` (${levelSource(effort)})` : ""}`,
-      title: reason ?? startTitle(card.step, effort, level),
-      isDisabled: Boolean(reason),
-      run: reason ? async () => toast(reason, { isError: true }) : async () => {
-        if (await launch(card, "/api/run", undefined, level))
-          toast(`Started the ${card.step} step of #${card.number} at ${level} in a new herdr tab`);
-      }
-    }))
-  ];
-}, agentOrderEntry, namedHost = (card) => {
-  const record = data?.queue?.record;
-  if (record?.state === "me-gate" && record.numbers[0] === card.number && record.choice?.kind === "explicit")
-    return record.choice.host;
-  const start = card.step ? data?.starts?.[card.step] : undefined;
-  return start?.kind === "start" ? start.host : null;
-}, toMenuEntry = (action, card) => {
-  const host = action.id.startsWith("run:") ? action.id.slice(4) : null;
-  if (host && data && knownAgent(data.registry, host))
-    return {
-      icon: action.icon,
-      host,
-      label: action.label,
-      tag: host === namedHost(card) ? "Default" : undefined,
-      isDisabled: action.isDisabled,
-      title: action.title,
-      run: action.run
-    };
-  return {
-    icon: action.icon,
-    label: action.name,
-    key: action.isMain ? "Enter" : action.key ?? "",
-    isDisabled: action.isDisabled,
-    title: action.title,
-    run: action.href ? () => window.open(action.href, "_blank", "noopener,noreferrer") : action.run
-  };
-}, refusedRun = (isError, reason) => async () => {
-  toast(reason, { isError });
-  announce(reason);
-}, actionsOf = (card) => {
-  const list = [];
-  if (card.go) {
-    list.push({
-      id: "go",
-      label: "Go",
-      icon: "go",
-      busy: "Focusing",
-      name: `Go to the pane of ${who2(card)}`,
-      title: "Focus its pane in herdr (Enter)",
-      run: () => {
-        if (card.number === null)
-          seeTurn(card);
-        return act("/api/go", { sessionId: card.sessionId }, "Go failed", () => toast(`Focused the pane of ${who2(card)} in herdr`, { detail: "Switch to your terminal to see it." }));
-      }
-    });
-  }
-  if (card.state === "quota-wait")
-    list.push({
-      id: "agent-order",
-      label: "Agent order",
-      icon: "person",
-      name: `Show the agent order and Retry of #${card.number}`,
-      title: "Show the usage limits and Retry in the agent order (Enter)",
-      run: agentOrderEntry.run
-    });
-  if (card.state === "blocked") {
-    const reason = data?.noRun || defaultReason();
-    list.push({
-      id: "assist",
-      label: "Open agent",
-      icon: "terminal",
-      busy: "Starting",
-      name: `Open agent, #${card.number}`,
-      title: reason ?? "Open an assistance session in a new herdr tab (Enter)",
-      isDisabled: Boolean(reason) || !card.assist,
-      run: async () => {
-        if (await launch(card, "/api/assist"))
-          toast(`Opened an assistance session for #${card.number} in a new herdr tab`, {
-            detail: "Switch to your terminal to see it."
-          });
-      }
-    });
-  }
-  if (card.state === "no-progress" || card.state === "set-aside") {
-    if (card.resume) {
-      list.push({
-        id: "resume",
-        label: "Resume",
-        icon: "terminal",
-        busy: "Opening",
-        name: `Resume the ${card.step} session of #${card.number}`,
-        title: "Open the session of this step again in a new herdr tab (Enter)",
-        run: async () => {
-          if (await launch(card, "/api/resume"))
-            toast(`Opened the ${card.step} session of #${card.number} in a new herdr tab`, {
-              detail: "Switch to your terminal to see it."
-            });
-        }
-      });
-    }
-    if (card.run) {
-      const base = runAction(card);
-      list.push({
-        ...base,
-        label: "Run again",
-        name: `Run again, #${card.number}`,
-        isGhost: true,
-        title: base.isDisabled ? base.title : card.state === "no-progress" ? `Start the ${card.step} step again. It made no progress last time.` : `Start the ${card.step} step again`
-      });
-      list.push(...overrideActionsOf(card, true));
-    }
-  } else if (card.run) {
-    list.push(runAction(card));
-    list.push(...overrideActionsOf(card, false));
-  }
-  if (card.state === "dirty-tree" || card.state === "set-aside" && card.path) {
-    list.push({
-      id: "shell",
-      label: "Open shell",
-      icon: "terminal",
-      busy: "Opening",
-      name: `Open shell, #${card.number}`,
-      title: `Open a shell in the worktree in a new herdr tab${card.state === "dirty-tree" ? " (Enter)" : ""}`,
-      run: () => act("/api/shell", { number: card.number }, "Open shell failed", () => toast(`Opened a shell in the worktree of #${card.number}`, {
-        detail: card.state === "dirty-tree" ? "Commit or stash the changes there; then the card moves on." : "Commit or stash the changes there."
-      }))
-    });
-  }
-  if (ON_ISSUE.has(card.state) && card.url) {
-    list.push({
-      id: "open",
-      label: "Open issue",
-      icon: "open",
-      name: `Open issue #${card.number}${onTracker()}`,
-      title: `Open the issue${onTracker()}${list.length === 0 ? " (Enter)" : ""}`,
-      href: card.url
-    });
-  }
-  const { noRun } = data;
-  if (noRun && canRunLater(card)) {
-    list.push({
-      id: "blocked",
-      label: "Run",
-      icon: "run",
-      name: runName(card),
-      title: noRun,
-      isDisabled: true,
-      run: async () => toast(noRun, { isError: true })
-    });
-    if (data?.agents)
-      for (const id of Object.keys(data.agents)) {
-        const display = agentDisplay(id);
-        list.push({
-          id: `run:${id}`,
-          label: `Run with ${display}`,
-          icon: "run",
-          name: `Run ${card.step}, #${card.number} with ${display}`,
-          title: noRun,
-          isDisabled: true,
-          run: async () => toast(noRun, { isError: true })
-        });
-      }
-  }
-  if (card.aside) {
-    const isBusy = asides.has(card.number);
-    list.push({
-      id: "aside",
-      label: isBusy ? "Setting aside" : "Set aside",
-      icon: "aside",
-      name: `Set aside #${card.number}`,
-      key: "s",
-      isGhost: true,
-      isBusy,
-      isDisabled: isBusy,
-      title: isBusy ? "The daemon sets this issue aside." : "Move this issue to Idle. Auto mode skips it until you press Run or Resume (s)",
-      run: () => pressAct(asides, card, "/api/aside", { number: card.number }, asideText(card))
-    });
-  }
-  if (card.stop) {
-    const isBusy = card.state === "stopping" || stops.has(card.number);
-    const reason = isBusy ? STOPPING : card.stop.reason;
-    list.push({
-      id: "stop",
-      label: isBusy ? "Stopping" : "Stop",
-      icon: "stop",
-      name: `Stop the ${card.step} session of #${card.number}`,
-      key: "s",
-      isGhost: true,
-      isBusy,
-      isDisabled: Boolean(reason),
-      title: reason ?? "End this session and set the issue aside (s)",
-      run: card.stop.reason ? refusedRun(card.state !== "stopping", card.stop.reason) : () => openStop(card)
-    });
-  }
-  list.forEach((action, index) => {
-    action.isMain = index === 0;
-  });
-  return list;
-}, menuOf = (card, key) => [
-  ...actionsOf(card).map((action) => toMenuEntry(action, card)),
-  ...levelEntries(card),
-  "rule",
-  { icon: "panel", label: "Show the details", key: "Space", run: () => openDetails(key) },
-  ...card.url && !ON_ISSUE.has(card.state) ? [
-    {
-      icon: "open",
-      label: `Open the issue${onTracker()}`,
-      key: "o",
-      run: () => window.open(card.url, "_blank", "noopener,noreferrer")
-    }
-  ] : [],
-  ...copyWhat(card) ? [
-    {
-      icon: "copy",
-      label: `Copy the ${copyWhat(card)}`,
-      key: "c",
-      run: () => copy(card.act, copyWhat(card))
-    }
-  ] : []
-], track2 = (card) => {
-  const steps = laneTrack(card, data.flow);
-  if (!steps)
-    return null;
-  const at = steps.findIndex((step) => step.state === "now");
-  const node = el("span", "track");
-  node.setAttribute("role", "img");
-  node.setAttribute("aria-label", `Step ${at + 1} of ${steps.length}: ${steps[at].name}`);
-  node.title = steps.map((step) => step.state === "next" ? step.name : `${step.name} (${step.state === "now" ? "now" : "done"})`).join(" · ");
-  node.append(...steps.map((step) => el("i", `seg ${step.state}`)));
-  return node;
-}, startLabel = (pair) => {
-  const node = el("span", "start");
-  node.title = startName(pair);
-  node.setAttribute("role", "img");
-  node.setAttribute("aria-label", node.title);
-  for (const [part, value] of [
-    ["model", pair.model],
-    ["level", pair.level]
-  ]) {
-    const segment = el("span", "start-part");
-    segment.dataset.part = part;
-    segment.dataset.source = pair.source[part];
-    if (pair.source[part] === "pinned")
-      segment.append(icon("pin"));
-    segment.append(el("span", "", value));
-    node.append(segment);
-  }
-  return node;
-}, status = (card, hasGlyph = true, isShort = false) => {
-  const node = el("span", "status");
-  if (card.state === "set-aside") {
-    node.classList.add("aside-pill");
-    node.append(icon("aside"), el("span", "status-label", stateLabel(card)));
-    if (card.step)
-      node.append(el("span", "detail mono", card.step));
-    return node;
-  }
-  if (card.state) {
-    if (hasGlyph)
-      node.append(icon(STATUS_ICONS[card.state] ?? "pending"));
-    node.append(el("span", "status-label", stateLabel(card)));
-    if (isShort)
-      return node;
-    const agent = agentOf(card, registry());
-    if (agent)
-      node.append(el("span", "detail agent-name", agent.name));
-    if (card.step && card.step !== card.type)
-      node.append(el("span", "detail mono", card.step));
-  } else if (card.step) {
-    node.classList.add("next");
-    if (hasGlyph)
-      node.append(icon("pending"));
-    node.append(el("span", "lead", "next"), el("span", "mono step", card.step));
-    if (card.effort)
-      node.append(startLabel(card.effort));
-    if (card.gate === "auto")
-      node.append(gateLabel(data.daemon.auto));
-  }
-  return node;
-}, liveLine = (card) => {
-  if (!card.diff)
-    return null;
-  const node = el("div", "live");
-  const delta = el("span", "delta");
-  delta.append(el("i", "", `+${card.diff.added}`), ` −${card.diff.removed}`);
-  node.append(icon("diff"), el("span", "target", `${card.diff.files} ${card.diff.files === 1 ? "file" : "files"} changed`), delta);
-  node.title = "Changed since the branch left its base";
-  return node;
-}, actLine = (card) => {
-  const what = copyWhat(card);
-  if (!what)
-    return el("p", "act", card.act);
-  const node = el("p", "act code");
-  const code = el("code");
-  shortPath(card.act).split("/").forEach((part, index) => {
-    code.append(...index ? [el("wbr"), `/${part}`] : [part]);
-  });
-  code.title = card.act;
-  node.append(code, iconButton("copy", `Copy the ${what}`, () => copy(card.act, what), "copy"));
-  node.lastChild.title = `Copy the ${what} (c)`;
-  return node;
-}, keyFor = (card) => {
-  let key = keyOf(card);
-  while (used.has(key))
-    key += "-x";
-  used.add(key);
-  return key;
-}, cardShell = (card, column, isCompact, level = "h3") => {
-  const key = keyFor(card);
-  byKey.set(key, { card, column });
-  const node = el("article", `card${isCompact ? " compact" : ""}${key === shell().details ? " is-selected" : ""}`);
-  node.dataset.state = card.state ?? "next";
-  node.dataset.key = key;
-  node.tabIndex = -1;
-  node.style.viewTransitionName = key;
-  if (card.url)
-    node.dataset.url = card.url;
-  if (seen !== null && seen.get(key) !== signature(card, column))
-    node.classList.add("is-unseen");
-  const text = card.title || `Issue #${card.number}`;
-  const title = el(level, "title");
-  title.id = `t-${key}`;
-  title.title = text;
-  title.append(link("", text, card.url));
-  title.querySelector("a")?.addEventListener("click", (event) => event.stopPropagation());
-  node.setAttribute("aria-labelledby", title.id);
-  const id = link("num", `#${card.number}`, card.url);
-  id.addEventListener("click", (event) => event.stopPropagation());
-  return { key, node, title, id };
-}, unseenDot = () => {
-  const dot = Object.assign(el("i", "unseen"), { title: "Changed since you last looked" });
-  dot.append(el("span", "sr-only", "Changed since you last looked"));
-  return dot;
-}, menuName = (card, prefix) => `${prefix} ${card.number === null ? card.title : `#${card.number}`}`, runWithButton = (card) => {
-  const actions = actionsOf(card);
-  if (!["run", "blocked"].includes(actions[0]?.id))
-    return null;
-  const entries = actions.filter((action) => action.id.startsWith("run:")).map((action) => toMenuEntry(action, card));
-  if (entries.length === 0)
-    return null;
-  const levelled = levelEntries(card);
-  const button = iconButton("chevron", levelled.length ? "Run with another agent or at another level" : "Run with another agent", (event) => openMenu(event.currentTarget, [...entries, ...levelled], {
-    label: menuName(card, "Run options of")
-  }));
-  button.setAttribute("aria-haspopup", "menu");
-  return button;
-}, asideChip = (action) => {
-  const node = el("button", `aside-chip${action.isBusy ? " is-busy" : ""}`);
-  node.type = "button";
-  node.title = action.title;
-  node.setAttribute("aria-label", action.name);
-  if (action.isDisabled)
-    node.setAttribute("aria-disabled", "true");
-  if (action.isBusy)
-    node.setAttribute("aria-busy", "true");
-  node.append(icon(action.icon), el("span", "aside-chip-label", action.label));
-  node.addEventListener("click", (event) => {
-    event.stopPropagation();
-    action.run?.();
-  });
-  return node;
-}, asideLine = (card) => card.state === "set-aside" && card.path ? `The lane worktree has uncommitted changes: ${shortPath(card.path)}` : null, drawCard = (card, column, { isCompact = false, level } = {}) => {
-  const { key, node, title, id } = cardShell(card, column, isCompact, level);
-  if (column === "needs")
-    node.classList.add("is-needs");
-  const actions = actionsOf(card);
-  const isQuiet = column !== "needs";
-  if (isCompact) {
-    const meta = el("div", "meta");
-    meta.append(id);
-    if (card.type && card.type !== card.step) {
-      const type = el("span", "meta-type");
-      type.append(el("span", "sep", "·"), card.type);
-      meta.append(type);
-    }
-    meta.append(el("span", "sep", "·"), status(card, card.state === "starts", true));
-    const main = el("div", "main");
-    main.append(title, meta);
-    const note = startNote(card);
-    if (note)
-      main.append(note);
-    if (card.warning)
-      main.append(el("p", "warning", card.warning));
-    const line = asideLine(card);
-    if (line)
-      main.append(el("p", "warning", line));
-    node.append(mark(card, registry()), main);
-    if (actions[0]) {
-      const withButton = runWithButton(card);
-      if (withButton) {
-        const btns = el("div", "compact-btns");
-        btns.append(actionButton(actions[0], isQuiet), withButton);
-        node.append(btns);
-      } else {
-        node.append(actionButton(actions[0], isQuiet));
-      }
-    }
-    if (node.classList.contains("is-unseen"))
-      node.append(unseenDot());
-    return node;
-  }
-  const head = el("div", "card-head");
-  if (node.classList.contains("is-unseen"))
-    head.append(unseenDot());
-  head.append(mark(card, registry(), Boolean(card.state)), id);
-  if (card.type)
-    head.append(el("span", "sep", "·"), el("span", "type", card.type));
-  const lane = track2(card);
-  if (lane)
-    head.append(lane);
-  const more = iconButton("dots", "More actions (m)", () => openMenu(more, menuOf(card, key), { label: menuName(card, "Actions of") }), "more");
-  more.setAttribute("aria-haspopup", "menu");
-  const headAct = actions.find((action) => action.id === "aside" || action.id === "stop");
-  if (headAct)
-    head.append(asideChip(headAct));
-  head.append(more);
-  node.append(head, title);
-  const refusal = card.number === null ? undefined : refusals.get(card.number);
-  for (const part of [
-    startNote(card),
-    card.state === "works" ? liveLine(card) : null,
-    prChips(card.pr),
-    card.act && card.state !== "no-progress" ? actLine(card) : null,
-    card.warning ? el("p", "warning", card.warning) : null,
-    refusal ? el("p", "warning", refusal.line) : null
-  ])
-    if (part)
-      node.append(part);
-  const end = el("div", "foot-end");
-  if (card.state !== "starts")
-    end.append(timed(card.since, Boolean(card.sessionId) && LIVE.has(card.state)));
-  if (actions[0])
-    end.append(actionButton(actions[0], isQuiet));
-  const withButton = runWithButton(card);
-  if (withButton)
-    end.append(withButton);
-  const foot = el("div", "card-foot");
-  foot.append(status(card), end);
-  node.append(foot);
-  return node;
-}, glyph = (key) => {
-  const node = el("span", "glyph");
-  node.append(icon(`col-${key}`));
-  return node;
-}, empty = (key, [title, text]) => {
-  const node = el("div", `empty empty-${key}`);
-  node.tabIndex = -1;
-  node.append(icon(key === "needs" ? "clear" : `col-${key}`), el("p", "empty-title", title), el("p", "empty-text", text));
-  return node;
-}, needsBody = (cards) => groupNeeds(cards).map((group) => {
-  const node = el("div", `group group-${group.key}`);
-  node.dataset.group = group.key;
-  node.dataset.short = group.short;
-  const label = el("h3", "group-label");
-  label.id = `g-${group.key}`;
-  label.append(el("span", "", group.label), el("span", "group-count", String(group.cards.length)));
-  node.setAttribute("role", "group");
-  node.setAttribute("aria-labelledby", label.id);
-  node.append(label, ...group.cards.map((card) => drawCard(card, "needs", { isCompact: group.isCompact, level: "h4" })));
-  return node;
-}), storeOpenEpics = (change) => {
-  const stored = store.get("open-epics");
-  const next = new Set(stored === null ? openEpics : parseOpenEpics(stored));
-  change(next);
-  store.set("open-epics", JSON.stringify([...next].sort(compareKeys)));
-  openEpics = next;
-}, showOpenEpics = () => {
-  for (const row of document.querySelectorAll(".epic-row")) {
-    const epic = parseKey(row.dataset.epic ?? "");
-    const isOpen = epic !== null && openEpics.has(epic);
-    row.setAttribute("aria-expanded", String(isOpen));
-    $(row.getAttribute("aria-controls")).hidden = !isOpen;
-  }
-  syncStops();
-}, setEpicOpen = (epic, isOpen) => {
-  storeOpenEpics((open) => isOpen ? open.add(epic) : open.delete(epic));
-  showOpenEpics();
-}, epicGroup = (epic, cards, scope) => {
-  const id = `eg-${scope}-${epic.number}`;
-  const isOpen = openEpics.has(epic.number);
-  const row = el("button", "epic-row");
-  row.type = "button";
-  row.tabIndex = -1;
-  row.id = `${id}-row`;
-  row.dataset.epic = String(epic.number);
-  row.dataset.group = `${scope}-${epic.number}`;
-  row.setAttribute("aria-expanded", String(isOpen));
-  row.setAttribute("aria-controls", id);
-  const count = el("span", "epic-count", String(cards.length));
-  count.append(el("span", "sr-only", cards.length === 1 ? " issue" : " issues"));
-  row.append(icon("chevron"), el("span", "epic-num", `#${epic.number}`), el("span", "epic-title", epic.title), count, unseenDot());
-  row.addEventListener("click", () => setEpicOpen(epic.number, row.getAttribute("aria-expanded") !== "true"));
-  const children = el("div", "epic-children");
-  children.id = id;
-  children.hidden = !isOpen;
-  children.setAttribute("role", "group");
-  children.setAttribute("aria-labelledby", row.id);
-  children.append(...cards.map((card) => drawCard(card, "idle", { isCompact: true })));
-  const node = el("div", "epic-group");
-  node.dataset.epic = String(epic.number);
-  node.append(row, children);
-  return node;
-}, column = ({ key, name, note, empty: copyOf }, cards) => {
-  const section = el("section", `col col-${key}`);
-  section.id = `col-${key}`;
-  section.setAttribute("aria-labelledby", `h-${key}`);
-  section.classList.toggle("has-waits", cards.some((card) => card.state === "waits"));
-  const heading = el("h2", "col-name", name);
-  heading.id = `h-${key}`;
-  const head = el("header", "col-head");
-  head.title = note;
-  head.append(glyph(key), heading, el("span", "count", String(cards.length)));
-  const body = el("div", "col-body");
-  if (cards.length === 0)
-    body.append(empty(key, copyOf));
-  else if (key === "needs")
-    body.append(...needsBody(cards), drawTail());
-  else if (key === "idle")
-    body.append(...groupEpics(cards, () => true).map((item) => item.kind === "group" ? epicGroup(item.epic, item.cards, "idle") : drawCard(item.card, "idle", { isCompact: true })));
-  else
-    body.append(...cards.map((card) => drawCard(card, key)));
-  section.append(head, body);
-  return section;
-}, drawTail = () => {
-  const wrap = el("div", "tail-wrap");
-  const button = el("button", "tail");
-  button.type = "button";
-  button.append(icon("chevron"), el("span", "tail-text"));
-  button.addEventListener("click", () => {
-    const first = [...document.querySelectorAll(".col-needs .card[data-key]")].find((node) => node.dataset.hidden === "true");
-    first?.scrollIntoView({
-      block: "center",
-      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
-    });
-    first?.focus({ preventScroll: true });
-  });
-  wrap.append(button);
-  wrap.hidden = true;
-  return wrap;
-}, measureTail = () => {
-  const body = document.querySelector(".col-needs .col-body");
-  const wrap = body?.querySelector(".tail-wrap");
-  if (!body || !wrap)
-    return;
-  const bottom = Math.min(body.getBoundingClientRect().bottom, $("tp-board").getBoundingClientRect().bottom) - (wrap.hidden ? 0 : wrap.offsetHeight);
-  const counts = new Map;
-  for (const node of body.querySelectorAll(".card[data-key]")) {
-    const isHidden = node.getBoundingClientRect().bottom > bottom + 1;
-    node.dataset.hidden = String(isHidden);
-    if (!isHidden)
-      continue;
-    const group = node.closest(".group");
-    counts.set(group.dataset.group, {
-      short: group.dataset.short,
-      count: (counts.get(group.dataset.group)?.count ?? 0) + 1
-    });
-  }
-  const text = counts.size ? tail([...counts.values()]) : "";
-  wrap.hidden = text === "";
-  wrap.querySelector(".tail-text").textContent = text;
-}, measureFade = () => {
-  const board = $("columns");
-  board.toggleAttribute("data-fade", board.dataset.view === "pipeline" && board.scrollLeft + board.clientWidth < board.scrollWidth - 2);
-}, tailFrame = 0, updateTail = () => {
-  cancelAnimationFrame(tailFrame);
-  tailFrame = requestAnimationFrame(() => {
-    measureTail();
-    measureFade();
-  });
-}, pipelineView = (columns, flow) => {
-  const cards = [...columns.needs, ...columns.running, ...columns.idle];
-  const where = new Map([
-    ...columns.needs.map((c) => [c, "needs"]),
-    ...columns.running.map((c) => [c, "running"]),
-    ...columns.idle.map((c) => [c, "idle"])
-  ]);
-  const { stages, hold } = pipeline(cards, flow);
-  const sections = [];
-  if (hold.length) {
-    const strip = el("section", "col hold");
-    strip.setAttribute("aria-labelledby", "hold-title");
-    const label = el("h2", "hold-label", "Not in a step");
-    label.id = "hold-title";
-    const list = el("div", "hold-list");
-    list.append(...hold.map((card) => drawCard(card, where.get(card), { isCompact: true })));
-    strip.append(label, list);
-    sections.push(strip);
-  }
-  for (const stage of stages) {
-    const section = el("section", "col stage");
-    section.setAttribute("aria-labelledby", `s-${stage.key}`);
-    const head = el("header", "col-head");
-    head.title = stage.steps.join(", ");
-    const heading = el("h2", "col-name", stage.name);
-    heading.id = `s-${stage.key}`;
-    head.append(heading, el("span", "count", String(stage.cards.length)));
-    const body = el("div", "col-body");
-    body.append(...stage.cards.length ? groupEpics(stage.cards, (card) => where.get(card) === "idle").map((item) => item.kind === "group" ? epicGroup(item.epic, item.cards, `s${stage.key}`) : drawCard(item.card, where.get(item.card), { isCompact: true })) : [el("p", "stage-empty", "No issue at this step")]);
-    section.append(head, body);
-    sections.push(section);
-  }
-  return sections;
-}, isStop = (node) => !node.closest(".epic-children[hidden]"), STOPS = ".card[data-key], .epic-row", stopKeys, stopKey = (node) => node.dataset.key ?? node.dataset.group, columnId = (col) => col.id || col.getAttribute("aria-labelledby") || "hold", syncStops = () => {
-  for (const col of document.querySelectorAll("#columns .col")) {
-    const stops = [...col.querySelectorAll(STOPS)].filter(isStop);
-    const active = document.activeElement?.closest(STOPS);
-    const kept = stopKeys.get(columnId(col));
-    const stop = stops.find((node) => node === active) ?? stops.find((node) => stopKey(node) === kept) ?? stops[0];
-    for (const node of stops)
-      node.tabIndex = node === stop ? 0 : -1;
-  }
-}, humanPill = (card) => {
-  const key = keyFor(card);
-  byKey.set(key, { card, column: "human" });
-  const pill = el("div", "human-pill");
-  pill.dataset.state = card.state ?? "";
-  pill.dataset.wait = card.waitFor ?? "";
-  const isTurn = isYourTurn(card, seenTurn);
-  if (isTurn)
-    pill.dataset.yourTurn = "";
-  const open = el("button", `human-open${key === shell().details ? " is-selected" : ""}`);
-  open.type = "button";
-  open.dataset.key = key;
-  open.title = "Show the details and the screen of this session";
-  open.append(mark(card, registry()), el("span", "human-name", card.title || "A session"), el("i", "human-dot"), el("span", "human-state", isTurn ? "your turn" : stateLabel(card)));
-  open.addEventListener("click", () => shell().details === key ? closeDetails(true) : openDetails(key));
-  const [go] = actionsOf(card);
-  pill.append(open, timed(card.since, LIVE.has(card.state)), iconButton("go", go.name, () => go.run?.(), "human-go"));
-  return pill;
-}, drawHuman = (cards) => {
-  const strip = $("human");
-  strip.hidden = cards.length === 0;
-  strip.replaceChildren(...cards.length ? [Object.assign(el("h2", "hold-label", "Human sessions"), { id: "human-title" })] : [], ...cards.map(humanPill));
-}, visualPresses, makeVisual = async (number) => {
-  if (visualPresses.has(number))
-    return;
-  visualPresses.add(number);
-  if (shell().tab === "history")
-    drawHistory();
-  await act("/api/visual", { number }, "Make visual failed");
-  visualPresses.delete(number);
-  if (shell().tab === "history")
-    drawHistory();
-}, visualControl = (entry) => {
-  const { number } = entry;
-  const state = visualPresses.has(number) && entry.visual === "none" ? "starting" : entry.visual;
-  let node;
-  let name;
-  if (state === "ready") {
-    name = `Open the visual of #${number}`;
-    node = Object.assign(el("a", "btn ghost history-action"), {
-      href: `/visual/${entry.sha}`,
-      target: "_blank",
-      rel: "noreferrer"
-    });
-    node.append(icon("open"));
-  } else if (state === "making") {
-    name = `The visual of #${number} is in the making`;
-    node = el("span", "history-action history-making");
-    node.setAttribute("role", "status");
-    node.tabIndex = -1;
-    node.append(icon("pending"));
-  } else {
-    name = state === "starting" ? `Starting the visual of #${number}` : `Make the visual of #${number}`;
-    node = el("button", "btn ghost history-action");
-    node.type = "button";
-    node.append(icon("diff"));
-    if (state === "starting")
-      node.setAttribute("aria-busy", "true");
-    else
-      node.addEventListener("click", () => void makeVisual(number));
-  }
-  node.setAttribute("aria-label", name);
-  node.title = name;
-  node.dataset.visual = String(number);
-  return node;
-}, drawHistory = () => {
-  const panel = $("history-pane");
-  const active = panel.contains(document.activeElement) ? document.activeElement : null;
-  const href = active?.getAttribute("href");
-  const label = active?.getAttribute("aria-label");
-  const visual = active?.dataset.visual;
-  const scroll = panel.querySelector(".history-body")?.scrollTop ?? 0;
-  const history = data?.history;
-  const error = isServerDown() ? SERVER_DOWN : data?.source.error;
-  panel.dataset.state = "history";
-  const head = el("div", "panel-head history-head");
-  head.append(el("h2", "", history ? `Landed on ${history.trunk}` : "Landed history"));
-  const body = el("div", "history-body");
-  if (!history)
-    body.append(el("p", "history-note", error ? `Cannot read history: ${error}` : "Loading landed history…"));
-  else {
-    if (error) {
-      const warning = el("p", "warning", `${error}. History shows the last good read.`);
-      warning.setAttribute("role", "status");
-      body.append(warning);
-    }
-    body.append(el("p", "history-note", "Latest 20 issues."));
-    const list = el("ol", "history-list");
-    for (const entry of history.entries) {
-      const row = el("li", "history-row");
-      const issue = link("history-number", `#${entry.number}`, entry.url);
-      const title = link("history-title", entry.title, entry.url);
-      const commit = link("history-sha", entry.sha.slice(0, 7), entry.commitUrl);
-      commit.setAttribute("aria-label", `Commit ${entry.sha}`);
-      commit.title = entry.sha;
-      const time = el("time", "", clock(entry.committedAt, true));
-      time.dateTime = entry.committedAt;
-      time.title = `Commit time: ${clock(entry.committedAt, true)}`;
-      time.setAttribute("aria-label", time.title);
-      const meta = el("span", "history-meta");
-      const dot = el("span", "", "·");
-      dot.setAttribute("aria-hidden", "true");
-      meta.append(commit, dot, time);
-      row.append(issue, title, meta, visualControl(entry));
-      list.append(row);
-    }
-    const none = grammar().kind === "local" ? "The local tracker does not list landed issues." : `No landed issues found on ${history.trunk}.`;
-    body.append(history.entries.length ? list : el("p", "history-note", none));
-    if (history.url)
-      body.append(link("history-more", `View ${history.trunk}`, history.url));
-  }
-  panel.replaceChildren(head, body);
-  body.scrollTop = scroll;
-  if (active) {
-    const match = [...panel.querySelectorAll("a, button, [data-visual]")].find((node) => visual ? node.dataset.visual === visual : href ? node.getAttribute("href") === href && node.className === active.className && node.getAttribute("aria-label") === label : node.getAttribute("aria-label") === label);
-    (match ?? panel.querySelector("button"))?.focus({ preventScroll: true });
-  }
-}, PANEL_FOCUS = ".panel-actions .btn, .ask .btn, .icon-btn", boardView = () => shell().tab === "pipeline" ? "pipeline" : "now", moveTo = (node, parent, before) => {
-  if (node.parentElement === parent && node.nextElementSibling === before)
-    return;
-  const active = node.contains(document.activeElement) ? document.activeElement : null;
-  parent.insertBefore(node, before);
-  active?.focus({ preventScroll: true });
-}, drawShell = () => {
-  const { area, tab, details, pane } = shell();
-  const isWide = tab === "pipeline" && !phone.matches;
-  const ops = $("area-operations");
-  ops.dataset.tab = tab;
-  ops.dataset.pane = pane;
-  ops.toggleAttribute("data-details", details !== null);
-  for (const node of document.querySelectorAll(".tab")) {
-    const isSelected = node.dataset.tab === tab;
-    node.setAttribute("aria-selected", String(isSelected));
-    node.tabIndex = isSelected ? 0 : -1;
-  }
-  $("tp-board").hidden = tab === "queue" || tab === "history";
-  $("tp-board").setAttribute("aria-labelledby", `tab-${boardView() === "pipeline" ? "pipeline" : "agents"}`);
-  $("history-pane").hidden = tab !== "history";
-  if (tab === "history")
-    drawHistory();
-  setQueueOpen(tab === "queue");
-  $("pane-chat").hidden = !isWide;
-  $("panel").hidden = details === null;
-  if (isWide)
-    moveTo($("panel"), ops, null);
-  else
-    moveTo($("panel"), $("center"), null);
-  if (isChatShown(shell(), phone.matches))
-    coordinator.show();
-  else
-    coordinator.hide();
-  if (area !== "control") {
-    updates.dismiss();
-    if ($("agent-picker").querySelector('.ap-handle[aria-expanded="true"]'))
-      closeMenu();
-  }
-  updateTail();
-}, hiddenFocus = null, setShell = (next, active = document.activeElement) => {
-  const was = shell();
-  const wasView = boardView();
-  const wasInPanel = active instanceof HTMLElement && $("panel").contains(active);
-  const activeId = active?.id;
-  shellStore.setShell(next);
-  if (was.details !== null && next.details !== was.details) {
-    $("panel").replaceChildren();
-    for (const node of document.querySelectorAll("[data-key].is-selected"))
-      node.classList.remove("is-selected");
-  }
-  drawShell();
-  if (data && boardView() !== wasView)
-    drawBoard(project(data));
-  const now = document.activeElement;
-  const isLost = active instanceof HTMLElement && (active.isConnected ? !active.checkVisibility() : wasInPanel);
-  if (isLost && (now === active || now === document.body)) {
-    const tabNode = $(`tab-${shell().tab}`);
-    (shell().area === "operations" && tabNode.checkVisibility() ? tabNode : $("work")).focus({ preventScroll: true });
-  } else if (now === document.body && active instanceof HTMLElement && active.isConnected)
-    active.focus({ preventScroll: true });
-  else if (now === document.body && activeId) {
-    const twin = document.getElementById(activeId);
-    if (twin?.checkVisibility())
-      twin.focus({ preventScroll: true });
-  }
-}, setArea = (area) => setShell({ ...shell(), area }), setTab = (tab) => setShell({
-  ...shell(),
-  area: "operations",
-  tab,
-  ...phone.matches ? { pane: "agents", details: null } : {}
-}), setPane = (pane) => setShell({ ...shell(), area: "operations", pane, details: null }), showChat = () => setShell({
-  ...shell(),
-  area: "operations",
-  details: null,
-  pane: "chat",
-  tab: shell().tab === "pipeline" ? "agents" : shell().tab
-}), markSeen = (key) => {
-  const entry = byKey.get(key);
-  if (!entry || seen === null)
-    return;
-  seen.set(key, signature(entry.card, entry.column));
-  const node = document.querySelector(`.card[data-key="${CSS.escape(key)}"]`);
-  node?.classList.remove("is-unseen");
-  node?.querySelector(".unseen")?.remove();
-}, markAllSeen = () => {
-  if (seen === null)
-    return;
-  for (const [key, { card, column }] of byKey)
-    seen.set(key, signature(card, column));
-}, faviconColors = () => {
+}, agentOrder = () => {
+  setArea("control");
+  if (!picker.focus())
+    $("ctl-agents").focus();
+}, agentOrderEntry, faviconColors = () => {
   const style = getComputedStyle(document.documentElement);
   const token = (name) => style.getPropertyValue(name).trim();
   return { tile: token("--card"), bar: token("--fg"), needs: token("--needs"), works: token("--working") };
 }, drawFavicon = () => {
-  if (data)
-    $("favicon").href = favicon(tone(project(data), seenTurn), faviconColors());
+  const board = screen.board();
+  if (board)
+    $("favicon").href = favicon(tone(board, seenTurn2), faviconColors());
 }, systemNotice = (title, body, tag, open) => {
   const isAway = document.hidden || !document.hasFocus();
   if (!settings().notify || !isAway || !("Notification" in window) || Notification.permission !== "granted")
@@ -19081,13 +18951,13 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
   for (const card of fresh) {
     const { title, body } = notice(card);
     systemNotice(title, body, keyOf(card), () => {
-      if (shell().tab === "pipeline")
+      if (shell3().tab === "pipeline")
         setTab("agents");
       openDetails(keyOf(card));
     });
   }
   needsKeys = keys;
-  return fresh.map((card) => isYourTurn(card, seenTurn) ? turnLine(card) : notice(card).title);
+  return fresh.map((card) => isYourTurn(card, seenTurn2) ? turnLine(card) : notice(card).title);
 }, startNotices = (columns) => {
   const cards = [...columns.needs, ...columns.running, ...columns.idle];
   const now = new Map;
@@ -19115,187 +18985,21 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
       lines.push(step ? `#${number} started the ${step} step` : `#${number} opened a session`);
   }
   return lines;
-}, drawHints = (card) => {
-  const entry = card ? byKey.get(card.dataset.key) : null;
-  const pairs = entry ? [
-    ["Enter", actionsOf(entry.card)[0]?.label],
-    ["Space", "Details"],
-    ["o", entry.card.url ? "Open" : null],
-    ["c", copyWhat(entry.card) ? "Copy" : null],
-    ["s", entry.card.aside ? "Set aside" : entry.card.stop ? "Stop" : null],
-    ["m", "Menu"]
-  ] : [
-    ["j", "k", "Move"],
-    [FIND_KEY, "Search"]
-  ];
-  shellStore.setInputs({ hints: pairs.flatMap((pair) => pair.at(-1) ? [pair] : []) });
 }, drawStatus = (isDown) => {
-  const changed = drawnDown !== isDown;
-  drawnDown = isDown;
-  if (changed && shell().tab === "history")
-    drawHistory();
+  const data = screen.read();
   if (data?.picker)
     picker.update(data.picker, data.registry);
   document.body.toggleAttribute("data-stale", isDown);
   coordinator.down(isDown);
-}, detailActions = (card) => {
-  const list = actionsOf(card);
-  const isAgain = card.state === "no-progress" || card.state === "set-aside";
-  const host = namedHost(card);
-  const mainId = list.find((action) => action.id === "run" || action.id === "blocked")?.id;
-  const matching = host ? list.find((action) => action.id === `run:${host}`) : undefined;
-  if (!mainId || !matching)
-    return list;
-  return list.filter((action) => action !== matching).map((action) => {
-    if (action.id === mainId)
-      return {
-        ...action,
-        label: matching.label,
-        name: matching.name,
-        ...isAgain ? { help: "Starts a new session of the step." } : {}
-      };
-    if (action.id.startsWith("run:"))
-      return { ...action, isGhost: true, group: "Other agents" };
-    if (action.id === "resume")
-      return { ...action, help: "Opens the same session again." };
-    return action;
-  });
-}, panelContext = (card) => ({
-  actions: detailActions(card),
-  flow: data.flow,
-  registry: registry(),
-  on: onTracker(),
-  close: () => closeDetails(true),
-  auto: data.daemon.auto
-}), drawPanelFor = () => {
-  const selected = shell().details;
-  const entry = byKey.get(selected);
-  if (!entry)
-    return closeDetails(false);
-  $("panel").setAttribute("aria-label", "Card details");
-  const focused = $("panel").contains(document.activeElement) && document.activeElement !== $("panel") ? document.activeElement.getAttribute("aria-label") : null;
-  const scroll = $("panel").dataset.key === selected ? $("panel").querySelector(".panel-body")?.scrollTop ?? 0 : 0;
-  $("panel").dataset.key = selected;
-  $("panel").replaceChildren(...drawPanel(entry.card, panelContext(entry.card)));
-  const body = $("panel").querySelector(".panel-body");
-  if (body)
-    body.scrollTop = scroll;
-  if (focused)
-    ($("panel").querySelector(`[aria-label="${CSS.escape(focused)}"]`) ?? $("panel").querySelector(".panel-head > .icon-btn:last-child"))?.focus({ preventScroll: true });
-}, revealCard = (key) => {
-  const group = document.querySelector(`[data-key="${CSS.escape(key)}"]`)?.closest(".epic-children[hidden]");
-  const epic = parseKey(group?.closest(".epic-group")?.dataset.epic ?? "");
-  if (epic !== null)
-    setEpicOpen(epic, true);
-}, openDetails = (key) => {
-  if (!byKey.has(key))
-    return;
-  revealCard(key);
-  setShell({ ...shell(), area: "operations", details: key, pane: "chat" });
-  for (const node of document.querySelectorAll("[data-key].is-selected"))
-    node.classList.remove("is-selected");
-  const selected = document.querySelector(`[data-key="${CSS.escape(key)}"]`);
-  selected?.classList.add("is-selected");
-  if (shell().tab === "pipeline")
-    selected?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  drawPanelFor();
-  markSeen(key);
-  const entry = byKey.get(key);
-  if (entry?.column === "human")
-    seeTurn(entry.card);
-  $("panel").querySelector(PANEL_FOCUS)?.focus({ preventScroll: true });
-}, reachable = (node) => node?.closest(".epic-children[hidden]")?.closest(".epic-group")?.querySelector(".epic-row") ?? node, markFocus = (active) => {
-  const pill = active?.closest(".human-pill");
-  if (pill) {
-    const key = pill.querySelector("[data-key]").dataset.key;
-    return { kind: "pill", key, label: active?.matches(".human-go") ? "go" : undefined };
-  }
-  if (!active?.closest("#columns"))
-    return null;
-  const column = columnId(active.closest(".col"));
-  if (active.closest(".tail"))
-    return { kind: "tail", key: "", column };
-  const row = active.closest(".epic-row");
-  if (row)
-    return { kind: "epic", key: row.dataset.group, column };
-  const card = active.closest(".card[data-key]");
-  if (!card)
-    return null;
-  const key = card.dataset.key;
-  return card === active ? { kind: "card", key, column } : { kind: "control", key, column, label: active.getAttribute("aria-label") ?? active.textContent?.trim() ?? "" };
-}, restoreFocus = (mark) => {
-  const one = (selector) => document.querySelector(selector);
-  const keyed = (key, scope = "#columns") => one(`${scope} [data-key="${CSS.escape(key)}"]`);
-  const card = mark.kind === "card" || mark.kind === "control" ? keyed(mark.key) : null;
-  const control = mark.kind === "control" ? [...card?.querySelectorAll("button, a") ?? []].find((node) => (node.getAttribute("aria-label") ?? node.textContent?.trim()) === mark.label) : null;
-  const stop = [...document.querySelectorAll("#columns .col")].find((col) => columnId(col) === mark.column)?.querySelector(`:is(${STOPS})[tabindex="0"], .empty`);
-  if (mark.kind === "tail")
-    measureTail();
-  const target = {
-    tail: () => one(".col-needs .tail-wrap")?.hidden === false ? one(".col-needs .tail") : stop,
-    epic: () => one(`.epic-row[data-group="${CSS.escape(mark.key)}"]`) ?? stop,
-    pill: () => {
-      const open = keyed(mark.key, "#human");
-      return (mark.label ? open?.closest(".human-pill")?.querySelector(".human-go") : open) ?? stop;
-    },
-    card: () => reachable(card) ?? stop,
-    control: () => control ?? reachable(card) ?? stop
-  }[mark.kind]();
-  target?.focus({ preventScroll: true });
-}, drawBadge = (badge, owner, name, count) => {
-  badge.hidden = count === 0;
-  badge.textContent = badgeText(count);
-  owner.setAttribute("aria-label", count === 0 ? name : `${name}, ${count} need you`);
 }, drawNow = (all, work, home) => {
   shellStore.setInputs({ badges: { home, operations: all, agents: work } });
-  drawBadge($("agents-badge"), $("tab-agents"), "Agents", work);
-}, focusNeed = () => {
-  if (!data)
-    return;
-  const board = project(data);
-  if (needsYou(board, seenTurn).length === 0)
-    return;
-  if (board.coordinator.state === "dialog") {
-    showChat();
-    coordinator.open();
-    return;
-  }
-  setTab("agents");
-  const { human } = board.columns;
-  const session = human.find((card) => card.waitFor === "dialog") ?? human.find((card) => isYourTurn(card, seenTurn));
-  const target = session ? document.querySelector(`#human [data-key="${CSS.escape(keyOf(session))}"]`) : document.querySelector("#col-needs .card");
-  target?.focus();
-}, drawBoard = (next) => {
+}, drawRead = (next) => {
   drawQueue(next);
-  const mark = markFocus(document.activeElement);
-  used = new Set;
-  byKey = new Map;
-  const needs = next.columns.needs.length;
-  const waiting = needsYou(next, seenTurn);
+  const waiting = needsYou(next, seenTurn2);
   document.title = pageTitle(next.repo, waiting.length);
   drawFavicon();
   drawNow(waiting.length, waiting.filter(isCard).length, next.columns.needs.length);
   shellStore.setInputs({ board: next });
-  if (shell().tab === "history")
-    drawHistory();
-  const board = $("columns");
-  board.dataset.view = boardView();
-  board.style.setProperty("--stages", String(Math.max(1, next.flow?.stages.length ?? 0)));
-  board.classList.toggle("is-calm", needs === 0);
-  const bodies = () => board.querySelectorAll(".col[aria-labelledby] > .col-body");
-  const scrolls = new Map([...bodies()].map((body) => [body.parentElement?.getAttribute("aria-labelledby"), body.scrollTop]));
-  board.replaceChildren(...boardView() === "pipeline" ? pipelineView(next.columns, next.flow) : COLUMNS.map((spec) => column(spec, next.columns[spec.key])));
-  for (const body of bodies()) {
-    const top = scrolls.get(body.parentElement?.getAttribute("aria-labelledby"));
-    if (top !== undefined)
-      body.scrollTop = top;
-  }
-  drawHuman(next.columns.human);
-  board.setAttribute("aria-busy", "false");
-  if (seen === null) {
-    seen = new Map;
-    markAllSeen();
-  }
   const lines = [
     ...notify(waiting.filter(isCard)),
     ...startNotices(next.columns),
@@ -19304,27 +19008,11 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
   coordinatorLine = null;
   if (lines.length)
     announce(lines.join(". "));
-  const { details } = shell();
-  if (details !== null) {
-    if (byKey.has(details))
-      drawPanelFor();
-    else
-      closeDetails(false);
-  }
-  syncStops();
-  if (mark)
-    restoreFocus(mark);
-  drawHints(document.activeElement?.closest?.(".card[data-key]") ?? null);
-  updateTail();
-}, drawSkeleton = () => $("columns").replaceChildren(...COLUMNS.map(({ key, name }) => {
-  const section = el("section", `col col-${key}`);
-  const head = el("header", "col-head");
-  head.append(glyph(key), el("h2", "col-name", name));
-  const body = el("div", "col-body");
-  body.append(...[0, 1, 2].map(() => el("div", "card ghost-card")));
-  section.append(head, body);
-  return section;
-})), tick = () => {
+  const { details } = shell3();
+  if (details !== null && !screen.index().byKey.has(details))
+    closeDetails(false);
+  showHints(document.activeElement?.closest?.("#columns .card[data-key]")?.dataset.key ?? null);
+}, tick = () => {
   drawIntake();
   const now = Date.now();
   for (const node of document.querySelectorAll("[data-since]")) {
@@ -19332,62 +19020,9 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
     if (node.textContent !== text)
       node.textContent = text;
   }
-  for (const node of document.querySelectorAll(".start-line"))
-    drawStartLine(node, now);
-}, isCalm, layoutOf = (next) => JSON.stringify([
-  boardView(),
-  Object.entries(next.columns).map(([key, cards]) => [key, cards.map((card) => keyOf(card))])
-]), last = "", lastLayout = "", launches, startFailures, SLOW_START = 5000, SLOW_START_TEXT = "The daemon still checks the start", drawStartLine = (node, now) => {
-  const number = parseKey(node.dataset.number ?? "");
-  const entry = number === null ? undefined : launches.get(number);
-  const isSlow = entry?.phase === "pending" && now - entry.at >= SLOW_START;
-  node.hidden = !isSlow;
-  if (!entry || !isSlow)
-    return;
-  node.textContent = `${SLOW_START_TEXT} · ${age(new Date(entry.at).toISOString(), now, true)}`;
-  if (!entry.isAnnounced) {
-    entry.isAnnounced = true;
-    announce(`#${number}: ${SLOW_START_TEXT}`);
-  }
-}, startNote = (card) => {
-  const failure = card.sessionId === null && card.number !== null ? startFailures.get(card.number) : undefined;
-  if (failure !== undefined)
-    return el("p", "start-failed", `Last start failed: ${failure}`);
-  if (card.state !== "starts" || card.number === null || launches.get(card.number)?.phase !== "pending")
-    return null;
-  const node = el("p", "start-line");
-  node.dataset.number = String(card.number);
-  drawStartLine(node, Date.now());
-  return node;
-}, project = (board) => {
-  if (launches.size === 0)
-    return board;
-  const columns = { needs: [], running: [], idle: [], human: [] };
-  for (const [key, cards] of Object.entries(board.columns))
-    for (const card of cards) {
-      const launch = card.sessionId === null && card.number !== null ? launches.get(card.number) : undefined;
-      if (!launch)
-        columns[key].push(card);
-      else if (launch.phase !== "failed" && card.step === launch.step && (card.state === null || card.state === "no-progress" || card.state === "set-aside" || card.state === "blocked" && launch.step === null))
-        columns.running.unshift({
-          ...card,
-          state: "starts",
-          act: null,
-          assist: false,
-          run: false,
-          resume: false,
-          go: false,
-          aside: false,
-          warning: null,
-          effort: null
-        });
-      else
-        columns[key].push({ ...card, assist: false, run: false, resume: false, aside: false });
-    }
-  return { ...board, columns };
-}, render = (canMove = true) => {
+}, last = "", render2 = () => {
   drawIntake();
-  const next = project(data);
+  const next = screen.board();
   const cards = JSON.stringify([
     next.repo,
     next.noRun,
@@ -19405,139 +19040,41 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
     next.daemon.auto,
     next.terminal.ok,
     next.trends,
-    next.columns.human.map((card) => [card.sessionId, card.turn, isYourTurn(card, seenTurn)]),
-    [...startFailures],
-    [...asides.keys()],
-    [...stops.keys()],
-    [...refusals],
-    [...launches].filter(([, entry]) => entry.phase === "pending").map(([number, entry]) => [number, entry.step])
+    next.columns.human.map((card) => [card.sessionId, card.turn, isYourTurn(card, seenTurn2)]),
+    [...screen.startFailures()],
+    [...screen.asides().keys()],
+    [...screen.stops().keys()],
+    [...screen.refusals()],
+    [...screen.launches()].filter(([, entry]) => entry.phase === "pending").map(([number, entry]) => [number, entry.step])
   ]);
   if (cards === last) {
     drawQueue(next);
     return;
   }
-  const layout = layoutOf(next);
-  const isMove = lastLayout !== "" && layout !== lastLayout && !document.hidden;
-  if (canMove && isMove && document.startViewTransition && !isCalm.matches)
-    document.startViewTransition(() => drawBoard(project(data)));
-  else
-    drawBoard(next);
+  drawRead(next);
   last = cards;
-  lastLayout = layout;
-}, launch = async (card, path, agent, effort) => {
-  const { number } = card;
-  if (isReconnecting() || number === null)
-    return false;
-  const current = data && Object.values(project(data).columns).flat().find((other) => other.sessionId === null && other.number === number);
-  if (!current?.[path === "/api/run" ? "run" : path === "/api/assist" ? "assist" : "resume"])
-    return false;
-  if (startFailures.delete(number))
-    render(false);
-  const reason = path === "/api/resume" ? data?.noRun : path === "/api/assist" ? data?.noRun || defaultReason() : runReason(agent ?? null, number);
-  if (reason) {
-    toast(reason, { isError: true });
-    return false;
-  }
-  const entry = { step: current.step, phase: "pending", at: Date.now(), isAnnounced: false };
-  launches.set(number, entry);
-  render(false);
-  if (document.activeElement === document.body)
-    document.querySelector(`[data-key="${CSS.escape(keyOf(card))}"]`)?.focus({ preventScroll: true });
-  const failure = await send(path, {
-    number,
-    ...path === "/api/run" && agent ? { agent } : {},
-    ...path === "/api/run" && effort ? { effort } : {}
-  }, path === "/api/run" ? "Run failed" : path === "/api/assist" ? "Open agent failed" : "Resume failed");
-  entry.phase = failure === null ? "done" : "failed";
-  if (failure !== null)
-    startFailures.set(number, failure);
-  render();
-  readAgain();
-  return failure === null;
-}, asideText = (card) => ({
-  busy: `Setting aside #${card.number}`,
-  failure: "Set aside failed",
-  done: `Set #${card.number} aside`,
-  detail: "It shows in Idle. Run or Resume starts it again."
-}), stopText = (card) => ({
-  busy: `Stopping the ${card.step} session of #${card.number}`,
-  failure: "Stop failed",
-  done: `Stopping the ${card.step} session of #${card.number}`,
-  detail: "The card moves to Idle when the session has ended."
-}), pressAct = async (pressed, card, path, value, text) => {
-  const { number } = card;
-  if (isReconnecting() || pressed.has(number))
-    return;
-  pressed.set(number, "pending");
-  refusals.delete(number);
-  announce(text.busy);
-  render(false);
-  const error = await send(path, value, text.failure);
-  if (error === null) {
-    pressed.set(number, "done");
-    toast(text.done, { detail: text.detail });
-    announce(text.done);
-    render(false);
-    readAgain();
-    return;
-  }
-  pressed.delete(number);
-  refusals.set(number, { sessionId: card.sessionId, state: card.state, line: error });
-  announce(`${text.failure}. ${error}`);
-  render(false);
-}, openStop = (card) => {
-  if (stops.has(card.number))
-    return;
-  openStopDialog({
-    title: `Stop the ${card.step} session of #${card.number}?`,
-    stop: () => pressAct(stops, card, "/api/stop", { number: card.number, sessionId: card.sessionId }, stopText(card)),
-    done: () => document.querySelector(`.card[data-key="${CSS.escape(keyOf(card))}"]`)?.focus({ preventScroll: true })
-  });
 }, observer, waiters, settle = () => {
   for (const resolve of waiters.splice(0))
     resolve();
-}, readAgain = () => {
-  if (isReconnecting())
+}, readAgain2 = () => {
+  if (isReconnecting2())
     return Promise.resolve();
   const next = new Promise((resolve) => waiters.push(resolve));
   queryClient.cancelQueries({ queryKey: boardKey }).then(() => queryClient.invalidateQueries({ queryKey: boardKey }));
   return next;
-}, accept2 = (next) => {
-  if (next.grammar !== grammar().kind) {
-    useGrammar(next.grammar);
-    openEpics = parseOpenEpics(store.get("open-epics") ?? "");
-  }
-  for (const [number, launch] of launches)
-    if (launch.phase !== "pending")
-      launches.delete(number);
-  for (const pressed of [asides, stops])
-    for (const [number, phase] of pressed)
-      if (phase === "done")
-        pressed.delete(number);
-  for (const [number, refusal] of refusals)
-    if (!Object.values(next.columns).flat().some((card) => card.number === number && card.sessionId === refusal.sessionId && card.state === refusal.state))
-      refusals.delete(number);
-  for (const card of Object.values(next.columns).flat())
-    if (card.sessionId !== null && card.number !== null)
-      startFailures.delete(card.number);
+}, accept3 = (next) => {
   coordinatorLine = coordinator.update(next.coordinator);
-  if (next.terminal.ok === true) {
-    const running = new Set(next.columns.human.map((card) => card.sessionId));
-    for (const name of store.keys(SEEN_TURN))
-      if (!running.has(name.slice(SEEN_TURN.length)))
-        store.remove(name);
-  }
-  data = { ...next, coordinator: coordinator.view() };
-  render();
+  screen.accept({ ...next, coordinator: coordinator.view() });
+  render2();
   drawStatus(false);
-}, fail = () => {
-  if (isReconnecting())
+}, fail2 = () => {
+  if (isReconnecting2())
     return;
-  if (data)
-    data = { ...data, queue: null };
+  screen.fail();
   drawStatus(true);
-  if (data)
-    drawQueue(project(data));
+  const board = screen.board();
+  if (board)
+    drawQueue(board);
 }, dataAt = 0, errorAt = 0, onRead = ({ data: next, dataUpdatedAt, errorUpdatedAt }) => {
   const isNew = dataUpdatedAt !== dataAt && next !== undefined;
   const isFailed = errorUpdatedAt !== errorAt;
@@ -19547,33 +19084,20 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
   errorAt = errorUpdatedAt;
   try {
     if (isNew)
-      accept2(next);
+      accept3(next);
     else
-      fail();
+      fail2();
     tick();
   } finally {
     settle();
-  }
-}, move = (across, down) => {
-  const lists = [...document.querySelectorAll("#columns .col")].map((col) => [...col.querySelectorAll(".card[data-key], .epic-row")].filter(isStop));
-  const current = document.activeElement?.closest?.(".card[data-key], .epic-row");
-  const at = lists.findIndex((list) => list.includes(current));
-  if (at < 0)
-    return lists.flat()[0]?.focus();
-  const row = lists[at].indexOf(current);
-  if (down)
-    return lists[at][Math.min(Math.max(row + down, 0), lists[at].length - 1)].focus();
-  for (let next = at + across;next >= 0 && next < lists.length; next += across) {
-    if (lists[next].length)
-      return lists[next][Math.min(row, lists[next].length - 1)].focus();
   }
 }, readEntry = () => ({
   label: readAgainText(),
   icon: "refresh",
   key: "r",
   run: () => void shellStore.refresh()
-}), toggleHistory = () => setTab(shell().tab === "history" ? "agents" : "history"), toggleView = () => setTab(shell().tab === "pipeline" ? "agents" : "pipeline"), historyEntry = () => ({
-  label: shell().tab === "history" ? "Hide history" : "Show history",
+}), historyEntry = () => ({
+  label: shell3().tab === "history" ? "Hide history" : "Show history",
   icon: "clock",
   key: "d",
   run: toggleHistory
@@ -19621,7 +19145,9 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
   const lead = `Open issue #${number}`;
   return label.startsWith(lead) ? `Open issue${label.slice(lead.length)}` : label;
 }, paletteItems = () => {
-  if (!data)
+  const data = screen.read();
+  const shown = screen.board();
+  if (!data || !shown)
     return [];
   const items = [];
   const add = (group, card, _key, action) => items.push({
@@ -19632,9 +19158,8 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
     icon: action.icon,
     tone: group === "Needs you" ? "needs" : null,
     key: "",
-    run: action.href ? () => window.open(action.href, "_blank", "noopener,noreferrer") : action.run
+    run: action.href ? () => openUrl(action.href) : action.run
   });
-  const shown = project(data);
   const goTo = [];
   for (const [column, group] of [
     ["needs", "Needs you"],
@@ -19643,7 +19168,7 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
     ["human", "Human sessions"]
   ]) {
     for (const card of shown.columns[column]) {
-      const key = [...byKey].find(([, entry]) => entry.card === card)?.[0] ?? keyOf(card);
+      const key = screen.index().keyOf.get(card) ?? keyOf(card);
       if (card.number !== null)
         goTo.push({
           group: "Go to",
@@ -19655,7 +19180,7 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
           tone: null,
           key: "",
           run: () => {
-            if (!document.querySelector(`[data-key="${CSS.escape(key)}"]`))
+            if (!document.querySelector(`#tp-board [data-key="${CSS.escape(key)}"]`))
               setTab("agents");
             openDetails(key);
             const node = document.querySelector(`#tp-board [data-key="${CSS.escape(key)}"]`);
@@ -19715,8 +19240,8 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
       tone: null,
       key: "",
       run: () => {
-        const row = () => document.querySelector(`.epic-row[data-epic="${number}"]`);
-        setTab(shell().tab === "pipeline" && row() ? "pipeline" : "agents");
+        const row = () => document.querySelector(`#tp-board .epic-row[data-epic="${number}"]`);
+        setTab(shell3().tab === "pipeline" && row() ? "pipeline" : "agents");
         setEpicOpen(number, true);
         row()?.focus();
       }
@@ -19731,14 +19256,14 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
         icon: "open",
         tone: null,
         key: "",
-        run: () => window.open(card.url, "_blank", "noopener,noreferrer")
+        run: () => openUrl(card.url)
       });
   items.push({ group: "Board", number: null, context: "", ...agentOrderEntry }, {
     group: "Board",
     number: null,
-    label: shell().tab === "pipeline" ? "Show the agents" : "Show the pipeline",
+    label: shell3().tab === "pipeline" ? "Show the agents" : "Show the pipeline",
     context: "",
-    icon: shell().tab === "pipeline" ? "board" : "stages",
+    icon: shell3().tab === "pipeline" ? "board" : "stages",
     key: "v",
     run: toggleView
   }, ...boardActions().map((action) => ({ group: "Board", number: null, context: "", ...action })), {
@@ -19749,12 +19274,11 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
     icon: "chevron",
     key: "",
     run: () => {
-      storeOpenEpics((open) => {
+      screen.setEpicsOpen((open) => {
         for (const card of shown.columns.idle)
           if (card.epic)
             open.add(card.epic.number);
       });
-      drawBoard(project(data));
     }
   }, {
     group: "Board",
@@ -19764,15 +19288,27 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
     icon: "chevron",
     key: "",
     run: () => {
-      storeOpenEpics((open) => open.clear());
-      drawBoard(project(data));
+      screen.setEpicsOpen((open) => open.clear());
     }
   });
   return [...goTo, ...items];
-}, drawnSettings, KEYS2, CARD_KEYS, ROW_KEYS, updates, coordinator, columns, tabList, replaceOrder = async (order, expectedVersion) => {
-  if (isReconnecting())
+}, drawnSettings, KEYS2, updates, coordinator, drawnShell, followShell = () => {
+  drawnShell = shellStore.get();
+  const { area, tab } = shell3();
+  setQueueOpen(tab === "queue");
+  if (isChatShown(shell3(), phone.matches))
+    coordinator.show();
+  else
+    coordinator.hide();
+  if (area !== "control") {
+    updates.dismiss();
+    if ($("agent-picker").querySelector('.ap-handle[aria-expanded="true"]'))
+      closeMenu();
+  }
+}, drawnTurns, replaceOrder = async (order, expectedVersion) => {
+  if (isReconnecting2())
     throw new Error("the board is reconnecting");
-  readAgain();
+  readAgain2();
   try {
     let response;
     try {
@@ -19792,76 +19328,39 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
       throw new OrderConflict(body.latest, body.error);
     throw new Error(body && "error" in body ? body.error : `the server answered ${response.status}`);
   } finally {
-    readAgain();
+    readAgain2();
   }
 }, retryWait = async (number, waitId) => {
   const outcome = await post("/api/run", { number, waitId }, "Retry failed", { timeout: 150000 });
-  readAgain();
+  readAgain2();
   if (outcome.status !== "accepted")
     throw new Error(outcome.error ?? SERVER_DOWN);
 }, picker;
 var init_board = __esm(() => {
   init_modern2();
-  init_grammar();
-  init_key();
   init_view();
   init_agent_picker();
   init_coordinator();
+  init_actions();
+  init_keys();
+  init_state();
   init_palette();
-  init_panel();
   init_query2();
   init_queue();
   init_shell();
-  init_stop_dialog();
   init_store();
   init_choice();
   init_ui();
   init_update_dialog();
-  panelNode = el("section", "panel");
-  panelNode.id = "panel";
-  panelNode.setAttribute("aria-label", "Card details");
-  panelNode.tabIndex = -1;
-  panelNode.hidden = true;
-  $("center").append(panelNode);
-  COPY = { "no-progress": "command", "set-aside": "command", "dirty-tree": "path" };
-  ON_ISSUE = new Set(["blocked"]);
-  STATUS_ICONS = {
-    works: "works",
-    starts: "works",
-    waits: "target",
-    "no-progress": "alert",
-    stopping: "stop",
-    "dirty-tree": "diff",
-    blocked: "person",
-    "quota-wait": "clock"
-  };
-  openEpics = parseOpenEpics(store.get("open-epics") ?? "");
   startupWarnings = new Map;
-  byKey = new Map;
-  used = new Set;
-  asides = new Map;
-  stops = new Map;
-  refusals = new Map;
+  ({ seenTurn: seenTurn2, setEpicOpen } = screen);
   agentOrderEntry = {
     icon: "person",
     label: "Change the agent order",
     key: "",
     title: "Open the agent order on Control",
-    run: () => {
-      setArea("control");
-      if (!picker.focus())
-        $("ctl-agents").focus();
-    }
+    run: () => agentOrder()
   };
-  stopKeys = new Map;
-  visualPresses = new Set;
-  document.addEventListener("focusout", (event) => {
-    hiddenFocus = event.target instanceof HTMLElement && !event.target.checkVisibility() ? event.target : null;
-  });
-  phone.addEventListener("change", () => setShell(shell(), document.activeElement === document.body ? hiddenFocus : document.activeElement));
-  isCalm = matchMedia("(prefers-reduced-motion: reduce)");
-  launches = new Map;
-  startFailures = new Map;
   observer = new QueryObserver(queryClient, pollOptions);
   waiters = [];
   document.addEventListener("board-reconnect", () => {
@@ -19869,10 +19368,10 @@ var init_board = __esm(() => {
     observer.setOptions({ ...pollOptions, enabled: false });
     queryClient.cancelQueries({ queryKey: boardKey });
     settle();
-    if (data) {
-      data = { ...data, queue: null };
-      drawQueue(project(data));
-    }
+    screen.fail();
+    const board = screen.board();
+    if (board)
+      drawQueue(board);
   });
   document.addEventListener("board-connected", () => {
     drawIntake();
@@ -19887,52 +19386,18 @@ var init_board = __esm(() => {
     drawFavicon();
   });
   KEYS2 = {
-    j: () => move(0, 1),
-    k: () => move(0, -1),
-    h: () => move(-1, 0),
-    l: () => move(1, 0),
     r: () => void shellStore.refresh(),
-    d: toggleHistory,
-    v: toggleView,
     "?": () => $("keys").showModal(),
     "/": () => openPalette(paletteItems())
-  };
-  CARD_KEYS = {
-    ArrowDown: () => move(0, 1),
-    ArrowUp: () => move(0, -1),
-    ArrowLeft: () => move(-1, 0),
-    ArrowRight: () => move(1, 0),
-    Enter: (card) => card.querySelector(".main-action")?.click(),
-    " ": (card) => openDetails(card.dataset.key),
-    o: (card) => card.dataset.url && window.open(card.dataset.url, "_blank", "noopener,noreferrer"),
-    c: (card) => {
-      const entry = byKey.get(card.dataset.key);
-      if (entry && copyWhat(entry.card))
-        copy(entry.card.act, copyWhat(entry.card));
-    },
-    s: (card) => card.querySelector(".aside-chip")?.click(),
-    m: (card) => {
-      const entry = byKey.get(card.dataset.key);
-      if (entry)
-        openMenu(card.querySelector(".more") ?? card, menuOf(entry.card, card.dataset.key), {
-          label: menuName(entry.card, "Actions of")
-        });
-    }
-  };
-  ROW_KEYS = {
-    ArrowDown: () => move(0, 1),
-    ArrowUp: () => move(0, -1),
-    ArrowLeft: () => move(-1, 0),
-    ArrowRight: () => move(1, 0)
   };
   updates = setupUpdates();
   coordinator = setupCoordinator({
     reveal: showChat,
     changed: (next) => {
-      if (!data)
+      if (!screen.read())
         return;
-      data = { ...data, coordinator: next };
-      render();
+      screen.setCoordinator(next);
+      render2();
     },
     notify: (title, open) => systemNotice(title, "", "coordinator", open)
   });
@@ -19947,7 +19412,7 @@ var init_board = __esm(() => {
     }
     if ($("agent-picker").contains(event.target))
       return;
-    if (event.metaKey || event.ctrlKey || event.altKey || $("keys").open || $("palette").open || dialogOpen())
+    if (event.metaKey || event.ctrlKey || event.altKey || $("keys").open || $("palette").open || screen.get().stopFor !== null)
       return;
     if (event.target.closest?.("input, textarea, select, [contenteditable]"))
       return;
@@ -19957,80 +19422,33 @@ var init_board = __esm(() => {
       event.preventDefault();
       return;
     }
-    if (event.key === "Escape" && shell().details !== null) {
-      event.preventDefault();
-      return closeDetails(true);
-    }
-    const isBoardShown = shell().area === "operations" && (shell().tab === "agents" || shell().tab === "pipeline") && !(phone.matches && shell().pane === "chat");
-    if (!isBoardShown && !["r", "d", "v", "?", "/"].includes(event.key))
+    if (handleKey(event))
       return;
-    const card = document.activeElement?.matches?.(".card[data-key]") ? document.activeElement : null;
-    const isRow = document.activeElement?.matches?.(".epic-row");
-    const press = card && CARD_KEYS[event.key] || isRow && ROW_KEYS[event.key] || settings().keys && KEYS2[event.key];
+    const press = settings().keys && KEYS2[event.key];
     if (!press)
       return;
     event.preventDefault();
-    press(card);
+    press();
   });
-  columns = $("columns");
-  columns.addEventListener("focusin", (event) => {
-    const node = event.target.closest(STOPS);
-    const col = node?.closest(".col");
-    if (!node || !col)
-      return;
-    stopKeys.set(columnId(col), stopKey(node));
-    syncStops();
+  drawnShell = shellStore.get();
+  shellStore.subscribe(() => {
+    const next = shellStore.get();
+    if (next.shell !== drawnShell.shell || next.isPhone !== drawnShell.isPhone)
+      followShell();
   });
-  columns.addEventListener("click", (event) => {
-    const node = event.target.closest(".card[data-key]");
-    if (!node || event.target.closest("a, button"))
-      return;
-    if (shell().details === node.dataset.key)
-      return closeDetails(true);
-    openDetails(node.dataset.key);
+  drawnTurns = screen.get().turns;
+  screen.subscribe(() => {
+    const was = drawnTurns;
+    drawnTurns = screen.get().turns;
+    if (drawnTurns !== was && screen.get().read)
+      render2();
   });
-  columns.addEventListener("contextmenu", (event) => {
-    const node = event.target.closest(".card[data-key]");
-    const entry = node && byKey.get(node.dataset.key);
-    if (!entry)
-      return;
-    event.preventDefault();
-    openMenu(node.querySelector(".more") ?? node, menuOf(entry.card, node.dataset.key), { label: menuName(entry.card, "Actions of") });
-  });
-  columns.addEventListener("focusin", (event) => {
-    const node = event.target.closest(".card[data-key]");
-    if (node)
-      markSeen(node.dataset.key);
-    drawHints(node);
-  });
-  columns.addEventListener("focusout", (event) => {
-    if (!columns.contains(event.relatedTarget))
-      drawHints(null);
-  });
-  columns.addEventListener("pointerover", (event) => {
-    const node = event.target.closest(".card[data-key].is-unseen");
-    if (node)
-      markSeen(node.dataset.key);
-  });
-  $("tp-board").addEventListener("scroll", updateTail, true);
-  addEventListener("resize", updateTail);
-  addEventListener("storage", (event) => {
-    if (data && (event.key === null || event.key.startsWith(store.key(SEEN_TURN))))
-      render(false);
-    if (event.key !== null && event.key !== store.key("open-epics"))
-      return;
-    const active = document.activeElement;
-    openEpics = parseOpenEpics(event.newValue ?? "");
-    showOpenEpics();
-    if (active?.closest(".epic-children[hidden]"))
-      reachable(active)?.focus({ preventScroll: true });
-  });
-  addEventListener("blur", markAllSeen);
+  addEventListener("blur", () => screen.markAllSeen());
   document.addEventListener("visibilitychange", () => {
     if (document.hidden)
-      markAllSeen();
+      screen.markAllSeen();
     else
-      readAgain();
+      readAgain2();
   });
   $("find").addEventListener("click", () => openPalette(paletteItems()));
   shellStore.handle({
@@ -20042,29 +19460,13 @@ var init_board = __esm(() => {
     showChat,
     agents: () => setPane("agents"),
     intake: () => void openIntake(),
-    readAgain,
-    isReconnecting,
+    agentOrder,
+    readAgain: readAgain2,
+    isReconnecting: isReconnecting2,
     open: openDetails
   });
+  screen.handle({ openChat: coordinator.open, render: render2 });
   $("pane-chat").addEventListener("click", coordinator.open);
-  tabList = TABS.map((tab) => $(`tab-${tab}`));
-  for (const [at, tab] of TABS.entries())
-    tabList[at]?.addEventListener("click", () => setTab(tab));
-  $("tabs").addEventListener("keydown", (event) => {
-    const at = tabList.indexOf(event.target);
-    const moves = { ArrowLeft: at - 1, ArrowRight: at + 1, Home: 0, End: tabList.length - 1 };
-    const to = moves[event.key];
-    if (at < 0 || to === undefined)
-      return;
-    const index = (to + TABS.length) % TABS.length;
-    const tab = TABS[index];
-    const next = tabList[index];
-    if (!tab || !next)
-      return;
-    event.preventDefault();
-    setTab(tab);
-    next.focus();
-  });
   drawIntake();
   $("board-more").addEventListener("click", () => openMenu($("board-more"), phoneMenu(), {
     label: "Board actions"
@@ -20080,21 +19482,51 @@ var init_board = __esm(() => {
   $("toast-close").append(icon("close"));
   setupToast();
   setupQueue({
-    refresh: readAgain
+    refresh: readAgain2
   });
   picker = createAgentPicker($("agent-picker"), { replace: replaceOrder, retry: retryWait });
   setupPalette();
   setupMenu();
-  drawHints(null);
+  showHints(null);
   setInterval(tick, 1000);
-  drawSkeleton();
-  drawShell();
+  followShell();
   drawStatus(false);
   observer.subscribe(onRead);
 });
 
+// engine/node_modules/@base-ui/utils/platform/os.mjs
+var exports_os = {};
+__export(exports_os, {
+  android: () => android,
+  apple: () => apple,
+  ios: () => ios,
+  linux: () => linux,
+  mac: () => mac,
+  windows: () => windows
+});
+
+// engine/node_modules/@base-ui/utils/platform/engine.mjs
+var exports_engine = {};
+__export(exports_engine, {
+  blink: () => blink,
+  gecko: () => gecko,
+  webkit: () => webkit
+});
+
+// engine/node_modules/@base-ui/utils/platform/screen-reader.mjs
+var exports_screen_reader = {};
+__export(exports_screen_reader, {
+  voiceOver: () => voiceOver
+});
+
+// engine/node_modules/@base-ui/utils/platform/env.mjs
+var exports_env = {};
+__export(exports_env, {
+  jsdom: () => jsdom
+});
+
 // engine/board/page/main.tsx
-var import_react_dom2 = __toESM(require_react_dom());
+var import_react_dom5 = __toESM(require_react_dom());
 var import_client = __toESM(require_client());
 
 // engine/node_modules/@base-ui/react/csp-provider/CSPProvider.mjs
@@ -20127,779 +19559,8274 @@ function CSPProvider(props) {
 }
 // engine/board/page/app/app.tsx
 init_modern2();
-init_query2();
 
-// engine/board/page/app/hosts.tsx
-var import_react = __toESM(require_react());
-var jsx_runtime = __toESM(require_jsx_runtime());
-var never = () => true;
-var autofocus = (node) => node?.setAttribute("autofocus", "");
-var OperationsHost = import_react.memo(() => /* @__PURE__ */ jsx_runtime.jsxs("div", {
-  className: "ops",
-  id: "area-operations",
-  "data-tab": "agents",
-  "data-pane": "chat",
-  children: [
-    /* @__PURE__ */ jsx_runtime.jsx("div", {
-      className: "center",
-      id: "center",
-      children: /* @__PURE__ */ jsx_runtime.jsxs("section", {
-        className: "coordinator",
-        id: "coordinator",
-        "aria-labelledby": "coordinator-title",
-        "data-state": "none",
-        hidden: true,
-        children: [
-          /* @__PURE__ */ jsx_runtime.jsxs("header", {
-            className: "co-head",
-            children: [
-              /* @__PURE__ */ jsx_runtime.jsx("h2", {
-                className: "co-title",
-                id: "coordinator-title",
-                children: "Coordinator"
-              }),
-              /* @__PURE__ */ jsx_runtime.jsx("span", {
-                className: "co-host",
-                id: "coordinator-host"
-              }),
-              /* @__PURE__ */ jsx_runtime.jsx("span", {
-                className: "pill co-pill",
-                id: "coordinator-head-state"
-              }),
-              /* @__PURE__ */ jsx_runtime.jsxs("span", {
-                className: "co-head-end",
-                children: [
-                  /* @__PURE__ */ jsx_runtime.jsx("button", {
-                    type: "button",
-                    className: "btn ghost",
-                    id: "coordinator-interrupt",
-                    hidden: true,
-                    children: /* @__PURE__ */ jsx_runtime.jsx("span", {
-                      className: "label",
-                      children: "Interrupt"
-                    })
-                  }),
-                  /* @__PURE__ */ jsx_runtime.jsx("button", {
-                    type: "button",
-                    className: "btn ghost",
-                    id: "coordinator-end",
-                    hidden: true,
-                    children: /* @__PURE__ */ jsx_runtime.jsx("span", {
-                      className: "label",
-                      children: "End session"
-                    })
-                  }),
-                  /* @__PURE__ */ jsx_runtime.jsx("button", {
-                    type: "button",
-                    className: "btn ghost",
-                    id: "coordinator-go",
-                    title: "Show the tab of the session in the Herdr app",
-                    hidden: true,
-                    children: /* @__PURE__ */ jsx_runtime.jsx("span", {
-                      className: "label",
-                      children: "Go"
-                    })
-                  })
-                ]
-              })
-            ]
-          }),
-          /* @__PURE__ */ jsx_runtime.jsx("p", {
-            className: "co-banner",
-            id: "coordinator-banner",
-            role: "status",
-            hidden: true
-          }),
-          /* @__PURE__ */ jsx_runtime.jsxs("div", {
-            className: "co-body",
-            children: [
-              /* @__PURE__ */ jsx_runtime.jsx("div", {
-                className: "co-log co-chat",
-                id: "coordinator-log",
-                role: "log",
-                tabIndex: 0,
-                "aria-label": "Conversation with the coordinator"
-              }),
-              /* @__PURE__ */ jsx_runtime.jsx("button", {
-                type: "button",
-                className: "btn ghost co-to-end",
-                id: "coordinator-to-end",
-                hidden: true,
-                children: /* @__PURE__ */ jsx_runtime.jsx("span", {
-                  className: "label",
-                  children: "Go to the end"
-                })
-              })
-            ]
-          }),
-          /* @__PURE__ */ jsx_runtime.jsxs("div", {
-            className: "co-foot",
-            children: [
-              /* @__PURE__ */ jsx_runtime.jsxs("form", {
-                className: "co-form",
-                id: "coordinator-form",
-                hidden: true,
-                children: [
-                  /* @__PURE__ */ jsx_runtime.jsx("textarea", {
-                    className: "co-field",
-                    id: "coordinator-field",
-                    rows: 1,
-                    "aria-label": "Message to the coordinator",
-                    "aria-describedby": "coordinator-hint",
-                    placeholder: "Write to the coordinator"
-                  }),
-                  /* @__PURE__ */ jsx_runtime.jsxs("div", {
-                    className: "co-row",
-                    children: [
-                      /* @__PURE__ */ jsx_runtime.jsx("p", {
-                        className: "co-hint",
-                        id: "coordinator-hint"
-                      }),
-                      /* @__PURE__ */ jsx_runtime.jsx("button", {
-                        type: "submit",
-                        className: "btn primary",
-                        id: "coordinator-send",
-                        children: /* @__PURE__ */ jsx_runtime.jsx("span", {
-                          className: "label",
-                          children: "Send"
-                        })
-                      })
-                    ]
-                  })
-                ]
-              }),
-              /* @__PURE__ */ jsx_runtime.jsxs("div", {
-                className: "co-start",
-                id: "coordinator-start-block",
-                hidden: true,
-                children: [
-                  /* @__PURE__ */ jsx_runtime.jsx("p", {
-                    className: "co-start-text",
-                    id: "coordinator-start-text",
-                    hidden: true
-                  }),
-                  /* @__PURE__ */ jsx_runtime.jsx("button", {
-                    type: "button",
-                    className: "btn primary",
-                    id: "coordinator-start",
-                    children: /* @__PURE__ */ jsx_runtime.jsx("span", {
-                      className: "label",
-                      children: "Start a new session"
-                    })
-                  })
-                ]
-              })
-            ]
-          })
-        ]
-      })
+// engine/board/page/operations/stop.tsx
+var import_react5 = __toESM(require_react());
+
+// engine/node_modules/@base-ui/react/dialog/root/useRenderDialogRoot.mjs
+var React42 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/dialog/root/useDialogRoot.mjs
+var React39 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/utils/useIsoLayoutEffect.mjs
+var React10 = __toESM(require_react(), 1);
+"use client";
+var noop5 = () => {};
+var useIsoLayoutEffect = typeof document !== "undefined" ? React10.useLayoutEffect : noop5;
+
+// engine/node_modules/@floating-ui/utils/dist/floating-ui.utils.dom.mjs
+function hasWindow() {
+  return typeof window !== "undefined";
+}
+function getNodeName(node) {
+  if (isNode(node)) {
+    return (node.nodeName || "").toLowerCase();
+  }
+  return "#document";
+}
+function getWindow(node) {
+  var _node$ownerDocument;
+  return (node == null || (_node$ownerDocument = node.ownerDocument) == null ? undefined : _node$ownerDocument.defaultView) || window;
+}
+function getDocumentElement(node) {
+  var _ref;
+  return (_ref = (isNode(node) ? node.ownerDocument : node.document) || window.document) == null ? undefined : _ref.documentElement;
+}
+function isNode(value) {
+  if (!hasWindow()) {
+    return false;
+  }
+  return value instanceof Node || value instanceof getWindow(value).Node;
+}
+function isElement(value) {
+  if (!hasWindow()) {
+    return false;
+  }
+  return value instanceof Element || value instanceof getWindow(value).Element;
+}
+function isHTMLElement(value) {
+  if (!hasWindow()) {
+    return false;
+  }
+  return value instanceof HTMLElement || value instanceof getWindow(value).HTMLElement;
+}
+function isShadowRoot(value) {
+  if (!hasWindow() || typeof ShadowRoot === "undefined") {
+    return false;
+  }
+  return value instanceof ShadowRoot || value instanceof getWindow(value).ShadowRoot;
+}
+function isOverflowElement(element) {
+  const {
+    overflow,
+    overflowX,
+    overflowY,
+    display
+  } = getComputedStyle2(element);
+  return /auto|scroll|overlay|hidden|clip/.test(overflow + overflowY + overflowX) && display !== "inline" && display !== "contents";
+}
+function isTableElement(element) {
+  return /^(table|td|th)$/.test(getNodeName(element));
+}
+function isTopLayer(element) {
+  try {
+    if (element.matches(":popover-open")) {
+      return true;
+    }
+  } catch (_e) {}
+  try {
+    return element.matches(":modal");
+  } catch (_e) {
+    return false;
+  }
+}
+var willChangeRe = /transform|translate|scale|rotate|perspective|filter/;
+var containRe = /paint|layout|strict|content/;
+var isNotNone = (value) => !!value && value !== "none";
+var isWebKitValue;
+function isContainingBlock(elementOrCss) {
+  const css = isElement(elementOrCss) ? getComputedStyle2(elementOrCss) : elementOrCss;
+  return isNotNone(css.transform) || isNotNone(css.translate) || isNotNone(css.scale) || isNotNone(css.rotate) || isNotNone(css.perspective) || !isWebKit() && (isNotNone(css.backdropFilter) || isNotNone(css.filter)) || willChangeRe.test(css.willChange || "") || containRe.test(css.contain || "");
+}
+function getContainingBlock(element) {
+  let currentNode = getParentNode(element);
+  while (isHTMLElement(currentNode) && !isLastTraversableNode(currentNode)) {
+    if (isContainingBlock(currentNode)) {
+      return currentNode;
+    } else if (isTopLayer(currentNode)) {
+      return null;
+    }
+    currentNode = getParentNode(currentNode);
+  }
+  return null;
+}
+function isWebKit() {
+  if (isWebKitValue == null) {
+    isWebKitValue = typeof CSS !== "undefined" && CSS.supports && CSS.supports("-webkit-backdrop-filter", "none");
+  }
+  return isWebKitValue;
+}
+function isLastTraversableNode(node) {
+  return /^(html|body|#document)$/.test(getNodeName(node));
+}
+function getComputedStyle2(element) {
+  return getWindow(element).getComputedStyle(element);
+}
+function getNodeScroll(element) {
+  if (isElement(element)) {
+    return {
+      scrollLeft: element.scrollLeft,
+      scrollTop: element.scrollTop
+    };
+  }
+  return {
+    scrollLeft: element.scrollX,
+    scrollTop: element.scrollY
+  };
+}
+function getParentNode(node) {
+  if (getNodeName(node) === "html") {
+    return node;
+  }
+  const result = node.assignedSlot || node.parentNode || isShadowRoot(node) && node.host || getDocumentElement(node);
+  return isShadowRoot(result) ? result.host : result;
+}
+function getNearestOverflowAncestor(node) {
+  const parentNode = getParentNode(node);
+  if (isLastTraversableNode(parentNode)) {
+    return (node.ownerDocument || node).body;
+  }
+  if (isHTMLElement(parentNode) && isOverflowElement(parentNode)) {
+    return parentNode;
+  }
+  return getNearestOverflowAncestor(parentNode);
+}
+function getOverflowAncestors(node, list, traverseIframes) {
+  var _node$ownerDocument2;
+  if (list === undefined) {
+    list = [];
+  }
+  if (traverseIframes === undefined) {
+    traverseIframes = true;
+  }
+  const scrollableAncestor = getNearestOverflowAncestor(node);
+  const isBody = scrollableAncestor === ((_node$ownerDocument2 = node.ownerDocument) == null ? undefined : _node$ownerDocument2.body);
+  const win = getWindow(scrollableAncestor);
+  if (isBody) {
+    const frameElement = getFrameElement(win);
+    return list.concat(win, win.visualViewport || [], isOverflowElement(scrollableAncestor) ? scrollableAncestor : [], frameElement && traverseIframes ? getOverflowAncestors(frameElement) : []);
+  } else {
+    return list.concat(scrollableAncestor, getOverflowAncestors(scrollableAncestor, [], traverseIframes));
+  }
+}
+function getFrameElement(win) {
+  return win.parent && Object.getPrototypeOf(win.parent) ? win.frameElement : null;
+}
+
+// engine/node_modules/@base-ui/utils/addEventListener.mjs
+function addEventListener2(target, type, listener, options) {
+  target.addEventListener(type, listener, options);
+  return () => {
+    target.removeEventListener(type, listener, options);
+  };
+}
+
+// engine/node_modules/@base-ui/utils/platform/shared.mjs
+function readRawData() {
+  if (typeof navigator === "undefined") {
+    return {
+      userAgent: "",
+      platform: "",
+      maxTouchPoints: 0
+    };
+  }
+  if (false) {}
+  return {
+    userAgent: navigator.userAgent,
+    platform: navigator.platform ?? "",
+    maxTouchPoints: navigator.maxTouchPoints ?? 0
+  };
+}
+var {
+  userAgent,
+  platform,
+  maxTouchPoints
+} = readRawData();
+var lowerUserAgent = userAgent.toLowerCase();
+var lowerPlatform = platform.toLowerCase();
+
+// engine/node_modules/@base-ui/utils/platform/os.mjs
+var ios = /^i(os$|p)/.test(lowerPlatform) || lowerPlatform === "macintel" && maxTouchPoints > 1;
+var ANDROID_STRING = "android";
+var android = lowerPlatform === ANDROID_STRING || lowerUserAgent.includes(ANDROID_STRING);
+var mac = !ios && lowerPlatform.startsWith("mac");
+var windows = lowerPlatform.startsWith("win");
+var linux = !android && /^(linux|chrome os)/.test(lowerPlatform);
+var apple = mac || ios;
+// engine/node_modules/@base-ui/utils/platform/engine.mjs
+var webkit = typeof CSS !== "undefined" && !!CSS.supports?.("-webkit-backdrop-filter:none");
+var gecko = !webkit && lowerUserAgent.includes("firefox");
+var blink = !webkit && lowerUserAgent.includes("chrom");
+// engine/node_modules/@base-ui/utils/platform/screen-reader.mjs
+var voiceOver = apple;
+// engine/node_modules/@base-ui/utils/platform/env.mjs
+var jsdom = /jsdom|happydom/.test(lowerUserAgent);
+// engine/node_modules/@base-ui/utils/owner.mjs
+function ownerDocument(node) {
+  return node?.ownerDocument || document;
+}
+
+// engine/node_modules/@base-ui/utils/useRefWithInit.mjs
+var React11 = __toESM(require_react(), 1);
+"use client";
+var UNINITIALIZED = {};
+function useRefWithInit(init, initArg) {
+  const ref = React11.useRef(UNINITIALIZED);
+  if (ref.current === UNINITIALIZED) {
+    ref.current = init(initArg);
+  }
+  return ref;
+}
+
+// engine/node_modules/@base-ui/utils/useOnMount.mjs
+var React12 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/utils/empty.mjs
+function NOOP() {}
+var EMPTY_ARRAY = Object.freeze([]);
+var EMPTY_OBJECT = Object.freeze({});
+
+// engine/node_modules/@base-ui/utils/useOnMount.mjs
+"use client";
+function useOnMount(fn) {
+  React12.useEffect(fn, EMPTY_ARRAY);
+}
+
+// engine/node_modules/@base-ui/utils/useTimeout.mjs
+"use client";
+var EMPTY = 0;
+
+class Timeout {
+  static create() {
+    return new Timeout;
+  }
+  currentId = EMPTY;
+  start(delay, fn) {
+    this.clear();
+    this.currentId = setTimeout(() => {
+      this.currentId = EMPTY;
+      fn();
+    }, delay);
+  }
+  isStarted() {
+    return this.currentId !== EMPTY;
+  }
+  clear = () => {
+    if (this.currentId !== EMPTY) {
+      clearTimeout(this.currentId);
+      this.currentId = EMPTY;
+    }
+  };
+  disposeEffect = () => {
+    return this.clear;
+  };
+}
+function useTimeout() {
+  const timeout = useRefWithInit(Timeout.create).current;
+  useOnMount(timeout.disposeEffect);
+  return timeout;
+}
+
+// engine/node_modules/@base-ui/utils/useAnimationFrame.mjs
+"use client";
+var EMPTY2 = null;
+var LAST_RAF = globalThis.requestAnimationFrame;
+
+class Scheduler2 {
+  callbacks = [];
+  callbacksCount = 0;
+  nextId = 1;
+  startId = 1;
+  isScheduled = false;
+  tick = (timestamp) => {
+    this.isScheduled = false;
+    const currentCallbacks = this.callbacks;
+    const currentCallbacksCount = this.callbacksCount;
+    this.callbacks = [];
+    this.callbacksCount = 0;
+    this.startId = this.nextId;
+    if (currentCallbacksCount > 0) {
+      for (let i = 0;i < currentCallbacks.length; i += 1) {
+        currentCallbacks[i]?.(timestamp);
+      }
+    }
+  };
+  request(fn) {
+    const id = this.nextId;
+    this.nextId += 1;
+    this.callbacks.push(fn);
+    this.callbacksCount += 1;
+    const didRAFChange = false;
+    if (!this.isScheduled || didRAFChange) {
+      requestAnimationFrame(this.tick);
+      this.isScheduled = true;
+    }
+    return id;
+  }
+  cancel(id) {
+    const index = id - this.startId;
+    if (index < 0 || index >= this.callbacks.length) {
+      return;
+    }
+    if (this.callbacks[index] === null) {
+      return;
+    }
+    this.callbacks[index] = null;
+    this.callbacksCount -= 1;
+  }
+}
+var scheduler = new Scheduler2;
+class AnimationFrame {
+  static create() {
+    return new AnimationFrame;
+  }
+  static request(fn) {
+    return scheduler.request(fn);
+  }
+  static cancel(id) {
+    return scheduler.cancel(id);
+  }
+  currentId = EMPTY2;
+  request(fn) {
+    this.cancel();
+    this.currentId = scheduler.request(() => {
+      this.currentId = EMPTY2;
+      fn();
+    });
+  }
+  cancel = () => {
+    if (this.currentId !== EMPTY2) {
+      scheduler.cancel(this.currentId);
+      this.currentId = EMPTY2;
+    }
+  };
+  disposeEffect = () => {
+    return this.cancel;
+  };
+}
+function useAnimationFrame() {
+  const timeout = useRefWithInit(AnimationFrame.create).current;
+  useOnMount(timeout.disposeEffect);
+  return timeout;
+}
+
+// engine/node_modules/@base-ui/utils/useScrollLock.mjs
+"use client";
+var originalHtmlStyles = {};
+var originalBodyStyles = {};
+var originalHtmlScrollBehavior = "";
+function getViewportScroller(html, body) {
+  return isOverflowElement(html) ? html : body;
+}
+function isPageScrollLocked(win, html, body) {
+  return /hidden|clip/.test(win.getComputedStyle(getViewportScroller(html, body)).overflowY);
+}
+function hasInsetScrollbars(referenceElement) {
+  if (typeof document === "undefined") {
+    return false;
+  }
+  const doc = ownerDocument(referenceElement);
+  const win = getWindow(doc);
+  return win.innerWidth - doc.documentElement.clientWidth > 0;
+}
+function supportsStableScrollbarGutter(referenceElement) {
+  const supported = typeof CSS !== "undefined" && CSS.supports && CSS.supports("scrollbar-gutter", "stable");
+  if (!supported || typeof document === "undefined") {
+    return false;
+  }
+  const doc = ownerDocument(referenceElement);
+  const html = doc.documentElement;
+  const body = doc.body;
+  const scrollContainer = getViewportScroller(html, body);
+  const originalScrollContainerOverflowY = scrollContainer.style.overflowY;
+  const originalHtmlStyleGutter = html.style.scrollbarGutter;
+  html.style.scrollbarGutter = "stable";
+  scrollContainer.style.overflowY = "scroll";
+  const before = scrollContainer.offsetWidth;
+  scrollContainer.style.overflowY = "hidden";
+  const after = scrollContainer.offsetWidth;
+  scrollContainer.style.overflowY = originalScrollContainerOverflowY;
+  html.style.scrollbarGutter = originalHtmlStyleGutter;
+  return before === after;
+}
+function preventScrollOverlayScrollbars(referenceElement) {
+  const doc = ownerDocument(referenceElement);
+  const html = doc.documentElement;
+  const body = doc.body;
+  const elementToLock = getViewportScroller(html, body);
+  const originalElementToLockStyles = {
+    overflowY: elementToLock.style.overflowY,
+    overflowX: elementToLock.style.overflowX
+  };
+  Object.assign(elementToLock.style, {
+    overflowY: "hidden",
+    overflowX: "hidden"
+  });
+  return () => {
+    Object.assign(elementToLock.style, originalElementToLockStyles);
+  };
+}
+function preventScrollInsetScrollbars(referenceElement) {
+  const doc = ownerDocument(referenceElement);
+  const html = doc.documentElement;
+  const body = doc.body;
+  const win = getWindow(html);
+  let scrollTop = 0;
+  let scrollLeft = 0;
+  let updateGutterOnly = false;
+  const resizeFrame = AnimationFrame.create();
+  if (exports_engine.webkit && (win.visualViewport?.scale ?? 1) !== 1) {
+    return () => {};
+  }
+  function lockScroll() {
+    const htmlStyles = win.getComputedStyle(html);
+    const bodyStyles = win.getComputedStyle(body);
+    const htmlScrollbarGutterValue = htmlStyles.scrollbarGutter || "";
+    const hasBothEdges = htmlScrollbarGutterValue.includes("both-edges");
+    const scrollbarGutterValue = hasBothEdges ? "stable both-edges" : "stable";
+    scrollTop = html.scrollTop;
+    scrollLeft = html.scrollLeft;
+    originalHtmlStyles = {
+      scrollbarGutter: html.style.scrollbarGutter,
+      overflowY: html.style.overflowY,
+      overflowX: html.style.overflowX
+    };
+    originalHtmlScrollBehavior = html.style.scrollBehavior;
+    originalBodyStyles = {
+      position: body.style.position,
+      height: body.style.height,
+      width: body.style.width,
+      boxSizing: body.style.boxSizing,
+      overflowY: body.style.overflowY,
+      overflowX: body.style.overflowX,
+      scrollBehavior: body.style.scrollBehavior
+    };
+    const isScrollableY = html.scrollHeight > html.clientHeight;
+    const isScrollableX = html.scrollWidth > html.clientWidth;
+    const hasConstantOverflowY = htmlStyles.overflowY === "scroll" || bodyStyles.overflowY === "scroll";
+    const hasConstantOverflowX = htmlStyles.overflowX === "scroll" || bodyStyles.overflowX === "scroll";
+    const scrollbarWidth = Math.max(0, win.innerWidth - body.clientWidth);
+    const scrollbarHeight = Math.max(0, win.innerHeight - body.clientHeight);
+    const marginY = parseFloat(bodyStyles.marginTop) + parseFloat(bodyStyles.marginBottom);
+    const marginX = parseFloat(bodyStyles.marginLeft) + parseFloat(bodyStyles.marginRight);
+    const elementToLock = getViewportScroller(html, body);
+    updateGutterOnly = supportsStableScrollbarGutter(referenceElement);
+    if (updateGutterOnly) {
+      html.style.scrollbarGutter = scrollbarGutterValue;
+      elementToLock.style.overflowY = "hidden";
+      elementToLock.style.overflowX = "hidden";
+      return;
+    }
+    Object.assign(html.style, {
+      scrollbarGutter: scrollbarGutterValue,
+      overflowY: "hidden",
+      overflowX: "hidden"
+    });
+    if (isScrollableY || hasConstantOverflowY) {
+      html.style.overflowY = "scroll";
+    }
+    if (isScrollableX || hasConstantOverflowX) {
+      html.style.overflowX = "scroll";
+    }
+    Object.assign(body.style, {
+      position: "relative",
+      height: marginY || scrollbarHeight ? `calc(100dvh - ${marginY + scrollbarHeight}px)` : "100dvh",
+      width: marginX || scrollbarWidth ? `calc(100vw - ${marginX + scrollbarWidth}px)` : "100vw",
+      boxSizing: "border-box",
+      overflowY: "hidden",
+      overflowX: "hidden",
+      scrollBehavior: "unset"
+    });
+    body.scrollTop = scrollTop;
+    body.scrollLeft = scrollLeft;
+    html.setAttribute("data-base-ui-scroll-locked", "");
+    html.style.scrollBehavior = "unset";
+  }
+  function cleanup() {
+    Object.assign(html.style, originalHtmlStyles);
+    Object.assign(body.style, originalBodyStyles);
+    if (!updateGutterOnly) {
+      html.scrollTop = scrollTop;
+      html.scrollLeft = scrollLeft;
+      html.removeAttribute("data-base-ui-scroll-locked");
+      html.style.scrollBehavior = originalHtmlScrollBehavior;
+    }
+  }
+  function handleResize() {
+    cleanup();
+    resizeFrame.request(lockScroll);
+  }
+  lockScroll();
+  const unsubscribeResize = addEventListener2(win, "resize", handleResize);
+  return () => {
+    resizeFrame.cancel();
+    cleanup();
+    if (typeof win.removeEventListener === "function") {
+      unsubscribeResize();
+    }
+  };
+}
+
+class ScrollLocker {
+  lockCount = 0;
+  restore = null;
+  timeoutLock = Timeout.create();
+  timeoutUnlock = Timeout.create();
+  acquire(referenceElement) {
+    this.lockCount += 1;
+    if (this.lockCount === 1 && this.restore === null) {
+      this.timeoutLock.start(0, () => this.lock(referenceElement));
+    }
+    return this.release;
+  }
+  release = () => {
+    this.lockCount -= 1;
+    if (this.lockCount === 0 && this.restore) {
+      this.timeoutUnlock.start(0, this.unlock);
+    }
+  };
+  unlock = () => {
+    if (this.lockCount === 0 && this.restore) {
+      this.restore?.();
+      this.restore = null;
+    }
+  };
+  lock(referenceElement) {
+    if (this.lockCount === 0 || this.restore !== null) {
+      return;
+    }
+    const doc = ownerDocument(referenceElement);
+    const html = doc.documentElement;
+    const body = doc.body;
+    const win = getWindow(html);
+    if (isPageScrollLocked(win, html, body)) {
+      const observer = new win.MutationObserver(() => {
+        if (isPageScrollLocked(win, html, body)) {
+          return;
+        }
+        observer.disconnect();
+        this.restore = null;
+        this.lock(referenceElement);
+      });
+      const options = {
+        attributes: true
+      };
+      observer.observe(html, options);
+      observer.observe(body, options);
+      this.restore = () => observer.disconnect();
+      return;
+    }
+    const hasOverlayScrollbars = exports_os.ios || !hasInsetScrollbars(referenceElement);
+    this.restore = hasOverlayScrollbars ? preventScrollOverlayScrollbars(referenceElement) : preventScrollInsetScrollbars(referenceElement);
+  }
+}
+var SCROLL_LOCKER = new ScrollLocker;
+function useScrollLock(enabled = true, referenceElement = null) {
+  useIsoLayoutEffect(() => {
+    if (!enabled) {
+      return;
+    }
+    return SCROLL_LOCKER.acquire(referenceElement);
+  }, [enabled, referenceElement]);
+}
+// engine/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs
+var React22 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/utils/mergeCleanups.mjs
+function mergeCleanups(...cleanups) {
+  return () => {
+    for (let i = 0;i < cleanups.length; i += 1) {
+      const cleanup = cleanups[i];
+      if (cleanup) {
+        cleanup();
+      }
+    }
+  };
+}
+
+// engine/node_modules/@base-ui/utils/useMergedRefs.mjs
+function useMergedRefs(a, b, c, d) {
+  const forkRef = useRefWithInit(createForkRef).current;
+  if (didChange(forkRef, a, b, c, d)) {
+    update(forkRef, [a, b, c, d]);
+  }
+  return forkRef.callback;
+}
+function useMergedRefsN(refs) {
+  const forkRef = useRefWithInit(createForkRef).current;
+  if (didChangeN(forkRef, refs)) {
+    update(forkRef, refs);
+  }
+  return forkRef.callback;
+}
+function createForkRef() {
+  return {
+    callback: null,
+    cleanup: null,
+    refs: []
+  };
+}
+function didChange(forkRef, a, b, c, d) {
+  return forkRef.refs[0] !== a || forkRef.refs[1] !== b || forkRef.refs[2] !== c || forkRef.refs[3] !== d;
+}
+function didChangeN(forkRef, newRefs) {
+  return forkRef.refs.length !== newRefs.length || forkRef.refs.some((ref, index) => ref !== newRefs[index]);
+}
+function update(forkRef, refs) {
+  forkRef.refs = refs;
+  if (refs.every((ref) => ref == null)) {
+    forkRef.callback = null;
+    return;
+  }
+  forkRef.callback = (instance) => {
+    if (forkRef.cleanup) {
+      forkRef.cleanup();
+      forkRef.cleanup = null;
+    }
+    if (instance != null) {
+      const cleanupCallbacks = Array(refs.length).fill(null);
+      for (let i = 0;i < refs.length; i += 1) {
+        const ref = refs[i];
+        if (ref == null) {
+          continue;
+        }
+        switch (typeof ref) {
+          case "function": {
+            const refCleanup = ref(instance);
+            if (typeof refCleanup === "function") {
+              cleanupCallbacks[i] = refCleanup;
+            }
+            break;
+          }
+          case "object": {
+            ref.current = instance;
+            break;
+          }
+          default:
+        }
+      }
+      forkRef.cleanup = () => {
+        for (let i = 0;i < refs.length; i += 1) {
+          const ref = refs[i];
+          if (ref == null) {
+            continue;
+          }
+          switch (typeof ref) {
+            case "function": {
+              const cleanupCallback = cleanupCallbacks[i];
+              if (typeof cleanupCallback === "function") {
+                cleanupCallback();
+              } else {
+                ref(null);
+              }
+              break;
+            }
+            case "object": {
+              ref.current = null;
+              break;
+            }
+            default:
+          }
+        }
+      };
+    }
+  };
+}
+
+// engine/node_modules/@base-ui/utils/useValueAsRef.mjs
+"use client";
+function useValueAsRef(value) {
+  const latest = useRefWithInit(createLatestRef, value).current;
+  latest.next = value;
+  useIsoLayoutEffect(latest.effect);
+  return latest;
+}
+function createLatestRef(value) {
+  const latest = {
+    current: value,
+    next: value,
+    effect: () => {
+      latest.current = latest.next;
+    }
+  };
+  return latest;
+}
+
+// engine/node_modules/@base-ui/utils/safeReact.mjs
+var React13 = __toESM(require_react(), 1);
+var SafeReact = {
+  ...React13
+};
+
+// engine/node_modules/@base-ui/utils/useStableCallback.mjs
+"use client";
+var useInsertionEffect = SafeReact.useInsertionEffect;
+var useSafeInsertionEffect = useInsertionEffect && useInsertionEffect !== SafeReact.useLayoutEffect ? useInsertionEffect : (fn) => fn();
+function useStableCallback(callback) {
+  const stable = useRefWithInit(createStableCallback).current;
+  stable.next = callback;
+  useSafeInsertionEffect(stable.effect);
+  return stable.trampoline;
+}
+function createStableCallback() {
+  const stable = {
+    next: undefined,
+    callback: assertNotCalled,
+    trampoline: (...args) => stable.callback?.(...args),
+    effect: () => {
+      stable.callback = stable.next;
+    }
+  };
+  return stable;
+}
+function assertNotCalled() {
+  if (false) {}
+}
+
+// engine/node_modules/@base-ui/react/utils/FocusGuard.mjs
+var React14 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/utils/visuallyHidden.mjs
+var visuallyHiddenBase = {
+  clipPath: "inset(50%)",
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  border: 0,
+  padding: 0,
+  width: 1,
+  height: 1,
+  margin: -1
+};
+var visuallyHidden = {
+  ...visuallyHiddenBase,
+  position: "fixed",
+  margin: 0,
+  top: 0,
+  left: 0
+};
+var visuallyHiddenInput = {
+  ...visuallyHiddenBase,
+  position: "absolute"
+};
+
+// engine/node_modules/@base-ui/react/utils/FocusGuard.mjs
+var import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
+"use client";
+var FocusGuard = /* @__PURE__ */ React14.forwardRef(function FocusGuard(props, ref) {
+  const [role, setRole] = React14.useState();
+  useIsoLayoutEffect(() => {
+    if (exports_screen_reader.voiceOver && exports_engine.webkit) {
+      setRole("button");
+    }
+  }, []);
+  const restProps = {
+    tabIndex: 0,
+    role
+  };
+  return /* @__PURE__ */ import_jsx_runtime4.jsx("span", {
+    ...props,
+    ref,
+    style: visuallyHidden,
+    "aria-hidden": role ? undefined : true,
+    ...restProps,
+    "data-base-ui-focus-guard": ""
+  });
+});
+if (false)
+  ;
+
+// engine/node_modules/@base-ui/utils/shadowDom.mjs
+function activeElement2(doc) {
+  let element = doc.activeElement;
+  while (element?.shadowRoot?.activeElement != null) {
+    element = element.shadowRoot.activeElement;
+  }
+  return element;
+}
+function contains(parent, child) {
+  if (!parent || !child) {
+    return false;
+  }
+  const rootNode = child.getRootNode?.();
+  if (parent.contains(child)) {
+    return true;
+  }
+  if (rootNode && isShadowRoot(rootNode)) {
+    let next = child;
+    while (next) {
+      if (parent === next) {
+        return true;
+      }
+      next = next.parentNode || next.host;
+    }
+  }
+  return false;
+}
+function closest(node, selector) {
+  let current = node;
+  while (current) {
+    if (isElement(current) && current.matches(selector)) {
+      return current;
+    }
+    current = current.assignedSlot ?? current.parentNode ?? (isShadowRoot(current) ? current.host : null);
+  }
+  return null;
+}
+function getTarget(event) {
+  if ("composedPath" in event) {
+    return event.composedPath()[0] ?? event.target;
+  }
+  return event.target;
+}
+
+// engine/node_modules/@base-ui/react/floating-ui-react/utils/constants.mjs
+var FOCUSABLE_ATTRIBUTE = "data-base-ui-focusable";
+var TYPEABLE_SELECTOR = "input:not([type='hidden']):not([disabled])," + "[contenteditable]:not([contenteditable='false']),textarea:not([disabled])";
+var ARROW_LEFT = "ArrowLeft";
+var ARROW_RIGHT = "ArrowRight";
+var ARROW_UP = "ArrowUp";
+var ARROW_DOWN = "ArrowDown";
+
+// engine/node_modules/@base-ui/react/internals/TransitionStatusDataAttributes.mjs
+var startingStyle = "data-starting-style";
+var endingStyle = "data-ending-style";
+
+// engine/node_modules/@base-ui/react/internals/stateAttributesMapping.mjs
+var STARTING_HOOK = {
+  [startingStyle]: ""
+};
+var ENDING_HOOK = {
+  [endingStyle]: ""
+};
+var transitionStatusMapping = {
+  transitionStatus(value) {
+    if (value === "starting") {
+      return STARTING_HOOK;
+    }
+    if (value === "ending") {
+      return ENDING_HOOK;
+    }
+    return null;
+  }
+};
+
+// engine/node_modules/@base-ui/react/utils/CommonPopupDataAttributes.mjs
+var open = "data-open";
+var closed = "data-closed";
+var startingStyle2 = startingStyle;
+var endingStyle2 = endingStyle;
+var anchorHidden = "data-anchor-hidden";
+
+// engine/node_modules/@base-ui/react/utils/CommonTriggerDataAttributes.mjs
+var popupOpen = "data-popup-open";
+var pressed = "data-pressed";
+
+// engine/node_modules/@base-ui/react/utils/popupStateMapping.mjs
+var TRIGGER_HOOK = {
+  [popupOpen]: ""
+};
+var PRESSABLE_TRIGGER_HOOK = {
+  [popupOpen]: "",
+  [pressed]: ""
+};
+var POPUP_OPEN_HOOK = {
+  [open]: ""
+};
+var POPUP_CLOSED_HOOK = {
+  [closed]: ""
+};
+var ANCHOR_HIDDEN_HOOK = {
+  [anchorHidden]: ""
+};
+var pressableTriggerOpenStateMapping = {
+  open(value) {
+    if (value) {
+      return PRESSABLE_TRIGGER_HOOK;
+    }
+    return null;
+  }
+};
+var popupStateMapping = {
+  open(value) {
+    if (value) {
+      return POPUP_OPEN_HOOK;
+    }
+    return POPUP_CLOSED_HOOK;
+  },
+  anchorHidden(value) {
+    if (value) {
+      return ANCHOR_HIDDEN_HOOK;
+    }
+    return null;
+  }
+};
+var popupTransitionStateMapping = {
+  ...popupStateMapping,
+  ...transitionStatusMapping
+};
+
+// engine/node_modules/@base-ui/react/tooltip/trigger/TooltipTriggerDataAttributes.mjs
+var popupOpen2 = popupOpen;
+var triggerDisabled = "data-trigger-disabled";
+
+// engine/node_modules/@base-ui/react/floating-ui-react/utils/element.mjs
+function isTargetInsideEnabledTrigger(target, triggerElements) {
+  if (!isElement(target)) {
+    return false;
+  }
+  const targetElement = target;
+  if (triggerElements.hasElement(targetElement)) {
+    return !targetElement.hasAttribute(triggerDisabled);
+  }
+  for (const [, trigger] of triggerElements.entries()) {
+    if (contains(trigger, targetElement)) {
+      return !trigger.hasAttribute(triggerDisabled);
+    }
+  }
+  return false;
+}
+function isEventTargetWithin(event, node) {
+  if (node == null) {
+    return false;
+  }
+  if ("composedPath" in event) {
+    return event.composedPath().includes(node);
+  }
+  const eventAgain = event;
+  return eventAgain.target != null && node.contains(eventAgain.target);
+}
+function isRootElement(element) {
+  return element.matches("html,body");
+}
+function isTypeableElement(element) {
+  return isHTMLElement(element) && element.matches(TYPEABLE_SELECTOR);
+}
+function isInteractiveElement(element) {
+  return closest(element, `button,a[href],[role="button"],select,[tabindex]:not([tabindex="-1"]),${TYPEABLE_SELECTOR}`) != null;
+}
+function isTypeableCombobox(element) {
+  if (!element) {
+    return false;
+  }
+  return element.getAttribute("role") === "combobox" && isTypeableElement(element);
+}
+function matchesFocusVisible(element) {
+  if (!element || exports_env.jsdom) {
+    return true;
+  }
+  try {
+    return element.matches(":focus-visible");
+  } catch (_e) {
+    return true;
+  }
+}
+function getFloatingFocusElement(floatingElement) {
+  if (!floatingElement) {
+    return null;
+  }
+  return floatingElement.hasAttribute(FOCUSABLE_ATTRIBUTE) ? floatingElement : floatingElement.querySelector(`[${FOCUSABLE_ATTRIBUTE}]`) || floatingElement;
+}
+
+// engine/node_modules/@base-ui/react/floating-ui-react/utils/event.mjs
+function stopEvent(event) {
+  event.preventDefault();
+  event.stopPropagation();
+}
+function isReactEvent(event) {
+  return "nativeEvent" in event;
+}
+function isVirtualClick(event) {
+  if (event.pointerType === "" && event.isTrusted) {
+    return true;
+  }
+  if (exports_os.android && event.pointerType) {
+    return event.type === "click" && event.buttons === 1;
+  }
+  return event.detail === 0 && !event.pointerType;
+}
+function isVirtualPointerEvent(event) {
+  if (exports_env.jsdom) {
+    return false;
+  }
+  return !exports_os.android && event.width === 0 && event.height === 0 || event.type === "pointerdown" && event.width === 1 && event.height === 1 && event.pressure === 0 && event.detail === 0 && event.pointerType === "mouse" && (exports_os.android || event.buttons === 0) || event.width < 1 && event.height < 1 && event.pressure === 0 && event.detail === 0 && event.pointerType === "touch";
+}
+function isMouseLikePointerType(pointerType, strict) {
+  const values = ["mouse", "pen"];
+  if (!strict) {
+    values.push("", undefined);
+  }
+  return values.includes(pointerType);
+}
+function isClickLikeEvent(event) {
+  const type = event.type;
+  return type === "click" || type === "mousedown" || type === "keydown" || type === "keyup";
+}
+
+// engine/node_modules/@floating-ui/utils/dist/floating-ui.utils.mjs
+var min = Math.min;
+var max = Math.max;
+var round = Math.round;
+var floor = Math.floor;
+var createCoords = (v) => ({
+  x: v,
+  y: v
+});
+var oppositeSideMap = {
+  left: "right",
+  right: "left",
+  bottom: "top",
+  top: "bottom"
+};
+function clamp(start, value, end) {
+  return max(start, min(value, end));
+}
+function evaluate(value, param) {
+  return typeof value === "function" ? value(param) : value;
+}
+function getSide(placement) {
+  return placement.split("-")[0];
+}
+function getAlignment(placement) {
+  return placement.split("-")[1];
+}
+function getOppositeAxis(axis) {
+  return axis === "x" ? "y" : "x";
+}
+function getAxisLength(axis) {
+  return axis === "y" ? "height" : "width";
+}
+function getSideAxis(placement) {
+  const firstChar = placement[0];
+  return firstChar === "t" || firstChar === "b" ? "y" : "x";
+}
+function getAlignmentAxis(placement) {
+  return getOppositeAxis(getSideAxis(placement));
+}
+function getAlignmentSides(placement, rects, rtl) {
+  if (rtl === undefined) {
+    rtl = false;
+  }
+  const alignment = getAlignment(placement);
+  const alignmentAxis = getAlignmentAxis(placement);
+  const length = getAxisLength(alignmentAxis);
+  let mainAlignmentSide = alignmentAxis === "x" ? alignment === (rtl ? "end" : "start") ? "right" : "left" : alignment === "start" ? "bottom" : "top";
+  if (rects.reference[length] > rects.floating[length]) {
+    mainAlignmentSide = getOppositePlacement(mainAlignmentSide);
+  }
+  return [mainAlignmentSide, getOppositePlacement(mainAlignmentSide)];
+}
+function getExpandedPlacements(placement) {
+  const oppositePlacement = getOppositePlacement(placement);
+  return [getOppositeAlignmentPlacement(placement), oppositePlacement, getOppositeAlignmentPlacement(oppositePlacement)];
+}
+function getOppositeAlignmentPlacement(placement) {
+  return placement.includes("start") ? placement.replace("start", "end") : placement.replace("end", "start");
+}
+var lrPlacement = ["left", "right"];
+var rlPlacement = ["right", "left"];
+var tbPlacement = ["top", "bottom"];
+var btPlacement = ["bottom", "top"];
+function getSideList(side, isStart, rtl) {
+  switch (side) {
+    case "top":
+    case "bottom":
+      if (rtl)
+        return isStart ? rlPlacement : lrPlacement;
+      return isStart ? lrPlacement : rlPlacement;
+    case "left":
+    case "right":
+      return isStart ? tbPlacement : btPlacement;
+    default:
+      return [];
+  }
+}
+function getOppositeAxisPlacements(placement, flipAlignment, direction, rtl) {
+  const alignment = getAlignment(placement);
+  let list = getSideList(getSide(placement), direction === "start", rtl);
+  if (alignment) {
+    list = list.map((side) => side + "-" + alignment);
+    if (flipAlignment) {
+      list = list.concat(list.map(getOppositeAlignmentPlacement));
+    }
+  }
+  return list;
+}
+function getOppositePlacement(placement) {
+  const side = getSide(placement);
+  return oppositeSideMap[side] + placement.slice(side.length);
+}
+function expandPaddingObject(padding) {
+  var _padding$top, _padding$right, _padding$bottom, _padding$left;
+  return {
+    top: (_padding$top = padding.top) != null ? _padding$top : 0,
+    right: (_padding$right = padding.right) != null ? _padding$right : 0,
+    bottom: (_padding$bottom = padding.bottom) != null ? _padding$bottom : 0,
+    left: (_padding$left = padding.left) != null ? _padding$left : 0
+  };
+}
+function getPaddingObject(padding) {
+  return typeof padding !== "number" ? expandPaddingObject(padding) : {
+    top: padding,
+    right: padding,
+    bottom: padding,
+    left: padding
+  };
+}
+function rectToClientRect(rect) {
+  const {
+    x,
+    y,
+    width,
+    height
+  } = rect;
+  return {
+    width,
+    height,
+    top: y,
+    left: x,
+    right: x + width,
+    bottom: y + height,
+    x,
+    y
+  };
+}
+
+// engine/node_modules/@base-ui/react/floating-ui-react/utils/composite.mjs
+function isIndexOutOfListBounds(list, index) {
+  return index < 0 || index >= list.length;
+}
+function getMinListIndex(listRef, disabledIndices) {
+  return findNonDisabledListIndex(listRef.current, {
+    disabledIndices
+  });
+}
+function getMaxListIndex(listRef, disabledIndices) {
+  return findNonDisabledListIndex(listRef.current, {
+    decrement: true,
+    startingIndex: listRef.current.length,
+    disabledIndices
+  });
+}
+function getNextListIndex(list, currentIndex, options) {
+  const {
+    decrement,
+    loopFocus,
+    allowEscape,
+    disabledIndices,
+    minIndex,
+    maxIndex
+  } = options;
+  const step = () => findNonDisabledListIndex(list, {
+    startingIndex: currentIndex,
+    decrement,
+    disabledIndices
+  });
+  let index;
+  let wrapped = false;
+  if (!loopFocus) {
+    index = decrement ? Math.max(minIndex, step()) : Math.min(maxIndex, step());
+  } else if (decrement ? currentIndex <= minIndex : currentIndex >= maxIndex) {
+    const outside = decrement ? -1 : list.length;
+    if (allowEscape && currentIndex !== outside) {
+      index = -1;
+    } else {
+      index = decrement ? maxIndex : minIndex;
+      wrapped = true;
+    }
+  } else {
+    index = step();
+  }
+  return {
+    index: isIndexOutOfListBounds(list, index) ? -1 : index,
+    wrapped
+  };
+}
+function findNonDisabledListIndex(list, {
+  startingIndex = -1,
+  decrement = false,
+  disabledIndices,
+  amount = 1
+} = {}) {
+  let index = startingIndex;
+  do {
+    index += decrement ? -amount : amount;
+  } while (index >= 0 && index <= list.length - 1 && isListIndexDisabled(list, index, disabledIndices));
+  return index;
+}
+function isListIndexDisabled(list, index, disabledIndices) {
+  const isExplicitlyDisabled = typeof disabledIndices === "function" ? disabledIndices(index) : disabledIndices?.includes(index) ?? false;
+  if (isExplicitlyDisabled) {
+    return true;
+  }
+  const element = list[index];
+  if (!element) {
+    return false;
+  }
+  if (!isElementVisible(element)) {
+    return true;
+  }
+  if (element.matches(":disabled")) {
+    return true;
+  }
+  return !disabledIndices && (element.hasAttribute("disabled") || element.getAttribute("aria-disabled") === "true");
+}
+function isHiddenByStyles(styles) {
+  return styles.visibility === "hidden" || styles.visibility === "collapse";
+}
+function isElementVisible(element, styles = element ? getComputedStyle2(element) : null) {
+  if (!element || !element.isConnected || !styles || isHiddenByStyles(styles)) {
+    return false;
+  }
+  if (typeof element.checkVisibility === "function") {
+    return element.checkVisibility();
+  }
+  return styles.display !== "none" && styles.display !== "contents";
+}
+
+// engine/node_modules/@base-ui/react/floating-ui-react/utils/tabbable.mjs
+var CANDIDATE_SELECTOR = 'a[href],button,input,select,textarea,summary,details,iframe,object,embed,[tabindex],[contenteditable]:not([contenteditable="false"]),audio[controls],video[controls]';
+function getParentElement(element) {
+  const assignedSlot = element.assignedSlot;
+  if (assignedSlot) {
+    return assignedSlot;
+  }
+  if (element.parentElement) {
+    return element.parentElement;
+  }
+  const rootNode = element.getRootNode();
+  return isShadowRoot(rootNode) ? rootNode.host : null;
+}
+function getDetailsSummary(details) {
+  for (const child of Array.from(details.children)) {
+    if (getNodeName(child) === "summary") {
+      return child;
+    }
+  }
+  return null;
+}
+function isWithinOpenDetailsSummary(element, details) {
+  const summary = getDetailsSummary(details);
+  return !!summary && (element === summary || contains(summary, element));
+}
+function isFocusableCandidate(element) {
+  const nodeName = element ? getNodeName(element) : "";
+  return element != null && element.matches(CANDIDATE_SELECTOR) && (nodeName !== "summary" || element.parentElement != null && getNodeName(element.parentElement) === "details" && getDetailsSummary(element.parentElement) === element) && (nodeName !== "details" || getDetailsSummary(element) == null) && (nodeName !== "input" || element.type !== "hidden");
+}
+function isFocusableElement(element) {
+  if (!isFocusableCandidate(element) || !element.isConnected || element.matches(":disabled")) {
+    return false;
+  }
+  for (let current = element;current; current = getParentElement(current)) {
+    const isAncestor = current !== element;
+    const isSlot = getNodeName(current) === "slot";
+    if (current.hasAttribute("inert")) {
+      return false;
+    }
+    if (isAncestor && getNodeName(current) === "details" && !current.open && !isWithinOpenDetailsSummary(element, current) || current.hasAttribute("hidden") || !isSlot && !isVisibleInTabbableTree(current, isAncestor)) {
+      return false;
+    }
+  }
+  return true;
+}
+function isVisibleInTabbableTree(element, isAncestor) {
+  const styles = getComputedStyle2(element);
+  if (!isAncestor) {
+    return isElementVisible(element, styles);
+  }
+  return styles.display !== "none";
+}
+function getTabIndex(element) {
+  const tabIndex = element.tabIndex;
+  if (tabIndex < 0) {
+    const nodeName = getNodeName(element);
+    if (nodeName === "details" || nodeName === "audio" || nodeName === "video" || isHTMLElement(element) && element.isContentEditable) {
+      return 0;
+    }
+  }
+  return tabIndex;
+}
+function getNamedRadioInput(element) {
+  if (getNodeName(element) !== "input") {
+    return null;
+  }
+  const input = element;
+  return input.type === "radio" && input.name !== "" ? input : null;
+}
+function isTabbableRadio(element, candidates) {
+  const input = getNamedRadioInput(element);
+  if (!input) {
+    return true;
+  }
+  const checkedRadio = candidates.find((candidate) => {
+    const radio = getNamedRadioInput(candidate);
+    return radio?.name === input.name && radio.form === input.form && radio.checked;
+  });
+  if (checkedRadio) {
+    return checkedRadio === input;
+  }
+  return candidates.find((candidate) => {
+    const radio = getNamedRadioInput(candidate);
+    return radio?.name === input.name && radio.form === input.form;
+  }) === input;
+}
+function getComposedChildren(container) {
+  if (isHTMLElement(container) && getNodeName(container) === "slot") {
+    const assignedElements = container.assignedElements({
+      flatten: true
+    });
+    if (assignedElements.length > 0) {
+      return assignedElements;
+    }
+  }
+  if (isHTMLElement(container) && container.shadowRoot) {
+    return Array.from(container.shadowRoot.children);
+  }
+  return Array.from(container.children);
+}
+function appendCandidates(container, list) {
+  getComposedChildren(container).forEach((child) => {
+    if (isFocusableCandidate(child)) {
+      list.push(child);
+    }
+    appendCandidates(child, list);
+  });
+}
+function appendMatchingElements(container, selector, list) {
+  getComposedChildren(container).forEach((child) => {
+    if (isHTMLElement(child) && child.matches(selector)) {
+      list.push(child);
+    }
+    appendMatchingElements(child, selector, list);
+  });
+}
+function isTabbable(element) {
+  return isFocusableElement(element) && getTabIndex(element) >= 0;
+}
+function focusable(container) {
+  const candidates = [];
+  appendCandidates(container, candidates);
+  return candidates.filter(isFocusableElement);
+}
+function tabbable(container) {
+  const candidates = focusable(container);
+  return candidates.filter((element) => getTabIndex(element) >= 0 && isTabbableRadio(element, candidates));
+}
+function getTabbableIn(container, dir) {
+  const list = tabbable(container);
+  const len = list.length;
+  if (len === 0) {
+    return;
+  }
+  const active = activeElement2(ownerDocument(container));
+  const index = list.indexOf(active);
+  const nextIndex = index === -1 ? dir === 1 ? 0 : len - 1 : index + dir;
+  return list[nextIndex];
+}
+function getNextTabbable(referenceElement) {
+  return getTabbableIn(ownerDocument(referenceElement).body, 1) || referenceElement;
+}
+function getPreviousTabbable(referenceElement) {
+  return getTabbableIn(ownerDocument(referenceElement).body, -1) || referenceElement;
+}
+function getTabbableNearElement(referenceElement, direction, exclude) {
+  if (!referenceElement) {
+    return null;
+  }
+  const list = [];
+  appendCandidates(ownerDocument(referenceElement).body, list);
+  const index = list.indexOf(referenceElement);
+  if (index === -1) {
+    return null;
+  }
+  const candidates = list.filter(isFocusableElement);
+  for (let offset = 1;offset < list.length; offset += 1) {
+    const element = list[(index + direction * offset + list.length) % list.length];
+    if (!contains(exclude, element) && isTabbable(element) && isTabbableRadio(element, candidates)) {
+      return element;
+    }
+  }
+  return list[index];
+}
+function isOutsideEvent(event, container) {
+  const containerElement = container || event.currentTarget;
+  const relatedTarget = event.relatedTarget;
+  return !relatedTarget || !contains(containerElement, relatedTarget);
+}
+function disableFocusInside(container) {
+  const tabbableElements = tabbable(container);
+  tabbableElements.forEach((element) => {
+    element.dataset.tabindex = element.getAttribute("tabindex") || "";
+    element.setAttribute("tabindex", "-1");
+  });
+}
+function enableFocusInside(container) {
+  const elements = [];
+  appendMatchingElements(container, "[data-tabindex]", elements);
+  elements.forEach((element) => {
+    const tabindex = element.dataset.tabindex;
+    delete element.dataset.tabindex;
+    if (tabindex) {
+      element.setAttribute("tabindex", tabindex);
+    } else {
+      element.removeAttribute("tabindex");
+    }
+  });
+}
+
+// engine/node_modules/@base-ui/react/floating-ui-react/utils/nodes.mjs
+function getNodeChildren(nodes, id, onlyOpenChildren = true) {
+  const directChildren = nodes.filter((node) => node.parentId === id);
+  return directChildren.flatMap((child) => [...!onlyOpenChildren || child.context?.open ? [child] : [], ...getNodeChildren(nodes, child.id, onlyOpenChildren)]);
+}
+function getNodeAncestors(nodes, id) {
+  let allAncestors = [];
+  let currentParentId = nodes.find((node) => node.id === id)?.parentId;
+  while (currentParentId) {
+    const currentNode = nodes.find((node) => node.id === currentParentId);
+    currentParentId = currentNode?.parentId;
+    if (currentNode) {
+      allAncestors = allAncestors.concat(currentNode);
+    }
+  }
+  return allAncestors;
+}
+
+// engine/node_modules/@base-ui/react/internals/createBaseUIEventDetails.mjs
+function createChangeEventDetails(reason, event, trigger, customProperties) {
+  let canceled = false;
+  let allowPropagation = false;
+  const custom = customProperties ?? EMPTY_OBJECT;
+  const details = {
+    reason,
+    event: event ?? new Event("base-ui"),
+    cancel() {
+      canceled = true;
+    },
+    allowPropagation() {
+      allowPropagation = true;
+    },
+    get isCanceled() {
+      return canceled;
+    },
+    get isPropagationAllowed() {
+      return allowPropagation;
+    },
+    trigger,
+    ...custom
+  };
+  return details;
+}
+function createGenericEventDetails(reason, event, customProperties) {
+  const custom = customProperties ?? EMPTY_OBJECT;
+  const details = {
+    reason,
+    event: event ?? new Event("base-ui"),
+    ...custom
+  };
+  return details;
+}
+
+// engine/node_modules/@base-ui/react/internals/reason-parts.mjs
+var none = "none";
+var triggerPress = "trigger-press";
+var triggerHover = "trigger-hover";
+var triggerFocus = "trigger-focus";
+var outsidePress = "outside-press";
+var itemPress = "item-press";
+var closePress = "close-press";
+var focusOut = "focus-out";
+var escapeKey = "escape-key";
+var listNavigation = "list-navigation";
+var keyboard = "keyboard";
+var pointer = "pointer";
+var cancelOpen = "cancel-open";
+var siblingOpen = "sibling-open";
+var disabled = "disabled";
+var missing = "missing";
+var initial = "initial";
+var imperativeAction = "imperative-action";
+
+// engine/node_modules/@base-ui/react/floating-ui-react/utils/createAttribute.mjs
+function createAttribute(name) {
+  return `data-base-ui-${name}`;
+}
+
+// engine/node_modules/@base-ui/react/floating-ui-react/utils/enqueueFocus.mjs
+var rafId = 0;
+function enqueueFocus(el, options = {}) {
+  const {
+    preventScroll = false,
+    sync = false,
+    shouldFocus
+  } = options;
+  cancelAnimationFrame(rafId);
+  function exec() {
+    if (shouldFocus && !shouldFocus()) {
+      return;
+    }
+    el?.focus({
+      preventScroll
+    });
+  }
+  if (sync) {
+    exec();
+    return NOOP;
+  }
+  const currentRafId = requestAnimationFrame(exec);
+  rafId = currentRafId;
+  return () => {
+    if (rafId === currentRafId) {
+      cancelAnimationFrame(currentRafId);
+      rafId = 0;
+    }
+  };
+}
+
+// engine/node_modules/@base-ui/react/floating-ui-react/utils/markOthers.mjs
+var markerName = "data-base-ui-inert";
+var ariaHiddenCounterMap = new WeakMap;
+var uncontrolledElementsSet = new WeakSet;
+var markerCounterMap = new WeakMap;
+var lockCount = 0;
+function unwrapHost(node) {
+  if (!node) {
+    return null;
+  }
+  return isShadowRoot(node) ? node.host : unwrapHost(node.parentNode);
+}
+var correctElements = (parent, targets) => targets.map((target) => {
+  if (parent.contains(target)) {
+    return target;
+  }
+  const correctedTarget = unwrapHost(target);
+  if (parent.contains(correctedTarget)) {
+    return correctedTarget;
+  }
+  return null;
+}).filter((x) => x != null);
+var buildKeepSet = (targets) => {
+  const keep = new Set;
+  targets.forEach((target) => {
+    let node = target;
+    while (node && !keep.has(node)) {
+      keep.add(node);
+      node = node.parentNode;
+    }
+  });
+  return keep;
+};
+var collectOutsideElements = (root, keepElements, stopElements) => {
+  const outside = [];
+  const walk = (parent) => {
+    if (!parent || stopElements.has(parent)) {
+      return;
+    }
+    Array.from(parent.children).forEach((node) => {
+      if (getNodeName(node) === "script") {
+        return;
+      }
+      if (keepElements.has(node)) {
+        walk(node);
+      } else {
+        outside.push(node);
+      }
+    });
+  };
+  walk(root);
+  return outside;
+};
+function applyAttributeToOthers(uncorrectedAvoidElements, body, ariaHidden, {
+  mark = true
+}) {
+  const avoidElements = correctElements(body, uncorrectedAvoidElements);
+  const markerTargets = mark ? collectOutsideElements(body, buildKeepSet(avoidElements), new Set(avoidElements)) : [];
+  const hiddenElements = [];
+  const markedElements = [];
+  if (ariaHidden) {
+    const ariaLiveElements = correctElements(body, Array.from(body.querySelectorAll("[aria-live]")));
+    const controlElements = avoidElements.concat(ariaLiveElements);
+    const controlTargets = collectOutsideElements(body, buildKeepSet(controlElements), new Set(controlElements));
+    controlTargets.forEach((node) => {
+      const attr = node.getAttribute("aria-hidden");
+      const alreadyHidden = attr !== null && attr !== "false";
+      const counterValue = (ariaHiddenCounterMap.get(node) || 0) + 1;
+      ariaHiddenCounterMap.set(node, counterValue);
+      hiddenElements.push(node);
+      if (counterValue === 1 && alreadyHidden) {
+        uncontrolledElementsSet.add(node);
+      }
+      if (!alreadyHidden) {
+        node.setAttribute("aria-hidden", "true");
+      }
+    });
+  }
+  if (mark) {
+    markerTargets.forEach((node) => {
+      const markerValue = (markerCounterMap.get(node) || 0) + 1;
+      markerCounterMap.set(node, markerValue);
+      markedElements.push(node);
+      if (markerValue === 1) {
+        node.setAttribute(markerName, "");
+      }
+    });
+  }
+  lockCount += 1;
+  return () => {
+    hiddenElements.forEach((element) => {
+      const counterValue = (ariaHiddenCounterMap.get(element) || 0) - 1;
+      ariaHiddenCounterMap.set(element, counterValue);
+      if (!counterValue) {
+        if (!uncontrolledElementsSet.has(element)) {
+          element.removeAttribute("aria-hidden");
+        }
+        uncontrolledElementsSet.delete(element);
+      }
+    });
+    if (mark) {
+      markedElements.forEach((element) => {
+        const markerValue = (markerCounterMap.get(element) || 0) - 1;
+        markerCounterMap.set(element, markerValue);
+        if (!markerValue) {
+          element.removeAttribute(markerName);
+        }
+      });
+    }
+    lockCount -= 1;
+    if (!lockCount) {
+      ariaHiddenCounterMap = new WeakMap;
+      uncontrolledElementsSet = new WeakSet;
+      markerCounterMap = new WeakMap;
+    }
+  };
+}
+function markOthers(avoidElements, options = {}) {
+  const {
+    ariaHidden = false,
+    mark = true
+  } = options;
+  const body = ownerDocument(avoidElements[0]).body;
+  return applyAttributeToOthers(avoidElements, body, ariaHidden, {
+    mark
+  });
+}
+
+// engine/node_modules/@base-ui/react/floating-ui-react/components/FloatingPortal.mjs
+var React20 = __toESM(require_react(), 1);
+var ReactDOM2 = __toESM(require_react_dom(), 1);
+
+// engine/node_modules/@base-ui/utils/useId.mjs
+var React16 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/utils/useForcedRerendering.mjs
+var React15 = __toESM(require_react(), 1);
+"use client";
+function useForcedRerendering() {
+  const [, setState] = React15.useState({});
+  return React15.useCallback(() => {
+    setState({});
+  }, []);
+}
+
+// engine/node_modules/@base-ui/utils/useId.mjs
+"use client";
+var globalId = 0;
+function useGlobalId(idOverride, prefix = "mui") {
+  const defaultId = React16.useRef(undefined);
+  const forceRerender = useForcedRerendering();
+  const id = idOverride ?? defaultId.current;
+  React16.useEffect(() => {
+    if (defaultId.current == null) {
+      globalId += 1;
+      defaultId.current = `${prefix}-${globalId}`;
+      if (idOverride == null) {
+        forceRerender();
+      }
+    }
+  }, [idOverride, prefix, forceRerender]);
+  return id;
+}
+var maybeReactUseId = SafeReact.useId;
+function useId(idOverride, prefix) {
+  if (maybeReactUseId !== undefined) {
+    const reactId = maybeReactUseId();
+    return idOverride ?? (prefix ? `${prefix}-${reactId}` : reactId);
+  }
+  return useGlobalId(idOverride, prefix);
+}
+
+// engine/node_modules/@base-ui/react/internals/useRenderElement.mjs
+var React19 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/utils/getReactElementRef.mjs
+var React18 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/utils/reactVersion.mjs
+var React17 = __toESM(require_react(), 1);
+var majorVersion = parseInt(React17.version, 10);
+function isReactVersionAtLeast(reactVersionToCheck) {
+  return majorVersion >= reactVersionToCheck;
+}
+
+// engine/node_modules/@base-ui/utils/getReactElementRef.mjs
+function getReactElementRef(element) {
+  if (!/* @__PURE__ */ React18.isValidElement(element)) {
+    return null;
+  }
+  const reactElement = element;
+  const propsWithRef = reactElement.props;
+  return (isReactVersionAtLeast(19) ? propsWithRef?.ref : reactElement.ref) ?? null;
+}
+
+// engine/node_modules/@base-ui/utils/mergeObjects.mjs
+function mergeObjects(a, b) {
+  if (a && !b) {
+    return a;
+  }
+  if (!a && b) {
+    return b;
+  }
+  if (a || b) {
+    return {
+      ...a,
+      ...b
+    };
+  }
+  return;
+}
+
+// engine/node_modules/@base-ui/react/internals/getStateAttributesProps.mjs
+function getStateAttributesProps(state, customMapping) {
+  const props = {};
+  for (const key in state) {
+    const value = state[key];
+    if (customMapping?.hasOwnProperty(key)) {
+      const customProps = customMapping[key](value);
+      if (customProps != null) {
+        Object.assign(props, customProps);
+      }
+      continue;
+    }
+    if (value === true) {
+      props[`data-${key.toLowerCase()}`] = "";
+    } else if (value) {
+      props[`data-${key.toLowerCase()}`] = value.toString();
+    }
+  }
+  return props;
+}
+
+// engine/node_modules/@base-ui/react/utils/resolveClassName.mjs
+function resolveClassName(className, state) {
+  return typeof className === "function" ? className(state) : className;
+}
+
+// engine/node_modules/@base-ui/react/utils/resolveStyle.mjs
+function resolveStyle(style, state) {
+  return typeof style === "function" ? style(state) : style;
+}
+
+// engine/node_modules/@base-ui/react/merge-props/mergeProps.mjs
+var EMPTY_PROPS = {};
+function mergeProps(a, b, c, d, e) {
+  if (!c && !d && !e && !a) {
+    return createInitialMergedProps(b);
+  }
+  let merged = createInitialMergedProps(a);
+  if (b) {
+    merged = mergeInto(merged, b);
+  }
+  if (c) {
+    merged = mergeInto(merged, c);
+  }
+  if (d) {
+    merged = mergeInto(merged, d);
+  }
+  if (e) {
+    merged = mergeInto(merged, e);
+  }
+  return merged;
+}
+function mergePropsN(props) {
+  if (props.length === 0) {
+    return EMPTY_PROPS;
+  }
+  if (props.length === 1) {
+    return createInitialMergedProps(props[0]);
+  }
+  let merged = createInitialMergedProps(props[0]);
+  for (let i = 1;i < props.length; i += 1) {
+    merged = mergeInto(merged, props[i]);
+  }
+  return merged;
+}
+function createInitialMergedProps(inputProps) {
+  if (isPropsGetter(inputProps)) {
+    return {
+      ...inputProps(EMPTY_PROPS)
+    };
+  }
+  return copyInitialProps(inputProps);
+}
+function mergeInto(merged, inputProps) {
+  if (isPropsGetter(inputProps)) {
+    return inputProps(merged);
+  }
+  return mutablyMergeInto(merged, inputProps);
+}
+function copyInitialProps(inputProps) {
+  const copiedProps = {
+    ...inputProps
+  };
+  for (const propName in copiedProps) {
+    const propValue = copiedProps[propName];
+    if (isEventHandler(propName, propValue)) {
+      copiedProps[propName] = wrapEventHandler(propValue);
+    }
+  }
+  return copiedProps;
+}
+function mutablyMergeInto(mergedProps, externalProps) {
+  if (!externalProps) {
+    return mergedProps;
+  }
+  for (const propName in externalProps) {
+    const externalPropValue = externalProps[propName];
+    switch (propName) {
+      case "style": {
+        mergedProps[propName] = mergeObjects(mergedProps.style, externalPropValue);
+        break;
+      }
+      case "className": {
+        mergedProps[propName] = mergeClassNames(mergedProps.className, externalPropValue);
+        break;
+      }
+      default: {
+        if (isEventHandler(propName, externalPropValue)) {
+          mergedProps[propName] = mergeEventHandlers(mergedProps[propName], externalPropValue);
+        } else {
+          mergedProps[propName] = externalPropValue;
+        }
+      }
+    }
+  }
+  return mergedProps;
+}
+function isEventHandler(key, value) {
+  const code0 = key.charCodeAt(0);
+  const code1 = key.charCodeAt(1);
+  const code2 = key.charCodeAt(2);
+  return code0 === 111 && code1 === 110 && code2 >= 65 && code2 <= 90 && (typeof value === "function" || typeof value === "undefined");
+}
+function isPropsGetter(inputProps) {
+  return typeof inputProps === "function";
+}
+function mergeEventHandlers(ourHandler, theirHandler) {
+  if (!theirHandler) {
+    return ourHandler;
+  }
+  if (!ourHandler) {
+    return wrapEventHandler(theirHandler);
+  }
+  return (...args) => {
+    const event = args[0];
+    if (isSyntheticEvent(event)) {
+      const baseUIEvent = event;
+      makeEventPreventable(baseUIEvent);
+      const result = theirHandler(...args);
+      if (!baseUIEvent.baseUIHandlerPrevented) {
+        ourHandler?.(...args);
+      }
+      return result;
+    }
+    const result = theirHandler(...args);
+    ourHandler?.(...args);
+    return result;
+  };
+}
+function wrapEventHandler(handler) {
+  if (!handler) {
+    return handler;
+  }
+  return (...args) => {
+    const event = args[0];
+    if (isSyntheticEvent(event)) {
+      makeEventPreventable(event);
+    }
+    return handler(...args);
+  };
+}
+function makeEventPreventable(event) {
+  event.preventBaseUIHandler = () => {
+    event.baseUIHandlerPrevented = true;
+  };
+  return event;
+}
+function mergeClassNames(ourClassName, theirClassName) {
+  if (theirClassName) {
+    if (ourClassName) {
+      return theirClassName + " " + ourClassName;
+    }
+    return theirClassName;
+  }
+  return ourClassName;
+}
+function isSyntheticEvent(event) {
+  return event != null && typeof event === "object" && "nativeEvent" in event;
+}
+
+// engine/node_modules/@base-ui/react/internals/useRenderElement.mjs
+var import_react = __toESM(require_react(), 1);
+function useRenderElement(element, componentProps, params = {}) {
+  let renderProp = componentProps.render;
+  if (params.enabled !== false) {
+    renderProp = unwrapLazyRenderProp(renderProp);
+  }
+  const outProps = useRenderElementProps(componentProps, params, renderProp);
+  if (params.enabled === false) {
+    return null;
+  }
+  const state = params.state ?? EMPTY_OBJECT;
+  return evaluateRenderProp(element, renderProp, outProps, state);
+}
+function useRenderElementProps(componentProps, params, renderProp) {
+  const {
+    className: classNameProp,
+    style: styleProp
+  } = componentProps;
+  const {
+    state = EMPTY_OBJECT,
+    ref,
+    props,
+    stateAttributesMapping,
+    enabled = true
+  } = params;
+  const className = enabled ? resolveClassName(classNameProp, state) : undefined;
+  const style = enabled ? resolveStyle(styleProp, state) : undefined;
+  const stateProps = enabled ? getStateAttributesProps(state, stateAttributesMapping) : EMPTY_OBJECT;
+  const resolvedProps = enabled && props ? resolveRenderFunctionProps(props) : undefined;
+  const outProps = enabled ? mergeObjects(stateProps, resolvedProps) ?? {} : EMPTY_OBJECT;
+  if (typeof document !== "undefined") {
+    if (!enabled) {
+      useMergedRefs(null, null);
+    } else if (Array.isArray(ref)) {
+      outProps.ref = useMergedRefsN([outProps.ref, getReactElementRef(renderProp), ...ref]);
+    } else {
+      outProps.ref = useMergedRefs(outProps.ref, getReactElementRef(renderProp), ref);
+    }
+  }
+  if (!enabled) {
+    return EMPTY_OBJECT;
+  }
+  if (className !== undefined) {
+    outProps.className = mergeClassNames(outProps.className, className);
+  }
+  if (style !== undefined) {
+    outProps.style = mergeObjects(outProps.style, style);
+  }
+  return outProps;
+}
+function resolveRenderFunctionProps(props) {
+  if (Array.isArray(props)) {
+    return mergePropsN(props);
+  }
+  return mergeProps(undefined, props);
+}
+var REACT_LAZY_TYPE3 = Symbol.for("react.lazy");
+function unwrapLazyRenderProp(render) {
+  if (render?.$$typeof !== REACT_LAZY_TYPE3) {
+    return render;
+  }
+  const unwrapped = React19.Children.toArray(render)[0];
+  return /* @__PURE__ */ React19.isValidElement(unwrapped) ? unwrapped : render;
+}
+function evaluateRenderProp(element, render, props, state) {
+  if (render) {
+    if (typeof render === "function") {
+      if (false) {}
+      return render(props, state);
+    }
+    const mergedProps = mergeProps(props, render.props);
+    mergedProps.ref = props.ref;
+    if (false) {}
+    return /* @__PURE__ */ React19.cloneElement(render, mergedProps);
+  }
+  return renderTag(element, props);
+}
+function renderTag(Tag, props) {
+  if (Tag === "button") {
+    return /* @__PURE__ */ import_react.createElement("button", {
+      type: "button",
+      ...props,
+      key: props.key
+    });
+  }
+  if (Tag === "img") {
+    return /* @__PURE__ */ import_react.createElement("img", {
+      alt: "",
+      ...props,
+      key: props.key
+    });
+  }
+  return /* @__PURE__ */ React19.createElement(Tag, props);
+}
+
+// engine/node_modules/@base-ui/react/internals/constants.mjs
+var TYPEAHEAD_RESET_MS = 500;
+var PATIENT_CLICK_THRESHOLD = 500;
+var DISABLED_TRANSITIONS_STYLE = {
+  style: {
+    transition: "none"
+  }
+};
+var CLICK_TRIGGER_IDENTIFIER = "data-base-ui-click-trigger";
+var BASE_UI_SWIPE_IGNORE_ATTRIBUTE = "data-base-ui-swipe-ignore";
+var LEGACY_SWIPE_IGNORE_ATTRIBUTE = "data-swipe-ignore";
+var BASE_UI_SWIPE_IGNORE_SELECTOR = `[${BASE_UI_SWIPE_IGNORE_ATTRIBUTE}]`;
+var LEGACY_SWIPE_IGNORE_SELECTOR = `[${LEGACY_SWIPE_IGNORE_ATTRIBUTE}]`;
+var DROPDOWN_COLLISION_AVOIDANCE = {
+  fallbackAxisSide: "none"
+};
+var POPUP_COLLISION_AVOIDANCE = {
+  fallbackAxisSide: "end"
+};
+var ownerVisuallyHidden = {
+  clipPath: "inset(50%)",
+  position: "fixed",
+  top: 0,
+  left: 0
+};
+
+// engine/node_modules/@base-ui/react/floating-ui-react/components/FloatingPortal.mjs
+var import_jsx_runtime5 = __toESM(require_jsx_runtime(), 1);
+"use client";
+var PortalContext = /* @__PURE__ */ React20.createContext(null);
+if (false)
+  ;
+var usePortalContext = () => React20.useContext(PortalContext);
+var attr = createAttribute("portal");
+function useFloatingPortalNode(props = {}) {
+  const {
+    ref,
+    container: containerProp,
+    componentProps = EMPTY_OBJECT,
+    elementProps
+  } = props;
+  const uniqueId = useId();
+  const portalContext = usePortalContext();
+  const parentPortalNode = portalContext?.portalNode;
+  const [containerElement, setContainerElement] = React20.useState(null);
+  const [portalNode, setPortalNode] = React20.useState(null);
+  const setPortalNodeRef = useStableCallback((node) => {
+    if (node !== null) {
+      setPortalNode(node);
+    }
+  });
+  const containerRef = React20.useRef(null);
+  useIsoLayoutEffect(() => {
+    if (containerProp === null) {
+      if (containerRef.current) {
+        containerRef.current = null;
+        setPortalNode(null);
+        setContainerElement(null);
+      }
+      return;
+    }
+    const resolvedContainer = (containerProp && (isNode(containerProp) ? containerProp : containerProp.current)) ?? parentPortalNode ?? document.body;
+    if (resolvedContainer == null) {
+      if (containerRef.current) {
+        containerRef.current = null;
+        setPortalNode(null);
+        setContainerElement(null);
+      }
+      return;
+    }
+    if (containerRef.current !== resolvedContainer) {
+      containerRef.current = resolvedContainer;
+      setPortalNode(null);
+      setContainerElement(resolvedContainer);
+    }
+  }, [containerProp, parentPortalNode]);
+  const portalElement = useRenderElement("div", componentProps, {
+    ref: [ref, setPortalNodeRef],
+    props: [{
+      id: uniqueId,
+      [attr]: ""
+    }, elementProps]
+  });
+  const portalSubtree = containerElement && portalElement ? /* @__PURE__ */ ReactDOM2.createPortal(portalElement, containerElement) : null;
+  return {
+    node: portalNode,
+    nodeId: /* @__PURE__ */ React20.isValidElement(portalElement) ? portalElement.props.id : undefined,
+    subtree: portalSubtree
+  };
+}
+var FloatingPortal = /* @__PURE__ */ React20.forwardRef(function FloatingPortal(componentProps, forwardedRef) {
+  const {
+    render,
+    className,
+    style,
+    children,
+    container,
+    portalOwnerRole,
+    ...elementProps
+  } = componentProps;
+  const {
+    node: portalNode,
+    nodeId: portalNodeId,
+    subtree: portalSubtree
+  } = useFloatingPortalNode({
+    container,
+    ref: forwardedRef,
+    componentProps,
+    elementProps
+  });
+  const beforeOutsideRef = React20.useRef(null);
+  const afterOutsideRef = React20.useRef(null);
+  const beforeInsideRef = React20.useRef(null);
+  const afterInsideRef = React20.useRef(null);
+  const [focusManagerState, setFocusManagerState] = React20.useState(null);
+  const focusInsideDisabledRef = React20.useRef(false);
+  const modal = focusManagerState?.modal;
+  const open = focusManagerState?.open;
+  const shouldRenderGuards = !!focusManagerState && !focusManagerState.modal && focusManagerState.open && !!portalNode;
+  React20.useEffect(() => {
+    if (!portalNode || modal) {
+      return;
+    }
+    function onFocus(event) {
+      if (portalNode && event.relatedTarget && isOutsideEvent(event)) {
+        if (event.type === "focusin") {
+          if (focusInsideDisabledRef.current) {
+            enableFocusInside(portalNode);
+            focusInsideDisabledRef.current = false;
+          }
+        } else {
+          disableFocusInside(portalNode);
+          focusInsideDisabledRef.current = true;
+        }
+      }
+    }
+    return mergeCleanups(addEventListener2(portalNode, "focusin", onFocus, true), addEventListener2(portalNode, "focusout", onFocus, true));
+  }, [portalNode, modal]);
+  useIsoLayoutEffect(() => {
+    if (!portalNode || open !== true || !focusInsideDisabledRef.current) {
+      return;
+    }
+    enableFocusInside(portalNode);
+    focusInsideDisabledRef.current = false;
+  }, [open, portalNode]);
+  const portalContextValue = React20.useMemo(() => ({
+    beforeOutsideRef,
+    afterOutsideRef,
+    beforeInsideRef,
+    afterInsideRef,
+    portalNode,
+    setFocusManagerState
+  }), [portalNode]);
+  return /* @__PURE__ */ import_jsx_runtime5.jsxs(React20.Fragment, {
+    children: [portalSubtree, /* @__PURE__ */ import_jsx_runtime5.jsxs(PortalContext.Provider, {
+      value: portalContextValue,
+      children: [shouldRenderGuards && portalNode && /* @__PURE__ */ import_jsx_runtime5.jsx(FocusGuard, {
+        "data-type": "outside",
+        ref: beforeOutsideRef,
+        onFocus: (event) => {
+          if (isOutsideEvent(event, portalNode)) {
+            beforeInsideRef.current?.focus();
+          } else {
+            const domReference = focusManagerState ? focusManagerState.domReference : null;
+            const prevTabbable = getPreviousTabbable(domReference);
+            prevTabbable?.focus();
+          }
+        }
+      }), shouldRenderGuards && portalNode && /* @__PURE__ */ import_jsx_runtime5.jsx("span", {
+        role: portalOwnerRole,
+        "aria-owns": portalNodeId,
+        style: ownerVisuallyHidden
+      }), portalNode && /* @__PURE__ */ ReactDOM2.createPortal(children, portalNode), shouldRenderGuards && portalNode && /* @__PURE__ */ import_jsx_runtime5.jsx(FocusGuard, {
+        "data-type": "outside",
+        ref: afterOutsideRef,
+        onFocus: (event) => {
+          if (isOutsideEvent(event, portalNode)) {
+            afterInsideRef.current?.focus();
+          } else {
+            const domReference = focusManagerState ? focusManagerState.domReference : null;
+            const nextTabbable = getNextTabbable(domReference);
+            nextTabbable?.focus();
+            if (focusManagerState?.closeOnFocusOut) {
+              focusManagerState?.onOpenChange(false, createChangeEventDetails(focusOut, event.nativeEvent));
+            }
+          }
+        }
+      })]
+    })]
+  });
+});
+if (false)
+  ;
+
+// engine/node_modules/@base-ui/react/floating-ui-react/components/FloatingTree.mjs
+var React21 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/floating-ui-react/utils/createEventEmitter.mjs
+function createEventEmitter() {
+  const map = new Map;
+  return {
+    emit(event, data) {
+      map.get(event)?.forEach((listener) => listener(data));
+    },
+    on(event, listener) {
+      if (!map.has(event)) {
+        map.set(event, new Set);
+      }
+      map.get(event).add(listener);
+    },
+    off(event, listener) {
+      map.get(event)?.delete(listener);
+    }
+  };
+}
+
+// engine/node_modules/@base-ui/react/floating-ui-react/components/FloatingTreeStore.mjs
+class FloatingTreeStore {
+  nodesRef = {
+    current: []
+  };
+  events = createEventEmitter();
+  addNode(node) {
+    this.nodesRef.current.push(node);
+  }
+  removeNode(node) {
+    const index = this.nodesRef.current.findIndex((n) => n === node);
+    if (index !== -1) {
+      this.nodesRef.current.splice(index, 1);
+    }
+  }
+}
+
+// engine/node_modules/@base-ui/react/floating-ui-react/components/FloatingTree.mjs
+var import_jsx_runtime6 = __toESM(require_jsx_runtime(), 1);
+"use client";
+var FloatingNodeContext = /* @__PURE__ */ React21.createContext(null);
+if (false)
+  ;
+var FloatingTreeContext = /* @__PURE__ */ React21.createContext(null);
+if (false)
+  ;
+var useFloatingParentNodeId = () => React21.useContext(FloatingNodeContext)?.id || null;
+var useFloatingTree = (externalTree) => {
+  const contextTree = React21.useContext(FloatingTreeContext);
+  return externalTree ?? contextTree;
+};
+function useFloatingNodeId(externalTree) {
+  const id = useId();
+  const tree = useFloatingTree(externalTree);
+  const parentId = useFloatingParentNodeId();
+  useIsoLayoutEffect(() => {
+    if (!id) {
+      return;
+    }
+    const node = {
+      id,
+      parentId
+    };
+    tree?.addNode(node);
+    return () => {
+      tree?.removeNode(node);
+    };
+  }, [tree, id, parentId]);
+  return id;
+}
+function FloatingNode(props) {
+  const {
+    children,
+    id
+  } = props;
+  const parentId = useFloatingParentNodeId();
+  return /* @__PURE__ */ import_jsx_runtime6.jsx(FloatingNodeContext.Provider, {
+    value: React21.useMemo(() => ({
+      id,
+      parentId
+    }), [id, parentId]),
+    children
+  });
+}
+function FloatingTree(props) {
+  const {
+    children,
+    externalTree
+  } = props;
+  const tree = useRefWithInit(() => externalTree ?? new FloatingTreeStore).current;
+  return /* @__PURE__ */ import_jsx_runtime6.jsx(FloatingTreeContext.Provider, {
+    value: tree,
+    children
+  });
+}
+
+// engine/node_modules/@base-ui/react/utils/resolveRef.mjs
+function resolveRef(maybeRef) {
+  if (maybeRef == null) {
+    return maybeRef;
+  }
+  return "current" in maybeRef ? maybeRef.current : maybeRef;
+}
+
+// engine/node_modules/@base-ui/react/floating-ui-react/components/FloatingFocusManager.mjs
+var import_jsx_runtime7 = __toESM(require_jsx_runtime(), 1);
+"use client";
+function getEventType(event, lastInteractionType) {
+  const win = getWindow(getTarget(event));
+  if (event instanceof win.KeyboardEvent) {
+    return "keyboard";
+  }
+  if (event instanceof win.FocusEvent) {
+    return lastInteractionType || "keyboard";
+  }
+  if ("pointerType" in event) {
+    return event.pointerType || (isVirtualClick(event) ? "keyboard" : lastInteractionType || "mouse");
+  }
+  if ("touches" in event) {
+    return "touch";
+  }
+  if (event instanceof win.MouseEvent) {
+    return lastInteractionType || (event.detail === 0 ? "keyboard" : "mouse");
+  }
+  return "";
+}
+var LIST_LIMIT = 20;
+var previouslyFocusedElements = [];
+function clearDisconnectedPreviouslyFocusedElements() {
+  previouslyFocusedElements = previouslyFocusedElements.filter((entry) => {
+    return entry.deref()?.isConnected;
+  });
+}
+function addPreviouslyFocusedElement(element) {
+  clearDisconnectedPreviouslyFocusedElements();
+  if (element && getNodeName(element) !== "body") {
+    previouslyFocusedElements.push(new WeakRef(element));
+    if (previouslyFocusedElements.length > LIST_LIMIT) {
+      previouslyFocusedElements = previouslyFocusedElements.slice(-LIST_LIMIT);
+    }
+  }
+}
+function getPreviouslyFocusedElement() {
+  clearDisconnectedPreviouslyFocusedElements();
+  return previouslyFocusedElements[previouslyFocusedElements.length - 1]?.deref();
+}
+function getFirstTabbableElement(container) {
+  if (!container) {
+    return null;
+  }
+  if (isTabbable(container)) {
+    return container;
+  }
+  return tabbable(container)[0] || container;
+}
+function handleTabIndex(floatingFocusElement) {
+  if (floatingFocusElement.hasAttribute("tabindex") && !floatingFocusElement.hasAttribute("data-tabindex")) {
+    return;
+  }
+  if (!floatingFocusElement.getAttribute("role")?.includes("dialog")) {
+    return;
+  }
+  const focusableElements = focusable(floatingFocusElement);
+  const tabbableContent = focusableElements.filter((element) => {
+    const dataTabIndex = element.getAttribute("data-tabindex") || "";
+    return isTabbable(element) || element.hasAttribute("data-tabindex") && !dataTabIndex.startsWith("-");
+  });
+  const tabIndex = floatingFocusElement.getAttribute("tabindex");
+  if (tabbableContent.length === 0) {
+    if (tabIndex !== "0") {
+      floatingFocusElement.setAttribute("tabindex", "0");
+      floatingFocusElement.setAttribute("data-tabindex", "0");
+    }
+  } else if (tabIndex !== "-1" || floatingFocusElement.hasAttribute("data-tabindex") && floatingFocusElement.getAttribute("data-tabindex") !== "-1") {
+    floatingFocusElement.setAttribute("tabindex", "-1");
+    floatingFocusElement.setAttribute("data-tabindex", "-1");
+  }
+}
+function FloatingFocusManager(props) {
+  const {
+    context: store,
+    children,
+    disabled = false,
+    initialFocus = true,
+    returnFocus = true,
+    explicitReturnFocus,
+    restoreFocus = false,
+    modal = true,
+    closeOnFocusOut = true,
+    openInteractionType = "",
+    nextFocusableElement,
+    previousFocusableElement,
+    beforeContentFocusGuardRef,
+    externalTree,
+    getInsideElements
+  } = props;
+  const open = store.useState("open");
+  const domReference = store.useState("domReferenceElement");
+  const floating = store.useState("floatingElement");
+  const {
+    events,
+    dataRef
+  } = store.context;
+  const getNodeId = useStableCallback(() => dataRef.current.floatingContext?.nodeId);
+  const ignoreInitialFocus = initialFocus === false;
+  const isUntrappedTypeableCombobox = isTypeableCombobox(domReference) && ignoreInitialFocus;
+  const initialFocusRef = useValueAsRef(initialFocus);
+  const returnFocusRef = useValueAsRef(returnFocus);
+  const explicitReturnFocusRef = useValueAsRef(explicitReturnFocus);
+  const openInteractionTypeRef = useValueAsRef(openInteractionType);
+  const openRef = useValueAsRef(open);
+  const tree = useFloatingTree(externalTree);
+  const portalContext = usePortalContext();
+  const preventReturnFocusRef = React22.useRef(false);
+  const isPointerDownRef = React22.useRef(false);
+  const pointerDownOutsideRef = React22.useRef(false);
+  const lastFocusedTabbableRef = React22.useRef(null);
+  const closeTypeRef = React22.useRef("");
+  const lastInteractionTypeRef = React22.useRef("");
+  const beforeGuardRef = React22.useRef(null);
+  const afterGuardRef = React22.useRef(null);
+  const mergedBeforeGuardRef = useMergedRefs(beforeGuardRef, beforeContentFocusGuardRef, portalContext?.beforeInsideRef);
+  const mergedAfterGuardRef = useMergedRefs(afterGuardRef, portalContext?.afterInsideRef);
+  const blurTimeout = useTimeout();
+  const pointerDownTimeout = useTimeout();
+  const restoreFocusFrame = useAnimationFrame();
+  const isInsidePortal = portalContext != null;
+  const floatingFocusElement = getFloatingFocusElement(floating);
+  const getTabbableContent = useStableCallback((container = floatingFocusElement) => {
+    return container ? tabbable(container) : [];
+  });
+  const getResolvedInsideElements = useStableCallback(() => getInsideElements?.().filter((element) => element != null) ?? []);
+  React22.useEffect(() => {
+    if (disabled || !modal) {
+      return;
+    }
+    function onKeyDown(event) {
+      if (event.key === "Tab") {
+        if (contains(floatingFocusElement, activeElement2(ownerDocument(floatingFocusElement))) && getTabbableContent().length === 0 && !isUntrappedTypeableCombobox) {
+          stopEvent(event);
+        }
+      }
+    }
+    const doc = ownerDocument(floatingFocusElement);
+    return addEventListener2(doc, "keydown", onKeyDown);
+  }, [disabled, floatingFocusElement, modal, isUntrappedTypeableCombobox, getTabbableContent]);
+  React22.useEffect(() => {
+    if (disabled || !open) {
+      return;
+    }
+    const doc = ownerDocument(floatingFocusElement);
+    function clearPointerDownOutside() {
+      pointerDownOutsideRef.current = false;
+    }
+    function onPointerDown(event) {
+      const target = getTarget(event);
+      const insideElements = getResolvedInsideElements();
+      const pointerTargetInside = contains(floating, target) || contains(domReference, target) || contains(portalContext?.portalNode, target) || insideElements.some((element) => element === target || contains(element, target));
+      pointerDownOutsideRef.current = !pointerTargetInside;
+      lastInteractionTypeRef.current = event.pointerType || "keyboard";
+      if (closest(target, `[${CLICK_TRIGGER_IDENTIFIER}]`)) {
+        isPointerDownRef.current = true;
+        pointerDownTimeout.start(0, () => {
+          isPointerDownRef.current = false;
+        });
+      }
+    }
+    function onKeyDown() {
+      lastInteractionTypeRef.current = "keyboard";
+    }
+    return mergeCleanups(addEventListener2(doc, "pointerdown", onPointerDown, true), addEventListener2(doc, "pointerup", clearPointerDownOutside, true), addEventListener2(doc, "pointercancel", clearPointerDownOutside, true), addEventListener2(doc, "keydown", onKeyDown, true), clearPointerDownOutside);
+  }, [disabled, floating, domReference, floatingFocusElement, open, portalContext, pointerDownTimeout, getResolvedInsideElements]);
+  React22.useEffect(() => {
+    if (disabled || !closeOnFocusOut) {
+      return;
+    }
+    const doc = ownerDocument(floatingFocusElement);
+    function handlePointerDown() {
+      isPointerDownRef.current = true;
+      pointerDownTimeout.start(0, () => {
+        isPointerDownRef.current = false;
+      });
+    }
+    function handleFocusIn(event) {
+      const target = getTarget(event);
+      if (isTabbable(target)) {
+        lastFocusedTabbableRef.current = target;
+      }
+    }
+    function handleFocusOutside(event) {
+      const relatedTarget = event.relatedTarget;
+      const currentTarget = event.currentTarget;
+      const target = getTarget(event);
+      if (modal && relatedTarget == null && target != null && contains(floating, target)) {
+        addPreviouslyFocusedElement(target);
+      }
+      queueMicrotask(() => {
+        const nodeId = getNodeId();
+        const triggers = store.context.triggerElements;
+        const insideElements = getResolvedInsideElements();
+        const isRelatedFocusGuard = relatedTarget?.hasAttribute(createAttribute("focus-guard")) && [beforeGuardRef.current, afterGuardRef.current, portalContext?.beforeInsideRef.current, portalContext?.afterInsideRef.current, portalContext?.beforeOutsideRef.current, portalContext?.afterOutsideRef.current, resolveRef(previousFocusableElement), resolveRef(nextFocusableElement)].includes(relatedTarget);
+        const movedToUnrelatedNode = !(contains(domReference, relatedTarget) || contains(floating, relatedTarget) || contains(relatedTarget, floating) || contains(portalContext?.portalNode, relatedTarget) || insideElements.some((element) => element === relatedTarget || contains(element, relatedTarget)) || triggers.hasMatchingElement((trigger) => contains(trigger, relatedTarget)) || isRelatedFocusGuard || tree && (getNodeChildren(tree.nodesRef.current, nodeId).find((node) => contains(node.context?.elements.floating, relatedTarget) || contains(node.context?.elements.domReference, relatedTarget)) || getNodeAncestors(tree.nodesRef.current, nodeId).find((node) => [node.context?.elements.floating, getFloatingFocusElement(node.context?.elements.floating)].includes(relatedTarget) || node.context?.elements.domReference === relatedTarget)));
+        if (currentTarget === domReference && floatingFocusElement) {
+          handleTabIndex(floatingFocusElement);
+        }
+        if (restoreFocus && currentTarget !== domReference && !isElementVisible(target) && activeElement2(doc) === doc.body) {
+          if (isHTMLElement(floatingFocusElement)) {
+            floatingFocusElement.focus();
+            if (restoreFocus === "popup") {
+              restoreFocusFrame.request(() => {
+                floatingFocusElement.focus();
+              });
+              return;
+            }
+          }
+          const tabbableContent = getTabbableContent();
+          const prevTabbable = lastFocusedTabbableRef.current;
+          const nodeToFocus = (prevTabbable && tabbableContent.includes(prevTabbable) ? prevTabbable : null) || tabbableContent[tabbableContent.length - 1] || floatingFocusElement;
+          if (isHTMLElement(nodeToFocus)) {
+            nodeToFocus.focus();
+          }
+        }
+        if (dataRef.current.insideReactTree) {
+          dataRef.current.insideReactTree = false;
+          return;
+        }
+        if ((isUntrappedTypeableCombobox ? true : !modal) && relatedTarget && movedToUnrelatedNode && !isPointerDownRef.current && (isUntrappedTypeableCombobox || relatedTarget !== getPreviouslyFocusedElement())) {
+          preventReturnFocusRef.current = true;
+          store.setOpen(false, createChangeEventDetails(focusOut, event));
+        }
+      });
+    }
+    function markInsideReactTree() {
+      if (pointerDownOutsideRef.current) {
+        return;
+      }
+      dataRef.current.insideReactTree = true;
+      blurTimeout.start(0, () => {
+        dataRef.current.insideReactTree = false;
+      });
+    }
+    const domReferenceElement = isHTMLElement(domReference) ? domReference : null;
+    if (!floating && !domReferenceElement) {
+      return;
+    }
+    return mergeCleanups(domReferenceElement && addEventListener2(domReferenceElement, "focusout", handleFocusOutside), domReferenceElement && addEventListener2(domReferenceElement, "pointerdown", handlePointerDown), floating && addEventListener2(floating, "focusin", handleFocusIn), floating && addEventListener2(floating, "focusout", handleFocusOutside), floating && portalContext && addEventListener2(floating, "focusout", markInsideReactTree, true));
+  }, [disabled, domReference, floating, floatingFocusElement, modal, tree, portalContext, store, closeOnFocusOut, restoreFocus, getTabbableContent, isUntrappedTypeableCombobox, getNodeId, dataRef, blurTimeout, pointerDownTimeout, restoreFocusFrame, nextFocusableElement, previousFocusableElement, getResolvedInsideElements]);
+  React22.useEffect(() => {
+    if (disabled || !floating || !open) {
+      return;
+    }
+    const portalNodes = Array.from(portalContext?.portalNode?.querySelectorAll(`[${createAttribute("portal")}]`) || []);
+    const ancestors = tree ? getNodeAncestors(tree.nodesRef.current, getNodeId()) : [];
+    const rootAncestorComboboxDomReference = ancestors.find((node) => isTypeableCombobox(node.context?.elements.domReference || null))?.context?.elements.domReference;
+    const controlInsideElements = [floating, ...portalNodes, beforeGuardRef.current, afterGuardRef.current, portalContext?.beforeOutsideRef.current, portalContext?.afterOutsideRef.current, ...getResolvedInsideElements()];
+    const insideElements = [...controlInsideElements, rootAncestorComboboxDomReference, resolveRef(previousFocusableElement), resolveRef(nextFocusableElement), isUntrappedTypeableCombobox ? domReference : null].filter((x) => x != null);
+    const ariaHiddenCleanup = markOthers(insideElements, {
+      ariaHidden: modal || isUntrappedTypeableCombobox,
+      mark: false
+    });
+    const markerInsideElements = [floating, ...portalNodes].filter((x) => x != null);
+    const markerCleanup = markOthers(markerInsideElements);
+    return () => {
+      markerCleanup();
+      ariaHiddenCleanup();
+    };
+  }, [open, disabled, domReference, floating, modal, portalContext, isUntrappedTypeableCombobox, tree, getNodeId, nextFocusableElement, previousFocusableElement, getResolvedInsideElements]);
+  useIsoLayoutEffect(() => {
+    if (!open || disabled || !isHTMLElement(floatingFocusElement)) {
+      return;
+    }
+    closeTypeRef.current = "";
+    lastInteractionTypeRef.current = "";
+    const doc = ownerDocument(floatingFocusElement);
+    const previouslyFocusedElement = activeElement2(doc);
+    queueMicrotask(() => {
+      const initialFocusValueOrFn = initialFocusRef.current;
+      const resolvedInitialFocus = typeof initialFocusValueOrFn === "function" ? initialFocusValueOrFn(openInteractionTypeRef.current || "") : initialFocusValueOrFn;
+      if (resolvedInitialFocus === undefined || resolvedInitialFocus === false) {
+        return;
+      }
+      const focusAlreadyInsideFloatingEl = contains(floatingFocusElement, previouslyFocusedElement);
+      if (focusAlreadyInsideFloatingEl) {
+        return;
+      }
+      let focusableElements = null;
+      const getDefaultFocusElement = () => {
+        if (focusableElements == null) {
+          focusableElements = getTabbableContent(floatingFocusElement);
+        }
+        return focusableElements[0] || floatingFocusElement;
+      };
+      let elToFocus;
+      if (resolvedInitialFocus === true || resolvedInitialFocus === null) {
+        elToFocus = getDefaultFocusElement();
+      } else {
+        elToFocus = resolveRef(resolvedInitialFocus);
+      }
+      elToFocus = elToFocus || getDefaultFocusElement();
+      const hadFocusInside = contains(floatingFocusElement, activeElement2(doc));
+      const openEvent = dataRef.current.openEvent;
+      const openedByVirtualPress = openEvent?.type === "mousedown" && isVirtualClick(openEvent);
+      enqueueFocus(elToFocus, {
+        sync: openedByVirtualPress,
+        preventScroll: elToFocus === floatingFocusElement,
+        shouldFocus() {
+          if (!openRef.current) {
+            return false;
+          }
+          if (hadFocusInside) {
+            return true;
+          }
+          const currentActiveElement = activeElement2(doc);
+          const focusMovedInside = currentActiveElement !== elToFocus && contains(floatingFocusElement, currentActiveElement);
+          return !focusMovedInside;
+        }
+      });
+    });
+  }, [disabled, open, floatingFocusElement, getTabbableContent, initialFocusRef, openInteractionTypeRef, openRef, dataRef]);
+  const pendingReturnFocusRef = React22.useRef(null);
+  useIsoLayoutEffect(() => {
+    if (disabled || !floatingFocusElement) {
+      pendingReturnFocusRef.current = null;
+      return;
+    }
+    if (pendingReturnFocusRef.current) {
+      pendingReturnFocusRef.current.cancelled = true;
+      pendingReturnFocusRef.current = null;
+    }
+    const doc = ownerDocument(floatingFocusElement);
+    const elementFocusedBeforeOpen = activeElement2(doc);
+    const preferPreviousFocus = openInteractionTypeRef.current == null;
+    addPreviouslyFocusedElement(elementFocusedBeforeOpen);
+    function onOpenChangeLocal(details) {
+      if (!details.open) {
+        closeTypeRef.current = getEventType(details.nativeEvent, lastInteractionTypeRef.current);
+      }
+      if (details.reason === focusOut && details.triggerElement?.hasAttribute(createAttribute("focus-guard")) || details.reason === triggerHover && details.nativeEvent.type === "mouseleave") {
+        preventReturnFocusRef.current = true;
+      }
+      if (details.reason !== outsidePress) {
+        return;
+      }
+      if (details.nested) {
+        preventReturnFocusRef.current = false;
+      } else if (isVirtualClick(details.nativeEvent) || isVirtualPointerEvent(details.nativeEvent)) {
+        preventReturnFocusRef.current = false;
+      } else {
+        let isPreventScrollSupported = false;
+        ownerDocument(floatingFocusElement).createElement("div").focus({
+          get preventScroll() {
+            isPreventScrollSupported = true;
+            return false;
+          }
+        });
+        if (isPreventScrollSupported) {
+          preventReturnFocusRef.current = false;
+        } else {
+          preventReturnFocusRef.current = true;
+        }
+      }
+    }
+    events.on("openchange", onOpenChangeLocal);
+    function getReturnElement(closeType) {
+      const returnFocusValueOrFn = returnFocusRef.current;
+      let resolvedReturnFocusValue = typeof returnFocusValueOrFn === "function" ? returnFocusValueOrFn(closeType) : returnFocusValueOrFn;
+      if (resolvedReturnFocusValue === undefined || resolvedReturnFocusValue === false) {
+        return null;
+      }
+      if (resolvedReturnFocusValue === null) {
+        resolvedReturnFocusValue = true;
+      }
+      const referenceReturnElement = domReference?.isConnected ? domReference : null;
+      const previousReturnElement = elementFocusedBeforeOpen?.isConnected && getNodeName(elementFocusedBeforeOpen) !== "body" ? elementFocusedBeforeOpen : null;
+      let defaultReturnElement = preferPreviousFocus ? previousReturnElement || referenceReturnElement : referenceReturnElement || previousReturnElement;
+      if (!defaultReturnElement) {
+        defaultReturnElement = getPreviouslyFocusedElement() || null;
+      }
+      if (typeof resolvedReturnFocusValue === "boolean") {
+        return defaultReturnElement;
+      }
+      return resolveRef(resolvedReturnFocusValue) || defaultReturnElement || null;
+    }
+    return () => {
+      events.off("openchange", onOpenChangeLocal);
+      const activeEl = activeElement2(doc);
+      const insideElements = getResolvedInsideElements();
+      const isFocusInsideFloatingTree = contains(floating, activeEl) || insideElements.some((element) => element === activeEl || contains(element, activeEl)) || tree && getNodeChildren(tree.nodesRef.current, getNodeId(), false).some((node) => contains(node.context?.elements.floating, activeEl));
+      const returnFocusValueOrFn = returnFocusRef.current;
+      const closeType = closeTypeRef.current;
+      const returnElement = getReturnElement(closeType);
+      const job = {
+        cancelled: false
+      };
+      pendingReturnFocusRef.current = job;
+      queueMicrotask(() => {
+        if (pendingReturnFocusRef.current === job) {
+          pendingReturnFocusRef.current = null;
+        }
+        const tabbableReturnElement = getFirstTabbableElement(returnElement);
+        const hasExplicitReturnFocus = explicitReturnFocusRef.current ?? typeof returnFocusValueOrFn !== "boolean";
+        if (!job.cancelled && returnFocusValueOrFn && !preventReturnFocusRef.current && isHTMLElement(tabbableReturnElement) && (!hasExplicitReturnFocus && tabbableReturnElement !== activeEl && activeEl !== doc.body ? isFocusInsideFloatingTree : true)) {
+          const focusOptions = {
+            preventScroll: true
+          };
+          if (closeType === "keyboard") {
+            focusOptions.focusVisible = true;
+          }
+          tabbableReturnElement.focus(focusOptions);
+        }
+        preventReturnFocusRef.current = false;
+      });
+    };
+  }, [disabled, floating, floatingFocusElement, returnFocusRef, explicitReturnFocusRef, openInteractionTypeRef, events, tree, domReference, getNodeId, getResolvedInsideElements]);
+  useIsoLayoutEffect(() => {
+    if (!exports_engine.webkit || open || !floating) {
+      return;
+    }
+    const activeEl = activeElement2(ownerDocument(floating));
+    if (!isHTMLElement(activeEl) || !isTypeableElement(activeEl)) {
+      return;
+    }
+    if (contains(floating, activeEl)) {
+      activeEl.blur();
+    }
+  }, [open, floating]);
+  useIsoLayoutEffect(() => {
+    if (disabled || !portalContext) {
+      return;
+    }
+    portalContext.setFocusManagerState({
+      modal,
+      closeOnFocusOut,
+      open,
+      onOpenChange: store.setOpen,
+      domReference
+    });
+    return () => {
+      portalContext.setFocusManagerState(null);
+    };
+  }, [disabled, portalContext, modal, open, store, closeOnFocusOut, domReference]);
+  useIsoLayoutEffect(() => {
+    if (disabled || !floatingFocusElement) {
+      return;
+    }
+    handleTabIndex(floatingFocusElement);
+    return () => {
+      queueMicrotask(clearDisconnectedPreviouslyFocusedElements);
+    };
+  }, [disabled, floatingFocusElement]);
+  const shouldRenderGuards = !disabled && (modal ? !isUntrappedTypeableCombobox : true) && (isInsidePortal || modal);
+  return /* @__PURE__ */ import_jsx_runtime7.jsxs(React22.Fragment, {
+    children: [shouldRenderGuards && /* @__PURE__ */ import_jsx_runtime7.jsx(FocusGuard, {
+      "data-type": "inside",
+      ref: mergedBeforeGuardRef,
+      onFocus: (event) => {
+        if (modal) {
+          const els = getTabbableContent();
+          enqueueFocus(els[els.length - 1]);
+        } else if (portalContext?.portalNode) {
+          preventReturnFocusRef.current = false;
+          if (isOutsideEvent(event, portalContext.portalNode)) {
+            const nextTabbable = getNextTabbable(domReference);
+            nextTabbable?.focus();
+          } else {
+            resolveRef(previousFocusableElement ?? portalContext.beforeOutsideRef)?.focus();
+          }
+        }
+      }
+    }), children, shouldRenderGuards && /* @__PURE__ */ import_jsx_runtime7.jsx(FocusGuard, {
+      "data-type": "inside",
+      ref: mergedAfterGuardRef,
+      onFocus: (event) => {
+        if (modal) {
+          enqueueFocus(getTabbableContent()[0]);
+        } else if (portalContext?.portalNode) {
+          if (closeOnFocusOut) {
+            preventReturnFocusRef.current = true;
+          }
+          if (isOutsideEvent(event, portalContext.portalNode)) {
+            const prevTabbable = getPreviousTabbable(domReference);
+            prevTabbable?.focus();
+          } else {
+            resolveRef(nextFocusableElement ?? portalContext.afterOutsideRef)?.focus();
+          }
+        }
+      }
+    })]
+  });
+}
+// engine/node_modules/@base-ui/react/floating-ui-react/hooks/useClick.mjs
+var React23 = __toESM(require_react(), 1);
+"use client";
+function useClick(store, props = {}) {
+  const {
+    enabled = true,
+    event: eventOption = "click",
+    toggle = true,
+    ignoreMouse = false,
+    stickIfOpen = true,
+    touchOpenDelay = 0,
+    reason = triggerPress
+  } = props;
+  const dataRef = store.context.dataRef;
+  const pointerTypeRef = React23.useRef(undefined);
+  const frame = useAnimationFrame();
+  const touchOpenTimeout = useTimeout();
+  const reference = React23.useMemo(() => {
+    function setOpenWithTouchDelay(nextOpen, nativeEvent, target, pointerType) {
+      const details = createChangeEventDetails(reason, nativeEvent, target);
+      if (nextOpen && pointerType === "touch" && touchOpenDelay > 0) {
+        touchOpenTimeout.start(touchOpenDelay, () => {
+          store.setOpen(true, details);
+        });
+      } else {
+        store.setOpen(nextOpen, details);
+      }
+    }
+    function getNextOpen(open, currentTarget, isClickLikeOpenEvent) {
+      const openEvent = dataRef.current.openEvent;
+      const hasClickedOnInactiveTrigger = store.select("domReferenceElement") !== currentTarget;
+      if (open && hasClickedOnInactiveTrigger) {
+        return true;
+      }
+      if (!open) {
+        return true;
+      }
+      if (!toggle) {
+        return true;
+      }
+      if (openEvent && (typeof stickIfOpen === "function" ? stickIfOpen() : stickIfOpen)) {
+        return !isClickLikeOpenEvent(openEvent.type);
+      }
+      return false;
+    }
+    return {
+      onPointerDown(event) {
+        pointerTypeRef.current = isMouseLikePointerType(event.pointerType, true) && isVirtualPointerEvent(event.nativeEvent) ? "virtual" : event.pointerType;
+      },
+      onMouseDown(event) {
+        const pointerType = pointerTypeRef.current;
+        const nativeEvent = event.nativeEvent;
+        const open = store.select("open");
+        if (event.button !== 0 || eventOption === "click" || isMouseLikePointerType(pointerType, true) && ignoreMouse) {
+          return;
+        }
+        const nextOpen = getNextOpen(open, event.currentTarget, (openEventType) => openEventType === "click" || openEventType === "mousedown");
+        const target = getTarget(nativeEvent);
+        const isTypeable = isTypeableElement(target);
+        if (isTypeable || pointerType === "virtual") {
+          setOpenWithTouchDelay(nextOpen, nativeEvent, isTypeable ? target : event.currentTarget, pointerType);
+          return;
+        }
+        const eventCurrentTarget = event.currentTarget;
+        frame.request(() => {
+          setOpenWithTouchDelay(nextOpen, nativeEvent, eventCurrentTarget, pointerType);
+        });
+      },
+      onClick(event) {
+        if (eventOption === "mousedown-only") {
+          return;
+        }
+        const pointerType = pointerTypeRef.current;
+        if (eventOption === "mousedown" && pointerType) {
+          pointerTypeRef.current = undefined;
+          return;
+        }
+        if (isMouseLikePointerType(pointerType, true) && ignoreMouse) {
+          return;
+        }
+        const open = store.select("open");
+        const nextOpen = getNextOpen(open, event.currentTarget, (openEventType) => openEventType === "click" || openEventType === "mousedown" || openEventType === "keydown" || openEventType === "keyup");
+        setOpenWithTouchDelay(nextOpen, event.nativeEvent, event.currentTarget, pointerType);
+      },
+      onKeyDown() {
+        pointerTypeRef.current = undefined;
+      }
+    };
+  }, [dataRef, eventOption, ignoreMouse, reason, store, stickIfOpen, toggle, frame, touchOpenTimeout, touchOpenDelay]);
+  return React23.useMemo(() => enabled ? {
+    reference
+  } : EMPTY_OBJECT, [enabled, reference]);
+}
+// engine/node_modules/@base-ui/react/floating-ui-react/hooks/useDismiss.mjs
+var React24 = __toESM(require_react(), 1);
+"use client";
+function alwaysFalse() {
+  return false;
+}
+function normalizeProp(normalizable) {
+  return {
+    escapeKey: typeof normalizable === "boolean" ? normalizable : normalizable?.escapeKey ?? false,
+    outsidePress: typeof normalizable === "boolean" ? normalizable : normalizable?.outsidePress ?? true
+  };
+}
+function useDismiss(store, props = {}) {
+  const {
+    enabled = true,
+    escapeKey: escapeKey2 = true,
+    outsidePress: outsidePressProp = true,
+    outsidePressEvent = "sloppy",
+    referencePress = alwaysFalse,
+    bubbles,
+    externalTree
+  } = props;
+  const open = store.useState("open");
+  const floatingElement = store.useState("floatingElement");
+  const {
+    dataRef,
+    events
+  } = store.context;
+  const tree = useFloatingTree(externalTree);
+  const outsidePressFn = useStableCallback(typeof outsidePressProp === "function" ? outsidePressProp : () => false);
+  const outsidePress2 = typeof outsidePressProp === "function" ? outsidePressFn : outsidePressProp;
+  const outsidePressEnabled = outsidePress2 !== false;
+  const getOutsidePressEventProp = useStableCallback(() => outsidePressEvent);
+  const {
+    escapeKey: escapeKeyBubbles,
+    outsidePress: outsidePressBubbles
+  } = normalizeProp(bubbles);
+  const pressStartedInsideRef = React24.useRef(false);
+  const pressStartPreventedRef = React24.useRef(false);
+  const suppressNextOutsideClickRef = React24.useRef(false);
+  const sawPressWhileOpenRef = React24.useRef(false);
+  const isComposingRef = React24.useRef(false);
+  const currentPointerTypeRef = React24.useRef("");
+  const touchStateRef = React24.useRef(null);
+  const cancelDismissOnEndTimeout = useTimeout();
+  const clearInsideReactTreeTimeout = useTimeout();
+  const compositionTimeout = useTimeout();
+  const clearInsideReactTree = useStableCallback(() => {
+    clearInsideReactTreeTimeout.clear();
+    dataRef.current.insideReactTree = false;
+  });
+  const hasBlockingChild = useStableCallback((bubbleKey) => {
+    const nodeId = dataRef.current.floatingContext?.nodeId;
+    const children = tree ? getNodeChildren(tree.nodesRef.current, nodeId) : [];
+    return children.some((child) => child.context?.open && !child.context.dataRef.current[bubbleKey]);
+  });
+  const isEventWithinOwnElements = useStableCallback((event) => {
+    return isEventTargetWithin(event, store.select("floatingElement")) || isEventTargetWithin(event, store.select("domReferenceElement"));
+  });
+  const closeOnReferencePress = useStableCallback((event) => {
+    if (!referencePress()) {
+      return;
+    }
+    store.setOpen(false, createChangeEventDetails(triggerPress, event.nativeEvent));
+  });
+  const closeOnEscapeKeyDown = useStableCallback((event) => {
+    if (!open || !enabled || !escapeKey2 || event.key !== "Escape") {
+      return;
+    }
+    const native = isReactEvent(event) ? event.nativeEvent : event;
+    if (isComposingRef.current || native.isComposing) {
+      return;
+    }
+    if (!escapeKeyBubbles && hasBlockingChild("__escapeKeyBubbles")) {
+      return;
+    }
+    const eventDetails = createChangeEventDetails(escapeKey, native);
+    store.setOpen(false, eventDetails);
+    if (!eventDetails.isCanceled) {
+      event.preventDefault();
+    }
+    if (!escapeKeyBubbles && !eventDetails.isPropagationAllowed) {
+      event.stopPropagation();
+    }
+  });
+  const markInsideReactTree = useStableCallback(() => {
+    dataRef.current.insideReactTree = true;
+    clearInsideReactTreeTimeout.start(0, clearInsideReactTree);
+  });
+  const markPressStartedInsideReactTree = useStableCallback((event) => {
+    if (!open || !enabled || event.button !== 0) {
+      return;
+    }
+    const target = getTarget(event.nativeEvent);
+    if (!contains(store.select("floatingElement"), target)) {
+      return;
+    }
+    if (!pressStartedInsideRef.current) {
+      pressStartedInsideRef.current = true;
+      pressStartPreventedRef.current = false;
+    }
+  });
+  const markInsidePressStartPrevented = useStableCallback((event) => {
+    if (!open || !enabled) {
+      return;
+    }
+    if (!(event.defaultPrevented || event.nativeEvent.defaultPrevented)) {
+      return;
+    }
+    if (pressStartedInsideRef.current) {
+      pressStartPreventedRef.current = true;
+    }
+  });
+  React24.useEffect(() => {
+    function handleOpenChange(details) {
+      if (!details.open) {
+        sawPressWhileOpenRef.current = false;
+      }
+    }
+    events.on("openchange", handleOpenChange);
+    return () => {
+      events.off("openchange", handleOpenChange);
+    };
+  }, [events]);
+  React24.useEffect(() => clearInsideReactTree, [clearInsideReactTree]);
+  React24.useEffect(() => {
+    if (!open || !enabled) {
+      if (!open) {
+        sawPressWhileOpenRef.current = false;
+        isComposingRef.current = false;
+        currentPointerTypeRef.current = "";
+        touchStateRef.current = null;
+      }
+      return clearInsideReactTree;
+    }
+    dataRef.current.__escapeKeyBubbles = escapeKeyBubbles;
+    dataRef.current.__outsidePressBubbles = outsidePressBubbles;
+    const preventedPressSuppressionTimeout = new Timeout;
+    const doc = ownerDocument(floatingElement);
+    function handleCompositionStart() {
+      compositionTimeout.clear();
+      isComposingRef.current = true;
+    }
+    function handleCompositionEnd() {
+      isComposingRef.current = true;
+      compositionTimeout.start(exports_engine.webkit ? 5 : 0, () => {
+        isComposingRef.current = false;
+      });
+    }
+    function suppressImmediateOutsideClickAfterPreventedStart() {
+      suppressNextOutsideClickRef.current = true;
+      preventedPressSuppressionTimeout.start(0, () => {
+        suppressNextOutsideClickRef.current = false;
+      });
+    }
+    function resetPressStartState() {
+      pressStartedInsideRef.current = false;
+      pressStartPreventedRef.current = false;
+    }
+    function getOutsidePressEvent() {
+      const type = currentPointerTypeRef.current;
+      const computedType = type === "pen" || !type ? "mouse" : type;
+      const outsidePressEventValue = getOutsidePressEventProp();
+      const resolved = typeof outsidePressEventValue === "function" ? outsidePressEventValue() : outsidePressEventValue;
+      if (typeof resolved === "string") {
+        return resolved;
+      }
+      return resolved[computedType];
+    }
+    function shouldIgnoreEvent(event) {
+      const computedOutsidePressEvent = getOutsidePressEvent();
+      return computedOutsidePressEvent === "intentional" && event.type !== "click" || computedOutsidePressEvent === "sloppy" && event.type === "click";
+    }
+    function isEventWithinFloatingTree(event) {
+      const nodeId = dataRef.current.floatingContext?.nodeId;
+      const targetIsInsideChildren = tree && getNodeChildren(tree.nodesRef.current, nodeId).some((node) => isEventTargetWithin(event, node.context?.elements.floating));
+      return isEventWithinOwnElements(event) || targetIsInsideChildren;
+    }
+    function closeOnPressOutside(event) {
+      if (shouldIgnoreEvent(event)) {
+        if (event.type !== "click" && !isEventWithinOwnElements(event)) {
+          preventedPressSuppressionTimeout.clear();
+          suppressNextOutsideClickRef.current = false;
+        }
+        clearInsideReactTree();
+        return;
+      }
+      if (dataRef.current.insideReactTree) {
+        clearInsideReactTree();
+        return;
+      }
+      const target = getTarget(event);
+      const inertSelector = `[${createAttribute("inert")}]`;
+      const targetRoot = isElement(target) ? target.getRootNode() : null;
+      const markers = Array.from((isShadowRoot(targetRoot) ? targetRoot : ownerDocument(store.select("floatingElement"))).querySelectorAll(inertSelector));
+      const triggers = store.context.triggerElements;
+      if (target && (triggers.hasElement(target) || triggers.hasMatchingElement((trigger) => contains(trigger, target)))) {
+        return;
+      }
+      let targetRootAncestor = isElement(target) ? target : null;
+      while (targetRootAncestor && !isLastTraversableNode(targetRootAncestor)) {
+        const nextParent = getParentNode(targetRootAncestor);
+        if (isLastTraversableNode(nextParent) || !isElement(nextParent)) {
+          break;
+        }
+        targetRootAncestor = nextParent;
+      }
+      if (markers.length && isElement(target) && !isRootElement(target) && !contains(target, store.select("floatingElement")) && markers.every((marker) => !contains(targetRootAncestor, marker))) {
+        return;
+      }
+      if (isHTMLElement(target) && !("touches" in event)) {
+        const lastTraversableNode = isLastTraversableNode(target);
+        const style = getComputedStyle2(target);
+        const scrollRe = /auto|scroll/;
+        const isScrollableX = lastTraversableNode || scrollRe.test(style.overflowX);
+        const isScrollableY = lastTraversableNode || scrollRe.test(style.overflowY);
+        const canScrollX = isScrollableX && target.clientWidth > 0 && target.scrollWidth > target.clientWidth;
+        const canScrollY = isScrollableY && target.clientHeight > 0 && target.scrollHeight > target.clientHeight;
+        const isRTL = style.direction === "rtl";
+        const pressedVerticalScrollbar = canScrollY && (isRTL ? event.offsetX <= target.offsetWidth - target.clientWidth : event.offsetX > target.clientWidth);
+        const pressedHorizontalScrollbar = canScrollX && event.offsetY > target.clientHeight;
+        if (pressedVerticalScrollbar || pressedHorizontalScrollbar) {
+          return;
+        }
+      }
+      if (isEventWithinFloatingTree(event)) {
+        return;
+      }
+      if (getOutsidePressEvent() === "intentional") {
+        if (event.detail !== 0 && !isVirtualClick(event) && !sawPressWhileOpenRef.current) {
+          return;
+        }
+        if (suppressNextOutsideClickRef.current) {
+          preventedPressSuppressionTimeout.clear();
+          suppressNextOutsideClickRef.current = false;
+          return;
+        }
+      }
+      if (typeof outsidePress2 === "function" && !outsidePress2(event)) {
+        return;
+      }
+      if (hasBlockingChild("__outsidePressBubbles")) {
+        return;
+      }
+      store.setOpen(false, createChangeEventDetails(outsidePress, event));
+      clearInsideReactTree();
+    }
+    function handlePointerDown(event) {
+      if (getOutsidePressEvent() !== "sloppy" || event.pointerType === "touch" || !store.select("open") || !enabled || isEventWithinOwnElements(event)) {
+        return;
+      }
+      closeOnPressOutside(event);
+    }
+    function handleTouchStart(event) {
+      if (getOutsidePressEvent() !== "sloppy" || !store.select("open") || !enabled || isEventWithinOwnElements(event)) {
+        return;
+      }
+      const touch = event.touches[0];
+      if (touch) {
+        touchStateRef.current = {
+          startTime: Date.now(),
+          startX: touch.clientX,
+          startY: touch.clientY,
+          dismissOnTouchEnd: false,
+          dismissOnMouseDown: true
+        };
+        cancelDismissOnEndTimeout.start(1000, () => {
+          if (touchStateRef.current) {
+            touchStateRef.current.dismissOnTouchEnd = false;
+            touchStateRef.current.dismissOnMouseDown = false;
+          }
+        });
+      }
+    }
+    function addTargetEventListenerOnce(event, listener) {
+      const target = getTarget(event);
+      if (!target) {
+        return;
+      }
+      const unsubscribe = addEventListener2(target, event.type, () => {
+        listener(event);
+        unsubscribe();
+      });
+    }
+    function handleTouchStartCapture(event) {
+      currentPointerTypeRef.current = "touch";
+      addTargetEventListenerOnce(event, handleTouchStart);
+    }
+    function closeOnPressOutsideCapture(event) {
+      cancelDismissOnEndTimeout.clear();
+      if (event.type === "pointerdown") {
+        if (event.button === 0) {
+          sawPressWhileOpenRef.current = true;
+        }
+        currentPointerTypeRef.current = event.pointerType;
+      }
+      if (event.type === "mousedown" && touchStateRef.current && !touchStateRef.current.dismissOnMouseDown) {
+        return;
+      }
+      addTargetEventListenerOnce(event, (targetEvent) => {
+        if (targetEvent.type === "pointerdown") {
+          handlePointerDown(targetEvent);
+        } else {
+          closeOnPressOutside(targetEvent);
+        }
+      });
+    }
+    function handlePressEndCapture(event) {
+      if (event.type === "pointercancel") {
+        sawPressWhileOpenRef.current = false;
+      }
+      if (!pressStartedInsideRef.current) {
+        return;
+      }
+      const pressStartedInsideDefaultPrevented = pressStartPreventedRef.current;
+      resetPressStartState();
+      if (getOutsidePressEvent() !== "intentional") {
+        return;
+      }
+      if (event.type === "pointercancel") {
+        if (pressStartedInsideDefaultPrevented) {
+          suppressImmediateOutsideClickAfterPreventedStart();
+        }
+        return;
+      }
+      if (isEventWithinFloatingTree(event)) {
+        return;
+      }
+      if (pressStartedInsideDefaultPrevented) {
+        suppressImmediateOutsideClickAfterPreventedStart();
+        return;
+      }
+      if (typeof outsidePress2 === "function" && !outsidePress2(event)) {
+        return;
+      }
+      preventedPressSuppressionTimeout.clear();
+      suppressNextOutsideClickRef.current = true;
+      clearInsideReactTree();
+    }
+    function handleTouchMove(event) {
+      if (getOutsidePressEvent() !== "sloppy" || !touchStateRef.current || isEventWithinOwnElements(event)) {
+        return;
+      }
+      const touch = event.touches[0];
+      if (!touch) {
+        return;
+      }
+      const deltaX = Math.abs(touch.clientX - touchStateRef.current.startX);
+      const deltaY = Math.abs(touch.clientY - touchStateRef.current.startY);
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+      if (distance > 5) {
+        touchStateRef.current.dismissOnTouchEnd = true;
+      }
+      if (distance > 10) {
+        closeOnPressOutside(event);
+        cancelDismissOnEndTimeout.clear();
+        touchStateRef.current = null;
+      }
+    }
+    function handleTouchMoveCapture(event) {
+      addTargetEventListenerOnce(event, handleTouchMove);
+    }
+    function handleTouchEnd(event) {
+      if (getOutsidePressEvent() !== "sloppy" || !touchStateRef.current || isEventWithinOwnElements(event)) {
+        return;
+      }
+      if (touchStateRef.current.dismissOnTouchEnd) {
+        closeOnPressOutside(event);
+      }
+      cancelDismissOnEndTimeout.clear();
+      touchStateRef.current = null;
+    }
+    function handleTouchEndCapture(event) {
+      addTargetEventListenerOnce(event, handleTouchEnd);
+    }
+    const unsubscribe = mergeCleanups(escapeKey2 && mergeCleanups(addEventListener2(doc, "keydown", closeOnEscapeKeyDown), addEventListener2(doc, "compositionstart", handleCompositionStart), addEventListener2(doc, "compositionend", handleCompositionEnd)), outsidePressEnabled && mergeCleanups(addEventListener2(doc, "click", closeOnPressOutsideCapture, true), addEventListener2(doc, "pointerdown", closeOnPressOutsideCapture, true), addEventListener2(doc, "pointerup", handlePressEndCapture, true), addEventListener2(doc, "pointercancel", handlePressEndCapture, true), addEventListener2(doc, "mousedown", closeOnPressOutsideCapture, true), addEventListener2(doc, "mouseup", handlePressEndCapture, true), addEventListener2(doc, "touchstart", handleTouchStartCapture, {
+      capture: true,
+      passive: true
+    }), addEventListener2(doc, "touchmove", handleTouchMoveCapture, {
+      capture: true,
+      passive: true
+    }), addEventListener2(doc, "touchend", handleTouchEndCapture, {
+      capture: true,
+      passive: true
+    })));
+    return () => {
+      unsubscribe();
+      preventedPressSuppressionTimeout.clear();
+      resetPressStartState();
+      suppressNextOutsideClickRef.current = false;
+    };
+  }, [dataRef, floatingElement, escapeKey2, outsidePressEnabled, outsidePress2, open, enabled, escapeKeyBubbles, outsidePressBubbles, closeOnEscapeKeyDown, clearInsideReactTree, getOutsidePressEventProp, hasBlockingChild, isEventWithinOwnElements, tree, store, cancelDismissOnEndTimeout, compositionTimeout]);
+  const reference = React24.useMemo(() => ({
+    onKeyDown: closeOnEscapeKeyDown,
+    onPointerDown: closeOnReferencePress,
+    onClick: closeOnReferencePress
+  }), [closeOnEscapeKeyDown, closeOnReferencePress]);
+  const floating = React24.useMemo(() => ({
+    onKeyDown: closeOnEscapeKeyDown,
+    onPointerDown: markInsidePressStartPrevented,
+    onMouseDown: markInsidePressStartPrevented,
+    onClickCapture: markInsideReactTree,
+    onMouseDownCapture(event) {
+      markInsideReactTree();
+      markPressStartedInsideReactTree(event);
+    },
+    onPointerDownCapture(event) {
+      markInsideReactTree();
+      markPressStartedInsideReactTree(event);
+    },
+    onMouseUpCapture: markInsideReactTree,
+    onTouchEndCapture: markInsideReactTree,
+    onTouchMoveCapture: markInsideReactTree
+  }), [closeOnEscapeKeyDown, markInsideReactTree, markPressStartedInsideReactTree, markInsidePressStartPrevented]);
+  return React24.useMemo(() => enabled ? {
+    reference,
+    floating,
+    trigger: reference
+  } : {}, [enabled, reference, floating]);
+}
+// engine/node_modules/@base-ui/react/floating-ui-react/hooks/useSyncedFloatingRootContext.mjs
+"use client";
+function useSyncedFloatingRootContext(options) {
+  const {
+    popupStore,
+    treatPopupAsFloatingElement = false,
+    floatingRootContext: store,
+    floatingId,
+    nested,
+    onOpenChange
+  } = options;
+  const open = popupStore.useState("open");
+  const referenceElement = popupStore.useState("activeTriggerElement");
+  const floatingElement = popupStore.useState(treatPopupAsFloatingElement ? "popupElement" : "positionerElement");
+  const handleOpenChange = onOpenChange;
+  popupStore.useSyncedValue("floatingId", floatingId);
+  useIsoLayoutEffect(() => {
+    const valuesToSync = {
+      open,
+      floatingId,
+      referenceElement,
+      floatingElement
+    };
+    if (isElement(referenceElement)) {
+      valuesToSync.domReferenceElement = referenceElement;
+    }
+    if (store.state.positionReference === store.state.referenceElement) {
+      valuesToSync.positionReference = referenceElement;
+    }
+    store.update(valuesToSync);
+  }, [open, floatingId, referenceElement, floatingElement, store]);
+  store.context.onOpenChange = handleOpenChange;
+  store.context.nested = nested;
+  return store;
+}
+// engine/node_modules/@base-ui/react/floating-ui-react/hooks/useFocus.mjs
+var React25 = __toESM(require_react(), 1);
+"use client";
+var isMacSafari = exports_os.mac && exports_engine.webkit;
+function useFocus(store, props = {}) {
+  const {
+    enabled = true,
+    delay
+  } = props;
+  const {
+    events,
+    dataRef
+  } = store.context;
+  const blockFocusRef = React25.useRef(false);
+  const blockedReferenceRef = React25.useRef(null);
+  const keyboardModalityRef = React25.useRef(true);
+  const timeout = useTimeout();
+  React25.useEffect(() => {
+    const domReference = store.select("domReferenceElement");
+    if (!enabled) {
+      return;
+    }
+    const win = getWindow(domReference);
+    function onBlur() {
+      const currentDomReference = store.select("domReferenceElement");
+      if (!store.select("open") && isHTMLElement(currentDomReference) && currentDomReference === activeElement2(ownerDocument(currentDomReference))) {
+        blockFocusRef.current = true;
+        blockedReferenceRef.current = currentDomReference;
+      }
+    }
+    function onKeyDown() {
+      keyboardModalityRef.current = true;
+    }
+    function onPointerDown() {
+      keyboardModalityRef.current = false;
+    }
+    return mergeCleanups(addEventListener2(win, "blur", onBlur), isMacSafari && addEventListener2(win, "keydown", onKeyDown, true), isMacSafari && addEventListener2(win, "pointerdown", onPointerDown, true));
+  }, [store, enabled]);
+  React25.useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+    function onOpenChangeLocal(details) {
+      if (details.reason === triggerPress || details.reason === escapeKey) {
+        const referenceElement = store.select("domReferenceElement");
+        if (isElement(referenceElement)) {
+          blockedReferenceRef.current = referenceElement;
+          blockFocusRef.current = true;
+        }
+      }
+    }
+    events.on("openchange", onOpenChangeLocal);
+    return () => {
+      events.off("openchange", onOpenChangeLocal);
+    };
+  }, [events, enabled, store]);
+  const reference = React25.useMemo(() => {
+    function resetBlockedFocus() {
+      blockFocusRef.current = false;
+      blockedReferenceRef.current = null;
+    }
+    return {
+      onMouseLeave() {
+        resetBlockedFocus();
+      },
+      onFocus(event) {
+        const focusTarget = event.currentTarget;
+        if (blockFocusRef.current) {
+          if (blockedReferenceRef.current === focusTarget) {
+            return;
+          }
+          resetBlockedFocus();
+        }
+        const target = getTarget(event.nativeEvent);
+        if (isElement(target)) {
+          if (isMacSafari && !event.relatedTarget) {
+            if (!keyboardModalityRef.current && !isTypeableElement(target)) {
+              return;
+            }
+          } else if (!matchesFocusVisible(target)) {
+            return;
+          }
+        }
+        const movedFromOtherEnabledTrigger = isTargetInsideEnabledTrigger(event.relatedTarget, store.context.triggerElements);
+        const {
+          nativeEvent,
+          currentTarget
+        } = event;
+        if (store.select("open") && movedFromOtherEnabledTrigger || !delay) {
+          store.setOpen(true, createChangeEventDetails(triggerFocus, nativeEvent, currentTarget));
+          return;
+        }
+        timeout.start(delay, () => {
+          if (blockFocusRef.current) {
+            return;
+          }
+          store.setOpen(true, createChangeEventDetails(triggerFocus, nativeEvent, currentTarget));
+        });
+      },
+      onBlur(event) {
+        resetBlockedFocus();
+        const relatedTarget = event.relatedTarget;
+        const nativeEvent = event.nativeEvent;
+        const movedToFocusGuard = isElement(relatedTarget) && relatedTarget.hasAttribute(createAttribute("focus-guard")) && relatedTarget.getAttribute("data-type") === "outside";
+        timeout.start(0, () => {
+          const domReference = store.select("domReferenceElement");
+          const activeEl = activeElement2(ownerDocument(domReference));
+          if (!relatedTarget && activeEl === domReference) {
+            return;
+          }
+          if (contains(dataRef.current.floatingContext?.refs.floating.current, activeEl) || contains(domReference, activeEl) || movedToFocusGuard) {
+            return;
+          }
+          const nextFocusedElement = relatedTarget ?? activeEl;
+          if (isTargetInsideEnabledTrigger(nextFocusedElement, store.context.triggerElements)) {
+            return;
+          }
+          store.setOpen(false, createChangeEventDetails(triggerFocus, nativeEvent));
+        });
+      }
+    };
+  }, [dataRef, delay, store, timeout]);
+  return React25.useMemo(() => enabled ? {
+    reference,
+    trigger: reference
+  } : {}, [enabled, reference]);
+}
+// engine/node_modules/@base-ui/react/floating-ui-react/hooks/useHoverFloatingInteraction.mjs
+var React26 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/floating-ui-react/hooks/useHoverInteractionSharedState.mjs
+"use client";
+class HoverInteraction {
+  pointerType = undefined;
+  interactedInside = false;
+  handler = undefined;
+  blockMouseMove = true;
+  performedPointerEventsMutation = false;
+  pointerEventsScopeElement = null;
+  pointerEventsReferenceElement = null;
+  pointerEventsFloatingElement = null;
+  restTimeoutPending = false;
+  openChangeTimeout = new Timeout;
+  restTimeout = new Timeout;
+  handleCloseOptions = undefined;
+  static create() {
+    return new HoverInteraction;
+  }
+  dispose = () => {
+    this.openChangeTimeout.clear();
+    this.restTimeout.clear();
+  };
+  disposeEffect = () => {
+    return this.dispose;
+  };
+}
+var pointerEventsMutationOwnerByScopeElement = new WeakMap;
+function clearSafePolygonPointerEventsMutation(instance) {
+  if (!instance.performedPointerEventsMutation) {
+    return;
+  }
+  const scopeElement = instance.pointerEventsScopeElement;
+  if (scopeElement && pointerEventsMutationOwnerByScopeElement.get(scopeElement) === instance) {
+    instance.pointerEventsScopeElement?.style.removeProperty("pointer-events");
+    instance.pointerEventsReferenceElement?.style.removeProperty("pointer-events");
+    instance.pointerEventsFloatingElement?.style.removeProperty("pointer-events");
+    pointerEventsMutationOwnerByScopeElement.delete(scopeElement);
+  }
+  instance.performedPointerEventsMutation = false;
+  instance.pointerEventsScopeElement = null;
+  instance.pointerEventsReferenceElement = null;
+  instance.pointerEventsFloatingElement = null;
+}
+function applySafePolygonPointerEventsMutation(instance, options) {
+  const {
+    scopeElement,
+    referenceElement,
+    floatingElement
+  } = options;
+  const existingOwner = pointerEventsMutationOwnerByScopeElement.get(scopeElement);
+  if (existingOwner && existingOwner !== instance) {
+    clearSafePolygonPointerEventsMutation(existingOwner);
+  }
+  clearSafePolygonPointerEventsMutation(instance);
+  instance.performedPointerEventsMutation = true;
+  instance.pointerEventsScopeElement = scopeElement;
+  instance.pointerEventsReferenceElement = referenceElement;
+  instance.pointerEventsFloatingElement = floatingElement;
+  pointerEventsMutationOwnerByScopeElement.set(scopeElement, instance);
+  scopeElement.style.pointerEvents = "none";
+  referenceElement.style.pointerEvents = "auto";
+  floatingElement.style.pointerEvents = "auto";
+}
+function useHoverInteractionSharedState(store) {
+  const data = store.context.dataRef.current;
+  const instance = useRefWithInit(() => data.hoverInteractionState ?? HoverInteraction.create()).current;
+  if (!data.hoverInteractionState) {
+    data.hoverInteractionState = instance;
+  }
+  useOnMount(data.hoverInteractionState.disposeEffect);
+  return data.hoverInteractionState;
+}
+
+// engine/node_modules/@base-ui/react/floating-ui-react/hooks/useHoverShared.mjs
+function resolveValue(value, pointerType) {
+  if (pointerType != null && !isMouseLikePointerType(pointerType)) {
+    return 0;
+  }
+  if (typeof value === "function") {
+    return value();
+  }
+  return value;
+}
+function getDelay(value, prop, pointerType) {
+  const result = resolveValue(value, pointerType);
+  if (typeof result === "number") {
+    return result;
+  }
+  return result?.[prop];
+}
+function getRestMs(value) {
+  if (typeof value === "function") {
+    return value();
+  }
+  return value;
+}
+function isClickLikeOpenEvent(openEventType, interactedInside) {
+  return interactedInside || openEventType === "click" || openEventType === "mousedown";
+}
+function isHoverOpenEvent(openEventType) {
+  return openEventType?.includes("mouse") && openEventType !== "mousedown";
+}
+
+// engine/node_modules/@base-ui/react/floating-ui-react/hooks/useHoverFloatingInteraction.mjs
+"use client";
+function useHoverFloatingInteraction(store, parameters = {}) {
+  const {
+    enabled = true,
+    closeDelay: closeDelayProp = 0,
+    nodeId: nodeIdProp
+  } = parameters;
+  const open = store.useState("open");
+  const floatingElement = store.useState("floatingElement");
+  const domReferenceElement = store.useState("domReferenceElement");
+  const {
+    dataRef
+  } = store.context;
+  const tree = useFloatingTree();
+  const parentId = useFloatingParentNodeId();
+  const instance = useHoverInteractionSharedState(store);
+  const childClosedTimeout = useTimeout();
+  const isClickLikeOpenEvent2 = useStableCallback(() => {
+    return isClickLikeOpenEvent(dataRef.current.openEvent?.type, instance.interactedInside);
+  });
+  const isHoverOpen = useStableCallback(() => {
+    return isHoverOpenEvent(dataRef.current.openEvent?.type);
+  });
+  const clearPointerEvents = useStableCallback(() => {
+    clearSafePolygonPointerEventsMutation(instance);
+  });
+  useIsoLayoutEffect(() => {
+    if (!open) {
+      instance.pointerType = undefined;
+      instance.restTimeoutPending = false;
+      instance.interactedInside = false;
+      clearPointerEvents();
+    }
+  }, [open, instance, clearPointerEvents]);
+  React26.useEffect(() => {
+    return clearPointerEvents;
+  }, [clearPointerEvents]);
+  useIsoLayoutEffect(() => {
+    if (!enabled) {
+      return;
+    }
+    if (open && instance.handleCloseOptions?.blockPointerEvents && isHoverOpen() && isElement(domReferenceElement) && floatingElement) {
+      const ref = domReferenceElement;
+      const floatingEl = floatingElement;
+      const doc = ownerDocument(floatingElement);
+      const parentFloating = tree?.nodesRef.current.find((node) => node.id === parentId)?.context?.elements.floating;
+      if (parentFloating) {
+        parentFloating.style.pointerEvents = "";
+      }
+      const cachedScopeElement = instance.pointerEventsScopeElement !== floatingEl ? instance.pointerEventsScopeElement : null;
+      const parentScopeElement = parentFloating !== floatingEl ? parentFloating : null;
+      const scopeElement = instance.handleCloseOptions?.getScope?.() ?? cachedScopeElement ?? parentScopeElement ?? closest(ref, "[data-rootownerid]") ?? doc.body;
+      applySafePolygonPointerEventsMutation(instance, {
+        scopeElement,
+        referenceElement: ref,
+        floatingElement: floatingEl
+      });
+      return () => {
+        clearPointerEvents();
+      };
+    }
+    return;
+  }, [enabled, open, domReferenceElement, floatingElement, instance, isHoverOpen, tree, parentId, clearPointerEvents]);
+  React26.useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+    function hasParentChildren() {
+      return !!(tree && parentId && getNodeChildren(tree.nodesRef.current, parentId).length > 0);
+    }
+    function closeWithDelay(event) {
+      const closeDelay = getDelay(closeDelayProp, "close", instance.pointerType);
+      const close = () => {
+        store.setOpen(false, createChangeEventDetails(triggerHover, event));
+        tree?.events.emit("floating.closed", event);
+      };
+      if (closeDelay) {
+        instance.openChangeTimeout.start(closeDelay, close);
+      } else {
+        instance.openChangeTimeout.clear();
+        close();
+      }
+    }
+    function handleInteractInside(event) {
+      const target = getTarget(event);
+      if (!isInteractiveElement(target)) {
+        instance.interactedInside = false;
+        return;
+      }
+      instance.interactedInside = closest(target, "[aria-haspopup]") != null;
+    }
+    function onFloatingMouseEnter() {
+      instance.openChangeTimeout.clear();
+      childClosedTimeout.clear();
+      tree?.events.off("floating.closed", onNodeClosed);
+      clearPointerEvents();
+    }
+    function onFloatingMouseLeave(event) {
+      if (hasParentChildren() && tree) {
+        tree.events.on("floating.closed", onNodeClosed);
+        return;
+      }
+      if (isTargetInsideEnabledTrigger(event.relatedTarget, store.context.triggerElements)) {
+        return;
+      }
+      const currentNodeId = dataRef.current.floatingContext?.nodeId ?? nodeIdProp;
+      const relatedTarget = event.relatedTarget;
+      const isMovingIntoDescendantFloating = tree && currentNodeId && isElement(relatedTarget) && getNodeChildren(tree.nodesRef.current, currentNodeId, false).some((node) => contains(node.context?.elements.floating, relatedTarget));
+      if (isMovingIntoDescendantFloating) {
+        return;
+      }
+      if (instance.handler) {
+        instance.handler(event);
+        return;
+      }
+      clearPointerEvents();
+      if (isHoverOpen() && !isClickLikeOpenEvent2()) {
+        closeWithDelay(event);
+      }
+    }
+    function onNodeClosed(event) {
+      if (!tree || !parentId || hasParentChildren()) {
+        return;
+      }
+      childClosedTimeout.start(0, () => {
+        tree.events.off("floating.closed", onNodeClosed);
+        store.setOpen(false, createChangeEventDetails(triggerHover, event));
+        tree.events.emit("floating.closed", event);
+      });
+    }
+    const floating = floatingElement;
+    return mergeCleanups(floating && addEventListener2(floating, "mouseenter", onFloatingMouseEnter), floating && addEventListener2(floating, "mouseleave", onFloatingMouseLeave), floating && addEventListener2(floating, "pointerdown", handleInteractInside, true), () => {
+      tree?.events.off("floating.closed", onNodeClosed);
+    });
+  }, [enabled, floatingElement, store, dataRef, closeDelayProp, nodeIdProp, isHoverOpen, isClickLikeOpenEvent2, clearPointerEvents, instance, tree, parentId, childClosedTimeout]);
+}
+// engine/node_modules/@base-ui/react/floating-ui-react/hooks/useHoverReferenceInteraction.mjs
+var React27 = __toESM(require_react(), 1);
+var ReactDOM3 = __toESM(require_react_dom(), 1);
+"use client";
+var EMPTY_REF = {
+  current: null
+};
+function useHoverReferenceInteraction(store, props = {}) {
+  const {
+    enabled = true,
+    delay = 0,
+    handleClose = null,
+    mouseOnly = false,
+    restMs = 0,
+    move = true,
+    triggerElementRef = EMPTY_REF,
+    externalTree,
+    isActiveTrigger = true,
+    getHandleCloseContext,
+    isClosing,
+    shouldOpen: shouldOpenProp,
+    guardStaleOpen = false
+  } = props;
+  const {
+    dataRef,
+    events
+  } = store.context;
+  const tree = useFloatingTree(externalTree);
+  const instance = useHoverInteractionSharedState(store);
+  const isHoverCloseActiveRef = React27.useRef(false);
+  const handleCloseRef = useValueAsRef(handleClose);
+  const delayRef = useValueAsRef(delay);
+  const restMsRef = useValueAsRef(restMs);
+  const enabledRef = useValueAsRef(enabled);
+  const shouldOpenRef = useValueAsRef(shouldOpenProp);
+  const isClosingRef = useValueAsRef(isClosing);
+  const isClickLikeOpenEvent2 = useStableCallback(() => {
+    return isClickLikeOpenEvent(dataRef.current.openEvent?.type, instance.interactedInside);
+  });
+  const checkShouldOpen = useStableCallback(() => {
+    return shouldOpenRef.current?.() !== false;
+  });
+  const isOverInactiveTrigger = useStableCallback((currentDomReference, currentTarget, target) => {
+    const allTriggers = store.context.triggerElements;
+    if (allTriggers.hasElement(currentTarget)) {
+      return !currentDomReference || !contains(currentDomReference, currentTarget);
+    }
+    if (!isElement(target)) {
+      return false;
+    }
+    const targetElement = target;
+    return allTriggers.hasMatchingElement((trigger) => contains(trigger, targetElement)) && (!currentDomReference || !contains(currentDomReference, targetElement));
+  });
+  const cleanupMouseMoveHandler = useStableCallback(() => {
+    if (!instance.handler) {
+      return;
+    }
+    const doc = ownerDocument(store.select("domReferenceElement"));
+    doc.removeEventListener("mousemove", instance.handler);
+    instance.handler = undefined;
+  });
+  const clearPointerEvents = useStableCallback(() => {
+    clearSafePolygonPointerEventsMutation(instance);
+  });
+  if (isActiveTrigger) {
+    instance.handleCloseOptions = handleClose?.__options;
+  }
+  React27.useEffect(() => cleanupMouseMoveHandler, [cleanupMouseMoveHandler]);
+  React27.useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+    function onOpenChangeLocal(details) {
+      if (!details.open) {
+        isHoverCloseActiveRef.current = details.reason === triggerHover;
+        cleanupMouseMoveHandler();
+        instance.openChangeTimeout.clear();
+        instance.restTimeout.clear();
+        instance.blockMouseMove = true;
+        instance.restTimeoutPending = false;
+      } else {
+        isHoverCloseActiveRef.current = false;
+      }
+    }
+    events.on("openchange", onOpenChangeLocal);
+    return () => {
+      events.off("openchange", onOpenChangeLocal);
+    };
+  }, [enabled, events, instance, cleanupMouseMoveHandler]);
+  React27.useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+    function closeWithDelay(event, runElseBranch = true) {
+      const closeDelay = getDelay(delayRef.current, "close", instance.pointerType);
+      if (closeDelay) {
+        instance.openChangeTimeout.start(closeDelay, () => {
+          store.setOpen(false, createChangeEventDetails(triggerHover, event));
+          tree?.events.emit("floating.closed", event);
+        });
+      } else if (runElseBranch) {
+        instance.openChangeTimeout.clear();
+        store.setOpen(false, createChangeEventDetails(triggerHover, event));
+        tree?.events.emit("floating.closed", event);
+      }
+    }
+    const trigger = triggerElementRef.current ?? (isActiveTrigger ? store.select("domReferenceElement") : null);
+    if (!isElement(trigger)) {
+      return;
+    }
+    function onMouseEnter(event) {
+      instance.openChangeTimeout.clear();
+      instance.blockMouseMove = false;
+      if (mouseOnly && !isMouseLikePointerType(instance.pointerType)) {
+        return;
+      }
+      const restMsValue = getRestMs(restMsRef.current);
+      const openDelay = getDelay(delayRef.current, "open", instance.pointerType);
+      const eventTarget = getTarget(event);
+      const currentTarget = event.currentTarget ?? null;
+      const currentDomReference = store.select("domReferenceElement");
+      let triggerNode = currentTarget;
+      if (isElement(eventTarget) && !store.context.triggerElements.hasElement(eventTarget)) {
+        for (const triggerElement of store.context.triggerElements.elements()) {
+          if (contains(triggerElement, eventTarget)) {
+            triggerNode = triggerElement;
+            break;
+          }
+        }
+      }
+      if (isElement(currentTarget) && isElement(currentDomReference) && !store.context.triggerElements.hasElement(currentTarget) && contains(currentTarget, currentDomReference)) {
+        triggerNode = currentDomReference;
+      }
+      const isOverInactive = triggerNode == null ? false : isOverInactiveTrigger(currentDomReference, triggerNode, eventTarget);
+      const isOpen = store.select("open");
+      const isInClosingTransition = isClosingRef.current?.() ?? store.select("transitionStatus") === "ending";
+      const isHoverCloseTransition = !isOpen && isInClosingTransition && isHoverCloseActiveRef.current;
+      const isReenteringSameTriggerDuringCloseTransition = !isOverInactive && isElement(triggerNode) && isElement(currentDomReference) && contains(currentDomReference, triggerNode) && isHoverCloseTransition;
+      const isRestOnlyDelay = restMsValue > 0 && !openDelay;
+      const shouldOpenImmediately = isOverInactive && (isOpen || isHoverCloseTransition) || isReenteringSameTriggerDuringCloseTransition;
+      const shouldOpen = !isOpen || isOverInactive;
+      if (shouldOpenImmediately) {
+        if (checkShouldOpen()) {
+          store.setOpen(true, createChangeEventDetails(triggerHover, event, triggerNode));
+        }
+        return;
+      }
+      if (isRestOnlyDelay) {
+        return;
+      }
+      if (openDelay) {
+        instance.openChangeTimeout.start(openDelay, () => {
+          if (shouldOpen && checkShouldOpen()) {
+            store.setOpen(true, createChangeEventDetails(triggerHover, event, triggerNode));
+          }
+        });
+      } else if (shouldOpen) {
+        if (checkShouldOpen()) {
+          store.setOpen(true, createChangeEventDetails(triggerHover, event, triggerNode));
+        }
+      }
+    }
+    function onMouseLeave(event) {
+      if (isClickLikeOpenEvent2()) {
+        clearPointerEvents();
+        return;
+      }
+      cleanupMouseMoveHandler();
+      const domReferenceElement = store.select("domReferenceElement");
+      const doc = ownerDocument(domReferenceElement);
+      instance.restTimeout.clear();
+      instance.restTimeoutPending = false;
+      const handleCloseContextBase = dataRef.current.floatingContext ?? getHandleCloseContext?.();
+      if (isTargetInsideEnabledTrigger(event.relatedTarget, store.context.triggerElements)) {
+        return;
+      }
+      if (handleCloseRef.current && handleCloseContextBase) {
+        if (!store.select("open")) {
+          instance.openChangeTimeout.clear();
+        }
+        const currentTrigger = triggerElementRef.current;
+        instance.handler = handleCloseRef.current({
+          ...handleCloseContextBase,
+          tree,
+          x: event.clientX,
+          y: event.clientY,
+          onClose() {
+            clearPointerEvents();
+            cleanupMouseMoveHandler();
+            if (enabledRef.current && !isClickLikeOpenEvent2() && currentTrigger === store.select("domReferenceElement")) {
+              closeWithDelay(event, true);
+            }
+          }
+        });
+        doc.addEventListener("mousemove", instance.handler);
+        instance.handler(event);
+        return;
+      }
+      const shouldClose = instance.pointerType === "touch" ? !contains(store.select("floatingElement"), event.relatedTarget) : true;
+      if (shouldClose) {
+        closeWithDelay(event);
+      }
+    }
+    function onMouseOut(event) {
+      if (contains(trigger, event.relatedTarget)) {
+        return;
+      }
+      instance.openChangeTimeout.clear();
+      instance.restTimeout.clear();
+      instance.restTimeoutPending = false;
+    }
+    const staleOpenGuard = guardStaleOpen ? addEventListener2(trigger, "mouseout", onMouseOut) : undefined;
+    if (move) {
+      return mergeCleanups(addEventListener2(trigger, "mousemove", onMouseEnter, {
+        once: true
+      }), addEventListener2(trigger, "mouseenter", onMouseEnter), addEventListener2(trigger, "mouseleave", onMouseLeave), staleOpenGuard);
+    }
+    return mergeCleanups(addEventListener2(trigger, "mouseenter", onMouseEnter), addEventListener2(trigger, "mouseleave", onMouseLeave), staleOpenGuard);
+  }, [cleanupMouseMoveHandler, clearPointerEvents, dataRef, delayRef, store, enabled, handleCloseRef, instance, isActiveTrigger, isOverInactiveTrigger, isClickLikeOpenEvent2, mouseOnly, move, restMsRef, triggerElementRef, tree, enabledRef, getHandleCloseContext, isClosingRef, checkShouldOpen, guardStaleOpen]);
+  return React27.useMemo(() => {
+    if (!enabled) {
+      return;
+    }
+    function setPointerRef(event) {
+      instance.pointerType = event.pointerType;
+    }
+    return {
+      onPointerDown: setPointerRef,
+      onPointerEnter: setPointerRef,
+      onMouseMove(event) {
+        const {
+          nativeEvent
+        } = event;
+        const trigger = event.currentTarget;
+        const currentDomReference = store.select("domReferenceElement");
+        const currentOpen = store.select("open");
+        const isOverInactive = isOverInactiveTrigger(currentDomReference, trigger, event.target);
+        if (mouseOnly && !isMouseLikePointerType(instance.pointerType)) {
+          return;
+        }
+        if (currentOpen && isOverInactive && instance.handleCloseOptions?.blockPointerEvents) {
+          const floatingElement = store.select("floatingElement");
+          if (floatingElement) {
+            const scopeElement = instance.handleCloseOptions?.getScope?.() ?? trigger.ownerDocument.body;
+            applySafePolygonPointerEventsMutation(instance, {
+              scopeElement,
+              referenceElement: trigger,
+              floatingElement
+            });
+          }
+        }
+        const restMsValue = getRestMs(restMsRef.current);
+        if (currentOpen && !isOverInactive || restMsValue === 0) {
+          return;
+        }
+        if (!isOverInactive && instance.restTimeoutPending && event.movementX ** 2 + event.movementY ** 2 < 2) {
+          return;
+        }
+        instance.restTimeout.clear();
+        function handleMouseMove() {
+          instance.restTimeoutPending = false;
+          if (isClickLikeOpenEvent2()) {
+            return;
+          }
+          const latestOpen = store.select("open");
+          if (!instance.blockMouseMove && (!latestOpen || isOverInactive) && checkShouldOpen()) {
+            store.setOpen(true, createChangeEventDetails(triggerHover, nativeEvent, trigger));
+          }
+        }
+        if (instance.pointerType === "touch") {
+          ReactDOM3.flushSync(() => {
+            handleMouseMove();
+          });
+        } else if (isOverInactive && currentOpen) {
+          handleMouseMove();
+        } else {
+          instance.restTimeoutPending = true;
+          instance.restTimeout.start(restMsValue, handleMouseMove);
+        }
+      }
+    };
+  }, [enabled, instance, isClickLikeOpenEvent2, isOverInactiveTrigger, mouseOnly, store, restMsRef, checkShouldOpen]);
+}
+// engine/node_modules/@base-ui/react/floating-ui-react/hooks/useListNavigation.mjs
+var React28 = __toESM(require_react(), 1);
+"use client";
+function isStationaryWebKitPointer(event) {
+  return exports_engine.webkit && event.movementX === 0 && event.movementY === 0;
+}
+function doSwitch(orientation, vertical, horizontal) {
+  switch (orientation) {
+    case "vertical":
+      return vertical;
+    case "horizontal":
+      return horizontal;
+    default:
+      return vertical || horizontal;
+  }
+}
+function isMainOrientationKey(key, orientation) {
+  const vertical = key === ARROW_UP || key === ARROW_DOWN;
+  const horizontal = key === ARROW_LEFT || key === ARROW_RIGHT;
+  return doSwitch(orientation, vertical, horizontal);
+}
+function isMainOrientationToEndKey(key, orientation, rtl) {
+  const vertical = key === ARROW_DOWN;
+  const horizontal = rtl ? key === ARROW_LEFT : key === ARROW_RIGHT;
+  return doSwitch(orientation, vertical, horizontal) || key === "Enter" || key === " " || key === "";
+}
+function isCrossOrientationOpenKey(key, orientation, rtl) {
+  const vertical = rtl ? key === ARROW_LEFT : key === ARROW_RIGHT;
+  const horizontal = key === ARROW_DOWN;
+  return doSwitch(orientation, vertical, horizontal);
+}
+function isCrossOrientationCloseKey(key, orientation, rtl, grid) {
+  const vertical = rtl ? key === ARROW_RIGHT : key === ARROW_LEFT;
+  const horizontal = key === ARROW_UP;
+  if (orientation === "both" || orientation === "horizontal" && grid) {
+    return key === "Escape";
+  }
+  return doSwitch(orientation, vertical, horizontal);
+}
+function useListNavigation(store, props) {
+  const {
+    listRef,
+    activeIndex,
+    onNavigate: onNavigateProp = () => {},
+    enabled = true,
+    selectedIndex = null,
+    allowEscape = false,
+    loopFocus = false,
+    nested = false,
+    rtl = false,
+    virtual = false,
+    focusItemOnOpen = "auto",
+    focusItemOnHover = true,
+    openOnArrowKeyDown = true,
+    disabledIndices = undefined,
+    orientation = "vertical",
+    triggerOrientation = orientation,
+    parentOrientation,
+    id,
+    resetOnPointerLeave = true,
+    externalTree,
+    nestedReturnFocusRef,
+    grid: navigateGrid
+  } = props;
+  const isGrid = navigateGrid != null;
+  if (false) {}
+  const open = store.useState("open");
+  const floatingElement = store.useState("floatingElement");
+  const domReferenceElement = store.useState("domReferenceElement");
+  const dataRef = store.context.dataRef;
+  const floatingFocusElement = getFloatingFocusElement(floatingElement);
+  const typeableComboboxReference = isTypeableCombobox(domReferenceElement);
+  const floatingFocusElementRef = useValueAsRef(floatingFocusElement);
+  const parentId = useFloatingParentNodeId();
+  const tree = useFloatingTree(externalTree);
+  const focusItemOnOpenRef = React28.useRef(focusItemOnOpen);
+  const indexRef = React28.useRef(selectedIndex ?? -1);
+  const keyRef = React28.useRef(null);
+  const isPointerModalityRef = React28.useRef(true);
+  const onNavigate = useStableCallback((event) => {
+    onNavigateProp(indexRef.current === -1 ? null : indexRef.current, event);
+  });
+  const previousMountedRef = React28.useRef(!!floatingElement);
+  const previousOpenRef = React28.useRef(open);
+  const forceSyncFocusRef = React28.useRef(false);
+  const forceScrollIntoViewRef = React28.useRef(false);
+  const cancelQueuedFocusRef = React28.useRef(null);
+  const disabledIndicesRef = useValueAsRef(disabledIndices);
+  const latestOpenRef = useValueAsRef(open);
+  const selectedIndexRef = useValueAsRef(selectedIndex);
+  const resetOnPointerLeaveRef = useValueAsRef(resetOnPointerLeave);
+  const focusFrame = useAnimationFrame();
+  const waitForListPopulatedFrame = useAnimationFrame();
+  const focusItem = useStableCallback(() => {
+    focusFrame.cancel();
+    function runFocus(item) {
+      if (!virtual) {
+        cancelQueuedFocusRef.current = enqueueFocus(item, {
+          sync: forceSyncFocusRef.current,
+          preventScroll: true
+        });
+      }
+    }
+    const initialItem = listRef.current[indexRef.current];
+    const forceScrollIntoView = forceScrollIntoViewRef.current;
+    if (initialItem) {
+      runFocus(initialItem);
+    }
+    const scheduler = forceSyncFocusRef.current ? (callback) => callback() : (callback) => focusFrame.request(callback);
+    scheduler(() => {
+      const waitedItem = listRef.current[indexRef.current] || initialItem;
+      if (!waitedItem) {
+        return;
+      }
+      if (!initialItem) {
+        runFocus(waitedItem);
+      }
+      const shouldScrollIntoView = item && (forceScrollIntoView || !isPointerModalityRef.current);
+      if (shouldScrollIntoView) {
+        waitedItem.scrollIntoView?.({
+          block: "nearest",
+          inline: "nearest"
+        });
+      }
+    });
+  });
+  useIsoLayoutEffect(() => {
+    dataRef.current.orientation = orientation;
+  }, [dataRef, orientation]);
+  useIsoLayoutEffect(() => {
+    if (!open) {
+      keyRef.current = null;
+    }
+    if (!open || focusItemOnOpen !== "auto") {
+      focusItemOnOpenRef.current = focusItemOnOpen;
+    }
+  }, [open, focusItemOnOpen]);
+  useIsoLayoutEffect(() => {
+    if (!enabled) {
+      return;
+    }
+    if (open && floatingElement) {
+      indexRef.current = selectedIndex ?? -1;
+      if (focusItemOnOpenRef.current && selectedIndex != null) {
+        forceScrollIntoViewRef.current = true;
+        onNavigate();
+      }
+    } else if (previousMountedRef.current) {
+      indexRef.current = -1;
+      onNavigate();
+    }
+  }, [enabled, open, floatingElement, selectedIndex, onNavigate]);
+  useIsoLayoutEffect(() => {
+    if (!enabled) {
+      return;
+    }
+    if (!open) {
+      forceSyncFocusRef.current = false;
+      return;
+    }
+    if (!floatingElement) {
+      return;
+    }
+    if (activeIndex == null) {
+      forceSyncFocusRef.current = false;
+      if (selectedIndexRef.current != null) {
+        return;
+      }
+      if (previousMountedRef.current) {
+        indexRef.current = -1;
+        focusItem();
+      }
+      if ((!previousOpenRef.current || !previousMountedRef.current) && focusItemOnOpenRef.current && (keyRef.current != null || focusItemOnOpenRef.current === true && keyRef.current == null)) {
+        let runs = 0;
+        const waitForListPopulated = () => {
+          if (listRef.current[0] == null) {
+            if (runs < 2) {
+              const scheduler = runs ? (callback) => waitForListPopulatedFrame.request(callback) : queueMicrotask;
+              scheduler(waitForListPopulated);
+            }
+            runs += 1;
+          } else {
+            indexRef.current = keyRef.current == null || isMainOrientationToEndKey(keyRef.current, triggerOrientation, rtl) || nested ? getMinListIndex(listRef) : getMaxListIndex(listRef);
+            keyRef.current = null;
+            onNavigate();
+          }
+        };
+        waitForListPopulated();
+      }
+    } else if (!isIndexOutOfListBounds(listRef.current, activeIndex)) {
+      indexRef.current = activeIndex;
+      focusItem();
+      forceScrollIntoViewRef.current = false;
+    }
+  }, [enabled, open, floatingElement, activeIndex, selectedIndexRef, nested, listRef, triggerOrientation, rtl, onNavigate, focusItem, waitForListPopulatedFrame]);
+  useIsoLayoutEffect(() => {
+    if (!enabled || floatingElement || !tree || virtual || !previousMountedRef.current) {
+      return;
+    }
+    const nodes = tree.nodesRef.current;
+    const parent = nodes.find((node) => node.id === parentId)?.context?.elements.floating;
+    const activeEl = activeElement2(ownerDocument(domReferenceElement ?? parent ?? null));
+    const treeContainsActiveEl = nodes.some((node) => node.context && contains(node.context.elements.floating, activeEl));
+    if (parent && !treeContainsActiveEl && isPointerModalityRef.current) {
+      parent.focus({
+        preventScroll: true
+      });
+    }
+  }, [enabled, floatingElement, domReferenceElement, tree, parentId, virtual]);
+  useIsoLayoutEffect(() => {
+    previousOpenRef.current = open;
+    previousMountedRef.current = !!floatingElement;
+  });
+  const hasActiveIndex = activeIndex != null;
+  const syncCurrentTarget = useStableCallback((event) => {
+    if (!latestOpenRef.current) {
+      return;
+    }
+    const index = listRef.current.indexOf(event.currentTarget);
+    if (index !== -1 && (indexRef.current !== index || activeIndex !== index)) {
+      indexRef.current = index;
+      onNavigate(event);
+    }
+  });
+  const getParentOrientation = useStableCallback(() => {
+    return parentOrientation ?? tree?.nodesRef.current.find((node) => node.id === parentId)?.context?.dataRef?.current.orientation;
+  });
+  const getMinEnabledIndex = useStableCallback(() => {
+    return getMinListIndex(listRef, disabledIndicesRef.current);
+  });
+  const commonOnKeyDown = useStableCallback((event) => {
+    isPointerModalityRef.current = false;
+    forceSyncFocusRef.current = true;
+    if (event.which === 229) {
+      return;
+    }
+    if (!latestOpenRef.current && event.currentTarget === floatingFocusElementRef.current) {
+      return;
+    }
+    if (nested && isCrossOrientationCloseKey(event.key, orientation, rtl, isGrid)) {
+      if (!isMainOrientationKey(event.key, getParentOrientation())) {
+        stopEvent(event);
+      }
+      store.setOpen(false, createChangeEventDetails(listNavigation, event.nativeEvent));
+      const returnElement = nestedReturnFocusRef?.current ?? domReferenceElement;
+      if (isHTMLElement(returnElement)) {
+        returnElement.focus();
+      }
+      return;
+    }
+    if (activeIndex != null && activeIndex !== indexRef.current && !isIndexOutOfListBounds(listRef.current, activeIndex)) {
+      indexRef.current = activeIndex;
+    }
+    const currentIndex = indexRef.current;
+    const minIndex = getMinListIndex(listRef, disabledIndices);
+    const maxIndex = getMaxListIndex(listRef, disabledIndices);
+    if (!typeableComboboxReference) {
+      if (event.key === "Home") {
+        stopEvent(event);
+        indexRef.current = minIndex;
+        onNavigate(event);
+      }
+      if (event.key === "End") {
+        stopEvent(event);
+        indexRef.current = maxIndex;
+        onNavigate(event);
+      }
+    }
+    if (navigateGrid != null) {
+      const index = navigateGrid(event, indexRef.current, listRef, orientation, loopFocus, rtl, disabledIndices, minIndex, maxIndex);
+      if (index != null && index !== indexRef.current) {
+        indexRef.current = index;
+        onNavigate(event);
+      }
+      if (orientation === "both") {
+        return;
+      }
+    }
+    if (isMainOrientationKey(event.key, orientation)) {
+      stopEvent(event);
+      const focusedElement = activeElement2(event.currentTarget.ownerDocument);
+      if (open && !virtual && contains(event.currentTarget, focusedElement) && !listRef.current.some((item) => item != null && contains(item, focusedElement))) {
+        indexRef.current = isMainOrientationToEndKey(event.key, orientation, rtl) ? minIndex : maxIndex;
+        onNavigate(event);
+        if (activeIndex === indexRef.current) {
+          focusItem();
+        }
+        return;
+      }
+      const {
+        index,
+        wrapped
+      } = getNextListIndex(listRef.current, currentIndex, {
+        decrement: !isMainOrientationToEndKey(event.key, orientation, rtl),
+        loopFocus,
+        allowEscape,
+        disabledIndices,
+        minIndex,
+        maxIndex
+      });
+      if (wrapped) {
+        forceSyncFocusRef.current = false;
+      }
+      indexRef.current = index;
+      onNavigate(event);
+    }
+  });
+  const item = React28.useMemo(() => {
+    const itemProps = {
+      onFocus(event) {
+        forceSyncFocusRef.current = true;
+        syncCurrentTarget(event);
+      },
+      onClick({
+        currentTarget
+      }) {
+        if (!virtual) {
+          currentTarget.focus({
+            preventScroll: true
+          });
+        }
+      },
+      onMouseMove(event) {
+        if (isStationaryWebKitPointer(event)) {
+          return;
+        }
+        forceSyncFocusRef.current = true;
+        forceScrollIntoViewRef.current = false;
+        if (focusItemOnHover) {
+          syncCurrentTarget(event);
+        }
+      },
+      onPointerLeave(event) {
+        if (!latestOpenRef.current || !isPointerModalityRef.current || event.pointerType === "touch") {
+          return;
+        }
+        forceSyncFocusRef.current = true;
+        const relatedTarget = event.relatedTarget;
+        if (!focusItemOnHover || listRef.current.includes(relatedTarget)) {
+          return;
+        }
+        if (!resetOnPointerLeaveRef.current) {
+          return;
+        }
+        cancelQueuedFocusRef.current?.();
+        cancelQueuedFocusRef.current = null;
+        indexRef.current = -1;
+        onNavigate(event);
+        if (!virtual) {
+          const floatingFocusEl = floatingFocusElementRef.current;
+          const activeEl = activeElement2(ownerDocument(floatingFocusEl));
+          if (floatingFocusEl && contains(floatingFocusEl, activeEl)) {
+            floatingFocusEl.focus({
+              preventScroll: true
+            });
+          }
+        }
+      }
+    };
+    return itemProps;
+  }, [syncCurrentTarget, latestOpenRef, floatingFocusElementRef, focusItemOnHover, listRef, onNavigate, resetOnPointerLeaveRef, virtual]);
+  const ariaActiveDescendantProp = React28.useMemo(() => {
+    return virtual && open && hasActiveIndex && {
+      "aria-activedescendant": `${id}-${activeIndex}`
+    };
+  }, [virtual, open, hasActiveIndex, id, activeIndex]);
+  const floating = React28.useMemo(() => {
+    return {
+      ...!typeableComboboxReference ? ariaActiveDescendantProp : {},
+      onKeyDown(event) {
+        if (event.key === "Tab" && event.shiftKey && open && !virtual) {
+          const target = getTarget(event.nativeEvent);
+          if (target && !contains(floatingFocusElementRef.current, target)) {
+            return;
+          }
+          stopEvent(event);
+          const details = createChangeEventDetails(focusOut, event.nativeEvent);
+          store.setOpen(false, details);
+          const returnElement = nestedReturnFocusRef?.current ?? domReferenceElement;
+          if (!details.isCanceled && isHTMLElement(returnElement)) {
+            returnElement.focus();
+          }
+          return;
+        }
+        commonOnKeyDown(event);
+      },
+      onPointerMove(event) {
+        if (isStationaryWebKitPointer(event)) {
+          return;
+        }
+        isPointerModalityRef.current = true;
+      }
+    };
+  }, [ariaActiveDescendantProp, commonOnKeyDown, floatingFocusElementRef, typeableComboboxReference, store, open, virtual, domReferenceElement, nestedReturnFocusRef]);
+  const trigger = React28.useMemo(() => {
+    function openOnNavigationKeyDown(event) {
+      store.setOpen(true, createChangeEventDetails(listNavigation, event.nativeEvent, event.currentTarget));
+    }
+    function checkVirtualMouse(event) {
+      if (focusItemOnOpen === "auto" && isVirtualClick(event.nativeEvent)) {
+        focusItemOnOpenRef.current = !virtual;
+      }
+    }
+    function checkVirtualPointer(event) {
+      focusItemOnOpenRef.current = focusItemOnOpen;
+      if (focusItemOnOpen === "auto" && isVirtualPointerEvent(event.nativeEvent)) {
+        focusItemOnOpenRef.current = true;
+      }
+    }
+    return {
+      onKeyDown(event) {
+        const currentOpen = store.select("open");
+        isPointerModalityRef.current = false;
+        const isArrowKey = event.key.startsWith("Arrow");
+        const isParentCrossOpenKey = isCrossOrientationOpenKey(event.key, getParentOrientation(), rtl);
+        const isMainKey = isMainOrientationKey(event.key, currentOpen ? orientation : triggerOrientation);
+        const isNavigationKey = (nested ? isParentCrossOpenKey : isMainKey) || event.key === "Enter" || event.key.trim() === "";
+        if (virtual && currentOpen && (!nested || isTypeableElement(event.currentTarget))) {
+          return commonOnKeyDown(event);
+        }
+        if (!currentOpen && !openOnArrowKeyDown && isArrowKey) {
+          return;
+        }
+        if (isNavigationKey) {
+          const isParentMainKey = isMainOrientationKey(event.key, getParentOrientation());
+          keyRef.current = nested && isParentMainKey ? null : event.key;
+        }
+        if (nested) {
+          if (isParentCrossOpenKey) {
+            stopEvent(event);
+            if (currentOpen) {
+              indexRef.current = getMinEnabledIndex();
+              onNavigate(event);
+              if (virtual) {
+                floatingFocusElementRef.current?.focus();
+              }
+            } else {
+              openOnNavigationKeyDown(event);
+            }
+          }
+          return;
+        }
+        if (isMainKey) {
+          if (selectedIndexRef.current != null) {
+            indexRef.current = selectedIndexRef.current;
+          }
+          stopEvent(event);
+          if (!currentOpen && openOnArrowKeyDown) {
+            openOnNavigationKeyDown(event);
+          } else {
+            commonOnKeyDown(event);
+          }
+          if (currentOpen) {
+            onNavigate(event);
+          }
+        }
+        return;
+      },
+      onFocus(event) {
+        if (event.target !== event.currentTarget) {
+          return;
+        }
+        if (store.select("open") && !virtual) {
+          indexRef.current = -1;
+          onNavigate(event);
+        }
+      },
+      onPointerDown: checkVirtualPointer,
+      onPointerEnter: checkVirtualPointer,
+      onMouseDown: checkVirtualMouse,
+      onClick: checkVirtualMouse
+    };
+  }, [commonOnKeyDown, focusItemOnOpen, getMinEnabledIndex, nested, onNavigate, store, openOnArrowKeyDown, orientation, triggerOrientation, getParentOrientation, rtl, selectedIndexRef, virtual, floatingFocusElementRef]);
+  const reference = React28.useMemo(() => {
+    return {
+      ...ariaActiveDescendantProp,
+      ...trigger
+    };
+  }, [ariaActiveDescendantProp, trigger]);
+  return React28.useMemo(() => enabled ? {
+    reference,
+    floating,
+    item,
+    trigger
+  } : {}, [enabled, reference, floating, trigger, item]);
+}
+// engine/node_modules/@base-ui/react/floating-ui-react/hooks/useTypeahead.mjs
+var React29 = __toESM(require_react(), 1);
+"use client";
+function useTypeahead(store, props) {
+  const {
+    listRef,
+    elementsRef,
+    activeIndex,
+    onMatch: onMatchProp,
+    disabledIndices,
+    onTyping: onTypingProp,
+    enabled = true,
+    resetMs = 750,
+    selectedIndex = null
+  } = props;
+  const onTyping = useStableCallback(onTypingProp);
+  const open = store.useState("open");
+  const timeout = useTimeout();
+  const stringRef = React29.useRef("");
+  const prevIndexRef = React29.useRef(selectedIndex ?? activeIndex ?? -1);
+  const matchIndexRef = React29.useRef(null);
+  const onKeyDown = useStableCallback((event) => {
+    function getElement(index) {
+      return elementsRef?.current[index];
+    }
+    function isItemAvailable(index) {
+      const element = getElement(index);
+      if (element && !isElementVisible(element) || element?.matches(":disabled")) {
+        return false;
+      }
+      return disabledIndices == null || !isListIndexDisabled(EMPTY_ARRAY, index, disabledIndices);
+    }
+    function getMatchingIndex(list, string, startIndex = 0) {
+      if (list.length === 0) {
+        return -1;
+      }
+      const normalizedStartIndex = (startIndex % list.length + list.length) % list.length;
+      const lowerString = string.toLowerCase();
+      for (let offset = 0;offset < list.length; offset += 1) {
+        const index = (normalizedStartIndex + offset) % list.length;
+        const text = list[index];
+        if (!text?.toLowerCase().startsWith(lowerString) || !isItemAvailable(index)) {
+          continue;
+        }
+        return index;
+      }
+      return -1;
+    }
+    const listContent = listRef.current;
+    if (stringRef.current.length > 0 && event.key === " ") {
+      stopEvent(event);
+      onTyping?.(true);
+    }
+    if (stringRef.current.length > 0 && stringRef.current[0] !== " ") {
+      if (getMatchingIndex(listContent, stringRef.current) === -1 && event.key !== " ") {
+        onTyping?.(false);
+      }
+    }
+    if (listContent == null || event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey) {
+      return;
+    }
+    if (open && event.key !== " ") {
+      stopEvent(event);
+      onTyping?.(true);
+    }
+    const isNewSession = stringRef.current === "";
+    if (isNewSession) {
+      prevIndexRef.current = selectedIndex ?? activeIndex ?? -1;
+    }
+    const allowRapidSuccessionOfFirstLetter = listContent.every((text, index) => text && isItemAvailable(index) ? text[0]?.toLowerCase() !== text[1]?.toLowerCase() : true);
+    if (allowRapidSuccessionOfFirstLetter && stringRef.current === event.key) {
+      stringRef.current = "";
+      prevIndexRef.current = matchIndexRef.current;
+    }
+    stringRef.current += event.key;
+    timeout.start(resetMs, () => {
+      stringRef.current = "";
+      prevIndexRef.current = matchIndexRef.current;
+      onTyping?.(false);
+    });
+    const prevIndex = isNewSession ? selectedIndex ?? activeIndex ?? -1 : prevIndexRef.current;
+    const startIndex = (prevIndex ?? 0) + 1;
+    const index = getMatchingIndex(listContent, stringRef.current, startIndex);
+    if (index !== -1) {
+      onMatchProp?.(index, event);
+      matchIndexRef.current = index;
+    } else if (event.key !== " ") {
+      stringRef.current = "";
+      onTyping?.(false);
+    }
+  });
+  const onBlur = useStableCallback((event) => {
+    const next = event.relatedTarget;
+    const currentDomReferenceElement = store.select("domReferenceElement");
+    const currentFloatingElement = store.select("floatingElement");
+    const withinComposite = contains(currentDomReferenceElement, next) || contains(currentFloatingElement, next);
+    if (withinComposite) {
+      return;
+    }
+    timeout.clear();
+    stringRef.current = "";
+    prevIndexRef.current = matchIndexRef.current;
+    onTyping?.(false);
+  });
+  useIsoLayoutEffect(() => {
+    if (!open && selectedIndex !== null) {
+      return;
+    }
+    timeout.clear();
+    matchIndexRef.current = null;
+    if (stringRef.current !== "") {
+      stringRef.current = "";
+      onTyping?.(false);
+    }
+  }, [open, selectedIndex, timeout, onTyping]);
+  const sharedProps = React29.useMemo(() => ({
+    onKeyDown,
+    onBlur
+  }), [onKeyDown, onBlur]);
+  return React29.useMemo(() => enabled ? {
+    reference: sharedProps,
+    floating: sharedProps
+  } : {}, [enabled, sharedProps]);
+}
+// engine/node_modules/@base-ui/react/floating-ui-react/safePolygon.mjs
+var CURSOR_SPEED_THRESHOLD = 0.1;
+var CURSOR_SPEED_THRESHOLD_SQUARED = CURSOR_SPEED_THRESHOLD * CURSOR_SPEED_THRESHOLD;
+var POLYGON_BUFFER = 0.5;
+function hasIntersectingEdge(pointX, pointY, xi, yi, xj, yj) {
+  return yi >= pointY !== yj >= pointY && pointX <= (xj - xi) * (pointY - yi) / (yj - yi) + xi;
+}
+function isPointInQuadrilateral(pointX, pointY, x1, y1, x2, y2, x3, y3, x4, y4) {
+  let isInsideValue = false;
+  if (hasIntersectingEdge(pointX, pointY, x1, y1, x2, y2)) {
+    isInsideValue = !isInsideValue;
+  }
+  if (hasIntersectingEdge(pointX, pointY, x2, y2, x3, y3)) {
+    isInsideValue = !isInsideValue;
+  }
+  if (hasIntersectingEdge(pointX, pointY, x3, y3, x4, y4)) {
+    isInsideValue = !isInsideValue;
+  }
+  if (hasIntersectingEdge(pointX, pointY, x4, y4, x1, y1)) {
+    isInsideValue = !isInsideValue;
+  }
+  return isInsideValue;
+}
+function isInsideRect(pointX, pointY, rect) {
+  return pointX >= rect.x && pointX <= rect.x + rect.width && pointY >= rect.y && pointY <= rect.y + rect.height;
+}
+function isInsideAxisAlignedRect(pointX, pointY, x1, y1, x2, y2) {
+  const minX = Math.min(x1, x2);
+  const maxX = Math.max(x1, x2);
+  const minY = Math.min(y1, y2);
+  const maxY = Math.max(y1, y2);
+  return pointX >= minX && pointX <= maxX && pointY >= minY && pointY <= maxY;
+}
+function safePolygon(options = {}) {
+  const {
+    blockPointerEvents = false
+  } = options;
+  const timeout = new Timeout;
+  const fn = ({
+    x,
+    y,
+    placement,
+    elements,
+    onClose,
+    nodeId,
+    tree
+  }) => {
+    const side = placement?.split("-")[0];
+    let hasLanded = false;
+    let lastX = null;
+    let lastY = null;
+    let lastCursorTime = typeof performance !== "undefined" ? performance.now() : 0;
+    function isCursorMovingSlowly(nextX, nextY) {
+      const currentTime = performance.now();
+      const elapsedTime = currentTime - lastCursorTime;
+      if (lastX === null || lastY === null || elapsedTime === 0) {
+        lastX = nextX;
+        lastY = nextY;
+        lastCursorTime = currentTime;
+        return false;
+      }
+      const deltaX = nextX - lastX;
+      const deltaY = nextY - lastY;
+      const distanceSquared = deltaX * deltaX + deltaY * deltaY;
+      const thresholdSquared = elapsedTime * elapsedTime * CURSOR_SPEED_THRESHOLD_SQUARED;
+      lastX = nextX;
+      lastY = nextY;
+      lastCursorTime = currentTime;
+      return distanceSquared < thresholdSquared;
+    }
+    function close() {
+      timeout.clear();
+      onClose();
+    }
+    return function onMouseMove(event) {
+      timeout.clear();
+      const domReference = elements.domReference;
+      const floating = elements.floating;
+      if (!domReference || !floating || side == null || x == null || y == null) {
+        return;
+      }
+      const {
+        clientX,
+        clientY
+      } = event;
+      const target = getTarget(event);
+      const isLeave = event.type === "mouseleave";
+      const isOverFloatingEl = contains(floating, target);
+      const isOverReferenceEl = contains(domReference, target);
+      if (isOverFloatingEl) {
+        hasLanded = true;
+        if (!isLeave) {
+          return;
+        }
+      }
+      if (isOverReferenceEl) {
+        hasLanded = false;
+        if (!isLeave) {
+          hasLanded = true;
+          return;
+        }
+      }
+      if (isLeave && isElement(event.relatedTarget) && contains(floating, event.relatedTarget)) {
+        return;
+      }
+      function hasOpenChildNode() {
+        return Boolean(tree && getNodeChildren(tree.nodesRef.current, nodeId).length > 0);
+      }
+      function closeIfNoOpenChild() {
+        if (!hasOpenChildNode()) {
+          close();
+        }
+      }
+      if (hasOpenChildNode()) {
+        return;
+      }
+      const refRect = domReference.getBoundingClientRect();
+      const rect = floating.getBoundingClientRect();
+      const cursorLeaveFromRight = x > rect.right - rect.width / 2;
+      const cursorLeaveFromBottom = y > rect.bottom - rect.height / 2;
+      const isFloatingWider = rect.width > refRect.width;
+      const isFloatingTaller = rect.height > refRect.height;
+      const left = (isFloatingWider ? refRect : rect).left;
+      const right = (isFloatingWider ? refRect : rect).right;
+      const top = (isFloatingTaller ? refRect : rect).top;
+      const bottom = (isFloatingTaller ? refRect : rect).bottom;
+      if (side === "top" && y >= refRect.bottom - 1 || side === "bottom" && y <= refRect.top + 1 || side === "left" && x >= refRect.right - 1 || side === "right" && x <= refRect.left + 1) {
+        closeIfNoOpenChild();
+        return;
+      }
+      let isInsideTroughRect = false;
+      switch (side) {
+        case "top":
+          isInsideTroughRect = isInsideAxisAlignedRect(clientX, clientY, left, refRect.top + 1, right, rect.bottom - 1);
+          break;
+        case "bottom":
+          isInsideTroughRect = isInsideAxisAlignedRect(clientX, clientY, left, rect.top + 1, right, refRect.bottom - 1);
+          break;
+        case "left":
+          isInsideTroughRect = isInsideAxisAlignedRect(clientX, clientY, rect.right - 1, bottom, refRect.left + 1, top);
+          break;
+        case "right":
+          isInsideTroughRect = isInsideAxisAlignedRect(clientX, clientY, refRect.right - 1, bottom, rect.left + 1, top);
+          break;
+        default:
+      }
+      if (isInsideTroughRect) {
+        return;
+      }
+      if (hasLanded && !isInsideRect(clientX, clientY, refRect)) {
+        closeIfNoOpenChild();
+        return;
+      }
+      if (!isLeave && isCursorMovingSlowly(clientX, clientY)) {
+        closeIfNoOpenChild();
+        return;
+      }
+      let isInsidePolygon = false;
+      switch (side) {
+        case "top": {
+          const cursorXOffset = isFloatingWider ? POLYGON_BUFFER / 2 : POLYGON_BUFFER * 4;
+          const cursorPointOneX = isFloatingWider ? x + cursorXOffset : cursorLeaveFromRight ? x + cursorXOffset : x - cursorXOffset;
+          const cursorPointTwoX = isFloatingWider ? x - cursorXOffset : cursorLeaveFromRight ? x + cursorXOffset : x - cursorXOffset;
+          const cursorPointY = y + POLYGON_BUFFER + 1;
+          const commonYLeft = cursorLeaveFromRight ? rect.bottom - POLYGON_BUFFER : isFloatingWider ? rect.bottom - POLYGON_BUFFER : rect.top;
+          const commonYRight = cursorLeaveFromRight ? isFloatingWider ? rect.bottom - POLYGON_BUFFER : rect.top : rect.bottom - POLYGON_BUFFER;
+          isInsidePolygon = isPointInQuadrilateral(clientX, clientY, cursorPointOneX, cursorPointY, cursorPointTwoX, cursorPointY, rect.left, commonYLeft, rect.right, commonYRight);
+          break;
+        }
+        case "bottom": {
+          const cursorXOffset = isFloatingWider ? POLYGON_BUFFER / 2 : POLYGON_BUFFER * 4;
+          const cursorPointOneX = isFloatingWider ? x + cursorXOffset : cursorLeaveFromRight ? x + cursorXOffset : x - cursorXOffset;
+          const cursorPointTwoX = isFloatingWider ? x - cursorXOffset : cursorLeaveFromRight ? x + cursorXOffset : x - cursorXOffset;
+          const cursorPointY = y - POLYGON_BUFFER;
+          const commonYLeft = cursorLeaveFromRight ? rect.top + POLYGON_BUFFER : isFloatingWider ? rect.top + POLYGON_BUFFER : rect.bottom;
+          const commonYRight = cursorLeaveFromRight ? isFloatingWider ? rect.top + POLYGON_BUFFER : rect.bottom : rect.top + POLYGON_BUFFER;
+          isInsidePolygon = isPointInQuadrilateral(clientX, clientY, cursorPointOneX, cursorPointY, cursorPointTwoX, cursorPointY, rect.left, commonYLeft, rect.right, commonYRight);
+          break;
+        }
+        case "left": {
+          const cursorYOffset = isFloatingTaller ? POLYGON_BUFFER / 2 : POLYGON_BUFFER * 4;
+          const cursorPointOneY = isFloatingTaller ? y + cursorYOffset : cursorLeaveFromBottom ? y + cursorYOffset : y - cursorYOffset;
+          const cursorPointTwoY = isFloatingTaller ? y - cursorYOffset : cursorLeaveFromBottom ? y + cursorYOffset : y - cursorYOffset;
+          const cursorPointX = x + POLYGON_BUFFER + 1;
+          const commonXTop = cursorLeaveFromBottom ? rect.right - POLYGON_BUFFER : isFloatingTaller ? rect.right - POLYGON_BUFFER : rect.left;
+          const commonXBottom = cursorLeaveFromBottom ? isFloatingTaller ? rect.right - POLYGON_BUFFER : rect.left : rect.right - POLYGON_BUFFER;
+          isInsidePolygon = isPointInQuadrilateral(clientX, clientY, commonXTop, rect.top, commonXBottom, rect.bottom, cursorPointX, cursorPointOneY, cursorPointX, cursorPointTwoY);
+          break;
+        }
+        case "right": {
+          const cursorYOffset = isFloatingTaller ? POLYGON_BUFFER / 2 : POLYGON_BUFFER * 4;
+          const cursorPointOneY = isFloatingTaller ? y + cursorYOffset : cursorLeaveFromBottom ? y + cursorYOffset : y - cursorYOffset;
+          const cursorPointTwoY = isFloatingTaller ? y - cursorYOffset : cursorLeaveFromBottom ? y + cursorYOffset : y - cursorYOffset;
+          const cursorPointX = x - POLYGON_BUFFER;
+          const commonXTop = cursorLeaveFromBottom ? rect.left + POLYGON_BUFFER : isFloatingTaller ? rect.left + POLYGON_BUFFER : rect.right;
+          const commonXBottom = cursorLeaveFromBottom ? isFloatingTaller ? rect.left + POLYGON_BUFFER : rect.right : rect.left + POLYGON_BUFFER;
+          isInsidePolygon = isPointInQuadrilateral(clientX, clientY, cursorPointX, cursorPointOneY, cursorPointX, cursorPointTwoY, commonXTop, rect.top, commonXBottom, rect.bottom);
+          break;
+        }
+        default:
+      }
+      if (!isInsidePolygon) {
+        closeIfNoOpenChild();
+      } else if (!hasLanded) {
+        timeout.start(40, closeIfNoOpenChild);
+      }
+      return;
+    };
+  };
+  fn.__options = {
+    ...options,
+    blockPointerEvents
+  };
+  return fn;
+}
+// engine/node_modules/@floating-ui/core/dist/floating-ui.core.mjs
+function computeCoordsFromPlacement(_ref, placement, rtl) {
+  let {
+    reference,
+    floating
+  } = _ref;
+  const sideAxis = getSideAxis(placement);
+  const alignmentAxis = getAlignmentAxis(placement);
+  const alignLength = getAxisLength(alignmentAxis);
+  const side = getSide(placement);
+  const isVertical = sideAxis === "y";
+  const commonX = reference.x + reference.width / 2 - floating.width / 2;
+  const commonY = reference.y + reference.height / 2 - floating.height / 2;
+  const commonAlign = reference[alignLength] / 2 - floating[alignLength] / 2;
+  let coords;
+  switch (side) {
+    case "top":
+      coords = {
+        x: commonX,
+        y: reference.y - floating.height
+      };
+      break;
+    case "bottom":
+      coords = {
+        x: commonX,
+        y: reference.y + reference.height
+      };
+      break;
+    case "right":
+      coords = {
+        x: reference.x + reference.width,
+        y: commonY
+      };
+      break;
+    case "left":
+      coords = {
+        x: reference.x - floating.width,
+        y: commonY
+      };
+      break;
+    default:
+      coords = {
+        x: reference.x,
+        y: reference.y
+      };
+  }
+  const alignment = getAlignment(placement);
+  if (alignment) {
+    coords[alignmentAxis] += commonAlign * (alignment === "end" ? 1 : -1) * (rtl && isVertical ? -1 : 1);
+  }
+  return coords;
+}
+async function detectOverflow(state, options) {
+  var _await$platform$isEle;
+  if (options === undefined) {
+    options = {};
+  }
+  const {
+    x,
+    y,
+    platform,
+    rects,
+    elements,
+    strategy
+  } = state;
+  const {
+    boundary = "clippingAncestors",
+    rootBoundary = "viewport",
+    elementContext = "floating",
+    altBoundary = false,
+    padding = 0
+  } = evaluate(options, state);
+  const paddingObject = getPaddingObject(padding);
+  const altContext = elementContext === "floating" ? "reference" : "floating";
+  const element = elements[altBoundary ? altContext : elementContext];
+  const clippingClientRect = rectToClientRect(await platform.getClippingRect({
+    element: ((_await$platform$isEle = await (platform.isElement == null ? undefined : platform.isElement(element))) != null ? _await$platform$isEle : true) ? element : element.contextElement || await (platform.getDocumentElement == null ? undefined : platform.getDocumentElement(elements.floating)),
+    boundary,
+    rootBoundary,
+    strategy
+  }));
+  const rect = elementContext === "floating" ? {
+    x,
+    y,
+    width: rects.floating.width,
+    height: rects.floating.height
+  } : rects.reference;
+  const offsetParent = await (platform.getOffsetParent == null ? undefined : platform.getOffsetParent(elements.floating));
+  const offsetScale = await (platform.isElement == null ? undefined : platform.isElement(offsetParent)) && await (platform.getScale == null ? undefined : platform.getScale(offsetParent)) || {
+    x: 1,
+    y: 1
+  };
+  const elementClientRect = rectToClientRect(platform.convertOffsetParentRelativeRectToViewportRelativeRect ? await platform.convertOffsetParentRelativeRectToViewportRelativeRect({
+    elements,
+    rect,
+    offsetParent,
+    strategy
+  }) : rect);
+  return {
+    top: (clippingClientRect.top - elementClientRect.top + paddingObject.top) / offsetScale.y,
+    bottom: (elementClientRect.bottom - clippingClientRect.bottom + paddingObject.bottom) / offsetScale.y,
+    left: (clippingClientRect.left - elementClientRect.left + paddingObject.left) / offsetScale.x,
+    right: (elementClientRect.right - clippingClientRect.right + paddingObject.right) / offsetScale.x
+  };
+}
+var MAX_RESET_COUNT = 50;
+var computePosition = async (reference, floating, config) => {
+  const {
+    placement = "bottom",
+    strategy = "absolute",
+    middleware = [],
+    platform
+  } = config;
+  const platformWithDetectOverflow = platform.detectOverflow ? platform : {
+    ...platform,
+    detectOverflow
+  };
+  const rtl = await (platform.isRTL == null ? undefined : platform.isRTL(floating));
+  let rects = await platform.getElementRects({
+    reference,
+    floating,
+    strategy
+  });
+  let {
+    x,
+    y
+  } = computeCoordsFromPlacement(rects, placement, rtl);
+  let statefulPlacement = placement;
+  let resetCount = 0;
+  const middlewareData = {};
+  for (let i = 0;i < middleware.length; i++) {
+    const currentMiddleware = middleware[i];
+    if (!currentMiddleware) {
+      continue;
+    }
+    const {
+      name,
+      fn
+    } = currentMiddleware;
+    const {
+      x: nextX,
+      y: nextY,
+      data,
+      reset
+    } = await fn({
+      x,
+      y,
+      initialPlacement: placement,
+      placement: statefulPlacement,
+      strategy,
+      middlewareData,
+      rects,
+      platform: platformWithDetectOverflow,
+      elements: {
+        reference,
+        floating
+      }
+    });
+    x = nextX != null ? nextX : x;
+    y = nextY != null ? nextY : y;
+    middlewareData[name] = {
+      ...middlewareData[name],
+      ...data
+    };
+    if (reset && resetCount < MAX_RESET_COUNT) {
+      resetCount++;
+      if (typeof reset === "object") {
+        if (reset.placement) {
+          statefulPlacement = reset.placement;
+        }
+        if (reset.rects) {
+          rects = reset.rects === true ? await platform.getElementRects({
+            reference,
+            floating,
+            strategy
+          }) : reset.rects;
+        }
+        ({
+          x,
+          y
+        } = computeCoordsFromPlacement(rects, statefulPlacement, rtl));
+      }
+      i = -1;
+    }
+  }
+  return {
+    x,
+    y,
+    placement: statefulPlacement,
+    strategy,
+    middlewareData
+  };
+};
+var flip = function(options) {
+  if (options === undefined) {
+    options = {};
+  }
+  return {
+    name: "flip",
+    options,
+    async fn(state) {
+      var _middlewareData$arrow, _middlewareData$flip;
+      const {
+        placement,
+        middlewareData,
+        rects,
+        initialPlacement,
+        platform,
+        elements
+      } = state;
+      const {
+        mainAxis: checkMainAxis = true,
+        crossAxis: checkCrossAxis = true,
+        fallbackPlacements: specifiedFallbackPlacements,
+        fallbackStrategy = "bestFit",
+        fallbackAxisSideDirection = "none",
+        flipAlignment = true,
+        ...detectOverflowOptions
+      } = evaluate(options, state);
+      if ((_middlewareData$arrow = middlewareData.arrow) != null && _middlewareData$arrow.alignmentOffset) {
+        return {};
+      }
+      const side = getSide(placement);
+      const initialSideAxis = getSideAxis(initialPlacement);
+      const isBasePlacement = getSide(initialPlacement) === initialPlacement;
+      const rtl = await (platform.isRTL == null ? undefined : platform.isRTL(elements.floating));
+      const fallbackPlacements = specifiedFallbackPlacements || (isBasePlacement || !flipAlignment ? [getOppositePlacement(initialPlacement)] : getExpandedPlacements(initialPlacement));
+      const hasFallbackAxisSideDirection = fallbackAxisSideDirection !== "none";
+      if (!specifiedFallbackPlacements && hasFallbackAxisSideDirection) {
+        fallbackPlacements.push(...getOppositeAxisPlacements(initialPlacement, flipAlignment, fallbackAxisSideDirection, rtl));
+      }
+      const placements = [initialPlacement, ...fallbackPlacements];
+      const overflow = await platform.detectOverflow(state, detectOverflowOptions);
+      const overflows = [];
+      let overflowsData = ((_middlewareData$flip = middlewareData.flip) == null ? undefined : _middlewareData$flip.overflows) || [];
+      if (checkMainAxis) {
+        overflows.push(overflow[side]);
+      }
+      if (checkCrossAxis) {
+        const sides = getAlignmentSides(placement, rects, rtl);
+        overflows.push(overflow[sides[0]], overflow[sides[1]]);
+      }
+      overflowsData = [...overflowsData, {
+        placement,
+        overflows
+      }];
+      if (!overflows.every((side) => side <= 0)) {
+        var _middlewareData$flip2, _overflowsData$filter;
+        const nextIndex = (((_middlewareData$flip2 = middlewareData.flip) == null ? undefined : _middlewareData$flip2.index) || 0) + 1;
+        const nextPlacement = placements[nextIndex];
+        if (nextPlacement) {
+          const ignoreCrossAxisOverflow = checkCrossAxis === "alignment" ? initialSideAxis !== getSideAxis(nextPlacement) : false;
+          if (!ignoreCrossAxisOverflow || overflowsData.every((d) => getSideAxis(d.placement) === initialSideAxis ? d.overflows[0] > 0 : true)) {
+            return {
+              data: {
+                index: nextIndex,
+                overflows: overflowsData
+              },
+              reset: {
+                placement: nextPlacement
+              }
+            };
+          }
+        }
+        let resetPlacement = (_overflowsData$filter = overflowsData.filter((d) => d.overflows[0] <= 0).sort((a, b) => a.overflows[1] - b.overflows[1])[0]) == null ? undefined : _overflowsData$filter.placement;
+        if (!resetPlacement) {
+          switch (fallbackStrategy) {
+            case "bestFit": {
+              var _overflowsData$filter2;
+              const placement = (_overflowsData$filter2 = overflowsData.filter((d) => {
+                if (hasFallbackAxisSideDirection) {
+                  const currentSideAxis = getSideAxis(d.placement);
+                  return currentSideAxis === initialSideAxis || currentSideAxis === "y";
+                }
+                return true;
+              }).map((d) => [d.placement, d.overflows.filter((overflow) => overflow > 0).reduce((acc, overflow) => acc + overflow, 0)]).sort((a, b) => a[1] - b[1])[0]) == null ? undefined : _overflowsData$filter2[0];
+              if (placement) {
+                resetPlacement = placement;
+              }
+              break;
+            }
+            case "initialPlacement":
+              resetPlacement = initialPlacement;
+              break;
+          }
+        }
+        if (placement !== resetPlacement) {
+          return {
+            reset: {
+              placement: resetPlacement
+            }
+          };
+        }
+      }
+      return {};
+    }
+  };
+};
+var originSides = /* @__PURE__ */ new Set(["left", "top"]);
+async function convertValueToCoords(state, options) {
+  const {
+    placement,
+    platform,
+    elements
+  } = state;
+  const rtl = await (platform.isRTL == null ? undefined : platform.isRTL(elements.floating));
+  const side = getSide(placement);
+  const alignment = getAlignment(placement);
+  const isVertical = getSideAxis(placement) === "y";
+  const mainAxisMulti = originSides.has(side) ? -1 : 1;
+  const crossAxisMulti = rtl && isVertical ? -1 : 1;
+  const rawValue = evaluate(options, state);
+  let {
+    mainAxis,
+    crossAxis,
+    alignmentAxis
+  } = typeof rawValue === "number" ? {
+    mainAxis: rawValue,
+    crossAxis: 0,
+    alignmentAxis: null
+  } : {
+    mainAxis: rawValue.mainAxis || 0,
+    crossAxis: rawValue.crossAxis || 0,
+    alignmentAxis: rawValue.alignmentAxis
+  };
+  if (alignment && typeof alignmentAxis === "number") {
+    crossAxis = alignment === "end" ? alignmentAxis * -1 : alignmentAxis;
+  }
+  return isVertical ? {
+    x: crossAxis * crossAxisMulti,
+    y: mainAxis * mainAxisMulti
+  } : {
+    x: mainAxis * mainAxisMulti,
+    y: crossAxis * crossAxisMulti
+  };
+}
+var offset = function(options) {
+  if (options === undefined) {
+    options = 0;
+  }
+  return {
+    name: "offset",
+    options,
+    async fn(state) {
+      var _middlewareData$offse, _middlewareData$arrow;
+      const {
+        x,
+        y,
+        placement,
+        middlewareData
+      } = state;
+      const diffCoords = await convertValueToCoords(state, options);
+      if (placement === ((_middlewareData$offse = middlewareData.offset) == null ? undefined : _middlewareData$offse.placement) && (_middlewareData$arrow = middlewareData.arrow) != null && _middlewareData$arrow.alignmentOffset) {
+        return {};
+      }
+      return {
+        x: x + diffCoords.x,
+        y: y + diffCoords.y,
+        data: {
+          ...diffCoords,
+          placement
+        }
+      };
+    }
+  };
+};
+var shift = function(options) {
+  if (options === undefined) {
+    options = {};
+  }
+  return {
+    name: "shift",
+    options,
+    async fn(state) {
+      const {
+        x,
+        y,
+        placement,
+        platform
+      } = state;
+      const {
+        mainAxis: checkMainAxis = true,
+        crossAxis: checkCrossAxis = false,
+        limiter = {
+          fn: (_ref) => {
+            let {
+              x,
+              y
+            } = _ref;
+            return {
+              x,
+              y
+            };
+          }
+        },
+        ...detectOverflowOptions
+      } = evaluate(options, state);
+      const coords = {
+        x,
+        y
+      };
+      const overflow = await platform.detectOverflow(state, detectOverflowOptions);
+      const crossAxis = getSideAxis(placement);
+      const mainAxis = getOppositeAxis(crossAxis);
+      let mainAxisCoord = coords[mainAxis];
+      let crossAxisCoord = coords[crossAxis];
+      const clampCoord = (axis, coord) => clamp(coord + overflow[axis === "y" ? "top" : "left"], coord, coord - overflow[axis === "y" ? "bottom" : "right"]);
+      if (checkMainAxis) {
+        mainAxisCoord = clampCoord(mainAxis, mainAxisCoord);
+      }
+      if (checkCrossAxis) {
+        crossAxisCoord = clampCoord(crossAxis, crossAxisCoord);
+      }
+      const limitedCoords = limiter.fn({
+        ...state,
+        [mainAxis]: mainAxisCoord,
+        [crossAxis]: crossAxisCoord
+      });
+      return {
+        ...limitedCoords,
+        data: {
+          x: limitedCoords.x - x,
+          y: limitedCoords.y - y,
+          enabled: {
+            [mainAxis]: checkMainAxis,
+            [crossAxis]: checkCrossAxis
+          }
+        }
+      };
+    }
+  };
+};
+var limitShift = function(options) {
+  if (options === undefined) {
+    options = {};
+  }
+  return {
+    options,
+    fn(state) {
+      var _rawOffset$mainAxis, _rawOffset$crossAxis;
+      const {
+        x,
+        y,
+        placement,
+        rects,
+        middlewareData
+      } = state;
+      const {
+        offset = 0,
+        mainAxis: checkMainAxis = true,
+        crossAxis: checkCrossAxis = true
+      } = evaluate(options, state);
+      const coords = {
+        x,
+        y
+      };
+      const crossAxis = getSideAxis(placement);
+      const mainAxis = getOppositeAxis(crossAxis);
+      let mainAxisCoord = coords[mainAxis];
+      let crossAxisCoord = coords[crossAxis];
+      const rawOffset = evaluate(offset, state);
+      const computedOffset = typeof rawOffset === "number" ? {
+        mainAxis: rawOffset,
+        crossAxis: 0
+      } : {
+        mainAxis: (_rawOffset$mainAxis = rawOffset.mainAxis) != null ? _rawOffset$mainAxis : 0,
+        crossAxis: (_rawOffset$crossAxis = rawOffset.crossAxis) != null ? _rawOffset$crossAxis : 0
+      };
+      if (checkMainAxis) {
+        const len = mainAxis === "y" ? "height" : "width";
+        const limitMin = rects.reference[mainAxis] - rects.floating[len] + computedOffset.mainAxis;
+        const limitMax = rects.reference[mainAxis] + rects.reference[len] - computedOffset.mainAxis;
+        if (mainAxisCoord < limitMin) {
+          mainAxisCoord = limitMin;
+        } else if (mainAxisCoord > limitMax) {
+          mainAxisCoord = limitMax;
+        }
+      }
+      if (checkCrossAxis) {
+        var _middlewareData$offse, _middlewareData$offse2;
+        const len = mainAxis === "y" ? "width" : "height";
+        const isOriginSide = originSides.has(getSide(placement));
+        const limitMin = rects.reference[crossAxis] - rects.floating[len] + (isOriginSide ? ((_middlewareData$offse = middlewareData.offset) == null ? undefined : _middlewareData$offse[crossAxis]) || 0 : 0) + (isOriginSide ? 0 : computedOffset.crossAxis);
+        const limitMax = rects.reference[crossAxis] + rects.reference[len] + (isOriginSide ? 0 : ((_middlewareData$offse2 = middlewareData.offset) == null ? undefined : _middlewareData$offse2[crossAxis]) || 0) - (isOriginSide ? computedOffset.crossAxis : 0);
+        if (crossAxisCoord < limitMin) {
+          crossAxisCoord = limitMin;
+        } else if (crossAxisCoord > limitMax) {
+          crossAxisCoord = limitMax;
+        }
+      }
+      return {
+        [mainAxis]: mainAxisCoord,
+        [crossAxis]: crossAxisCoord
+      };
+    }
+  };
+};
+var size = function(options) {
+  if (options === undefined) {
+    options = {};
+  }
+  return {
+    name: "size",
+    options,
+    async fn(state) {
+      const {
+        placement,
+        rects,
+        platform,
+        elements
+      } = state;
+      const {
+        apply = () => {},
+        ...detectOverflowOptions
+      } = evaluate(options, state);
+      const overflow = await platform.detectOverflow(state, detectOverflowOptions);
+      const side = getSide(placement);
+      const alignment = getAlignment(placement);
+      const isYAxis = getSideAxis(placement) === "y";
+      const {
+        width,
+        height
+      } = rects.floating;
+      let heightSide;
+      let widthSide;
+      if (side === "top" || side === "bottom") {
+        heightSide = side;
+        widthSide = alignment === (await (platform.isRTL == null ? undefined : platform.isRTL(elements.floating)) ? "start" : "end") ? "left" : "right";
+      } else {
+        widthSide = side;
+        heightSide = alignment === "end" ? "top" : "bottom";
+      }
+      const maximumClippingHeight = height - overflow.top - overflow.bottom;
+      const maximumClippingWidth = width - overflow.left - overflow.right;
+      const overflowAvailableHeight = min(height - overflow[heightSide], maximumClippingHeight);
+      const overflowAvailableWidth = min(width - overflow[widthSide], maximumClippingWidth);
+      const shiftData = state.middlewareData.shift;
+      const noShift = !shiftData;
+      let availableHeight = overflowAvailableHeight;
+      let availableWidth = overflowAvailableWidth;
+      if (shiftData != null && shiftData.enabled.x) {
+        availableWidth = maximumClippingWidth;
+      }
+      if (shiftData != null && shiftData.enabled.y) {
+        availableHeight = maximumClippingHeight;
+      }
+      if (noShift && !alignment) {
+        if (isYAxis) {
+          availableWidth = width - 2 * max(overflow.left, overflow.right);
+        } else {
+          availableHeight = height - 2 * max(overflow.top, overflow.bottom);
+        }
+      }
+      await apply({
+        ...state,
+        availableWidth,
+        availableHeight
+      });
+      const nextDimensions = await platform.getDimensions(elements.floating);
+      if (width !== nextDimensions.width || height !== nextDimensions.height) {
+        return {
+          reset: {
+            rects: true
+          }
+        };
+      }
+      return {};
+    }
+  };
+};
+
+// engine/node_modules/@floating-ui/dom/dist/floating-ui.dom.mjs
+function getCssDimensions(element) {
+  const css = getComputedStyle2(element);
+  let width = parseFloat(css.width) || 0;
+  let height = parseFloat(css.height) || 0;
+  const hasOffset = isHTMLElement(element);
+  const offsetWidth = hasOffset ? element.offsetWidth : width;
+  const offsetHeight = hasOffset ? element.offsetHeight : height;
+  const shouldFallback = round(width) !== offsetWidth || round(height) !== offsetHeight;
+  if (shouldFallback) {
+    width = offsetWidth;
+    height = offsetHeight;
+  }
+  return {
+    width,
+    height,
+    $: shouldFallback
+  };
+}
+function unwrapElement(element) {
+  return !isElement(element) ? element.contextElement : element;
+}
+function getScale(element) {
+  const domElement = unwrapElement(element);
+  if (!isHTMLElement(domElement)) {
+    return createCoords(1);
+  }
+  const rect = domElement.getBoundingClientRect();
+  const {
+    width,
+    height,
+    $
+  } = getCssDimensions(domElement);
+  let x = ($ ? round(rect.width) : rect.width) / width;
+  let y = ($ ? round(rect.height) : rect.height) / height;
+  if (!x || !Number.isFinite(x)) {
+    x = 1;
+  }
+  if (!y || !Number.isFinite(y)) {
+    y = 1;
+  }
+  return {
+    x,
+    y
+  };
+}
+var noOffsets = /* @__PURE__ */ createCoords(0);
+function getVisualOffsets(element) {
+  const win = getWindow(element);
+  if (!isWebKit() || !win.visualViewport) {
+    return noOffsets;
+  }
+  return {
+    x: win.visualViewport.offsetLeft,
+    y: win.visualViewport.offsetTop
+  };
+}
+function shouldAddVisualOffsets(element, isFixed, floatingOffsetParent) {
+  if (isFixed === undefined) {
+    isFixed = false;
+  }
+  return !!floatingOffsetParent && isFixed && floatingOffsetParent === getWindow(element);
+}
+function getBoundingClientRect(element, includeScale, isFixedStrategy, offsetParent) {
+  if (includeScale === undefined) {
+    includeScale = false;
+  }
+  if (isFixedStrategy === undefined) {
+    isFixedStrategy = false;
+  }
+  const clientRect = element.getBoundingClientRect();
+  const domElement = unwrapElement(element);
+  let scale = createCoords(1);
+  if (includeScale) {
+    if (offsetParent) {
+      if (isElement(offsetParent)) {
+        scale = getScale(offsetParent);
+      }
+    } else {
+      scale = getScale(element);
+    }
+  }
+  const visualOffsets = shouldAddVisualOffsets(domElement, isFixedStrategy, offsetParent) ? getVisualOffsets(domElement) : createCoords(0);
+  let x = (clientRect.left + visualOffsets.x) / scale.x;
+  let y = (clientRect.top + visualOffsets.y) / scale.y;
+  let width = clientRect.width / scale.x;
+  let height = clientRect.height / scale.y;
+  if (domElement && offsetParent) {
+    const win = getWindow(domElement);
+    const offsetWin = isElement(offsetParent) ? getWindow(offsetParent) : offsetParent;
+    let currentWin = win;
+    let currentIFrame = getFrameElement(currentWin);
+    while (currentIFrame && offsetWin !== currentWin) {
+      const iframeScale = getScale(currentIFrame);
+      const iframeRect = currentIFrame.getBoundingClientRect();
+      const css = getComputedStyle2(currentIFrame);
+      const left = iframeRect.left + (currentIFrame.clientLeft + parseFloat(css.paddingLeft)) * iframeScale.x;
+      const top = iframeRect.top + (currentIFrame.clientTop + parseFloat(css.paddingTop)) * iframeScale.y;
+      x *= iframeScale.x;
+      y *= iframeScale.y;
+      width *= iframeScale.x;
+      height *= iframeScale.y;
+      x += left;
+      y += top;
+      currentWin = getWindow(currentIFrame);
+      currentIFrame = getFrameElement(currentWin);
+    }
+  }
+  return rectToClientRect({
+    width,
+    height,
+    x,
+    y
+  });
+}
+function getWindowScrollBarX(element, rect) {
+  const leftScroll = getNodeScroll(element).scrollLeft;
+  if (!rect) {
+    return getBoundingClientRect(getDocumentElement(element)).left + leftScroll;
+  }
+  return rect.left + leftScroll;
+}
+function getHTMLOffset(documentElement, scroll) {
+  const htmlRect = documentElement.getBoundingClientRect();
+  const x = htmlRect.left + scroll.scrollLeft - getWindowScrollBarX(documentElement, htmlRect);
+  const y = htmlRect.top + scroll.scrollTop;
+  return {
+    x,
+    y
+  };
+}
+function convertOffsetParentRelativeRectToViewportRelativeRect(_ref) {
+  let {
+    elements,
+    rect,
+    offsetParent,
+    strategy
+  } = _ref;
+  const isFixed = strategy === "fixed";
+  const documentElement = getDocumentElement(offsetParent);
+  const topLayer = elements ? isTopLayer(elements.floating) : false;
+  if (offsetParent === documentElement || topLayer && isFixed) {
+    return rect;
+  }
+  let scroll = {
+    scrollLeft: 0,
+    scrollTop: 0
+  };
+  let scale = createCoords(1);
+  const offsets = createCoords(0);
+  const isOffsetParentAnElement = isHTMLElement(offsetParent);
+  if (isOffsetParentAnElement || !isFixed) {
+    if (getNodeName(offsetParent) !== "body" || isOverflowElement(documentElement)) {
+      scroll = getNodeScroll(offsetParent);
+    }
+    if (isOffsetParentAnElement) {
+      const offsetRect = getBoundingClientRect(offsetParent);
+      scale = getScale(offsetParent);
+      offsets.x = offsetRect.x + offsetParent.clientLeft;
+      offsets.y = offsetRect.y + offsetParent.clientTop;
+    }
+  }
+  const htmlOffset = documentElement && !isOffsetParentAnElement && !isFixed ? getHTMLOffset(documentElement, scroll) : createCoords(0);
+  return {
+    width: rect.width * scale.x,
+    height: rect.height * scale.y,
+    x: rect.x * scale.x - scroll.scrollLeft * scale.x + offsets.x + htmlOffset.x,
+    y: rect.y * scale.y - scroll.scrollTop * scale.y + offsets.y + htmlOffset.y
+  };
+}
+function getClientRects(element) {
+  return element.getClientRects ? Array.from(element.getClientRects()) : [];
+}
+function getDocumentRect(html) {
+  const scroll = getNodeScroll(html);
+  const body = html.ownerDocument.body;
+  const width = max(html.scrollWidth, html.clientWidth, body.scrollWidth, body.clientWidth);
+  const height = max(html.scrollHeight, html.clientHeight, body.scrollHeight, body.clientHeight);
+  let x = -scroll.scrollLeft + getWindowScrollBarX(html);
+  const y = -scroll.scrollTop;
+  if (getComputedStyle2(body).direction === "rtl") {
+    x += max(html.clientWidth, body.clientWidth) - width;
+  }
+  return {
+    width,
+    height,
+    x,
+    y
+  };
+}
+var SCROLLBAR_MAX = 25;
+function getViewportRect(element, strategy, rootBoundary) {
+  if (rootBoundary === undefined) {
+    rootBoundary = "viewport";
+  }
+  const isLayoutViewport = rootBoundary === "layoutViewport";
+  const win = getWindow(element);
+  const html = getDocumentElement(element);
+  const visualViewport = win.visualViewport;
+  let width = html.clientWidth;
+  let height = html.clientHeight;
+  let x = 0;
+  let y = 0;
+  if (visualViewport) {
+    const layoutRelativeClientCoords = !isWebKit() || strategy === "fixed";
+    if (isLayoutViewport) {
+      if (!layoutRelativeClientCoords) {
+        x = -visualViewport.offsetLeft;
+        y = -visualViewport.offsetTop;
+      }
+    } else {
+      width = visualViewport.width;
+      height = visualViewport.height;
+      if (layoutRelativeClientCoords) {
+        x = visualViewport.offsetLeft;
+        y = visualViewport.offsetTop;
+      }
+    }
+  }
+  const windowScrollbarX = getWindowScrollBarX(html);
+  if (windowScrollbarX <= 0) {
+    const doc = html.ownerDocument;
+    const body = doc.body;
+    const bodyStyles = getComputedStyle(body);
+    const bodyMarginInline = doc.compatMode === "CSS1Compat" ? parseFloat(bodyStyles.marginLeft) + parseFloat(bodyStyles.marginRight) || 0 : 0;
+    const reservedWidth = Math.abs(html.clientWidth - body.clientWidth - bodyMarginInline);
+    const gutter = getComputedStyle(html).scrollbarGutter === "stable both-edges" ? reservedWidth / 2 : reservedWidth;
+    if (gutter <= SCROLLBAR_MAX) {
+      width -= gutter;
+    }
+  }
+  return {
+    width,
+    height,
+    x,
+    y
+  };
+}
+function getInnerBoundingClientRect(element, strategy) {
+  const clientRect = getBoundingClientRect(element, true, strategy === "fixed");
+  const top = clientRect.top + element.clientTop;
+  const left = clientRect.left + element.clientLeft;
+  const scale = getScale(element);
+  const width = element.clientWidth * scale.x;
+  const height = element.clientHeight * scale.y;
+  const x = left * scale.x;
+  const y = top * scale.y;
+  return {
+    width,
+    height,
+    x,
+    y
+  };
+}
+function getClientRectFromClippingAncestor(element, clippingAncestor, strategy) {
+  let rect;
+  if (clippingAncestor === "viewport" || clippingAncestor === "layoutViewport") {
+    rect = getViewportRect(element, strategy, clippingAncestor);
+  } else if (clippingAncestor === "document") {
+    rect = getDocumentRect(getDocumentElement(element));
+  } else if (isElement(clippingAncestor)) {
+    rect = getInnerBoundingClientRect(clippingAncestor, strategy);
+  } else {
+    const visualOffsets = getVisualOffsets(element);
+    rect = {
+      x: clippingAncestor.x - visualOffsets.x,
+      y: clippingAncestor.y - visualOffsets.y,
+      width: clippingAncestor.width,
+      height: clippingAncestor.height
+    };
+  }
+  return rectToClientRect(rect);
+}
+function getClippingElementAncestors(element, cache) {
+  const cachedResult = cache.get(element);
+  if (cachedResult) {
+    return cachedResult;
+  }
+  let result = getOverflowAncestors(element, [], false).filter((el) => isElement(el) && getNodeName(el) !== "body");
+  let lastKeptComputedStyle = null;
+  const elementIsFixed = getComputedStyle2(element).position === "fixed";
+  let currentNode = elementIsFixed ? getParentNode(element) : element;
+  while (isElement(currentNode) && !isLastTraversableNode(currentNode)) {
+    const computedStyle = getComputedStyle2(currentNode);
+    const currentNodeIsContaining = isContainingBlock(currentNode);
+    const lastPosition = lastKeptComputedStyle ? lastKeptComputedStyle.position : elementIsFixed ? "fixed" : "";
+    const shouldDropCurrentNode = !currentNodeIsContaining && (lastPosition === "fixed" || lastPosition === "absolute" && computedStyle.position === "static");
+    if (shouldDropCurrentNode) {
+      result = result.filter((ancestor) => ancestor !== currentNode);
+    } else {
+      lastKeptComputedStyle = computedStyle;
+    }
+    currentNode = getParentNode(currentNode);
+  }
+  cache.set(element, result);
+  return result;
+}
+function getClippingRect(_ref) {
+  let {
+    element,
+    boundary,
+    rootBoundary,
+    strategy
+  } = _ref;
+  const elementClippingAncestors = boundary === "clippingAncestors" ? isTopLayer(element) ? [] : getClippingElementAncestors(element, this._c) : [].concat(boundary);
+  const clippingAncestors = [...elementClippingAncestors, rootBoundary];
+  const firstRect = getClientRectFromClippingAncestor(element, clippingAncestors[0], strategy);
+  let top = firstRect.top;
+  let right = firstRect.right;
+  let bottom = firstRect.bottom;
+  let left = firstRect.left;
+  for (let i = 1;i < clippingAncestors.length; i++) {
+    const rect = getClientRectFromClippingAncestor(element, clippingAncestors[i], strategy);
+    top = max(rect.top, top);
+    right = min(rect.right, right);
+    bottom = min(rect.bottom, bottom);
+    left = max(rect.left, left);
+  }
+  return {
+    width: right - left,
+    height: bottom - top,
+    x: left,
+    y: top
+  };
+}
+function getDimensions(element) {
+  const {
+    width,
+    height
+  } = getCssDimensions(element);
+  return {
+    width,
+    height
+  };
+}
+function getRectRelativeToOffsetParent(element, offsetParent, strategy) {
+  const isOffsetParentAnElement = isHTMLElement(offsetParent);
+  const documentElement = getDocumentElement(offsetParent);
+  const isFixed = strategy === "fixed";
+  const rect = getBoundingClientRect(element, true, isFixed, offsetParent);
+  let scroll = {
+    scrollLeft: 0,
+    scrollTop: 0
+  };
+  const offsets = createCoords(0);
+  if (isOffsetParentAnElement || !isFixed) {
+    if (getNodeName(offsetParent) !== "body" || isOverflowElement(documentElement)) {
+      scroll = getNodeScroll(offsetParent);
+    }
+    if (isOffsetParentAnElement) {
+      const offsetRect = getBoundingClientRect(offsetParent, true, isFixed, offsetParent);
+      offsets.x = offsetRect.x + offsetParent.clientLeft;
+      offsets.y = offsetRect.y + offsetParent.clientTop;
+    }
+  }
+  if (!isOffsetParentAnElement && documentElement) {
+    offsets.x = getWindowScrollBarX(documentElement);
+  }
+  const htmlOffset = documentElement && !isOffsetParentAnElement && !isFixed ? getHTMLOffset(documentElement, scroll) : createCoords(0);
+  const x = rect.left + scroll.scrollLeft - offsets.x - htmlOffset.x;
+  const y = rect.top + scroll.scrollTop - offsets.y - htmlOffset.y;
+  return {
+    x,
+    y,
+    width: rect.width,
+    height: rect.height
+  };
+}
+function isStaticPositioned(element) {
+  return getComputedStyle2(element).position === "static";
+}
+function getTrueOffsetParent(element, polyfill) {
+  if (!isHTMLElement(element) || getComputedStyle2(element).position === "fixed") {
+    return null;
+  }
+  if (polyfill) {
+    return polyfill(element);
+  }
+  let rawOffsetParent = element.offsetParent;
+  if (getDocumentElement(element) === rawOffsetParent) {
+    rawOffsetParent = rawOffsetParent.ownerDocument.body;
+  }
+  return rawOffsetParent;
+}
+function getOffsetParent(element, polyfill) {
+  const win = getWindow(element);
+  if (isTopLayer(element)) {
+    return win;
+  }
+  if (!isHTMLElement(element)) {
+    let svgOffsetParent = getParentNode(element);
+    while (svgOffsetParent && !isLastTraversableNode(svgOffsetParent)) {
+      if (isElement(svgOffsetParent) && !isStaticPositioned(svgOffsetParent)) {
+        return svgOffsetParent;
+      }
+      svgOffsetParent = getParentNode(svgOffsetParent);
+    }
+    return win;
+  }
+  let offsetParent = getTrueOffsetParent(element, polyfill);
+  while (offsetParent && isTableElement(offsetParent) && isStaticPositioned(offsetParent)) {
+    offsetParent = getTrueOffsetParent(offsetParent, polyfill);
+  }
+  if (offsetParent && isLastTraversableNode(offsetParent) && isStaticPositioned(offsetParent) && !isContainingBlock(offsetParent)) {
+    return win;
+  }
+  return offsetParent || getContainingBlock(element) || win;
+}
+var getElementRects = async function(data) {
+  const getOffsetParentFn = this.getOffsetParent || getOffsetParent;
+  const getDimensionsFn = this.getDimensions;
+  const floatingDimensions = await getDimensionsFn(data.floating);
+  return {
+    reference: getRectRelativeToOffsetParent(data.reference, await getOffsetParentFn(data.floating), data.strategy),
+    floating: {
+      x: 0,
+      y: 0,
+      width: floatingDimensions.width,
+      height: floatingDimensions.height
+    }
+  };
+};
+function isRTL(element) {
+  return getComputedStyle2(element).direction === "rtl";
+}
+var platform2 = {
+  convertOffsetParentRelativeRectToViewportRelativeRect,
+  getDocumentElement,
+  getClippingRect,
+  getOffsetParent,
+  getElementRects,
+  getClientRects,
+  getDimensions,
+  getScale,
+  isElement,
+  isRTL
+};
+function rectsAreEqual(a, b) {
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+function observeMove(element, onMove, ancestorResize) {
+  let io = null;
+  let timeoutId;
+  const root = getDocumentElement(element);
+  function cleanup() {
+    var _io;
+    clearTimeout(timeoutId);
+    (_io = io) == null || _io.disconnect();
+    io = null;
+  }
+  function refresh(skip, threshold) {
+    if (skip === undefined) {
+      skip = false;
+    }
+    if (threshold === undefined) {
+      threshold = 1;
+    }
+    cleanup();
+    const elementRectForRootMargin = element.getBoundingClientRect();
+    const {
+      left,
+      top,
+      width,
+      height
+    } = elementRectForRootMargin;
+    if (!skip) {
+      onMove();
+    }
+    if (!width || !height) {
+      return;
+    }
+    const insetTop = floor(top);
+    const insetRight = floor(root.clientWidth - (left + width));
+    const insetBottom = floor(root.clientHeight - (top + height));
+    const insetLeft = floor(left);
+    const rootMargin = -insetTop + "px " + -insetRight + "px " + -insetBottom + "px " + -insetLeft + "px";
+    const options = {
+      rootMargin,
+      threshold: max(0, min(1, threshold)) || 1
+    };
+    let isFirstUpdate = true;
+    function handleObserve(entries) {
+      const ratio = entries[0].intersectionRatio;
+      if (!rectsAreEqual(elementRectForRootMargin, element.getBoundingClientRect())) {
+        return refresh();
+      }
+      if (ratio !== threshold) {
+        if (!isFirstUpdate) {
+          return refresh();
+        }
+        if (!ratio) {
+          timeoutId = setTimeout(() => {
+            refresh(false, 0.0000001);
+          }, 1000);
+        } else {
+          refresh(false, ratio);
+        }
+      }
+      isFirstUpdate = false;
+    }
+    try {
+      io = new IntersectionObserver(handleObserve, {
+        ...options,
+        root: root.ownerDocument
+      });
+    } catch (_e) {
+      io = new IntersectionObserver(handleObserve, options);
+    }
+    io.observe(element);
+  }
+  const win = getWindow(element);
+  const handleResize = () => refresh(ancestorResize);
+  win.addEventListener("resize", handleResize);
+  refresh(true);
+  return () => {
+    win.removeEventListener("resize", handleResize);
+    cleanup();
+  };
+}
+function autoUpdate(reference, floating, update, options) {
+  if (options === undefined) {
+    options = {};
+  }
+  const {
+    ancestorScroll = true,
+    ancestorResize = true,
+    elementResize = typeof ResizeObserver === "function",
+    layoutShift = typeof IntersectionObserver === "function",
+    animationFrame = false
+  } = options;
+  const referenceEl = unwrapElement(reference);
+  const ancestors = ancestorScroll || ancestorResize ? [...referenceEl ? getOverflowAncestors(referenceEl) : [], ...floating ? getOverflowAncestors(floating) : []] : [];
+  ancestors.forEach((ancestor) => {
+    ancestorScroll && ancestor.addEventListener("scroll", update);
+    ancestorResize && ancestor.addEventListener("resize", update);
+  });
+  const cleanupIo = referenceEl && layoutShift ? observeMove(referenceEl, update, ancestorResize) : null;
+  let reobserveFrame = -1;
+  let resizeObserver = null;
+  if (elementResize) {
+    resizeObserver = new ResizeObserver((_ref) => {
+      let [firstEntry] = _ref;
+      if (firstEntry && firstEntry.target === referenceEl && resizeObserver && floating) {
+        resizeObserver.unobserve(floating);
+        cancelAnimationFrame(reobserveFrame);
+        reobserveFrame = requestAnimationFrame(() => {
+          var _resizeObserver;
+          (_resizeObserver = resizeObserver) == null || _resizeObserver.observe(floating);
+        });
+      }
+      update();
+    });
+    if (referenceEl && !animationFrame) {
+      resizeObserver.observe(referenceEl);
+    }
+    if (floating) {
+      resizeObserver.observe(floating);
+    }
+  }
+  let frameId;
+  let prevRefRect = animationFrame ? getBoundingClientRect(reference) : null;
+  if (animationFrame) {
+    frameLoop();
+  }
+  function frameLoop() {
+    const nextRefRect = getBoundingClientRect(reference);
+    if (prevRefRect && !rectsAreEqual(prevRefRect, nextRefRect)) {
+      update();
+    }
+    prevRefRect = nextRefRect;
+    frameId = requestAnimationFrame(frameLoop);
+  }
+  update();
+  return () => {
+    var _resizeObserver2;
+    ancestors.forEach((ancestor) => {
+      ancestorScroll && ancestor.removeEventListener("scroll", update);
+      ancestorResize && ancestor.removeEventListener("resize", update);
+    });
+    cleanupIo == null || cleanupIo();
+    (_resizeObserver2 = resizeObserver) == null || _resizeObserver2.disconnect();
+    resizeObserver = null;
+    if (animationFrame) {
+      cancelAnimationFrame(frameId);
+    }
+  };
+}
+var offset2 = offset;
+var shift2 = shift;
+var flip2 = flip;
+var size2 = size;
+var limitShift2 = limitShift;
+var computePosition2 = (reference, floating, options) => {
+  const cache = new Map;
+  const mergedOptions = options != null ? options : {};
+  const platformWithCache = {
+    ...platform2,
+    ...mergedOptions.platform,
+    _c: cache
+  };
+  return computePosition(reference, floating, {
+    ...mergedOptions,
+    platform: platformWithCache
+  });
+};
+
+// engine/node_modules/@floating-ui/react-dom/dist/floating-ui.react-dom.mjs
+var React30 = __toESM(require_react(), 1);
+var import_react2 = __toESM(require_react(), 1);
+var ReactDOM4 = __toESM(require_react_dom(), 1);
+var isClient = typeof document !== "undefined";
+var noop6 = function noop() {};
+var index2 = isClient ? import_react2.useLayoutEffect : noop6;
+function deepEqual(a, b) {
+  if (a === b) {
+    return true;
+  }
+  if (typeof a !== typeof b) {
+    return false;
+  }
+  if (typeof a === "function" && a.toString() === b.toString()) {
+    return true;
+  }
+  let length;
+  let i;
+  let keys;
+  if (a && b && typeof a === "object") {
+    if (Array.isArray(a)) {
+      length = a.length;
+      if (length !== b.length)
+        return false;
+      for (i = length;i-- !== 0; ) {
+        if (!deepEqual(a[i], b[i])) {
+          return false;
+        }
+      }
+      return true;
+    }
+    keys = Object.keys(a);
+    length = keys.length;
+    if (length !== Object.keys(b).length) {
+      return false;
+    }
+    for (i = length;i-- !== 0; ) {
+      if (!{}.hasOwnProperty.call(b, keys[i])) {
+        return false;
+      }
+    }
+    for (i = length;i-- !== 0; ) {
+      const key = keys[i];
+      if (key === "_owner" && a.$$typeof) {
+        continue;
+      }
+      if (!deepEqual(a[key], b[key])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return a !== a && b !== b;
+}
+function getDPR(element) {
+  if (typeof window === "undefined") {
+    return 1;
+  }
+  const win = element.ownerDocument.defaultView || window;
+  return win.devicePixelRatio || 1;
+}
+function roundByDPR(element, value) {
+  const dpr = getDPR(element);
+  return Math.round(value * dpr) / dpr;
+}
+function useLatestRef(value) {
+  const ref = React30.useRef(value);
+  index2(() => {
+    ref.current = value;
+  });
+  return ref;
+}
+function useFloating(options) {
+  if (options === undefined) {
+    options = {};
+  }
+  const {
+    placement = "bottom",
+    strategy = "absolute",
+    middleware = [],
+    platform,
+    elements: {
+      reference: externalReference,
+      floating: externalFloating
+    } = {},
+    transform = true,
+    whileElementsMounted,
+    open
+  } = options;
+  const [data, setData] = React30.useState({
+    x: 0,
+    y: 0,
+    strategy,
+    placement,
+    middlewareData: {},
+    isPositioned: false
+  });
+  const [latestMiddleware, setLatestMiddleware] = React30.useState(middleware);
+  if (!deepEqual(latestMiddleware, middleware)) {
+    setLatestMiddleware(middleware);
+  }
+  const [_reference, _setReference] = React30.useState(null);
+  const [_floating, _setFloating] = React30.useState(null);
+  const setReference = React30.useCallback((node) => {
+    if (node !== referenceRef.current) {
+      referenceRef.current = node;
+      _setReference(node);
+    }
+  }, []);
+  const setFloating = React30.useCallback((node) => {
+    if (node !== floatingRef.current) {
+      floatingRef.current = node;
+      _setFloating(node);
+    }
+  }, []);
+  const referenceEl = externalReference || _reference;
+  const floatingEl = externalFloating || _floating;
+  const referenceRef = React30.useRef(null);
+  const floatingRef = React30.useRef(null);
+  const dataRef = React30.useRef(data);
+  const hasWhileElementsMounted = whileElementsMounted != null;
+  const whileElementsMountedRef = useLatestRef(whileElementsMounted);
+  const platformRef = useLatestRef(platform);
+  const openRef = useLatestRef(open);
+  const update = React30.useCallback(() => {
+    if (!referenceRef.current || !floatingRef.current) {
+      return;
+    }
+    const config = {
+      placement,
+      strategy,
+      middleware: latestMiddleware
+    };
+    if (platformRef.current) {
+      config.platform = platformRef.current;
+    }
+    computePosition2(referenceRef.current, floatingRef.current, config).then((data) => {
+      const fullData = {
+        ...data,
+        isPositioned: openRef.current !== false
+      };
+      if (isMountedRef.current && !deepEqual(dataRef.current, fullData)) {
+        dataRef.current = fullData;
+        ReactDOM4.flushSync(() => {
+          setData(fullData);
+        });
+      }
+    });
+  }, [latestMiddleware, placement, strategy, platformRef, openRef]);
+  index2(() => {
+    if (open === false && dataRef.current.isPositioned) {
+      dataRef.current.isPositioned = false;
+      setData((data) => ({
+        ...data,
+        isPositioned: false
+      }));
+    }
+  }, [open]);
+  const isMountedRef = React30.useRef(false);
+  index2(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+  index2(() => {
+    if (referenceEl)
+      referenceRef.current = referenceEl;
+    if (floatingEl)
+      floatingRef.current = floatingEl;
+    if (referenceEl && floatingEl) {
+      if (whileElementsMountedRef.current) {
+        return whileElementsMountedRef.current(referenceEl, floatingEl, update);
+      }
+      update();
+    }
+  }, [referenceEl, floatingEl, update, whileElementsMountedRef, hasWhileElementsMounted]);
+  const refs = React30.useMemo(() => ({
+    reference: referenceRef,
+    floating: floatingRef,
+    setReference,
+    setFloating
+  }), [setReference, setFloating]);
+  const elements = React30.useMemo(() => ({
+    reference: referenceEl,
+    floating: floatingEl
+  }), [referenceEl, floatingEl]);
+  const floatingStyles = React30.useMemo(() => {
+    const initialStyles = {
+      position: strategy,
+      left: 0,
+      top: 0
+    };
+    if (!elements.floating) {
+      return initialStyles;
+    }
+    const x = roundByDPR(elements.floating, data.x);
+    const y = roundByDPR(elements.floating, data.y);
+    if (transform) {
+      return {
+        ...initialStyles,
+        transform: "translate(" + x + "px, " + y + "px)",
+        ...getDPR(elements.floating) >= 1.5 && {
+          willChange: "transform"
+        }
+      };
+    }
+    return {
+      position: strategy,
+      left: x,
+      top: y
+    };
+  }, [strategy, transform, elements.floating, data.x, data.y]);
+  return React30.useMemo(() => ({
+    ...data,
+    update,
+    refs,
+    elements,
+    floatingStyles
+  }), [data, update, refs, elements, floatingStyles]);
+}
+var offset3 = (options, deps) => {
+  const result = offset2(options);
+  return {
+    name: result.name,
+    fn: result.fn,
+    options: [options, deps]
+  };
+};
+var shift3 = (options, deps) => {
+  const result = shift2(options);
+  return {
+    name: result.name,
+    fn: result.fn,
+    options: [options, deps]
+  };
+};
+var limitShift3 = (options, deps) => {
+  const result = limitShift2(options);
+  return {
+    fn: result.fn,
+    options: [options, deps]
+  };
+};
+var flip3 = (options, deps) => {
+  const result = flip2(options);
+  return {
+    name: result.name,
+    fn: result.fn,
+    options: [options, deps]
+  };
+};
+var size3 = (options, deps) => {
+  const result = size2(options);
+  return {
+    name: result.name,
+    fn: result.fn,
+    options: [options, deps]
+  };
+};
+// engine/node_modules/@base-ui/utils/formatErrorMessage.mjs
+function createFormatErrorMessage(baseUrl, prefix) {
+  return function formatErrorMessage(code, ...args) {
+    const url = new URL(baseUrl);
+    url.searchParams.set("code", code.toString());
+    args.forEach((arg) => url.searchParams.append("args[]", arg));
+    return `${prefix} error #${code}; visit ${url} for the full message.`;
+  };
+}
+var formatErrorMessage = createFormatErrorMessage("https://base-ui.com/production-error", "Base UI");
+var formatErrorMessage_default = formatErrorMessage;
+
+// engine/node_modules/@base-ui/react/utils/popups/popupStoreUtils.mjs
+var React34 = __toESM(require_react(), 1);
+var ReactDOM6 = __toESM(require_react_dom(), 1);
+
+// engine/node_modules/@base-ui/react/internals/useUnmountAfterClose.mjs
+var React33 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/internals/useTransitionStatus.mjs
+var React31 = __toESM(require_react(), 1);
+"use client";
+function useTransitionStatus(open, enableIdleState = false, deferEndingState = false, animateInitialOpen = false) {
+  const [transitionStatus, setTransitionStatus] = React31.useState(open && enableIdleState ? "idle" : undefined);
+  const [mounted, setMounted] = React31.useState(open && !animateInitialOpen);
+  if (open && !mounted) {
+    setMounted(true);
+    setTransitionStatus("starting");
+  }
+  if (!open && mounted && transitionStatus !== "ending" && !deferEndingState) {
+    setTransitionStatus("ending");
+  }
+  if (!open && !mounted && transitionStatus === "ending") {
+    setTransitionStatus(undefined);
+  }
+  useIsoLayoutEffect(() => {
+    if (!open && mounted && transitionStatus !== "ending" && deferEndingState) {
+      const frame = AnimationFrame.request(() => {
+        setTransitionStatus("ending");
+      });
+      return () => {
+        AnimationFrame.cancel(frame);
+      };
+    }
+    return;
+  }, [open, mounted, transitionStatus, deferEndingState]);
+  useIsoLayoutEffect(() => {
+    if (!open || enableIdleState || transitionStatus === undefined) {
+      return;
+    }
+    const frame = AnimationFrame.request(() => {
+      setTransitionStatus(undefined);
+    });
+    return () => {
+      AnimationFrame.cancel(frame);
+    };
+  }, [enableIdleState, open, transitionStatus]);
+  useIsoLayoutEffect(() => {
+    if (!open || !enableIdleState) {
+      return;
+    }
+    if (open && mounted && transitionStatus !== "idle") {
+      setTransitionStatus("starting");
+    }
+    const frame = AnimationFrame.request(() => {
+      setTransitionStatus("idle");
+    });
+    return () => {
+      AnimationFrame.cancel(frame);
+    };
+  }, [enableIdleState, open, mounted, transitionStatus]);
+  return {
+    mounted,
+    setMounted,
+    transitionStatus
+  };
+}
+
+// engine/node_modules/@base-ui/react/internals/useOpenChangeComplete.mjs
+var React32 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/internals/useAnimationsFinished.mjs
+var ReactDOM5 = __toESM(require_react_dom(), 1);
+
+// engine/node_modules/@base-ui/react/utils/getFiniteAnimations.mjs
+function getFiniteAnimations(element, options) {
+  return element.getAnimations(options).filter((animation) => {
+    const timing = animation.effect?.getTiming();
+    return timing?.duration !== Infinity && timing?.iterations !== Infinity;
+  });
+}
+
+// engine/node_modules/@base-ui/react/internals/useAnimationsFinished.mjs
+"use client";
+var pendingCallbacks = null;
+function flushBeforePaint(fn) {
+  if (!pendingCallbacks) {
+    const callbacks = [];
+    pendingCallbacks = callbacks;
+    queueMicrotask(() => {
+      pendingCallbacks = null;
+      ReactDOM5.flushSync(() => {
+        for (const callback of callbacks) {
+          callback();
+        }
+      });
+    });
+  }
+  pendingCallbacks.push(fn);
+}
+function useAnimationsFinished(elementOrRef, waitForStartingStyleRemoved = false, batch = false) {
+  const frame = useAnimationFrame();
+  return useStableCallback((fnToExecute, signal = null) => {
+    frame.cancel();
+    const element = resolveRef(elementOrRef);
+    if (element == null) {
+      return;
+    }
+    const resolvedElement = element;
+    const done = () => {
+      if (!batch) {
+        ReactDOM5.flushSync(fnToExecute);
+        return;
+      }
+      flushBeforePaint(() => {
+        if (!signal?.aborted) {
+          fnToExecute();
+        }
+      });
+    };
+    if (typeof resolvedElement.getAnimations !== "function" || globalThis.BASE_UI_ANIMATIONS_DISABLED) {
+      fnToExecute();
+      return;
+    }
+    function exec() {
+      Promise.all(getFiniteAnimations(resolvedElement).map((animation) => animation.finished.then(NOOP))).then(() => {
+        if (!signal?.aborted) {
+          done();
+        }
+      }, () => {
+        if (signal?.aborted) {
+          return;
+        }
+        const currentAnimations = getFiniteAnimations(resolvedElement);
+        if (currentAnimations.some((animation) => animation.pending || animation.playState !== "finished")) {
+          exec();
+          return;
+        }
+        done();
+      });
+    }
+    if (waitForStartingStyleRemoved) {
+      const startingStyleAttribute = startingStyle;
+      if (!resolvedElement.hasAttribute(startingStyleAttribute)) {
+        frame.request(exec);
+        return;
+      }
+      const attributeObserver = new MutationObserver(() => {
+        if (!resolvedElement.hasAttribute(startingStyleAttribute)) {
+          attributeObserver.disconnect();
+          exec();
+        }
+      });
+      attributeObserver.observe(resolvedElement, {
+        attributes: true,
+        attributeFilter: [startingStyleAttribute]
+      });
+      signal?.addEventListener("abort", () => attributeObserver.disconnect(), {
+        once: true
+      });
+      return;
+    }
+    frame.request(exec);
+  });
+}
+
+// engine/node_modules/@base-ui/react/internals/useOpenChangeComplete.mjs
+"use client";
+function useOpenChangeComplete(parameters) {
+  const {
+    enabled = true,
+    open,
+    ref,
+    batch = false,
+    onComplete: onCompleteParam
+  } = parameters;
+  const onComplete = useStableCallback(onCompleteParam);
+  const runOnceAnimationsFinish = useAnimationsFinished(ref, open, batch);
+  React32.useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+    const abortController = new AbortController;
+    runOnceAnimationsFinish(onComplete, abortController.signal);
+    return () => {
+      abortController.abort();
+    };
+  }, [enabled, open, onComplete, runOnceAnimationsFinish]);
+}
+
+// engine/node_modules/@base-ui/react/internals/useUnmountAfterClose.mjs
+"use client";
+function useUnmountAfterClose(parameters) {
+  const {
+    open,
+    ref,
+    preventUnmountOnClose,
+    setPreventUnmountOnClose: setPreventUnmountOnCloseParam,
+    onUnmount,
+    animateInitialOpen
+  } = parameters;
+  const setPreventUnmountOnClose = useStableCallback(setPreventUnmountOnCloseParam);
+  const {
+    mounted,
+    setMounted,
+    transitionStatus
+  } = useTransitionStatus(open, false, false, animateInitialOpen);
+  const preventUnmountingOnClose = open ? false : preventUnmountOnClose;
+  useIsoLayoutEffect(() => {
+    if (open) {
+      setPreventUnmountOnClose(false);
+    }
+  }, [open, setPreventUnmountOnClose]);
+  const mountedRef = React33.useRef(mounted);
+  const pendingUnmountRef = React33.useRef(false);
+  const rerender = useForcedRerendering();
+  const unmount = () => {
+    mountedRef.current = false;
+    setMounted(false);
+    onUnmount();
+  };
+  useIsoLayoutEffect(() => {
+    mountedRef.current = mounted;
+    if (pendingUnmountRef.current) {
+      pendingUnmountRef.current = false;
+      if (!open && mounted) {
+        unmount();
+      }
+    }
+  });
+  const forceUnmount = useStableCallback(() => {
+    if (!mountedRef.current) {
+      return;
+    }
+    if (open) {
+      pendingUnmountRef.current = true;
+      rerender();
+      return;
+    }
+    unmount();
+  });
+  useOpenChangeComplete({
+    enabled: mounted && !open && !preventUnmountingOnClose,
+    open,
+    ref,
+    onComplete() {
+      if (!open) {
+        forceUnmount();
+      }
+    }
+  });
+  return {
+    mounted,
+    transitionStatus,
+    preventUnmountingOnClose,
+    forceUnmount
+  };
+}
+
+// engine/node_modules/@base-ui/react/utils/popups/popupStoreUtils.mjs
+"use client";
+var FOCUSABLE_POPUP_PROPS = {
+  tabIndex: -1,
+  [FOCUSABLE_ATTRIBUTE]: ""
+};
+function createDefaultInitialFocus(popupRef) {
+  return (interactionType) => interactionType === "touch" ? popupRef.current : true;
+}
+function usePopupRootStore(createStore, treatPopupAsFloatingElement = false) {
+  const floatingId = useId();
+  const nested = useFloatingParentNodeId() != null;
+  const store = useRefWithInit(() => createStore(floatingId, nested)).current;
+  useSyncedFloatingRootContext({
+    popupStore: store,
+    treatPopupAsFloatingElement,
+    floatingRootContext: store.state.floatingRootContext,
+    floatingId,
+    nested,
+    onOpenChange: store.setOpen
+  });
+  return store;
+}
+function PopupHandleAttachment({
+  handle,
+  store
+}) {
+  useIsoLayoutEffect(() => {
+    return handle.attachStore(store);
+  }, [handle, store]);
+  return null;
+}
+function syncTriggerCount(store) {
+  const triggerCount = store.context.triggerElements.size;
+  if (store.select("open") && store.state.triggerCount !== triggerCount) {
+    store.set("triggerCount", triggerCount);
+  }
+}
+function useTriggerRegistration(id, store) {
+  const registrationRef = React34.useRef(null);
+  return useStableCallback((element) => {
+    const registration = registrationRef.current;
+    if (registration !== null) {
+      if (registration.element === element && registration.store === store && registration.id === id) {
+        return;
+      }
+      registrationRef.current = null;
+      const registeredStore = registration.store;
+      if (registeredStore.context.triggerElements.getById(registration.id) === registration.element) {
+        registeredStore.context.triggerElements.delete(registration.id);
+        syncTriggerCount(registeredStore);
+      }
+    }
+    if (element !== null && id !== undefined) {
+      registrationRef.current = {
+        store,
+        id,
+        element
+      };
+      store.context.triggerElements.add(id, element);
+      syncTriggerCount(store);
+    }
+  });
+}
+function createPopupOpenState(state, open, trigger, preventUnmountOnClose = false) {
+  let preventUnmountingOnClose = state.preventUnmountingOnClose;
+  if (open) {
+    preventUnmountingOnClose = false;
+  } else if (preventUnmountOnClose) {
+    preventUnmountingOnClose = true;
+  }
+  const triggerId = trigger?.id ?? null;
+  let activeTriggerId = state.activeTriggerId;
+  let activeTriggerElement = state.activeTriggerElement;
+  if (triggerId || open) {
+    activeTriggerId = triggerId;
+    activeTriggerElement = trigger ?? null;
+  }
+  return {
+    open,
+    preventUnmountingOnClose,
+    activeTriggerId,
+    activeTriggerElement,
+    openedWithoutTrigger: open ? trigger == null : state.openedWithoutTrigger
+  };
+}
+function attachPreventUnmountOnClose(eventDetails) {
+  let preventUnmountOnClose = false;
+  eventDetails.preventUnmountOnClose = () => {
+    preventUnmountOnClose = true;
+  };
+  return () => preventUnmountOnClose;
+}
+function useTriggerDataForwarding(triggerId, triggerElementRef, store, stateUpdates) {
+  const isMountedByThisTrigger = store.useState("isMountedByTrigger", triggerId);
+  const baseRegisterTrigger = useTriggerRegistration(triggerId, store);
+  const applyTriggerData = useStableCallback((element) => {
+    const open = store.select("open");
+    const activeTriggerId = store.select("activeTriggerId");
+    if (activeTriggerId === triggerId) {
+      const changes = {
+        activeTriggerElement: element,
+        ...open ? stateUpdates : null
+      };
+      store.update(changes);
+      return;
+    }
+    if (activeTriggerId == null && open && !store.state.openedWithoutTrigger) {
+      const changes = {
+        activeTriggerId: triggerId ?? null,
+        activeTriggerElement: element,
+        ...stateUpdates
+      };
+      store.update(changes);
+    }
+  });
+  const registerTrigger = useStableCallback((element) => {
+    baseRegisterTrigger(element);
+    if (element) {
+      applyTriggerData(element);
+    }
+  });
+  useIsoLayoutEffect(() => {
+    registerTrigger(triggerElementRef.current);
+    return () => registerTrigger(null);
+  }, [registerTrigger, triggerElementRef, store, triggerId]);
+  useIsoLayoutEffect(() => {
+    if (isMountedByThisTrigger) {
+      const changes = {
+        activeTriggerElement: triggerElementRef.current,
+        ...stateUpdates
+      };
+      store.update(changes);
+    }
+  }, [isMountedByThisTrigger, store, triggerElementRef, ...Object.values(stateUpdates)]);
+  return {
+    registerTrigger,
+    isMountedByThisTrigger
+  };
+}
+function useImplicitActiveTrigger(store, options = {}) {
+  const {
+    closeOnActiveTriggerUnmount = false
+  } = options;
+  const resolvedActiveTriggerIdRef = React34.useRef(null);
+  const open = store.useState("open");
+  const reactiveTriggerCount = store.useState("triggerCount");
+  const activeTriggerId = store.useState("activeTriggerId");
+  const reactiveActiveTriggerElement = store.useState("activeTriggerElement");
+  useIsoLayoutEffect(() => {
+    if (!open) {
+      resolvedActiveTriggerIdRef.current = null;
+      if (store.state.triggerCount !== 0) {
+        store.set("triggerCount", 0);
+      }
+      if (store.state.openedWithoutTrigger) {
+        store.set("openedWithoutTrigger", false);
+      }
+      return;
+    }
+    const triggerCount = store.context.triggerElements.size;
+    const stateUpdates = {};
+    if (store.state.triggerCount !== triggerCount) {
+      stateUpdates.triggerCount = triggerCount;
+    }
+    const currentActiveTriggerId = store.select("activeTriggerId");
+    let lostActiveTriggerId = null;
+    if (currentActiveTriggerId) {
+      const activeTriggerElement = store.context.triggerElements.getById(currentActiveTriggerId);
+      if (!activeTriggerElement) {
+        for (const [triggerId, triggerElement] of store.context.triggerElements.entries()) {
+          if (triggerElement === store.state.activeTriggerElement) {
+            stateUpdates.activeTriggerId = triggerId;
+            stateUpdates.activeTriggerElement = triggerElement;
+            resolvedActiveTriggerIdRef.current = triggerId;
+            break;
+          }
+        }
+        if (stateUpdates.activeTriggerId === undefined) {
+          if (resolvedActiveTriggerIdRef.current === currentActiveTriggerId) {
+            lostActiveTriggerId = currentActiveTriggerId;
+          } else {
+            resolvedActiveTriggerIdRef.current = null;
+          }
+        }
+      } else {
+        resolvedActiveTriggerIdRef.current = currentActiveTriggerId;
+        if (activeTriggerElement !== store.state.activeTriggerElement) {
+          stateUpdates.activeTriggerElement = activeTriggerElement;
+        }
+      }
+    } else {
+      resolvedActiveTriggerIdRef.current = null;
+    }
+    if (!lostActiveTriggerId && !currentActiveTriggerId && !store.state.openedWithoutTrigger && triggerCount === 1) {
+      const iteratorResult = store.context.triggerElements.entries().next();
+      if (!iteratorResult.done) {
+        const [implicitTriggerId, implicitTriggerElement] = iteratorResult.value;
+        stateUpdates.activeTriggerId = implicitTriggerId;
+        stateUpdates.activeTriggerElement = implicitTriggerElement;
+        resolvedActiveTriggerIdRef.current = implicitTriggerId;
+      }
+    }
+    if (stateUpdates.triggerCount !== undefined || stateUpdates.activeTriggerId !== undefined || stateUpdates.activeTriggerElement !== undefined) {
+      store.update(stateUpdates);
+    }
+    if (lostActiveTriggerId) {
+      if (closeOnActiveTriggerUnmount) {
+        queueMicrotask(() => {
+          if (store.select("open") && store.select("activeTriggerId") === lostActiveTriggerId && !store.context.triggerElements.getById(lostActiveTriggerId)) {
+            const eventDetails = createChangeEventDetails(none);
+            store.setOpen(false, eventDetails);
+            if (!eventDetails.isCanceled) {
+              store.update({
+                activeTriggerId: null,
+                activeTriggerElement: null
+              });
+            }
+          }
+        });
+      }
+    }
+  }, [open, store, reactiveTriggerCount, activeTriggerId, reactiveActiveTriggerElement, closeOnActiveTriggerUnmount]);
+}
+function useOpenStateTransitions(open, store, onUnmount, animateInitialOpen) {
+  const {
+    mounted,
+    transitionStatus,
+    forceUnmount
+  } = useUnmountAfterClose({
+    open,
+    ref: store.context.popupRef,
+    preventUnmountOnClose: store.useState("preventUnmountingOnClose"),
+    setPreventUnmountOnClose: (preventUnmountOnClose) => store.set("preventUnmountingOnClose", preventUnmountOnClose),
+    animateInitialOpen,
+    onUnmount() {
+      store.update({
+        activeTriggerId: null,
+        activeTriggerElement: null,
+        mounted: false,
+        preventUnmountingOnClose: false
+      });
+      onUnmount?.();
+      store.context.onOpenChangeComplete?.(false);
+    }
+  });
+  useRefWithInit(() => {
+    store.set("mounted", mounted);
+    return null;
+  });
+  store.useSyncedValues({
+    mounted,
+    transitionStatus
+  });
+  return {
+    forceUnmount,
+    transitionStatus
+  };
+}
+function usePopupInteractionProps(store, statePart) {
+  store.useSyncedValues(statePart);
+  useIsoLayoutEffect(() => () => {
+    store.update({
+      activeTriggerProps: EMPTY_OBJECT,
+      inactiveTriggerProps: EMPTY_OBJECT,
+      popupProps: EMPTY_OBJECT
+    });
+  }, [store]);
+}
+function usePopupRootSync(store, open) {
+  useIsoLayoutEffect(() => {
+    if (!open && store.state.openMethod !== null) {
+      store.set("openMethod", null);
+    }
+  }, [open, store]);
+  useIsoLayoutEffect(() => () => {
+    if (store.state.openMethod !== null) {
+      store.set("openMethod", null);
+    }
+  }, [store]);
+}
+
+// engine/node_modules/@base-ui/react/utils/popups/popupTriggerMap.mjs
+class PopupTriggerMap {
+  idMap = new Map;
+  add(id, element) {
+    if (false) {}
+    this.idMap.set(id, element);
+  }
+  delete(id) {
+    if (false) {}
+    this.idMap.delete(id);
+  }
+  hasElement(element) {
+    for (const registered of this.idMap.values()) {
+      if (registered === element) {
+        return true;
+      }
+    }
+    return false;
+  }
+  hasMatchingElement(predicate) {
+    for (const element of this.idMap.values()) {
+      if (predicate(element)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  getById(id) {
+    return this.idMap.get(id);
+  }
+  entries() {
+    return this.idMap.entries();
+  }
+  elements() {
+    return this.idMap.values();
+  }
+  get size() {
+    return this.idMap.size;
+  }
+}
+
+// engine/node_modules/@base-ui/utils/store/useStore.mjs
+var React36 = __toESM(require_react(), 1);
+var import_shim = __toESM(require_shim(), 1);
+var import_with_selector = __toESM(require_with_selector(), 1);
+
+// engine/node_modules/@base-ui/utils/fastHooks.mjs
+var React35 = __toESM(require_react(), 1);
+var hooks = [];
+var currentInstance = undefined;
+function getInstance() {
+  return currentInstance;
+}
+function register(hook) {
+  hooks.push(hook);
+}
+function fastComponent(fn) {
+  const FastComponent = (props, forwardedRef) => {
+    const instance = useRefWithInit(createInstance).current;
+    let result;
+    try {
+      currentInstance = instance;
+      for (const hook of hooks) {
+        hook.before(instance);
+      }
+      result = fn(props, forwardedRef);
+      for (const hook of hooks) {
+        hook.after(instance);
+      }
+      instance.didInitialize = true;
+    } finally {
+      currentInstance = undefined;
+    }
+    return result;
+  };
+  FastComponent.displayName = fn.displayName || fn.name;
+  return FastComponent;
+}
+function fastComponentRef(fn) {
+  return /* @__PURE__ */ React35.forwardRef(fastComponent(fn));
+}
+function createInstance() {
+  return {
+    didInitialize: false
+  };
+}
+
+// engine/node_modules/@base-ui/utils/store/useStore.mjs
+var canUseRawUseSyncExternalStore = isReactVersionAtLeast(19);
+var useStoreImplementation = canUseRawUseSyncExternalStore ? useStoreFast : useStoreLegacy;
+function useStore(store, selector, a1, a2, a3) {
+  return useStoreImplementation(store, selector, a1, a2, a3);
+}
+function useStoreR19(store, selector, a1, a2, a3) {
+  const getSelection2 = React36.useCallback(() => selector(store.getSnapshot(), a1, a2, a3), [store, selector, a1, a2, a3]);
+  return import_shim.useSyncExternalStore(store.subscribe, getSelection2, getSelection2);
+}
+register({
+  before(instance) {
+    instance.syncIndex = 0;
+    if (!instance.didInitialize) {
+      instance.syncTick = 1;
+      instance.syncHooks = [];
+      instance.didChangeStore = true;
+      instance.getSnapshot = () => {
+        let didChange = false;
+        for (let i = 0;i < instance.syncHooks.length; i += 1) {
+          const hook = instance.syncHooks[i];
+          const value = hook.selector(hook.store.state, hook.a1, hook.a2, hook.a3);
+          if (!Object.is(hook.value, value)) {
+            didChange = true;
+            hook.value = value;
+          }
+        }
+        if (didChange) {
+          instance.syncTick += 1;
+        }
+        return instance.syncTick;
+      };
+    }
+  },
+  after(instance) {
+    if (instance.syncHooks.length > 0) {
+      if (instance.didChangeStore) {
+        instance.didChangeStore = false;
+        instance.subscribe = (onStoreChange) => {
+          const stores = new Set;
+          for (const hook of instance.syncHooks) {
+            stores.add(hook.store);
+          }
+          const unsubscribes = [];
+          for (const store of stores) {
+            unsubscribes.push(store.subscribe(onStoreChange));
+          }
+          return () => {
+            for (const unsubscribe of unsubscribes) {
+              unsubscribe();
+            }
+          };
+        };
+      }
+      import_shim.useSyncExternalStore(instance.subscribe, instance.getSnapshot, instance.getSnapshot);
+    }
+  }
+});
+function useStoreFast(store, selector, a1, a2, a3) {
+  const instance = getInstance();
+  if (!instance) {
+    return useStoreR19(store, selector, a1, a2, a3);
+  }
+  const index = instance.syncIndex;
+  instance.syncIndex += 1;
+  let hook;
+  if (!instance.didInitialize) {
+    hook = {
+      store,
+      selector,
+      a1,
+      a2,
+      a3,
+      value: selector(store.getSnapshot(), a1, a2, a3)
+    };
+    instance.syncHooks.push(hook);
+  } else {
+    hook = instance.syncHooks[index];
+    if (hook.store !== store || hook.selector !== selector || !Object.is(hook.a1, a1) || !Object.is(hook.a2, a2) || !Object.is(hook.a3, a3)) {
+      if (hook.store !== store) {
+        instance.didChangeStore = true;
+      }
+      hook.store = store;
+      hook.selector = selector;
+      hook.a1 = a1;
+      hook.a2 = a2;
+      hook.a3 = a3;
+      hook.value = selector(store.getSnapshot(), a1, a2, a3);
+    }
+  }
+  return hook.value;
+}
+function useStoreLegacy(store, selector, a1, a2, a3) {
+  return import_with_selector.useSyncExternalStoreWithSelector(store.subscribe, store.getSnapshot, store.getSnapshot, (state) => selector(state, a1, a2, a3));
+}
+
+// engine/node_modules/@base-ui/utils/store/Store.mjs
+class Store {
+  static create(state) {
+    return new this(state);
+  }
+  constructor(state) {
+    this.state = state;
+    this.listeners = new Set;
+    this.updateTick = 0;
+  }
+  subscribe = (fn) => {
+    this.listeners.add(fn);
+    return () => {
+      this.listeners.delete(fn);
+    };
+  };
+  getSnapshot = () => {
+    return this.state;
+  };
+  setState(newState) {
+    if (this.state === newState) {
+      return;
+    }
+    this.state = newState;
+    this.updateTick += 1;
+    const currentTick = this.updateTick;
+    for (const listener of this.listeners) {
+      if (currentTick !== this.updateTick) {
+        return;
+      }
+      listener(newState);
+    }
+  }
+  update(changes) {
+    for (const key in changes) {
+      if (!Object.is(this.state[key], changes[key])) {
+        this.setState({
+          ...this.state,
+          ...changes
+        });
+        return;
+      }
+    }
+  }
+  set(key, value) {
+    if (!Object.is(this.state[key], value)) {
+      this.setState({
+        ...this.state,
+        [key]: value
+      });
+    }
+  }
+  notifyAll() {
+    const newState = {
+      ...this.state
+    };
+    this.setState(newState);
+  }
+  use(selector, a1, a2, a3) {
+    return useStore(this, selector, a1, a2, a3);
+  }
+}
+
+// engine/node_modules/@base-ui/utils/store/ReactStore.mjs
+var React37 = __toESM(require_react(), 1);
+"use client";
+
+class ReactStore extends Store {
+  constructor(state, context = {}, selectors) {
+    super(state);
+    this.context = context;
+    this.selectors = selectors;
+  }
+  useSyncedValue(key, value) {
+    React37.useDebugValue(key);
+    const store = this;
+    useIsoLayoutEffect(() => {
+      if (store.state[key] !== value) {
+        store.set(key, value);
+      }
+    }, [store, key, value]);
+  }
+  useSyncedValueWithCleanup(key, value) {
+    const store = this;
+    useIsoLayoutEffect(() => {
+      if (store.state[key] !== value) {
+        store.set(key, value);
+      }
+      return () => {
+        store.set(key, undefined);
+      };
+    }, [store, key, value]);
+  }
+  useSyncedValues(statePart) {
+    const store = this;
+    if (false) {}
+    const dependencies = Object.values(statePart);
+    useIsoLayoutEffect(() => {
+      store.update(statePart);
+    }, [store, ...dependencies]);
+  }
+  useControlledProp(key, controlled) {
+    React37.useDebugValue(key);
+    const store = this;
+    const isControlled = controlled !== undefined;
+    useIsoLayoutEffect(() => {
+      if (isControlled && !Object.is(store.state[key], controlled)) {
+        store.setState({
+          ...store.state,
+          [key]: controlled
+        });
+      }
+    }, [store, key, controlled, isControlled]);
+    if (false) {}
+  }
+  select(key, a1, a2, a3) {
+    const selector = this.selectors[key];
+    return selector(this.state, a1, a2, a3);
+  }
+  useState(key, a1, a2, a3) {
+    React37.useDebugValue(key);
+    return useStore(this, this.selectors[key], a1, a2, a3);
+  }
+  useContextCallback(key, fn) {
+    React37.useDebugValue(key);
+    const stableFunction = useStableCallback(fn ?? NOOP);
+    this.context[key] = stableFunction;
+  }
+  useStateSetter(key) {
+    const ref = React37.useRef(undefined);
+    if (ref.current === undefined) {
+      ref.current = (value) => {
+        this.set(key, value);
+      };
+    }
+    return ref.current;
+  }
+  observe(selector, listener) {
+    let selectFn;
+    if (typeof selector === "function") {
+      selectFn = selector;
+    } else {
+      selectFn = this.selectors[selector];
+    }
+    let prevValue = selectFn(this.state);
+    listener(prevValue, prevValue, this);
+    return this.subscribe((nextState) => {
+      const nextValue = selectFn(nextState);
+      if (!Object.is(prevValue, nextValue)) {
+        const oldValue = prevValue;
+        prevValue = nextValue;
+        listener(nextValue, oldValue, this);
+      }
+    });
+  }
+}
+
+// engine/node_modules/@base-ui/react/floating-ui-react/components/FloatingRootStore.mjs
+var selectors = {
+  open: (state) => state.open,
+  transitionStatus: (state) => state.transitionStatus,
+  domReferenceElement: (state) => state.domReferenceElement,
+  referenceElement: (state) => state.positionReference ?? state.referenceElement,
+  floatingElement: (state) => state.floatingElement,
+  floatingId: (state) => state.floatingId
+};
+
+class FloatingRootStore extends ReactStore {
+  constructor(options) {
+    const {
+      syncOnly,
+      nested,
+      onOpenChange,
+      triggerElements,
+      ...initialState
+    } = options;
+    super({
+      ...initialState,
+      positionReference: initialState.referenceElement,
+      domReferenceElement: initialState.referenceElement
+    }, {
+      onOpenChange,
+      dataRef: {
+        current: {}
+      },
+      events: createEventEmitter(),
+      nested,
+      triggerElements
+    }, selectors);
+    this.syncOnly = syncOnly;
+  }
+  syncOpenEvent = (newOpen, event) => {
+    if (!newOpen || !this.state.open || event != null && isClickLikeEvent(event)) {
+      this.context.dataRef.current.openEvent = newOpen ? event : undefined;
+    }
+  };
+  dispatchOpenChange = (newOpen, eventDetails) => {
+    this.syncOpenEvent(newOpen, eventDetails.event);
+    const details = {
+      open: newOpen,
+      reason: eventDetails.reason,
+      nativeEvent: eventDetails.event,
+      nested: this.context.nested,
+      triggerElement: eventDetails.trigger
+    };
+    this.context.events.emit("openchange", details);
+  };
+  setOpen = (newOpen, eventDetails) => {
+    if (this.syncOnly) {
+      this.context.onOpenChange?.(newOpen, eventDetails);
+      return;
+    }
+    this.dispatchOpenChange(newOpen, eventDetails);
+    this.context.onOpenChange?.(newOpen, eventDetails);
+  };
+}
+
+// engine/node_modules/@base-ui/react/utils/popups/store.mjs
+function createInitialPopupStoreState(triggerElements, floatingId, nested = false) {
+  return {
+    open: false,
+    openProp: undefined,
+    mounted: false,
+    transitionStatus: undefined,
+    floatingRootContext: new FloatingRootStore({
+      open: false,
+      transitionStatus: undefined,
+      floatingElement: null,
+      referenceElement: null,
+      triggerElements,
+      floatingId,
+      syncOnly: true,
+      nested,
+      onOpenChange: undefined
     }),
-    /* @__PURE__ */ jsx_runtime.jsxs("section", {
-      className: "pane",
-      id: "pane",
-      "aria-label": "Work views",
-      tabIndex: -1,
-      children: [
-        /* @__PURE__ */ jsx_runtime.jsxs("div", {
-          className: "pane-head",
-          children: [
-            /* @__PURE__ */ jsx_runtime.jsxs("button", {
-              type: "button",
-              className: "btn ghost pane-chat co-open",
-              id: "pane-chat",
-              hidden: true,
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsx("span", {
-                  className: "label",
-                  children: "Chat"
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("i", {
-                  className: "co-mark",
-                  "aria-hidden": "true"
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("span", {
-                  className: "co-open-state"
-                })
-              ]
-            }),
-            /* @__PURE__ */ jsx_runtime.jsxs("div", {
-              className: "tabs",
-              role: "tablist",
-              "aria-label": "Work views",
-              id: "tabs",
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsxs("button", {
-                  type: "button",
-                  role: "tab",
-                  className: "tab",
-                  id: "tab-agents",
-                  "data-tab": "agents",
-                  "aria-controls": "tp-board",
-                  children: [
-                    /* @__PURE__ */ jsx_runtime.jsx("span", {
-                      className: "label",
-                      children: "Agents"
-                    }),
-                    /* @__PURE__ */ jsx_runtime.jsx("span", {
-                      className: "tab-badge",
-                      id: "agents-badge",
-                      hidden: true
-                    })
-                  ]
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("button", {
-                  type: "button",
-                  role: "tab",
-                  className: "tab",
-                  id: "tab-pipeline",
-                  "data-tab": "pipeline",
-                  "aria-controls": "tp-board",
-                  children: /* @__PURE__ */ jsx_runtime.jsx("span", {
-                    className: "label",
-                    children: "Pipeline"
-                  })
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("button", {
-                  type: "button",
-                  role: "tab",
-                  className: "tab",
-                  id: "tab-queue",
-                  "data-tab": "queue",
-                  "aria-controls": "queue",
-                  children: /* @__PURE__ */ jsx_runtime.jsx("span", {
-                    className: "label",
-                    children: "Queue"
-                  })
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("button", {
-                  type: "button",
-                  role: "tab",
-                  className: "tab",
-                  id: "tab-history",
-                  "data-tab": "history",
-                  "aria-controls": "history-pane",
-                  children: /* @__PURE__ */ jsx_runtime.jsx("span", {
-                    className: "label",
-                    children: "History"
-                  })
-                })
-              ]
-            })
-          ]
-        }),
-        /* @__PURE__ */ jsx_runtime.jsxs("div", {
-          className: "tp-board",
-          id: "tp-board",
-          role: "tabpanel",
-          "aria-labelledby": "tab-agents",
-          children: [
-            /* @__PURE__ */ jsx_runtime.jsx("section", {
-              className: "human",
-              id: "human",
-              "aria-labelledby": "human-title",
-              hidden: true
-            }),
-            /* @__PURE__ */ jsx_runtime.jsx("div", {
-              className: "board",
-              id: "columns",
-              "aria-busy": "true"
-            })
-          ]
-        }),
-        /* @__PURE__ */ jsx_runtime.jsx("section", {
-          className: "queue",
-          id: "queue",
-          role: "tabpanel",
-          "aria-labelledby": "tab-queue",
-          hidden: true
-        }),
-        /* @__PURE__ */ jsx_runtime.jsx("section", {
-          className: "history-pane",
-          id: "history-pane",
-          role: "tabpanel",
-          "aria-labelledby": "tab-history",
-          hidden: true
-        })
-      ]
+    floatingId,
+    triggerCount: 0,
+    preventUnmountingOnClose: false,
+    payload: undefined,
+    activeTriggerId: null,
+    activeTriggerElement: null,
+    openedWithoutTrigger: false,
+    triggerIdProp: undefined,
+    popupElement: null,
+    positionerElement: null,
+    activeTriggerProps: EMPTY_OBJECT,
+    inactiveTriggerProps: EMPTY_OBJECT,
+    popupProps: EMPTY_OBJECT
+  };
+}
+var activeTriggerIdSelector = (state) => state.triggerIdProp ?? state.activeTriggerId;
+var openSelector = (state) => state.openProp ?? state.open;
+var popupIdSelector = (state) => {
+  const popupId = state.popupElement?.id ?? state.floatingId;
+  return popupId || undefined;
+};
+function triggerOwnsOpenPopup(state, triggerId) {
+  return triggerId !== undefined && openSelector(state) && activeTriggerIdSelector(state) === triggerId;
+}
+function triggerOwnsOpenPopupOrIsOnlyTrigger(state, triggerId) {
+  if (triggerOwnsOpenPopup(state, triggerId)) {
+    return true;
+  }
+  return triggerId !== undefined && openSelector(state) && activeTriggerIdSelector(state) == null && !state.openedWithoutTrigger && state.triggerCount === 1;
+}
+var popupStoreSelectors = {
+  open: openSelector,
+  mounted: (state) => state.mounted,
+  transitionStatus: (state) => openSelector(state) && !state.mounted ? "starting" : state.transitionStatus,
+  floatingRootContext: (state) => state.floatingRootContext,
+  triggerCount: (state) => state.triggerCount,
+  preventUnmountingOnClose: (state) => state.preventUnmountingOnClose,
+  payload: (state) => state.payload,
+  activeTriggerId: activeTriggerIdSelector,
+  activeTriggerElement: (state) => state.mounted ? state.activeTriggerElement : null,
+  popupId: popupIdSelector,
+  isTriggerActive: (state, triggerId) => triggerId !== undefined && activeTriggerIdSelector(state) === triggerId,
+  isOpenedByTrigger: (state, triggerId) => triggerOwnsOpenPopup(state, triggerId),
+  isMountedByTrigger: (state, triggerId) => triggerId !== undefined && activeTriggerIdSelector(state) === triggerId && state.mounted,
+  triggerProps: (state, isActive) => isActive ? state.activeTriggerProps : state.inactiveTriggerProps,
+  triggerPopupId: (state, triggerId) => triggerOwnsOpenPopupOrIsOnlyTrigger(state, triggerId) ? popupIdSelector(state) : undefined,
+  popupProps: (state) => state.popupProps,
+  popupElement: (state) => state.popupElement,
+  positionerElement: (state) => state.positionerElement
+};
+
+// engine/node_modules/@base-ui/react/utils/popups/usePopupHandleStore.mjs
+var React38 = __toESM(require_react(), 1);
+var import_shim2 = __toESM(require_shim(), 1);
+"use client";
+function usePopupHandleStore(handle) {
+  const subscribe = React38.useCallback((listener) => {
+    if (handle === undefined) {
+      return NOOP;
+    }
+    return handle.subscribeStore(listener);
+  }, [handle]);
+  const getSnapshot = React38.useCallback(() => {
+    return handle === undefined ? undefined : handle.store;
+  }, [handle]);
+  return import_shim2.useSyncExternalStore(subscribe, getSnapshot, () => handle?.serverStore);
+}
+
+// engine/node_modules/@base-ui/react/dialog/root/useDialogRoot.mjs
+"use client";
+function DialogInteractions({
+  store,
+  parentContext,
+  isDrawer
+}) {
+  const open = store.useState("open");
+  const mounted = store.useState("mounted");
+  const disablePointerDismissal = store.useState("disablePointerDismissal");
+  const modal = store.useState("modal");
+  const popupElement = store.useState("popupElement");
+  const floatingRootContext = store.useState("floatingRootContext");
+  const [ownNestedOpenDialogs, setOwnNestedOpenDialogs] = React39.useState(0);
+  const [ownNestedOpenDrawers, setOwnNestedOpenDrawers] = React39.useState(0);
+  const isTopmost = ownNestedOpenDialogs === 0;
+  const dismiss = useDismiss(floatingRootContext, {
+    outsidePressEvent() {
+      if (store.context.internalBackdropRef.current || store.context.backdropRef.current) {
+        return "intentional";
+      }
+      return {
+        mouse: modal === "trap-focus" ? "sloppy" : "intentional",
+        touch: "sloppy"
+      };
+    },
+    outsidePress(event) {
+      if (!store.context.outsidePressEnabledRef.current) {
+        return false;
+      }
+      if ("button" in event && event.button !== 0) {
+        return false;
+      }
+      if ("touches" in event) {
+        if (event.type === "touchend") {
+          if (event.changedTouches.length !== 1 || event.touches.length !== 0) {
+            return false;
+          }
+        } else if (event.touches.length !== 1) {
+          return false;
+        }
+      }
+      const target = getTarget(event);
+      if (isTopmost && !disablePointerDismissal) {
+        if (modal) {
+          const internalBackdrop = store.context.internalBackdropRef.current;
+          const backdrop = store.context.backdropRef.current;
+          return internalBackdrop || backdrop ? internalBackdrop === target || backdrop === target || contains(target, popupElement) && !target?.hasAttribute("data-base-ui-portal") : true;
+        }
+        return true;
+      }
+      return false;
+    },
+    escapeKey: isTopmost
+  });
+  useScrollLock(open && modal === true, popupElement);
+  store.useContextCallback("onNestedDialogOpen", (dialogCount, drawerCount) => {
+    if (!store.select("open") && !store.select("mounted")) {
+      return;
+    }
+    setOwnNestedOpenDialogs(dialogCount);
+    setOwnNestedOpenDrawers(drawerCount);
+  });
+  useIsoLayoutEffect(() => {
+    if (!open && !mounted) {
+      setOwnNestedOpenDialogs(0);
+      setOwnNestedOpenDrawers(0);
+    }
+  }, [open, mounted]);
+  useIsoLayoutEffect(() => {
+    if (parentContext?.onNestedDialogOpen) {
+      if (open) {
+        parentContext.onNestedDialogOpen(ownNestedOpenDialogs + 1, ownNestedOpenDrawers + (isDrawer ? 1 : 0));
+      }
+    }
+    return () => {
+      if (parentContext?.onNestedDialogOpen && open) {
+        parentContext.onNestedDialogOpen(0, 0);
+      }
+    };
+  }, [isDrawer, open, ownNestedOpenDialogs, ownNestedOpenDrawers, parentContext]);
+  usePopupInteractionProps(store, {
+    activeTriggerProps: dismiss.reference,
+    inactiveTriggerProps: dismiss.trigger,
+    popupProps: dismiss.floating,
+    nestedOpenDialogCount: ownNestedOpenDialogs,
+    nestedOpenDrawerCount: ownNestedOpenDrawers
+  });
+  return null;
+}
+
+// engine/node_modules/@base-ui/react/dialog/root/DialogRootContext.mjs
+var React40 = __toESM(require_react(), 1);
+"use client";
+var DialogRootContext = /* @__PURE__ */ React40.createContext(undefined);
+if (false)
+  ;
+function useDialogRootContext(optional) {
+  const store = React40.useContext(DialogRootContext);
+  if (!optional && store === undefined) {
+    throw new Error(formatErrorMessage_default(27));
+  }
+  return store;
+}
+
+// engine/node_modules/@base-ui/react/dialog/store/DialogStore.mjs
+var React41 = __toESM(require_react(), 1);
+var selectors2 = {
+  ...popupStoreSelectors,
+  modal: (state) => state.modal,
+  nested: (state) => state.nested,
+  nestedOpenDialogCount: (state) => state.nestedOpenDialogCount,
+  nestedOpenDrawerCount: (state) => state.nestedOpenDrawerCount,
+  disablePointerDismissal: (state) => state.disablePointerDismissal,
+  openMethod: (state) => state.openMethod,
+  descriptionElementId: (state) => state.descriptionElementId,
+  titleElementId: (state) => state.titleElementId,
+  viewportElement: (state) => state.viewportElement,
+  role: (state) => state.role
+};
+
+class DialogStore extends ReactStore {
+  constructor(initialState, floatingId, nested) {
+    const triggerElements = new PopupTriggerMap;
+    const state = createInitialState(initialState, triggerElements, floatingId, nested);
+    super(state, createInitialContext(triggerElements), selectors2);
+  }
+  setOpen = (nextOpen, eventDetails) => {
+    eventDetails.preventUnmountOnClose = () => {
+      this.set("preventUnmountingOnClose", true);
+    };
+    if (!nextOpen && eventDetails.trigger == null && this.state.activeTriggerId != null) {
+      eventDetails.trigger = this.state.activeTriggerElement ?? undefined;
+    }
+    this.context.onOpenChange?.(nextOpen, eventDetails);
+    if (eventDetails.isCanceled) {
+      return;
+    }
+    this.state.floatingRootContext.dispatchOpenChange(nextOpen, eventDetails);
+    this.update(createPopupOpenState(this.state, nextOpen, eventDetails.trigger));
+  };
+}
+function createInitialState(initialState, triggerElements, floatingId, nested = false) {
+  const state = {
+    ...createInitialPopupStoreState(triggerElements, floatingId, nested),
+    modal: true,
+    disablePointerDismissal: false,
+    viewportElement: null,
+    descriptionElementId: undefined,
+    titleElementId: undefined,
+    openMethod: null,
+    nested: false,
+    nestedOpenDialogCount: 0,
+    nestedOpenDrawerCount: 0,
+    role: "dialog",
+    ...initialState
+  };
+  return state;
+}
+function createInitialContext(triggerElements) {
+  return {
+    popupRef: /* @__PURE__ */ React41.createRef(),
+    backdropRef: /* @__PURE__ */ React41.createRef(),
+    internalBackdropRef: /* @__PURE__ */ React41.createRef(),
+    outsidePressEnabledRef: {
+      current: true
+    },
+    triggerElements,
+    onOpenChange: undefined,
+    onOpenChangeComplete: undefined
+  };
+}
+
+// engine/node_modules/@base-ui/react/dialog/root/useRenderDialogRoot.mjs
+var import_jsx_runtime8 = __toESM(require_jsx_runtime(), 1);
+"use client";
+function useRenderDialogRoot(mode, props) {
+  const {
+    children,
+    open: openProp,
+    defaultOpen = false,
+    onOpenChange,
+    onOpenChangeComplete,
+    disablePointerDismissal: disablePointerDismissalProp = false,
+    modal: modalProp = true,
+    actionsRef,
+    handle,
+    triggerId: triggerIdProp,
+    defaultTriggerId: defaultTriggerIdProp = null
+  } = props;
+  const isDrawer = mode === "drawer";
+  const isAlertDialog = mode === "alert-dialog";
+  const modal = isAlertDialog ? true : modalProp;
+  const disablePointerDismissal = isAlertDialog || disablePointerDismissalProp;
+  const role = isAlertDialog ? "alertdialog" : "dialog";
+  const parentStore = useDialogRootContext(true);
+  const nested = parentStore != null;
+  const rootState = {
+    modal,
+    disablePointerDismissal,
+    nested,
+    role
+  };
+  const store = usePopupRootStore((floatingId, floatingNested) => new DialogStore({
+    open: defaultOpen,
+    openProp,
+    activeTriggerId: defaultTriggerIdProp,
+    triggerIdProp,
+    ...rootState
+  }, floatingId, floatingNested), true);
+  store.useControlledProp("openProp", openProp);
+  store.useControlledProp("triggerIdProp", triggerIdProp);
+  store.useSyncedValues(rootState);
+  store.useContextCallback("onOpenChange", onOpenChange);
+  store.useContextCallback("onOpenChangeComplete", onOpenChangeComplete);
+  const open = store.useState("open");
+  const mounted = store.useState("mounted");
+  const payload = store.useState("payload");
+  usePopupRootSync(store, open);
+  useImplicitActiveTrigger(store);
+  const {
+    forceUnmount
+  } = useOpenStateTransitions(open, store);
+  React42.useImperativeHandle(actionsRef, () => ({
+    unmount: forceUnmount,
+    close: () => store.setOpen(false, createChangeEventDetails(imperativeAction))
+  }), [forceUnmount, store]);
+  const shouldRenderInteractions = open || mounted || handle != null;
+  return /* @__PURE__ */ import_jsx_runtime8.jsxs(DialogRootContext.Provider, {
+    value: store,
+    children: [handle && /* @__PURE__ */ import_jsx_runtime8.jsx(PopupHandleAttachment, {
+      handle,
+      store
+    }), shouldRenderInteractions && /* @__PURE__ */ import_jsx_runtime8.jsx(DialogInteractions, {
+      store,
+      parentContext: parentStore?.context,
+      isDrawer
+    }), typeof children === "function" ? children({
+      payload
+    }) : children]
+  });
+}
+
+// engine/node_modules/@base-ui/react/alert-dialog/root/AlertDialogRoot.mjs
+"use client";
+function AlertDialogRoot(props) {
+  return useRenderDialogRoot("alert-dialog", props);
+}
+// engine/node_modules/@base-ui/react/dialog/backdrop/DialogBackdrop.mjs
+var React43 = __toESM(require_react(), 1);
+"use client";
+var DialogBackdrop = /* @__PURE__ */ React43.forwardRef(function DialogBackdrop(componentProps, forwardedRef) {
+  const {
+    render,
+    className,
+    style,
+    forceRender = false,
+    ...elementProps
+  } = componentProps;
+  const store = useDialogRootContext();
+  const open = store.useState("open");
+  const nested = store.useState("nested");
+  const mounted = store.useState("mounted");
+  const transitionStatus = store.useState("transitionStatus");
+  const state = {
+    open,
+    transitionStatus
+  };
+  return useRenderElement("div", componentProps, {
+    state,
+    ref: [store.context.backdropRef, forwardedRef],
+    stateAttributesMapping: popupTransitionStateMapping,
+    props: [{
+      role: "presentation",
+      hidden: !mounted,
+      style: {
+        userSelect: "none",
+        WebkitUserSelect: "none"
+      }
+    }, elementProps],
+    enabled: forceRender || !nested
+  });
+});
+if (false)
+  ;
+// engine/node_modules/@base-ui/react/dialog/close/DialogClose.mjs
+var React47 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/internals/use-button/useButton.mjs
+var React46 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/internals/composite/root/CompositeRootContext.mjs
+var React44 = __toESM(require_react(), 1);
+"use client";
+var CompositeRootContext = /* @__PURE__ */ React44.createContext(undefined);
+if (false)
+  ;
+function useCompositeRootContext(optional = false) {
+  const context = React44.useContext(CompositeRootContext);
+  if (context === undefined && !optional) {
+    throw new Error(formatErrorMessage_default(16));
+  }
+  return context;
+}
+
+// engine/node_modules/@base-ui/react/utils/useFocusableWhenDisabled.mjs
+var React45 = __toESM(require_react(), 1);
+"use client";
+function useFocusableWhenDisabled(parameters) {
+  const {
+    focusableWhenDisabled,
+    disabled,
+    composite = false,
+    tabIndex: tabIndexProp = 0,
+    isNativeButton
+  } = parameters;
+  const isFocusableComposite = composite && focusableWhenDisabled !== false;
+  const isNonFocusableComposite = composite && focusableWhenDisabled === false;
+  const props = React45.useMemo(() => {
+    const additionalProps = {
+      onKeyDown(event) {
+        if (disabled && focusableWhenDisabled && event.key !== "Tab") {
+          event.preventDefault();
+        }
+      }
+    };
+    if (!composite) {
+      additionalProps.tabIndex = tabIndexProp;
+      if (!isNativeButton && disabled) {
+        additionalProps.tabIndex = focusableWhenDisabled ? tabIndexProp : -1;
+      }
+    }
+    if (isNativeButton && (focusableWhenDisabled || isFocusableComposite) || !isNativeButton && disabled) {
+      additionalProps["aria-disabled"] = disabled;
+    }
+    if (isNativeButton && (!focusableWhenDisabled || isNonFocusableComposite)) {
+      additionalProps.disabled = disabled;
+    }
+    return additionalProps;
+  }, [composite, disabled, focusableWhenDisabled, isFocusableComposite, isNonFocusableComposite, isNativeButton, tabIndexProp]);
+  return {
+    props
+  };
+}
+
+// engine/node_modules/@base-ui/react/utils/dispatchClickWithModifiers.mjs
+function dispatchClickWithModifiers(target, sourceEvent, {
+  detail = 0,
+  pointerType = ""
+} = {}) {
+  target.dispatchEvent(new (getWindow(target)).PointerEvent("click", {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    detail,
+    pointerType,
+    shiftKey: sourceEvent.shiftKey,
+    ctrlKey: sourceEvent.ctrlKey,
+    altKey: sourceEvent.altKey,
+    metaKey: sourceEvent.metaKey
+  }));
+}
+
+// engine/node_modules/@base-ui/react/internals/use-button/useButton.mjs
+"use client";
+function useButton(parameters = {}) {
+  const {
+    disabled = false,
+    focusableWhenDisabled,
+    tabIndex = 0,
+    native: isNativeButton = true,
+    composite: compositeProp
+  } = parameters;
+  const elementRef = React46.useRef(null);
+  const compositeRootContext = useCompositeRootContext(true);
+  const isCompositeItem = compositeProp ?? compositeRootContext !== undefined;
+  const {
+    props: focusableWhenDisabledProps
+  } = useFocusableWhenDisabled({
+    focusableWhenDisabled,
+    disabled,
+    composite: isCompositeItem,
+    tabIndex,
+    isNativeButton
+  });
+  if (false) {}
+  const updateDisabled = React46.useCallback(() => {
+    const element = elementRef.current;
+    if (!isButtonElement(element)) {
+      return;
+    }
+    if (isCompositeItem && disabled && focusableWhenDisabledProps.disabled === undefined && element.disabled) {
+      element.disabled = false;
+    }
+  }, [disabled, focusableWhenDisabledProps.disabled, isCompositeItem]);
+  useIsoLayoutEffect(updateDisabled, [updateDisabled]);
+  const getButtonProps = React46.useCallback((externalProps = {}) => {
+    const {
+      onClick: externalOnClick,
+      onMouseDown: externalOnMouseDown,
+      onKeyUp: externalOnKeyUp,
+      onKeyDown: externalOnKeyDown,
+      onPointerDown: externalOnPointerDown,
+      ...otherExternalProps
+    } = externalProps;
+    return mergeProps({
+      onClick(event) {
+        if (disabled) {
+          event.preventDefault();
+          return;
+        }
+        externalOnClick?.(event);
+      },
+      onMouseDown(event) {
+        if (!disabled) {
+          externalOnMouseDown?.(event);
+        }
+      },
+      onKeyDown(event) {
+        if (disabled) {
+          return;
+        }
+        makeEventPreventable(event);
+        externalOnKeyDown?.(event);
+        if (event.baseUIHandlerPrevented) {
+          return;
+        }
+        const isCurrentTarget = event.target === event.currentTarget;
+        const currentTarget = event.currentTarget;
+        const isButton = isButtonElement(currentTarget);
+        const isLink = !isNativeButton && isValidLinkElement(currentTarget);
+        const shouldClick = isCurrentTarget && (isNativeButton ? isButton : !isLink);
+        const isEnterKey = event.key === "Enter";
+        const isSpaceKey = event.key === " ";
+        const role = currentTarget.getAttribute("role");
+        const isTextNavigationRole = role?.startsWith("menuitem") || role === "option" || role === "gridcell";
+        if (isCurrentTarget && isCompositeItem && isSpaceKey) {
+          if (event.defaultPrevented && isTextNavigationRole) {
+            return;
+          }
+          event.preventDefault();
+          if (!isNativeButton || isButton) {
+            event.preventBaseUIHandler();
+            dispatchClickWithModifiers(currentTarget, event);
+          }
+          return;
+        }
+        if (!shouldClick || isNativeButton || !isSpaceKey && !isEnterKey) {
+          if (isCurrentTarget && isLink && isSpaceKey) {
+            event.preventDefault();
+          }
+          return;
+        }
+        if (event.defaultPrevented) {
+          return;
+        }
+        event.preventDefault();
+        if (isEnterKey) {
+          event.preventBaseUIHandler();
+          dispatchClickWithModifiers(currentTarget, event);
+        }
+      },
+      onKeyUp(event) {
+        if (disabled) {
+          return;
+        }
+        makeEventPreventable(event);
+        externalOnKeyUp?.(event);
+        if (event.target === event.currentTarget && isNativeButton && isCompositeItem && isButtonElement(event.currentTarget) && event.key === " ") {
+          event.preventDefault();
+          return;
+        }
+        if (event.baseUIHandlerPrevented) {
+          return;
+        }
+        if (event.target === event.currentTarget && !isNativeButton && !isCompositeItem && !event.defaultPrevented && event.key === " ") {
+          event.preventBaseUIHandler();
+          dispatchClickWithModifiers(event.currentTarget, event);
+        }
+      },
+      onPointerDown(event) {
+        if (disabled) {
+          event.preventDefault();
+          return;
+        }
+        externalOnPointerDown?.(event);
+      }
+    }, isNativeButton ? {
+      type: "button"
+    } : {
+      role: "button"
+    }, focusableWhenDisabledProps, otherExternalProps);
+  }, [disabled, focusableWhenDisabledProps, isCompositeItem, isNativeButton]);
+  const buttonRef = useStableCallback((element) => {
+    elementRef.current = element;
+    updateDisabled();
+  });
+  return {
+    getButtonProps,
+    buttonRef
+  };
+}
+function isButtonElement(elem) {
+  return isHTMLElement(elem) && elem.tagName === "BUTTON";
+}
+function isValidLinkElement(elem) {
+  return isHTMLElement(elem) && elem.tagName === "A" && Boolean(elem.href);
+}
+// engine/node_modules/@base-ui/react/dialog/close/DialogClose.mjs
+"use client";
+var DialogClose = /* @__PURE__ */ React47.forwardRef(function DialogClose(componentProps, forwardedRef) {
+  const {
+    render,
+    className,
+    style,
+    disabled = false,
+    nativeButton = true,
+    ...elementProps
+  } = componentProps;
+  const store = useDialogRootContext();
+  const open = store.useState("open");
+  const {
+    getButtonProps,
+    buttonRef
+  } = useButton({
+    disabled,
+    native: nativeButton
+  });
+  const state = {
+    disabled
+  };
+  function handleClick(event) {
+    if (open) {
+      store.setOpen(false, createChangeEventDetails(closePress, event.nativeEvent));
+    }
+  }
+  return useRenderElement("button", componentProps, {
+    state,
+    ref: [forwardedRef, buttonRef],
+    props: [{
+      onClick: handleClick
+    }, elementProps, getButtonProps]
+  });
+});
+if (false)
+  ;
+// engine/node_modules/@base-ui/react/dialog/description/DialogDescription.mjs
+var React48 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/internals/useBaseUiId.mjs
+"use client";
+function useBaseUiId(idOverride) {
+  return useId(idOverride, "base-ui");
+}
+
+// engine/node_modules/@base-ui/react/dialog/description/DialogDescription.mjs
+"use client";
+var DialogDescription = /* @__PURE__ */ React48.forwardRef(function DialogDescription(componentProps, forwardedRef) {
+  const {
+    render,
+    className,
+    style,
+    id: idProp,
+    ...elementProps
+  } = componentProps;
+  const store = useDialogRootContext();
+  const id = useBaseUiId(idProp);
+  store.useSyncedValueWithCleanup("descriptionElementId", id);
+  return useRenderElement("p", componentProps, {
+    ref: forwardedRef,
+    props: [{
+      id
+    }, elementProps]
+  });
+});
+if (false)
+  ;
+// engine/node_modules/@base-ui/react/dialog/popup/DialogPopup.mjs
+var React50 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/dialog/portal/DialogPortalContext.mjs
+var React49 = __toESM(require_react(), 1);
+"use client";
+var DialogPortalContext = /* @__PURE__ */ React49.createContext(undefined);
+if (false)
+  ;
+function useDialogPortalContext() {
+  const value = React49.useContext(DialogPortalContext);
+  if (value === undefined) {
+    throw new Error(formatErrorMessage_default(26));
+  }
+  return value;
+}
+
+// engine/node_modules/@base-ui/react/internals/composite/composite.mjs
+var ARROW_UP2 = "ArrowUp";
+var ARROW_DOWN2 = "ArrowDown";
+var ARROW_LEFT2 = "ArrowLeft";
+var ARROW_RIGHT2 = "ArrowRight";
+var HOME = "Home";
+var END = "End";
+var COMPOSITE_KEYS = new Set([ARROW_UP2, ARROW_DOWN2, ARROW_LEFT2, ARROW_RIGHT2, HOME, END]);
+var SHIFT = "Shift";
+var MODIFIER_KEYS = [SHIFT, "Control", "Alt", "Meta"];
+function isInputElement(element) {
+  return isHTMLElement(element) && element.tagName === "INPUT";
+}
+function isNativeInput(element) {
+  if (isInputElement(element) && element.selectionStart != null) {
+    return true;
+  }
+  if (isHTMLElement(element) && element.tagName === "TEXTAREA") {
+    return true;
+  }
+  return false;
+}
+function scrollIntoViewIfNeeded(scrollContainer, element, direction, orientation) {
+  if (!scrollContainer || !element || !element.scrollTo) {
+    return;
+  }
+  let targetX = scrollContainer.scrollLeft;
+  let targetY = scrollContainer.scrollTop;
+  const isOverflowingX = scrollContainer.clientWidth < scrollContainer.scrollWidth;
+  const isOverflowingY = scrollContainer.clientHeight < scrollContainer.scrollHeight;
+  if (isOverflowingX && orientation !== "vertical") {
+    const elementOffsetLeft = getOffset(scrollContainer, element, "left");
+    const containerStyles = getStyles(scrollContainer);
+    const elementStyles = getStyles(element);
+    if (direction === "ltr") {
+      if (elementOffsetLeft + element.offsetWidth + elementStyles.scrollMarginRight > scrollContainer.scrollLeft + scrollContainer.clientWidth - containerStyles.scrollPaddingRight) {
+        targetX = elementOffsetLeft + element.offsetWidth + elementStyles.scrollMarginRight - scrollContainer.clientWidth + containerStyles.scrollPaddingRight;
+      } else if (elementOffsetLeft - elementStyles.scrollMarginLeft < scrollContainer.scrollLeft + containerStyles.scrollPaddingLeft) {
+        targetX = elementOffsetLeft - elementStyles.scrollMarginLeft - containerStyles.scrollPaddingLeft;
+      }
+    }
+    if (direction === "rtl") {
+      if (elementOffsetLeft - elementStyles.scrollMarginLeft < scrollContainer.scrollLeft + containerStyles.scrollPaddingLeft) {
+        targetX = elementOffsetLeft - elementStyles.scrollMarginLeft - containerStyles.scrollPaddingLeft;
+      } else if (elementOffsetLeft + element.offsetWidth + elementStyles.scrollMarginRight > scrollContainer.scrollLeft + scrollContainer.clientWidth - containerStyles.scrollPaddingRight) {
+        targetX = elementOffsetLeft + element.offsetWidth + elementStyles.scrollMarginRight - scrollContainer.clientWidth + containerStyles.scrollPaddingRight;
+      }
+    }
+  }
+  if (isOverflowingY && orientation !== "horizontal") {
+    const elementOffsetTop = getOffset(scrollContainer, element, "top");
+    const containerStyles = getStyles(scrollContainer);
+    const elementStyles = getStyles(element);
+    if (elementOffsetTop - elementStyles.scrollMarginTop < scrollContainer.scrollTop + containerStyles.scrollPaddingTop) {
+      targetY = elementOffsetTop - elementStyles.scrollMarginTop - containerStyles.scrollPaddingTop;
+    } else if (elementOffsetTop + element.offsetHeight + elementStyles.scrollMarginBottom > scrollContainer.scrollTop + scrollContainer.clientHeight - containerStyles.scrollPaddingBottom) {
+      targetY = elementOffsetTop + element.offsetHeight + elementStyles.scrollMarginBottom - scrollContainer.clientHeight + containerStyles.scrollPaddingBottom;
+    }
+  }
+  scrollContainer.scrollTo({
+    left: targetX,
+    top: targetY,
+    behavior: "auto"
+  });
+}
+function getOffset(ancestor, element, side) {
+  const propName = side === "left" ? "offsetLeft" : "offsetTop";
+  let result = 0;
+  while (element.offsetParent) {
+    result += element[propName];
+    if (element.offsetParent === ancestor) {
+      break;
+    }
+    element = element.offsetParent;
+  }
+  return result;
+}
+function getStyles(element) {
+  const styles = getComputedStyle(element);
+  return {
+    scrollMarginTop: parseFloat(styles.scrollMarginTop) || 0,
+    scrollMarginRight: parseFloat(styles.scrollMarginRight) || 0,
+    scrollMarginBottom: parseFloat(styles.scrollMarginBottom) || 0,
+    scrollMarginLeft: parseFloat(styles.scrollMarginLeft) || 0,
+    scrollPaddingTop: parseFloat(styles.scrollPaddingTop) || 0,
+    scrollPaddingRight: parseFloat(styles.scrollPaddingRight) || 0,
+    scrollPaddingBottom: parseFloat(styles.scrollPaddingBottom) || 0,
+    scrollPaddingLeft: parseFloat(styles.scrollPaddingLeft) || 0
+  };
+}
+
+// engine/node_modules/@base-ui/react/dialog/popup/DialogPopupCssVars.mjs
+var nestedDialogs = "--nested-dialogs";
+
+// engine/node_modules/@base-ui/react/dialog/popup/DialogPopupDataAttributes.mjs
+var open2 = open;
+var closed2 = closed;
+var startingStyle3 = startingStyle2;
+var endingStyle3 = endingStyle2;
+var nestedDialogOpen = "data-nested-dialog-open";
+
+// engine/node_modules/@base-ui/react/dialog/utils/stateAttributesMapping.mjs
+var dialogStateAttributesMapping = {
+  ...popupStateMapping,
+  ...transitionStatusMapping,
+  nestedDialogOpen(value) {
+    return value ? {
+      [nestedDialogOpen]: ""
+    } : null;
+  }
+};
+
+// engine/node_modules/@base-ui/react/dialog/popup/DialogPopup.mjs
+var import_jsx_runtime9 = __toESM(require_jsx_runtime(), 1);
+"use client";
+var DialogPopup = /* @__PURE__ */ React50.forwardRef(function DialogPopup(componentProps, forwardedRef) {
+  const {
+    render,
+    className,
+    style,
+    finalFocus,
+    initialFocus,
+    ...elementProps
+  } = componentProps;
+  const store = useDialogRootContext();
+  const descriptionElementId = store.useState("descriptionElementId");
+  const disablePointerDismissal = store.useState("disablePointerDismissal");
+  const floatingRootContext = store.useState("floatingRootContext");
+  const rootPopupProps = store.useState("popupProps");
+  const modal = store.useState("modal");
+  const mounted = store.useState("mounted");
+  const nested = store.useState("nested");
+  const nestedOpenDialogCount = store.useState("nestedOpenDialogCount");
+  const open = store.useState("open");
+  const openMethod = store.useState("openMethod");
+  const titleElementId = store.useState("titleElementId");
+  const transitionStatus = store.useState("transitionStatus");
+  const role = store.useState("role");
+  const floatingId = floatingRootContext.useState("floatingId");
+  useDialogPortalContext();
+  useOpenChangeComplete({
+    open,
+    ref: store.context.popupRef,
+    onComplete() {
+      if (open) {
+        store.context.onOpenChangeComplete?.(true);
+      }
+    }
+  });
+  const resolvedInitialFocus = initialFocus === undefined ? createDefaultInitialFocus(store.context.popupRef) : initialFocus;
+  const nestedDialogOpen = nestedOpenDialogCount > 0;
+  const setPopupElement = store.useStateSetter("popupElement");
+  const state = {
+    open,
+    nested,
+    transitionStatus,
+    nestedDialogOpen
+  };
+  const element = useRenderElement("div", componentProps, {
+    state,
+    props: [rootPopupProps, {
+      id: floatingId,
+      "aria-labelledby": titleElementId,
+      "aria-describedby": descriptionElementId,
+      role,
+      ...FOCUSABLE_POPUP_PROPS,
+      hidden: !mounted,
+      onKeyDown(event) {
+        if (COMPOSITE_KEYS.has(event.key)) {
+          event.stopPropagation();
+        }
+      },
+      style: {
+        [nestedDialogs]: nestedOpenDialogCount
+      }
+    }, elementProps],
+    ref: [forwardedRef, store.context.popupRef, setPopupElement],
+    stateAttributesMapping: dialogStateAttributesMapping
+  });
+  return /* @__PURE__ */ import_jsx_runtime9.jsx(FloatingFocusManager, {
+    context: floatingRootContext,
+    openInteractionType: openMethod,
+    disabled: !mounted,
+    closeOnFocusOut: !disablePointerDismissal,
+    initialFocus: resolvedInitialFocus,
+    returnFocus: finalFocus,
+    modal: modal !== false,
+    restoreFocus: "popup",
+    children: element
+  });
+});
+if (false)
+  ;
+// engine/node_modules/@base-ui/react/dialog/portal/DialogPortal.mjs
+var React52 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/utils/inertValue.mjs
+function inertValue(value) {
+  if (isReactVersionAtLeast(19)) {
+    return value;
+  }
+  return value ? "true" : undefined;
+}
+
+// engine/node_modules/@base-ui/react/utils/InternalBackdrop.mjs
+var React51 = __toESM(require_react(), 1);
+var import_jsx_runtime10 = __toESM(require_jsx_runtime(), 1);
+var InternalBackdrop = /* @__PURE__ */ React51.forwardRef(function InternalBackdrop(props, ref) {
+  const {
+    cutout,
+    ...otherProps
+  } = props;
+  let clipPath;
+  if (cutout) {
+    const rect = cutout.getBoundingClientRect();
+    clipPath = `polygon(0% 0%,100% 0%,100% 100%,0% 100%,0% 0%,${rect.left}px ${rect.top}px,${rect.left}px ${rect.bottom}px,${rect.right}px ${rect.bottom}px,${rect.right}px ${rect.top}px,${rect.left}px ${rect.top}px)`;
+  }
+  return /* @__PURE__ */ import_jsx_runtime10.jsx("div", {
+    ref,
+    role: "presentation",
+    "data-base-ui-inert": "",
+    ...otherProps,
+    style: {
+      position: "fixed",
+      inset: 0,
+      userSelect: "none",
+      WebkitUserSelect: "none",
+      clipPath
+    }
+  });
+});
+if (false)
+  ;
+
+// engine/node_modules/@base-ui/react/dialog/portal/DialogPortal.mjs
+var import_jsx_runtime11 = __toESM(require_jsx_runtime(), 1);
+"use client";
+var DialogPortal = /* @__PURE__ */ React52.forwardRef(function DialogPortal(props, forwardedRef) {
+  const {
+    keepMounted = false,
+    ...portalProps
+  } = props;
+  const store = useDialogRootContext();
+  const mounted = store.useState("mounted");
+  const modal = store.useState("modal");
+  const open = store.useState("open");
+  const shouldRender = mounted || keepMounted;
+  if (!shouldRender) {
+    return null;
+  }
+  return /* @__PURE__ */ import_jsx_runtime11.jsx(DialogPortalContext.Provider, {
+    value: keepMounted,
+    children: /* @__PURE__ */ import_jsx_runtime11.jsxs(FloatingPortal, {
+      ref: forwardedRef,
+      ...portalProps,
+      children: [mounted && modal === true && /* @__PURE__ */ import_jsx_runtime11.jsx(InternalBackdrop, {
+        ref: store.context.internalBackdropRef,
+        inert: inertValue(!open)
+      }), props.children]
     })
-  ]
-}), never);
-var Layers = import_react.memo(() => /* @__PURE__ */ jsx_runtime.jsxs(jsx_runtime.Fragment, {
-  children: [
-    /* @__PURE__ */ jsx_runtime.jsx("p", {
-      className: "sr-only",
-      id: "announce",
-      "aria-live": "polite"
-    }),
-    /* @__PURE__ */ jsx_runtime.jsxs("div", {
-      className: "toast",
-      id: "toast",
-      role: "alert",
-      hidden: true,
-      children: [
-        /* @__PURE__ */ jsx_runtime.jsx("span", {
-          className: "toast-icon",
-          id: "toast-icon"
-        }),
-        /* @__PURE__ */ jsx_runtime.jsx("span", {
-          id: "toast-text"
-        }),
-        /* @__PURE__ */ jsx_runtime.jsx("button", {
-          type: "button",
-          className: "toast-close",
-          id: "toast-close",
-          "aria-label": "Close"
-        })
-      ]
-    }),
-    /* @__PURE__ */ jsx_runtime.jsx("div", {
-      className: "menu",
-      id: "menu",
-      role: "menu",
-      popover: ""
-    }),
-    /* @__PURE__ */ jsx_runtime.jsxs("dialog", {
-      className: "palette",
-      id: "palette",
-      "aria-label": "Search the cards, history, and commands",
-      children: [
-        /* @__PURE__ */ jsx_runtime.jsx("div", {
-          className: "pal-input-row",
-          children: /* @__PURE__ */ jsx_runtime.jsx("input", {
-            id: "pal-input",
-            type: "text",
-            role: "combobox",
-            "aria-expanded": "true",
-            "aria-controls": "pal-list",
-            "aria-autocomplete": "list",
-            autoComplete: "off",
-            spellCheck: "false"
-          })
-        }),
-        /* @__PURE__ */ jsx_runtime.jsx("div", {
-          className: "pal-list",
-          id: "pal-list",
-          role: "listbox",
-          "aria-label": "Results"
-        }),
-        /* @__PURE__ */ jsx_runtime.jsxs("div", {
-          className: "pal-foot",
-          children: [
-            /* @__PURE__ */ jsx_runtime.jsxs("span", {
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                  children: "↑"
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                  children: "↓"
-                }),
-                "move"
-              ]
-            }),
-            /* @__PURE__ */ jsx_runtime.jsxs("span", {
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                  children: "Enter"
-                }),
-                "do it"
-              ]
-            }),
-            /* @__PURE__ */ jsx_runtime.jsxs("span", {
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                  children: "Esc"
-                }),
-                "close"
-              ]
-            })
-          ]
-        })
-      ]
-    }),
-    /* @__PURE__ */ jsx_runtime.jsxs("dialog", {
-      className: "keys",
-      id: "keys",
-      "aria-labelledby": "keys-title",
-      children: [
-        /* @__PURE__ */ jsx_runtime.jsxs("div", {
-          className: "keys-head",
-          children: [
-            /* @__PURE__ */ jsx_runtime.jsx("h2", {
-              id: "keys-title",
-              children: "Keyboard shortcuts"
-            }),
-            /* @__PURE__ */ jsx_runtime.jsx("button", {
-              type: "button",
-              className: "icon-btn",
-              id: "keys-close",
-              "aria-label": "Close"
-            })
-          ]
-        }),
-        /* @__PURE__ */ jsx_runtime.jsxs("dl", {
-          className: "keys-list",
-          children: [
-            /* @__PURE__ */ jsx_runtime.jsxs("div", {
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsxs("dt", {
-                  children: [
-                    /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                      children: "⌘K"
-                    }),
-                    /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                      children: "/"
-                    })
-                  ]
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("dd", {
-                  children: "Search the cards, history, and commands, or type #n to jump to an issue"
-                })
-              ]
-            }),
-            /* @__PURE__ */ jsx_runtime.jsxs("div", {
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsxs("dt", {
-                  children: [
-                    /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                      children: "j"
-                    }),
-                    /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                      children: "k"
-                    }),
-                    /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                      children: "↓"
-                    }),
-                    /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                      children: "↑"
-                    })
-                  ]
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("dd", {
-                  children: "Next or previous card or epic group"
-                })
-              ]
-            }),
-            /* @__PURE__ */ jsx_runtime.jsxs("div", {
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsxs("dt", {
-                  children: [
-                    /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                      children: "h"
-                    }),
-                    /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                      children: "l"
-                    }),
-                    /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                      children: "←"
-                    }),
-                    /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                      children: "→"
-                    })
-                  ]
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("dd", {
-                  children: "Card in the column to the left or right"
-                })
-              ]
-            }),
-            /* @__PURE__ */ jsx_runtime.jsxs("div", {
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsx("dt", {
-                  children: /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                    children: "Enter"
-                  })
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("dd", {
-                  children: "Main button of the card: Go, Run, Resume, Open agent, Open shell, or Open issue"
-                })
-              ]
-            }),
-            /* @__PURE__ */ jsx_runtime.jsxs("div", {
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsx("dt", {
-                  children: /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                    children: "Space"
-                  })
-                }),
-                /* @__PURE__ */ jsx_runtime.jsxs("dd", {
-                  children: [
-                    "Show the details of the card; ",
-                    /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                      children: "Esc"
-                    }),
-                    " hides them"
-                  ]
-                })
-              ]
-            }),
-            /* @__PURE__ */ jsx_runtime.jsxs("div", {
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsxs("dt", {
-                  children: [
-                    /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                      children: "Enter"
-                    }),
-                    /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                      children: "Space"
-                    })
-                  ]
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("dd", {
-                  children: "On an epic group, show or hide its issues"
-                })
-              ]
-            }),
-            /* @__PURE__ */ jsx_runtime.jsxs("div", {
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsx("dt", {
-                  children: /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                    children: "m"
-                  })
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("dd", {
-                  children: "All the actions of the card"
-                })
-              ]
-            }),
-            /* @__PURE__ */ jsx_runtime.jsxs("div", {
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsx("dt", {
-                  children: /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                    children: "o"
-                  })
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("dd", {
-                  children: "Open the issue"
-                })
-              ]
-            }),
-            /* @__PURE__ */ jsx_runtime.jsxs("div", {
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsx("dt", {
-                  children: /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                    children: "c"
-                  })
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("dd", {
-                  children: "Copy the command or the path of the card"
-                })
-              ]
-            }),
-            /* @__PURE__ */ jsx_runtime.jsxs("div", {
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsx("dt", {
-                  children: /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                    children: "s"
-                  })
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("dd", {
-                  children: "Set the card aside, or stop its session"
-                })
-              ]
-            }),
-            /* @__PURE__ */ jsx_runtime.jsxs("div", {
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsx("dt", {
-                  children: /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                    children: "v"
-                  })
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("dd", {
-                  children: "Change between the tabs Agents and Pipeline"
-                })
-              ]
-            }),
-            /* @__PURE__ */ jsx_runtime.jsxs("div", {
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsx("dt", {
-                  children: /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                    children: "d"
-                  })
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("dd", {
-                  children: "Open or close the tab History"
-                })
-              ]
-            }),
-            /* @__PURE__ */ jsx_runtime.jsxs("div", {
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsx("dt", {
-                  children: /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                    children: "r"
-                  })
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("dd", {
-                  children: "Read the issues again"
-                })
-              ]
-            }),
-            /* @__PURE__ */ jsx_runtime.jsxs("div", {
-              children: [
-                /* @__PURE__ */ jsx_runtime.jsx("dt", {
-                  children: /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                    children: "?"
-                  })
-                }),
-                /* @__PURE__ */ jsx_runtime.jsx("dd", {
-                  children: "Show this list"
-                })
-              ]
-            })
-          ]
-        }),
-        /* @__PURE__ */ jsx_runtime.jsxs("label", {
-          className: "keys-switch",
-          children: [
-            /* @__PURE__ */ jsx_runtime.jsx("input", {
-              type: "checkbox",
-              id: "keys-on"
-            }),
-            /* @__PURE__ */ jsx_runtime.jsxs("span", {
-              children: [
-                "Single-key shortcuts (",
-                /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                  children: "j"
-                }),
-                " ",
-                /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                  children: "k"
-                }),
-                " ",
-                /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                  children: "h"
-                }),
-                " ",
-                /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                  children: "l"
-                }),
-                " ",
-                /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                  children: "v"
-                }),
-                " ",
-                /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                  children: "d"
-                }),
-                " ",
-                /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                  children: "r"
-                }),
-                " ",
-                /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                  children: "/"
-                }),
-                " ",
-                /* @__PURE__ */ jsx_runtime.jsx("kbd", {
-                  children: "?"
-                }),
-                "). The keys of a focused card or epic group always work."
-              ]
-            })
-          ]
-        })
-      ]
-    }),
-    /* @__PURE__ */ jsx_runtime.jsx("p", {
-      className: "sr-only",
-      id: "update-status",
-      role: "status",
-      "aria-live": "polite"
-    }),
-    /* @__PURE__ */ jsx_runtime.jsxs("dialog", {
-      className: "update-dialog",
-      id: "update-dialog",
-      "aria-labelledby": "update-title",
-      "aria-describedby": "update-description",
-      children: [
-        /* @__PURE__ */ jsx_runtime.jsx("h2", {
-          id: "update-title",
-          tabIndex: -1
-        }),
-        /* @__PURE__ */ jsx_runtime.jsx("p", {
-          className: "update-description",
-          id: "update-description"
-        }),
-        /* @__PURE__ */ jsx_runtime.jsx("p", {
-          className: "update-status",
-          id: "update-progress",
-          "aria-hidden": "true"
-        }),
-        /* @__PURE__ */ jsx_runtime.jsx("p", {
-          className: "update-error",
-          id: "update-error",
-          hidden: true
-        }),
-        /* @__PURE__ */ jsx_runtime.jsx("p", {
-          className: "update-recovery",
-          id: "update-recovery",
-          hidden: true
-        }),
-        /* @__PURE__ */ jsx_runtime.jsxs("div", {
-          className: "update-actions",
-          children: [
-            /* @__PURE__ */ jsx_runtime.jsx("button", {
-              type: "button",
-              className: "btn primary",
-              id: "update-start",
-              children: "Update and restart"
-            }),
-            /* @__PURE__ */ jsx_runtime.jsx("button", {
-              type: "button",
-              className: "btn primary",
-              id: "update-check",
-              hidden: true,
-              children: "Check again"
-            }),
-            /* @__PURE__ */ jsx_runtime.jsx("button", {
-              type: "button",
-              className: "btn ghost",
-              id: "update-later",
-              children: "Later"
-            })
-          ]
-        })
-      ]
-    }),
-    /* @__PURE__ */ jsx_runtime.jsxs("dialog", {
-      className: "stop-dialog",
-      id: "stop-dialog",
-      "aria-labelledby": "stop-title",
-      "aria-describedby": "stop-description",
-      children: [
-        /* @__PURE__ */ jsx_runtime.jsx("h2", {
-          id: "stop-title"
-        }),
-        /* @__PURE__ */ jsx_runtime.jsx("p", {
-          className: "stop-description",
-          id: "stop-description",
-          children: "The agent ends and its tab closes. The issue moves to Idle as set aside, and auto mode skips it. Resume opens the saved session again."
-        }),
-        /* @__PURE__ */ jsx_runtime.jsxs("div", {
-          className: "stop-actions",
-          children: [
-            /* @__PURE__ */ jsx_runtime.jsx("button", {
-              type: "button",
-              className: "btn ghost",
-              id: "stop-cancel",
-              ref: autofocus,
-              children: "Cancel"
-            }),
-            /* @__PURE__ */ jsx_runtime.jsx("button", {
-              type: "button",
-              className: "btn primary",
-              id: "stop-confirm",
-              children: "Stop session"
-            })
-          ]
-        })
-      ]
-    })
-  ]
-}), never);
+  });
+});
+if (false)
+  ;
+// engine/node_modules/@base-ui/react/dialog/title/DialogTitle.mjs
+var React53 = __toESM(require_react(), 1);
+"use client";
+var DialogTitle = /* @__PURE__ */ React53.forwardRef(function DialogTitle(componentProps, forwardedRef) {
+  const {
+    render,
+    className,
+    style,
+    id: idProp,
+    ...elementProps
+  } = componentProps;
+  const store = useDialogRootContext();
+  const id = useBaseUiId(idProp);
+  store.useSyncedValueWithCleanup("titleElementId", id);
+  return useRenderElement("h2", componentProps, {
+    ref: forwardedRef,
+    props: [{
+      id
+    }, elementProps]
+  });
+});
+if (false)
+  ;
+// engine/node_modules/@base-ui/react/utils/useOpenInteractionType.mjs
+var React56 = __toESM(require_react(), 1);
 
-// engine/board/page/app/shell.tsx
-init_modern2();
+// engine/node_modules/@base-ui/utils/useEnhancedClickHandler.mjs
+var React54 = __toESM(require_react(), 1);
+"use client";
+function useEnhancedClickHandler(handler) {
+  const lastClickInteractionTypeRef = React54.useRef("");
+  const handlePointerDown = React54.useCallback((event) => {
+    if (event.defaultPrevented) {
+      return;
+    }
+    lastClickInteractionTypeRef.current = event.pointerType;
+    handler(event, event.pointerType);
+  }, [handler]);
+  const handleClick = React54.useCallback((event) => {
+    if (event.detail === 0) {
+      handler(event, "keyboard");
+      return;
+    }
+    if ("pointerType" in event) {
+      handler(event, event.pointerType);
+    } else {
+      handler(event, lastClickInteractionTypeRef.current);
+    }
+    lastClickInteractionTypeRef.current = "";
+  }, [handler]);
+  return {
+    onClick: handleClick,
+    onPointerDown: handlePointerDown
+  };
+}
 
+// engine/node_modules/@base-ui/react/internals/useValueChanged.mjs
+var React55 = __toESM(require_react(), 1);
+"use client";
+function useValueChanged(value, onChange) {
+  const valueRef = React55.useRef(value);
+  const onChangeCallback = useStableCallback(onChange);
+  useIsoLayoutEffect(() => {
+    if (valueRef.current !== value) {
+      onChangeCallback(valueRef.current);
+    }
+    valueRef.current = value;
+  }, [value, onChangeCallback]);
+}
+
+// engine/node_modules/@base-ui/react/utils/useOpenInteractionType.mjs
+"use client";
+function useOpenMethodTriggerProps(open, setOpenMethod) {
+  const handleTriggerClick = useStableCallback((_, interactionType) => {
+    const isOpen = typeof open === "function" ? open() : open;
+    if (!isOpen) {
+      setOpenMethod(interactionType || (exports_os.ios ? "touch" : ""));
+    }
+  });
+  const {
+    onClick,
+    onPointerDown
+  } = useEnhancedClickHandler(handleTriggerClick);
+  return React56.useMemo(() => ({
+    onClick,
+    onPointerDown
+  }), [onClick, onPointerDown]);
+}
+function useOpenInteractionType(open) {
+  const [openMethod, setOpenMethod] = React56.useState(null);
+  const triggerProps = useOpenMethodTriggerProps(open, setOpenMethod);
+  useValueChanged(open, (previousOpen) => {
+    if (previousOpen && !open) {
+      setOpenMethod(null);
+    }
+  });
+  return React56.useMemo(() => ({
+    openMethod,
+    triggerProps
+  }), [openMethod, triggerProps]);
+}
 // engine/node_modules/cn/dist/tables.js
 var P = 48;
 var U = (s, o = 0) => {
@@ -21876,7 +28803,7 @@ var createEngine = (T, validatorImpls, options = {}) => {
     mergeUncached: mergeClassList
   };
 };
-var resolveValue = (v, clsxMode) => {
+var resolveValue2 = (v, clsxMode) => {
   if (!v)
     return "";
   if (typeof v === "string")
@@ -21888,7 +28815,7 @@ var resolveValue = (v, clsxMode) => {
       const item = arr[i];
       if (!item)
         continue;
-      const r = typeof item === "string" ? item : resolveValue(item, clsxMode);
+      const r = typeof item === "string" ? item : resolveValue2(item, clsxMode);
       if (r) {
         if (out)
           out += " ";
@@ -21917,7 +28844,7 @@ var joinArgs = (args, clsxMode) => {
     const a = args[i];
     if (!a)
       continue;
-    const r = typeof a === "string" ? a : resolveValue(a, clsxMode);
+    const r = typeof a === "string" ? a : resolveValue2(a, clsxMode);
     if (r) {
       if (s)
         s += " ";
@@ -22014,7 +28941,7 @@ var wrapClsx = (mergeString, fresh) => {
       if (!v)
         continue;
       if (typeof v !== "string") {
-        v = vals[i] = resolveValue(v, true);
+        v = vals[i] = resolveValue2(v, true);
         if (!v)
           continue;
         hasResolvedValue = true;
@@ -22127,7 +29054,7 @@ var wrapClsx = (mergeString, fresh) => {
     lastHit = hit;
     return hit.r;
   };
-  const mergeSingleValue = (value) => Array.isArray(value) ? resolveArgs(value.slice(), false) : mergeString(resolveValue(value, true));
+  const mergeSingleValue = (value) => Array.isArray(value) ? resolveArgs(value.slice(), false) : mergeString(resolveValue2(value, true));
   return function(v0, v1, v2) {
     const nArgs = arguments.length;
     if ((nArgs | 1) === 3) {
@@ -22209,437 +29136,38 @@ var instance = /* @__PURE__ */ createEngine(tables_generated_default);
 var cn = /* @__PURE__ */ wrapClsx(instance.mergeString, instance);
 var twMerge = instance.merge;
 
-// engine/board/page/app/shell.tsx
-init_query2();
-init_shell();
-init_store();
-
-// engine/node_modules/@base-ui/utils/mergeObjects.mjs
-function mergeObjects(a, b) {
-  if (a && !b) {
-    return a;
-  }
-  if (!a && b) {
-    return b;
-  }
-  if (a || b) {
-    return {
-      ...a,
-      ...b
-    };
-  }
-  return;
-}
-
-// engine/node_modules/@base-ui/react/merge-props/mergeProps.mjs
-var EMPTY_PROPS = {};
-function mergeProps(a, b, c, d, e) {
-  if (!c && !d && !e && !a) {
-    return createInitialMergedProps(b);
-  }
-  let merged = createInitialMergedProps(a);
-  if (b) {
-    merged = mergeInto(merged, b);
-  }
-  if (c) {
-    merged = mergeInto(merged, c);
-  }
-  if (d) {
-    merged = mergeInto(merged, d);
-  }
-  if (e) {
-    merged = mergeInto(merged, e);
-  }
-  return merged;
-}
-function mergePropsN(props) {
-  if (props.length === 0) {
-    return EMPTY_PROPS;
-  }
-  if (props.length === 1) {
-    return createInitialMergedProps(props[0]);
-  }
-  let merged = createInitialMergedProps(props[0]);
-  for (let i = 1;i < props.length; i += 1) {
-    merged = mergeInto(merged, props[i]);
-  }
-  return merged;
-}
-function createInitialMergedProps(inputProps) {
-  if (isPropsGetter(inputProps)) {
-    return {
-      ...inputProps(EMPTY_PROPS)
-    };
-  }
-  return copyInitialProps(inputProps);
-}
-function mergeInto(merged, inputProps) {
-  if (isPropsGetter(inputProps)) {
-    return inputProps(merged);
-  }
-  return mutablyMergeInto(merged, inputProps);
-}
-function copyInitialProps(inputProps) {
-  const copiedProps = {
-    ...inputProps
-  };
-  for (const propName in copiedProps) {
-    const propValue = copiedProps[propName];
-    if (isEventHandler(propName, propValue)) {
-      copiedProps[propName] = wrapEventHandler(propValue);
-    }
-  }
-  return copiedProps;
-}
-function mutablyMergeInto(mergedProps, externalProps) {
-  if (!externalProps) {
-    return mergedProps;
-  }
-  for (const propName in externalProps) {
-    const externalPropValue = externalProps[propName];
-    switch (propName) {
-      case "style": {
-        mergedProps[propName] = mergeObjects(mergedProps.style, externalPropValue);
-        break;
-      }
-      case "className": {
-        mergedProps[propName] = mergeClassNames(mergedProps.className, externalPropValue);
-        break;
-      }
-      default: {
-        if (isEventHandler(propName, externalPropValue)) {
-          mergedProps[propName] = mergeEventHandlers(mergedProps[propName], externalPropValue);
-        } else {
-          mergedProps[propName] = externalPropValue;
-        }
-      }
-    }
-  }
-  return mergedProps;
-}
-function isEventHandler(key, value) {
-  const code0 = key.charCodeAt(0);
-  const code1 = key.charCodeAt(1);
-  const code2 = key.charCodeAt(2);
-  return code0 === 111 && code1 === 110 && code2 >= 65 && code2 <= 90 && (typeof value === "function" || typeof value === "undefined");
-}
-function isPropsGetter(inputProps) {
-  return typeof inputProps === "function";
-}
-function mergeEventHandlers(ourHandler, theirHandler) {
-  if (!theirHandler) {
-    return ourHandler;
-  }
-  if (!ourHandler) {
-    return wrapEventHandler(theirHandler);
-  }
-  return (...args) => {
-    const event = args[0];
-    if (isSyntheticEvent(event)) {
-      const baseUIEvent = event;
-      makeEventPreventable(baseUIEvent);
-      const result = theirHandler(...args);
-      if (!baseUIEvent.baseUIHandlerPrevented) {
-        ourHandler?.(...args);
-      }
-      return result;
-    }
-    const result = theirHandler(...args);
-    ourHandler?.(...args);
-    return result;
-  };
-}
-function wrapEventHandler(handler) {
-  if (!handler) {
-    return handler;
-  }
-  return (...args) => {
-    const event = args[0];
-    if (isSyntheticEvent(event)) {
-      makeEventPreventable(event);
-    }
-    return handler(...args);
-  };
-}
-function makeEventPreventable(event) {
-  event.preventBaseUIHandler = () => {
-    event.baseUIHandlerPrevented = true;
-  };
-  return event;
-}
-function mergeClassNames(ourClassName, theirClassName) {
-  if (theirClassName) {
-    if (ourClassName) {
-      return theirClassName + " " + ourClassName;
-    }
-    return theirClassName;
-  }
-  return ourClassName;
-}
-function isSyntheticEvent(event) {
-  return event != null && typeof event === "object" && "nativeEvent" in event;
-}
-
-// engine/node_modules/@base-ui/react/internals/useRenderElement.mjs
-var React13 = __toESM(require_react(), 1);
-
-// engine/node_modules/@base-ui/utils/useRefWithInit.mjs
-var React10 = __toESM(require_react(), 1);
+// engine/node_modules/@base-ui/react/button/Button.mjs
+var React57 = __toESM(require_react(), 1);
 "use client";
-var UNINITIALIZED = {};
-function useRefWithInit(init, initArg) {
-  const ref = React10.useRef(UNINITIALIZED);
-  if (ref.current === UNINITIALIZED) {
-    ref.current = init(initArg);
-  }
-  return ref;
-}
-
-// engine/node_modules/@base-ui/utils/useMergedRefs.mjs
-function useMergedRefs(a, b, c, d) {
-  const forkRef = useRefWithInit(createForkRef).current;
-  if (didChange(forkRef, a, b, c, d)) {
-    update(forkRef, [a, b, c, d]);
-  }
-  return forkRef.callback;
-}
-function useMergedRefsN(refs) {
-  const forkRef = useRefWithInit(createForkRef).current;
-  if (didChangeN(forkRef, refs)) {
-    update(forkRef, refs);
-  }
-  return forkRef.callback;
-}
-function createForkRef() {
-  return {
-    callback: null,
-    cleanup: null,
-    refs: []
-  };
-}
-function didChange(forkRef, a, b, c, d) {
-  return forkRef.refs[0] !== a || forkRef.refs[1] !== b || forkRef.refs[2] !== c || forkRef.refs[3] !== d;
-}
-function didChangeN(forkRef, newRefs) {
-  return forkRef.refs.length !== newRefs.length || forkRef.refs.some((ref, index) => ref !== newRefs[index]);
-}
-function update(forkRef, refs) {
-  forkRef.refs = refs;
-  if (refs.every((ref) => ref == null)) {
-    forkRef.callback = null;
-    return;
-  }
-  forkRef.callback = (instance) => {
-    if (forkRef.cleanup) {
-      forkRef.cleanup();
-      forkRef.cleanup = null;
-    }
-    if (instance != null) {
-      const cleanupCallbacks = Array(refs.length).fill(null);
-      for (let i = 0;i < refs.length; i += 1) {
-        const ref = refs[i];
-        if (ref == null) {
-          continue;
-        }
-        switch (typeof ref) {
-          case "function": {
-            const refCleanup = ref(instance);
-            if (typeof refCleanup === "function") {
-              cleanupCallbacks[i] = refCleanup;
-            }
-            break;
-          }
-          case "object": {
-            ref.current = instance;
-            break;
-          }
-          default:
-        }
-      }
-      forkRef.cleanup = () => {
-        for (let i = 0;i < refs.length; i += 1) {
-          const ref = refs[i];
-          if (ref == null) {
-            continue;
-          }
-          switch (typeof ref) {
-            case "function": {
-              const cleanupCallback = cleanupCallbacks[i];
-              if (typeof cleanupCallback === "function") {
-                cleanupCallback();
-              } else {
-                ref(null);
-              }
-              break;
-            }
-            case "object": {
-              ref.current = null;
-              break;
-            }
-            default:
-          }
-        }
-      };
-    }
-  };
-}
-
-// engine/node_modules/@base-ui/utils/getReactElementRef.mjs
-var React12 = __toESM(require_react(), 1);
-
-// engine/node_modules/@base-ui/utils/reactVersion.mjs
-var React11 = __toESM(require_react(), 1);
-var majorVersion = parseInt(React11.version, 10);
-function isReactVersionAtLeast(reactVersionToCheck) {
-  return majorVersion >= reactVersionToCheck;
-}
-
-// engine/node_modules/@base-ui/utils/getReactElementRef.mjs
-function getReactElementRef(element) {
-  if (!/* @__PURE__ */ React12.isValidElement(element)) {
-    return null;
-  }
-  const reactElement = element;
-  const propsWithRef = reactElement.props;
-  return (isReactVersionAtLeast(19) ? propsWithRef?.ref : reactElement.ref) ?? null;
-}
-
-// engine/node_modules/@base-ui/utils/empty.mjs
-var EMPTY_ARRAY = Object.freeze([]);
-var EMPTY_OBJECT = Object.freeze({});
-
-// engine/node_modules/@base-ui/react/internals/getStateAttributesProps.mjs
-function getStateAttributesProps(state, customMapping) {
-  const props = {};
-  for (const key in state) {
-    const value = state[key];
-    if (customMapping?.hasOwnProperty(key)) {
-      const customProps = customMapping[key](value);
-      if (customProps != null) {
-        Object.assign(props, customProps);
-      }
-      continue;
-    }
-    if (value === true) {
-      props[`data-${key.toLowerCase()}`] = "";
-    } else if (value) {
-      props[`data-${key.toLowerCase()}`] = value.toString();
-    }
-  }
-  return props;
-}
-
-// engine/node_modules/@base-ui/react/utils/resolveClassName.mjs
-function resolveClassName(className, state) {
-  return typeof className === "function" ? className(state) : className;
-}
-
-// engine/node_modules/@base-ui/react/utils/resolveStyle.mjs
-function resolveStyle(style, state) {
-  return typeof style === "function" ? style(state) : style;
-}
-
-// engine/node_modules/@base-ui/react/internals/useRenderElement.mjs
-var import_react3 = __toESM(require_react(), 1);
-function useRenderElement(element, componentProps, params = {}) {
-  let renderProp = componentProps.render;
-  if (params.enabled !== false) {
-    renderProp = unwrapLazyRenderProp(renderProp);
-  }
-  const outProps = useRenderElementProps(componentProps, params, renderProp);
-  if (params.enabled === false) {
-    return null;
-  }
-  const state = params.state ?? EMPTY_OBJECT;
-  return evaluateRenderProp(element, renderProp, outProps, state);
-}
-function useRenderElementProps(componentProps, params, renderProp) {
+var Button = /* @__PURE__ */ React57.forwardRef(function Button(componentProps, forwardedRef) {
   const {
-    className: classNameProp,
-    style: styleProp
+    render,
+    className,
+    disabled = false,
+    focusableWhenDisabled = false,
+    nativeButton = true,
+    style,
+    ...elementProps
   } = componentProps;
   const {
-    state = EMPTY_OBJECT,
-    ref,
-    props,
-    stateAttributesMapping,
-    enabled = true
-  } = params;
-  const className = enabled ? resolveClassName(classNameProp, state) : undefined;
-  const style = enabled ? resolveStyle(styleProp, state) : undefined;
-  const stateProps = enabled ? getStateAttributesProps(state, stateAttributesMapping) : EMPTY_OBJECT;
-  const resolvedProps = enabled && props ? resolveRenderFunctionProps(props) : undefined;
-  const outProps = enabled ? mergeObjects(stateProps, resolvedProps) ?? {} : EMPTY_OBJECT;
-  if (typeof document !== "undefined") {
-    if (!enabled) {
-      useMergedRefs(null, null);
-    } else if (Array.isArray(ref)) {
-      outProps.ref = useMergedRefsN([outProps.ref, getReactElementRef(renderProp), ...ref]);
-    } else {
-      outProps.ref = useMergedRefs(outProps.ref, getReactElementRef(renderProp), ref);
-    }
-  }
-  if (!enabled) {
-    return EMPTY_OBJECT;
-  }
-  if (className !== undefined) {
-    outProps.className = mergeClassNames(outProps.className, className);
-  }
-  if (style !== undefined) {
-    outProps.style = mergeObjects(outProps.style, style);
-  }
-  return outProps;
-}
-function resolveRenderFunctionProps(props) {
-  if (Array.isArray(props)) {
-    return mergePropsN(props);
-  }
-  return mergeProps(undefined, props);
-}
-var REACT_LAZY_TYPE3 = Symbol.for("react.lazy");
-function unwrapLazyRenderProp(render) {
-  if (render?.$$typeof !== REACT_LAZY_TYPE3) {
-    return render;
-  }
-  const unwrapped = React13.Children.toArray(render)[0];
-  return /* @__PURE__ */ React13.isValidElement(unwrapped) ? unwrapped : render;
-}
-function evaluateRenderProp(element, render, props, state) {
-  if (render) {
-    if (typeof render === "function") {
-      if (false) {}
-      return render(props, state);
-    }
-    const mergedProps = mergeProps(props, render.props);
-    mergedProps.ref = props.ref;
-    if (false) {}
-    return /* @__PURE__ */ React13.cloneElement(render, mergedProps);
-  }
-  return renderTag(element, props);
-}
-function renderTag(Tag, props) {
-  if (Tag === "button") {
-    return /* @__PURE__ */ import_react3.createElement("button", {
-      type: "button",
-      ...props,
-      key: props.key
-    });
-  }
-  if (Tag === "img") {
-    return /* @__PURE__ */ import_react3.createElement("img", {
-      alt: "",
-      ...props,
-      key: props.key
-    });
-  }
-  return /* @__PURE__ */ React13.createElement(Tag, props);
-}
-
-// engine/node_modules/@base-ui/react/use-render/useRender.mjs
-function useRender(params) {
-  return useRenderElement(params.defaultTagName ?? "div", params, params);
-}
-
+    getButtonProps,
+    buttonRef
+  } = useButton({
+    disabled,
+    focusableWhenDisabled,
+    native: nativeButton
+  });
+  const state = {
+    disabled
+  };
+  return useRenderElement("button", componentProps, {
+    state,
+    ref: [forwardedRef, buttonRef],
+    props: [elementProps, getButtonProps]
+  });
+});
+if (false)
+  ;
 // engine/node_modules/clsx/dist/clsx.mjs
 function r(e) {
   var t, f, n = "";
@@ -22705,14 +29233,822 @@ var cva = (base, config) => (props) => {
   return cx(base, getVariantClassNames, getCompoundVariantClassNames, props === null || props === undefined ? undefined : props.class, props === null || props === undefined ? undefined : props.className);
 };
 
-// engine/board/page/ui/badge.tsx
-var badgeVariants = cva("group/badge inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-sm border border-transparent text-[0.6875rem] font-semibold tabular-nums transition-colors focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring [&>svg]:pointer-events-none", {
+// engine/board/page/ui/button.tsx
+var jsx_runtime = __toESM(require_jsx_runtime());
+var TAP = 'phone:relative phone:before:absolute phone:before:top-1/2 phone:before:left-1/2 phone:before:h-[max(100%,44px)] phone:before:w-[max(100%,44px)] phone:before:content-[""] phone:before:[transform:translate(-50%,-50%)]';
+var FADE = "transition-[background-color,border-color,opacity,transform] duration-150";
+var LABEL = "text-[0.78125rem] leading-none font-medium whitespace-nowrap";
+var variants = cva("group/button inline-flex shrink-0 select-none items-center justify-center rounded-lg border border-transparent py-0 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-[0.97] aria-busy:cursor-progress aria-busy:opacity-70 motion-safe:aria-busy:[&_.icon]:animate-[turn_0.9s_linear_infinite] aria-disabled:cursor-not-allowed aria-disabled:opacity-[0.42] aria-disabled:active:scale-100 [&_svg]:shrink-0", {
   variants: {
     variant: {
-      default: "h-5 bg-primary px-2 text-primary-foreground",
-      secondary: "h-5 bg-secondary px-2 text-secondary-foreground",
-      outline: "h-5 border-border px-2 text-foreground",
-      count: "h-[18px] border-0 min-w-[18px] rounded-[9px] bg-needs px-[5px] leading-[18px] text-primary-foreground"
+      default: `${FADE} bg-primary text-primary-foreground hover:opacity-90`,
+      outline: `${FADE} border-border bg-secondary text-foreground hover:border-border-strong hover:bg-accent`,
+      ghost: `${FADE} bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground`,
+      link: `${FADE} bg-transparent text-primary underline-offset-4 hover:underline`,
+      primary: `${TAP} select-auto [transition:background-color_.15s,border-color_.15s,opacity_.15s,transform_.1s] bg-primary text-primary-foreground [&:hover:not([aria-disabled=true])]:opacity-[0.88]`,
+      secondary: `${TAP} select-auto [transition:background-color_.15s,border-color_.15s,opacity_.15s,transform_.1s] border-border bg-secondary text-foreground [&:hover]:border-border-strong [&:hover]:bg-accent`,
+      icon: `${TAP} grid select-auto justify-normal place-items-center border-0 bg-transparent text-muted-foreground active:scale-100 [&:hover]:bg-accent [&:hover]:text-foreground`
+    },
+    size: {
+      default: `h-7 gap-1.5 px-[11px] ${LABEL} [&_svg]:pointer-events-none [&_.icon]:size-[13px]`,
+      action: `min-h-7 gap-1.5 px-[11px] ${LABEL} [&_.icon]:size-[13px]`,
+      icon: "size-[26px] rounded-[7px] p-0 [&_.icon]:size-3.5"
+    }
+  },
+  defaultVariants: { variant: "default", size: "default" }
+});
+var buttonVariants = (props) => cn(variants(props));
+function Button2({
+  className,
+  variant = "default",
+  size = "default",
+  ...props
+}) {
+  return /* @__PURE__ */ jsx_runtime.jsx(Button, {
+    "data-slot": "button",
+    className: buttonVariants({ variant, size, className }),
+    ...props
+  });
+}
+
+// engine/board/page/ui/alert-dialog.tsx
+var jsx_runtime2 = __toESM(require_jsx_runtime());
+function AlertDialog({ ...props }) {
+  return /* @__PURE__ */ jsx_runtime2.jsx(AlertDialogRoot, {
+    "data-slot": "alert-dialog",
+    ...props
+  });
+}
+function AlertDialogOverlay({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime2.jsx(DialogBackdrop, {
+    "data-slot": "alert-dialog-overlay",
+    onMouseDown: (event) => event.preventDefault(),
+    className: cn("fixed inset-0 isolate z-50 bg-black/[0.32] backdrop-blur-[2px]", className),
+    ...props
+  });
+}
+function AlertDialogContent({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime2.jsxs(DialogPortal, {
+    "data-slot": "alert-dialog-portal",
+    children: [
+      /* @__PURE__ */ jsx_runtime2.jsx(AlertDialogOverlay, {}),
+      /* @__PURE__ */ jsx_runtime2.jsx(DialogPopup, {
+        "data-slot": "alert-dialog-content",
+        className: cn("fixed top-1/2 left-1/2 z-50 w-[min(340px,calc(100vw-24px))] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-popover px-[18px] pt-[18px] pb-4 text-popover-foreground shadow-float outline-none", className),
+        ...props
+      })
+    ]
+  });
+}
+function AlertDialogFooter({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime2.jsx("div", {
+    "data-slot": "alert-dialog-footer",
+    className: cn("mt-[18px] flex justify-end gap-1.5", className),
+    ...props
+  });
+}
+function AlertDialogTitle({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime2.jsx(DialogTitle, {
+    "data-slot": "alert-dialog-title",
+    className: cn("m-0 text-sm leading-[1.4] font-semibold text-foreground", className),
+    ...props
+  });
+}
+function AlertDialogDescription({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime2.jsx(DialogDescription, {
+    "data-slot": "alert-dialog-description",
+    className: cn("mt-1.5 mb-0 text-[0.78125rem] leading-normal text-muted-foreground", className),
+    ...props
+  });
+}
+function AlertDialogAction({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime2.jsx(Button2, {
+    "data-slot": "alert-dialog-action",
+    variant: "primary",
+    size: "action",
+    className: cn(className),
+    ...props
+  });
+}
+function AlertDialogCancel({
+  className,
+  variant = "secondary",
+  size = "action",
+  ...props
+}) {
+  return /* @__PURE__ */ jsx_runtime2.jsx(DialogClose, {
+    "data-slot": "alert-dialog-cancel",
+    className: cn(className),
+    render: /* @__PURE__ */ jsx_runtime2.jsx(Button2, {
+      variant,
+      size
+    }),
+    ...props
+  });
+}
+
+// engine/board/page/operations/stop.tsx
+init_actions();
+init_keys();
+init_state();
+var jsx_runtime3 = __toESM(require_jsx_runtime());
+function StopDialog() {
+  const stopFor = useScreen((state) => state.stopFor);
+  const cancel = import_react5.useRef(null);
+  const shown = import_react5.useRef(stopFor);
+  const column = import_react5.useRef(null);
+  if (stopFor !== null && stopFor !== shown.current) {
+    shown.current = stopFor;
+    column.current = screen.index().byKey.get(stopFor.key)?.column ?? null;
+  }
+  const current = shown.current;
+  const focusAfter = () => {
+    if (current === null)
+      return true;
+    const card = document.querySelector(`#tp-board .card[data-key="${CSS.escape(current.key)}"]`);
+    if (card?.isConnected)
+      return card;
+    const name = screen.index().byKey.get(current.key)?.column ?? column.current;
+    return columnStop(`col-${name}`) ?? true;
+  };
+  const stop = () => {
+    if (current === null)
+      return;
+    const { card } = current;
+    screen.closeStop();
+    pressAct("stops", card, "/api/stop", { number: card.number, sessionId: card.sessionId }, stopText(card));
+  };
+  return /* @__PURE__ */ jsx_runtime3.jsx(AlertDialog, {
+    open: stopFor !== null,
+    onOpenChange: (isOpen) => !isOpen && screen.closeStop(),
+    children: /* @__PURE__ */ jsx_runtime3.jsxs(AlertDialogContent, {
+      initialFocus: cancel,
+      finalFocus: focusAfter,
+      children: [
+        /* @__PURE__ */ jsx_runtime3.jsx(AlertDialogTitle, {
+          children: current && `Stop the ${current.card.step} session of #${current.card.number}?`
+        }),
+        /* @__PURE__ */ jsx_runtime3.jsx(AlertDialogDescription, {
+          children: "The agent ends and its tab closes. The issue moves to Idle as set aside, and auto mode skips it. Resume opens the saved session again."
+        }),
+        /* @__PURE__ */ jsx_runtime3.jsxs(AlertDialogFooter, {
+          children: [
+            /* @__PURE__ */ jsx_runtime3.jsx(AlertDialogCancel, {
+              ref: cancel,
+              children: "Cancel"
+            }),
+            /* @__PURE__ */ jsx_runtime3.jsx(AlertDialogAction, {
+              onClick: stop,
+              children: "Stop session"
+            })
+          ]
+        })
+      ]
+    })
+  });
+}
+
+// engine/board/page/app/app.tsx
+init_query2();
+
+// engine/board/page/app/hosts.tsx
+var import_react6 = __toESM(require_react());
+var jsx_runtime4 = __toESM(require_jsx_runtime());
+var never = () => true;
+var CoordinatorHost = import_react6.memo(() => /* @__PURE__ */ jsx_runtime4.jsxs("section", {
+  className: "coordinator",
+  id: "coordinator",
+  "aria-labelledby": "coordinator-title",
+  "data-state": "none",
+  hidden: true,
+  children: [
+    /* @__PURE__ */ jsx_runtime4.jsxs("header", {
+      className: "co-head",
+      children: [
+        /* @__PURE__ */ jsx_runtime4.jsx("h2", {
+          className: "co-title",
+          id: "coordinator-title",
+          children: "Coordinator"
+        }),
+        /* @__PURE__ */ jsx_runtime4.jsx("span", {
+          className: "co-host",
+          id: "coordinator-host"
+        }),
+        /* @__PURE__ */ jsx_runtime4.jsx("span", {
+          className: "pill co-pill",
+          id: "coordinator-head-state"
+        }),
+        /* @__PURE__ */ jsx_runtime4.jsxs("span", {
+          className: "co-head-end",
+          children: [
+            /* @__PURE__ */ jsx_runtime4.jsx("button", {
+              type: "button",
+              className: "btn ghost",
+              id: "coordinator-interrupt",
+              hidden: true,
+              children: /* @__PURE__ */ jsx_runtime4.jsx("span", {
+                className: "label",
+                children: "Interrupt"
+              })
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsx("button", {
+              type: "button",
+              className: "btn ghost",
+              id: "coordinator-end",
+              hidden: true,
+              children: /* @__PURE__ */ jsx_runtime4.jsx("span", {
+                className: "label",
+                children: "End session"
+              })
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsx("button", {
+              type: "button",
+              className: "btn ghost",
+              id: "coordinator-go",
+              title: "Show the tab of the session in the Herdr app",
+              hidden: true,
+              children: /* @__PURE__ */ jsx_runtime4.jsx("span", {
+                className: "label",
+                children: "Go"
+              })
+            })
+          ]
+        })
+      ]
+    }),
+    /* @__PURE__ */ jsx_runtime4.jsx("p", {
+      className: "co-banner",
+      id: "coordinator-banner",
+      role: "status",
+      hidden: true
+    }),
+    /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+      className: "co-body",
+      children: [
+        /* @__PURE__ */ jsx_runtime4.jsx("div", {
+          className: "co-log co-chat",
+          id: "coordinator-log",
+          role: "log",
+          tabIndex: 0,
+          "aria-label": "Conversation with the coordinator"
+        }),
+        /* @__PURE__ */ jsx_runtime4.jsx("button", {
+          type: "button",
+          className: "btn ghost co-to-end",
+          id: "coordinator-to-end",
+          hidden: true,
+          children: /* @__PURE__ */ jsx_runtime4.jsx("span", {
+            className: "label",
+            children: "Go to the end"
+          })
+        })
+      ]
+    }),
+    /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+      className: "co-foot",
+      children: [
+        /* @__PURE__ */ jsx_runtime4.jsxs("form", {
+          className: "co-form",
+          id: "coordinator-form",
+          hidden: true,
+          children: [
+            /* @__PURE__ */ jsx_runtime4.jsx("textarea", {
+              className: "co-field",
+              id: "coordinator-field",
+              rows: 1,
+              "aria-label": "Message to the coordinator",
+              "aria-describedby": "coordinator-hint",
+              placeholder: "Write to the coordinator"
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+              className: "co-row",
+              children: [
+                /* @__PURE__ */ jsx_runtime4.jsx("p", {
+                  className: "co-hint",
+                  id: "coordinator-hint"
+                }),
+                /* @__PURE__ */ jsx_runtime4.jsx("button", {
+                  type: "submit",
+                  className: "btn primary",
+                  id: "coordinator-send",
+                  children: /* @__PURE__ */ jsx_runtime4.jsx("span", {
+                    className: "label",
+                    children: "Send"
+                  })
+                })
+              ]
+            })
+          ]
+        }),
+        /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+          className: "co-start",
+          id: "coordinator-start-block",
+          hidden: true,
+          children: [
+            /* @__PURE__ */ jsx_runtime4.jsx("p", {
+              className: "co-start-text",
+              id: "coordinator-start-text",
+              hidden: true
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsx("button", {
+              type: "button",
+              className: "btn primary",
+              id: "coordinator-start",
+              children: /* @__PURE__ */ jsx_runtime4.jsx("span", {
+                className: "label",
+                children: "Start a new session"
+              })
+            })
+          ]
+        })
+      ]
+    })
+  ]
+}), never);
+var PaneChatHost = import_react6.memo(() => /* @__PURE__ */ jsx_runtime4.jsxs("button", {
+  type: "button",
+  className: "btn ghost pane-chat co-open",
+  id: "pane-chat",
+  children: [
+    /* @__PURE__ */ jsx_runtime4.jsx("span", {
+      className: "label",
+      children: "Chat"
+    }),
+    /* @__PURE__ */ jsx_runtime4.jsx("i", {
+      className: "co-mark",
+      "aria-hidden": "true"
+    }),
+    /* @__PURE__ */ jsx_runtime4.jsx("span", {
+      className: "co-open-state"
+    })
+  ]
+}), never);
+var QueueHost = import_react6.memo(() => /* @__PURE__ */ jsx_runtime4.jsx("section", {
+  className: "queue",
+  id: "queue",
+  hidden: true
+}), never);
+var Layers = import_react6.memo(() => /* @__PURE__ */ jsx_runtime4.jsxs(jsx_runtime4.Fragment, {
+  children: [
+    /* @__PURE__ */ jsx_runtime4.jsx("p", {
+      className: "sr-only",
+      id: "announce",
+      "aria-live": "polite"
+    }),
+    /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+      className: "toast",
+      id: "toast",
+      role: "alert",
+      hidden: true,
+      children: [
+        /* @__PURE__ */ jsx_runtime4.jsx("span", {
+          className: "toast-icon",
+          id: "toast-icon"
+        }),
+        /* @__PURE__ */ jsx_runtime4.jsx("span", {
+          id: "toast-text"
+        }),
+        /* @__PURE__ */ jsx_runtime4.jsx("button", {
+          type: "button",
+          className: "toast-close",
+          id: "toast-close",
+          "aria-label": "Close"
+        })
+      ]
+    }),
+    /* @__PURE__ */ jsx_runtime4.jsx("div", {
+      className: "menu",
+      id: "menu",
+      role: "menu",
+      popover: ""
+    }),
+    /* @__PURE__ */ jsx_runtime4.jsxs("dialog", {
+      className: "palette",
+      id: "palette",
+      "aria-label": "Search the cards, history, and commands",
+      children: [
+        /* @__PURE__ */ jsx_runtime4.jsx("div", {
+          className: "pal-input-row",
+          children: /* @__PURE__ */ jsx_runtime4.jsx("input", {
+            id: "pal-input",
+            type: "text",
+            role: "combobox",
+            "aria-expanded": "true",
+            "aria-controls": "pal-list",
+            "aria-autocomplete": "list",
+            autoComplete: "off",
+            spellCheck: "false"
+          })
+        }),
+        /* @__PURE__ */ jsx_runtime4.jsx("div", {
+          className: "pal-list",
+          id: "pal-list",
+          role: "listbox",
+          "aria-label": "Results"
+        }),
+        /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+          className: "pal-foot",
+          children: [
+            /* @__PURE__ */ jsx_runtime4.jsxs("span", {
+              children: [
+                /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                  children: "↑"
+                }),
+                /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                  children: "↓"
+                }),
+                "move"
+              ]
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsxs("span", {
+              children: [
+                /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                  children: "Enter"
+                }),
+                "do it"
+              ]
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsxs("span", {
+              children: [
+                /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                  children: "Esc"
+                }),
+                "close"
+              ]
+            })
+          ]
+        })
+      ]
+    }),
+    /* @__PURE__ */ jsx_runtime4.jsxs("dialog", {
+      className: "keys",
+      id: "keys",
+      "aria-labelledby": "keys-title",
+      children: [
+        /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+          className: "keys-head",
+          children: [
+            /* @__PURE__ */ jsx_runtime4.jsx("h2", {
+              id: "keys-title",
+              children: "Keyboard shortcuts"
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsx("button", {
+              type: "button",
+              className: "icon-btn",
+              id: "keys-close",
+              "aria-label": "Close"
+            })
+          ]
+        }),
+        /* @__PURE__ */ jsx_runtime4.jsxs("dl", {
+          className: "keys-list",
+          children: [
+            /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+              children: [
+                /* @__PURE__ */ jsx_runtime4.jsxs("dt", {
+                  children: [
+                    /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                      children: "⌘K"
+                    }),
+                    /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                      children: "/"
+                    })
+                  ]
+                }),
+                /* @__PURE__ */ jsx_runtime4.jsx("dd", {
+                  children: "Search the cards, history, and commands, or type #n to jump to an issue"
+                })
+              ]
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+              children: [
+                /* @__PURE__ */ jsx_runtime4.jsxs("dt", {
+                  children: [
+                    /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                      children: "j"
+                    }),
+                    /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                      children: "k"
+                    }),
+                    /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                      children: "↓"
+                    }),
+                    /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                      children: "↑"
+                    })
+                  ]
+                }),
+                /* @__PURE__ */ jsx_runtime4.jsx("dd", {
+                  children: "Next or previous card or epic group"
+                })
+              ]
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+              children: [
+                /* @__PURE__ */ jsx_runtime4.jsxs("dt", {
+                  children: [
+                    /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                      children: "h"
+                    }),
+                    /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                      children: "l"
+                    }),
+                    /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                      children: "←"
+                    }),
+                    /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                      children: "→"
+                    })
+                  ]
+                }),
+                /* @__PURE__ */ jsx_runtime4.jsx("dd", {
+                  children: "Card in the column to the left or right"
+                })
+              ]
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+              children: [
+                /* @__PURE__ */ jsx_runtime4.jsx("dt", {
+                  children: /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                    children: "Enter"
+                  })
+                }),
+                /* @__PURE__ */ jsx_runtime4.jsx("dd", {
+                  children: "Main button of the card: Go, Run, Resume, Open agent, Open shell, or Open issue"
+                })
+              ]
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+              children: [
+                /* @__PURE__ */ jsx_runtime4.jsx("dt", {
+                  children: /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                    children: "Space"
+                  })
+                }),
+                /* @__PURE__ */ jsx_runtime4.jsxs("dd", {
+                  children: [
+                    "Show the details of the card; ",
+                    /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                      children: "Esc"
+                    }),
+                    " hides them"
+                  ]
+                })
+              ]
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+              children: [
+                /* @__PURE__ */ jsx_runtime4.jsxs("dt", {
+                  children: [
+                    /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                      children: "Enter"
+                    }),
+                    /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                      children: "Space"
+                    })
+                  ]
+                }),
+                /* @__PURE__ */ jsx_runtime4.jsx("dd", {
+                  children: "On an epic group, show or hide its issues"
+                })
+              ]
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+              children: [
+                /* @__PURE__ */ jsx_runtime4.jsx("dt", {
+                  children: /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                    children: "m"
+                  })
+                }),
+                /* @__PURE__ */ jsx_runtime4.jsx("dd", {
+                  children: "All the actions of the card"
+                })
+              ]
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+              children: [
+                /* @__PURE__ */ jsx_runtime4.jsx("dt", {
+                  children: /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                    children: "o"
+                  })
+                }),
+                /* @__PURE__ */ jsx_runtime4.jsx("dd", {
+                  children: "Open the issue"
+                })
+              ]
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+              children: [
+                /* @__PURE__ */ jsx_runtime4.jsx("dt", {
+                  children: /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                    children: "c"
+                  })
+                }),
+                /* @__PURE__ */ jsx_runtime4.jsx("dd", {
+                  children: "Copy the command or the path of the card"
+                })
+              ]
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+              children: [
+                /* @__PURE__ */ jsx_runtime4.jsx("dt", {
+                  children: /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                    children: "s"
+                  })
+                }),
+                /* @__PURE__ */ jsx_runtime4.jsx("dd", {
+                  children: "Set the card aside, or stop its session"
+                })
+              ]
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+              children: [
+                /* @__PURE__ */ jsx_runtime4.jsx("dt", {
+                  children: /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                    children: "v"
+                  })
+                }),
+                /* @__PURE__ */ jsx_runtime4.jsx("dd", {
+                  children: "Change between the tabs Agents and Pipeline"
+                })
+              ]
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+              children: [
+                /* @__PURE__ */ jsx_runtime4.jsx("dt", {
+                  children: /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                    children: "d"
+                  })
+                }),
+                /* @__PURE__ */ jsx_runtime4.jsx("dd", {
+                  children: "Open or close the tab History"
+                })
+              ]
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+              children: [
+                /* @__PURE__ */ jsx_runtime4.jsx("dt", {
+                  children: /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                    children: "r"
+                  })
+                }),
+                /* @__PURE__ */ jsx_runtime4.jsx("dd", {
+                  children: "Read the issues again"
+                })
+              ]
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+              children: [
+                /* @__PURE__ */ jsx_runtime4.jsx("dt", {
+                  children: /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                    children: "?"
+                  })
+                }),
+                /* @__PURE__ */ jsx_runtime4.jsx("dd", {
+                  children: "Show this list"
+                })
+              ]
+            })
+          ]
+        }),
+        /* @__PURE__ */ jsx_runtime4.jsxs("label", {
+          className: "keys-switch",
+          children: [
+            /* @__PURE__ */ jsx_runtime4.jsx("input", {
+              type: "checkbox",
+              id: "keys-on"
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsxs("span", {
+              children: [
+                "Single-key shortcuts (",
+                /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                  children: "j"
+                }),
+                " ",
+                /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                  children: "k"
+                }),
+                " ",
+                /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                  children: "h"
+                }),
+                " ",
+                /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                  children: "l"
+                }),
+                " ",
+                /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                  children: "v"
+                }),
+                " ",
+                /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                  children: "d"
+                }),
+                " ",
+                /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                  children: "r"
+                }),
+                " ",
+                /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                  children: "/"
+                }),
+                " ",
+                /* @__PURE__ */ jsx_runtime4.jsx("kbd", {
+                  children: "?"
+                }),
+                "). The keys of a focused card or epic group always work."
+              ]
+            })
+          ]
+        })
+      ]
+    }),
+    /* @__PURE__ */ jsx_runtime4.jsx("p", {
+      className: "sr-only",
+      id: "update-status",
+      role: "status",
+      "aria-live": "polite"
+    }),
+    /* @__PURE__ */ jsx_runtime4.jsxs("dialog", {
+      className: "update-dialog",
+      id: "update-dialog",
+      "aria-labelledby": "update-title",
+      "aria-describedby": "update-description",
+      children: [
+        /* @__PURE__ */ jsx_runtime4.jsx("h2", {
+          id: "update-title",
+          tabIndex: -1
+        }),
+        /* @__PURE__ */ jsx_runtime4.jsx("p", {
+          className: "update-description",
+          id: "update-description"
+        }),
+        /* @__PURE__ */ jsx_runtime4.jsx("p", {
+          className: "update-status",
+          id: "update-progress",
+          "aria-hidden": "true"
+        }),
+        /* @__PURE__ */ jsx_runtime4.jsx("p", {
+          className: "update-error",
+          id: "update-error",
+          hidden: true
+        }),
+        /* @__PURE__ */ jsx_runtime4.jsx("p", {
+          className: "update-recovery",
+          id: "update-recovery",
+          hidden: true
+        }),
+        /* @__PURE__ */ jsx_runtime4.jsxs("div", {
+          className: "update-actions",
+          children: [
+            /* @__PURE__ */ jsx_runtime4.jsx("button", {
+              type: "button",
+              className: "btn primary",
+              id: "update-start",
+              children: "Update and restart"
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsx("button", {
+              type: "button",
+              className: "btn primary",
+              id: "update-check",
+              hidden: true,
+              children: "Check again"
+            }),
+            /* @__PURE__ */ jsx_runtime4.jsx("button", {
+              type: "button",
+              className: "btn ghost",
+              id: "update-later",
+              children: "Later"
+            })
+          ]
+        })
+      ]
+    })
+  ]
+}), never);
+
+// engine/board/page/app/shell.tsx
+init_modern2();
+
+// engine/board/page/operations/operations.tsx
+init_shell();
+init_store();
+
+// engine/node_modules/@base-ui/react/use-render/useRender.mjs
+function useRender(params) {
+  return useRenderElement(params.defaultTagName ?? "div", params, params);
+}
+
+// engine/board/page/ui/badge.tsx
+var badgeVariants = cva("group/badge inline-flex w-fit shrink-0 gap-1 overflow-hidden whitespace-nowrap rounded-sm border border-transparent text-[0.6875rem] font-semibold tabular-nums transition-colors focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring [&>svg]:pointer-events-none", {
+  variants: {
+    variant: {
+      default: "h-5 items-center justify-center bg-primary px-2 text-primary-foreground",
+      secondary: "h-5 items-center justify-center bg-secondary px-2 text-secondary-foreground",
+      outline: "h-5 items-center justify-center border-border px-2 text-foreground",
+      column: "inline-grid h-auto min-h-5 w-auto min-w-6 shrink justify-normal gap-[normal] place-items-center overflow-visible whitespace-normal border-0 bg-accent px-[7px] font-sans text-[0.71875rem] leading-none font-medium text-card-foreground normal-nums transition-[all] duration-0 ease-[ease]",
+      tab: "block h-[18px] w-auto min-w-[18px] shrink gap-[normal] overflow-visible rounded-[9px] border-0 bg-needs px-[5px] text-center font-sans leading-[18px] font-semibold text-primary-foreground transition-[all] duration-0 ease-[ease]",
+      count: "h-[18px] items-center justify-center border-0 min-w-[18px] rounded-[9px] bg-needs px-[5px] leading-[18px] text-primary-foreground"
     }
   },
   defaultVariants: { variant: "default" }
@@ -22731,442 +30067,11 @@ function Badge({
   });
 }
 
-// engine/node_modules/@base-ui/react/button/Button.mjs
-var React19 = __toESM(require_react(), 1);
-
-// engine/node_modules/@base-ui/react/internals/use-button/useButton.mjs
-var React18 = __toESM(require_react(), 1);
-
-// engine/node_modules/@floating-ui/utils/dist/floating-ui.utils.dom.mjs
-function hasWindow() {
-  return typeof window !== "undefined";
-}
-function getWindow(node) {
-  var _node$ownerDocument;
-  return (node == null || (_node$ownerDocument = node.ownerDocument) == null ? undefined : _node$ownerDocument.defaultView) || window;
-}
-function isHTMLElement(value) {
-  if (!hasWindow()) {
-    return false;
-  }
-  return value instanceof HTMLElement || value instanceof getWindow(value).HTMLElement;
-}
-
-// engine/node_modules/@base-ui/utils/safeReact.mjs
-var React14 = __toESM(require_react(), 1);
-var SafeReact = {
-  ...React14
-};
-
-// engine/node_modules/@base-ui/utils/useStableCallback.mjs
-"use client";
-var useInsertionEffect = SafeReact.useInsertionEffect;
-var useSafeInsertionEffect = useInsertionEffect && useInsertionEffect !== SafeReact.useLayoutEffect ? useInsertionEffect : (fn) => fn();
-function useStableCallback(callback) {
-  const stable = useRefWithInit(createStableCallback).current;
-  stable.next = callback;
-  useSafeInsertionEffect(stable.effect);
-  return stable.trampoline;
-}
-function createStableCallback() {
-  const stable = {
-    next: undefined,
-    callback: assertNotCalled,
-    trampoline: (...args) => stable.callback?.(...args),
-    effect: () => {
-      stable.callback = stable.next;
-    }
-  };
-  return stable;
-}
-function assertNotCalled() {
-  if (false) {}
-}
-
-// engine/node_modules/@base-ui/utils/useIsoLayoutEffect.mjs
-var React15 = __toESM(require_react(), 1);
-"use client";
-var noop5 = () => {};
-var useIsoLayoutEffect = typeof document !== "undefined" ? React15.useLayoutEffect : noop5;
-
-// engine/node_modules/@base-ui/utils/formatErrorMessage.mjs
-function createFormatErrorMessage(baseUrl, prefix) {
-  return function formatErrorMessage(code, ...args) {
-    const url = new URL(baseUrl);
-    url.searchParams.set("code", code.toString());
-    args.forEach((arg) => url.searchParams.append("args[]", arg));
-    return `${prefix} error #${code}; visit ${url} for the full message.`;
-  };
-}
-var formatErrorMessage = createFormatErrorMessage("https://base-ui.com/production-error", "Base UI");
-var formatErrorMessage_default = formatErrorMessage;
-
-// engine/node_modules/@base-ui/react/internals/composite/root/CompositeRootContext.mjs
-var React16 = __toESM(require_react(), 1);
-"use client";
-var CompositeRootContext = /* @__PURE__ */ React16.createContext(undefined);
-if (false)
-  ;
-function useCompositeRootContext(optional = false) {
-  const context = React16.useContext(CompositeRootContext);
-  if (context === undefined && !optional) {
-    throw new Error(formatErrorMessage_default(16));
-  }
-  return context;
-}
-
-// engine/node_modules/@base-ui/react/utils/useFocusableWhenDisabled.mjs
-var React17 = __toESM(require_react(), 1);
-"use client";
-function useFocusableWhenDisabled(parameters) {
-  const {
-    focusableWhenDisabled,
-    disabled,
-    composite = false,
-    tabIndex: tabIndexProp = 0,
-    isNativeButton
-  } = parameters;
-  const isFocusableComposite = composite && focusableWhenDisabled !== false;
-  const isNonFocusableComposite = composite && focusableWhenDisabled === false;
-  const props = React17.useMemo(() => {
-    const additionalProps = {
-      onKeyDown(event) {
-        if (disabled && focusableWhenDisabled && event.key !== "Tab") {
-          event.preventDefault();
-        }
-      }
-    };
-    if (!composite) {
-      additionalProps.tabIndex = tabIndexProp;
-      if (!isNativeButton && disabled) {
-        additionalProps.tabIndex = focusableWhenDisabled ? tabIndexProp : -1;
-      }
-    }
-    if (isNativeButton && (focusableWhenDisabled || isFocusableComposite) || !isNativeButton && disabled) {
-      additionalProps["aria-disabled"] = disabled;
-    }
-    if (isNativeButton && (!focusableWhenDisabled || isNonFocusableComposite)) {
-      additionalProps.disabled = disabled;
-    }
-    return additionalProps;
-  }, [composite, disabled, focusableWhenDisabled, isFocusableComposite, isNonFocusableComposite, isNativeButton, tabIndexProp]);
-  return {
-    props
-  };
-}
-// engine/node_modules/@base-ui/react/utils/dispatchClickWithModifiers.mjs
-function dispatchClickWithModifiers(target, sourceEvent, {
-  detail = 0,
-  pointerType = ""
-} = {}) {
-  target.dispatchEvent(new (getWindow(target)).PointerEvent("click", {
-    bubbles: true,
-    cancelable: true,
-    composed: true,
-    detail,
-    pointerType,
-    shiftKey: sourceEvent.shiftKey,
-    ctrlKey: sourceEvent.ctrlKey,
-    altKey: sourceEvent.altKey,
-    metaKey: sourceEvent.metaKey
-  }));
-}
-
-// engine/node_modules/@base-ui/react/internals/use-button/useButton.mjs
-"use client";
-function useButton(parameters = {}) {
-  const {
-    disabled = false,
-    focusableWhenDisabled,
-    tabIndex = 0,
-    native: isNativeButton = true,
-    composite: compositeProp
-  } = parameters;
-  const elementRef = React18.useRef(null);
-  const compositeRootContext = useCompositeRootContext(true);
-  const isCompositeItem = compositeProp ?? compositeRootContext !== undefined;
-  const {
-    props: focusableWhenDisabledProps
-  } = useFocusableWhenDisabled({
-    focusableWhenDisabled,
-    disabled,
-    composite: isCompositeItem,
-    tabIndex,
-    isNativeButton
-  });
-  if (false) {}
-  const updateDisabled = React18.useCallback(() => {
-    const element = elementRef.current;
-    if (!isButtonElement(element)) {
-      return;
-    }
-    if (isCompositeItem && disabled && focusableWhenDisabledProps.disabled === undefined && element.disabled) {
-      element.disabled = false;
-    }
-  }, [disabled, focusableWhenDisabledProps.disabled, isCompositeItem]);
-  useIsoLayoutEffect(updateDisabled, [updateDisabled]);
-  const getButtonProps = React18.useCallback((externalProps = {}) => {
-    const {
-      onClick: externalOnClick,
-      onMouseDown: externalOnMouseDown,
-      onKeyUp: externalOnKeyUp,
-      onKeyDown: externalOnKeyDown,
-      onPointerDown: externalOnPointerDown,
-      ...otherExternalProps
-    } = externalProps;
-    return mergeProps({
-      onClick(event) {
-        if (disabled) {
-          event.preventDefault();
-          return;
-        }
-        externalOnClick?.(event);
-      },
-      onMouseDown(event) {
-        if (!disabled) {
-          externalOnMouseDown?.(event);
-        }
-      },
-      onKeyDown(event) {
-        if (disabled) {
-          return;
-        }
-        makeEventPreventable(event);
-        externalOnKeyDown?.(event);
-        if (event.baseUIHandlerPrevented) {
-          return;
-        }
-        const isCurrentTarget = event.target === event.currentTarget;
-        const currentTarget = event.currentTarget;
-        const isButton = isButtonElement(currentTarget);
-        const isLink = !isNativeButton && isValidLinkElement(currentTarget);
-        const shouldClick = isCurrentTarget && (isNativeButton ? isButton : !isLink);
-        const isEnterKey = event.key === "Enter";
-        const isSpaceKey = event.key === " ";
-        const role = currentTarget.getAttribute("role");
-        const isTextNavigationRole = role?.startsWith("menuitem") || role === "option" || role === "gridcell";
-        if (isCurrentTarget && isCompositeItem && isSpaceKey) {
-          if (event.defaultPrevented && isTextNavigationRole) {
-            return;
-          }
-          event.preventDefault();
-          if (!isNativeButton || isButton) {
-            event.preventBaseUIHandler();
-            dispatchClickWithModifiers(currentTarget, event);
-          }
-          return;
-        }
-        if (!shouldClick || isNativeButton || !isSpaceKey && !isEnterKey) {
-          if (isCurrentTarget && isLink && isSpaceKey) {
-            event.preventDefault();
-          }
-          return;
-        }
-        if (event.defaultPrevented) {
-          return;
-        }
-        event.preventDefault();
-        if (isEnterKey) {
-          event.preventBaseUIHandler();
-          dispatchClickWithModifiers(currentTarget, event);
-        }
-      },
-      onKeyUp(event) {
-        if (disabled) {
-          return;
-        }
-        makeEventPreventable(event);
-        externalOnKeyUp?.(event);
-        if (event.target === event.currentTarget && isNativeButton && isCompositeItem && isButtonElement(event.currentTarget) && event.key === " ") {
-          event.preventDefault();
-          return;
-        }
-        if (event.baseUIHandlerPrevented) {
-          return;
-        }
-        if (event.target === event.currentTarget && !isNativeButton && !isCompositeItem && !event.defaultPrevented && event.key === " ") {
-          event.preventBaseUIHandler();
-          dispatchClickWithModifiers(event.currentTarget, event);
-        }
-      },
-      onPointerDown(event) {
-        if (disabled) {
-          event.preventDefault();
-          return;
-        }
-        externalOnPointerDown?.(event);
-      }
-    }, isNativeButton ? {
-      type: "button"
-    } : {
-      role: "button"
-    }, focusableWhenDisabledProps, otherExternalProps);
-  }, [disabled, focusableWhenDisabledProps, isCompositeItem, isNativeButton]);
-  const buttonRef = useStableCallback((element) => {
-    elementRef.current = element;
-    updateDisabled();
-  });
-  return {
-    getButtonProps,
-    buttonRef
-  };
-}
-function isButtonElement(elem) {
-  return isHTMLElement(elem) && elem.tagName === "BUTTON";
-}
-function isValidLinkElement(elem) {
-  return isHTMLElement(elem) && elem.tagName === "A" && Boolean(elem.href);
-}
-
-// engine/node_modules/@base-ui/react/button/Button.mjs
-"use client";
-var Button = /* @__PURE__ */ React19.forwardRef(function Button(componentProps, forwardedRef) {
-  const {
-    render,
-    className,
-    disabled = false,
-    focusableWhenDisabled = false,
-    nativeButton = true,
-    style,
-    ...elementProps
-  } = componentProps;
-  const {
-    getButtonProps,
-    buttonRef
-  } = useButton({
-    disabled,
-    focusableWhenDisabled,
-    native: nativeButton
-  });
-  const state = {
-    disabled
-  };
-  return useRenderElement("button", componentProps, {
-    state,
-    ref: [forwardedRef, buttonRef],
-    props: [elementProps, getButtonProps]
-  });
-});
-if (false)
-  ;
-// engine/board/page/ui/button.tsx
-var jsx_runtime2 = __toESM(require_jsx_runtime());
-var buttonVariants = cva("group/button inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-lg border border-transparent py-0 text-[0.78125rem] leading-none font-medium transition-[background-color,border-color,opacity,transform] duration-150 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-[0.97] aria-busy:cursor-progress aria-busy:opacity-70 motion-safe:aria-busy:[&_.icon]:animate-[turn_0.9s_linear_infinite] aria-disabled:cursor-not-allowed aria-disabled:opacity-[0.42] aria-disabled:active:scale-100 [&_svg]:pointer-events-none [&_svg]:shrink-0", {
-  variants: {
-    variant: {
-      default: "bg-primary text-primary-foreground hover:opacity-90",
-      outline: "border-border bg-secondary text-foreground hover:border-border-strong hover:bg-accent",
-      ghost: "bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
-      link: "bg-transparent text-primary underline-offset-4 hover:underline"
-    },
-    size: {
-      default: "h-7 gap-1.5 px-[11px] [&_.icon]:size-[13px]",
-      icon: "size-[26px] rounded-[7px] p-0 [&_.icon]:size-3.5"
-    }
-  },
-  defaultVariants: { variant: "default", size: "default" }
-});
-function Button2({
-  className,
-  variant = "default",
-  size = "default",
-  ...props
-}) {
-  return /* @__PURE__ */ jsx_runtime2.jsx(Button, {
-    "data-slot": "button",
-    className: cn(buttonVariants({ variant, size, className })),
-    ...props
-  });
-}
-
-// engine/board/page/ui/sidebar.tsx
-var jsx_runtime3 = __toESM(require_jsx_runtime());
-function Sidebar({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime3.jsx("nav", {
-    "data-slot": "sidebar",
-    className: cn("col-start-1 row-start-1 flex min-h-0 flex-col gap-1.5 overflow-y-auto border-r border-border bg-background px-2.5 pt-3 pb-2.5", "rail:px-2 rail:pt-2.5 rail:pb-2", "phone:min-h-14 phone:flex-row phone:items-center phone:gap-2 phone:overflow-visible phone:border-r-0 phone:border-b phone:px-4 phone:py-1.5", className),
-    ...props
-  });
-}
-function SidebarHeader({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime3.jsx("div", {
-    "data-slot": "sidebar-header",
-    className: cn("mb-1.5 flex min-h-9 min-w-0 items-center gap-2.5 px-1.5", "rail:min-h-0 rail:flex-col rail:gap-1.5 rail:px-0 rail:pt-0.5 rail:pb-1", "phone:m-0 phone:min-h-0 phone:flex-1 phone:p-0", className),
-    ...props
-  });
-}
-function SidebarFooter({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime3.jsx("div", {
-    "data-slot": "sidebar-footer",
-    className: cn("mt-auto flex flex-col items-stretch gap-0.5 border-t border-border px-0.5 pt-2.5 text-xs text-muted-foreground rail:hidden phone:hidden", className),
-    ...props
-  });
-}
-function SidebarMenu({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime3.jsx("ul", {
-    "data-slot": "sidebar-menu",
-    className: cn("m-0 mt-2 flex min-h-[calc(11px+2*34px+2px)] list-none flex-col gap-0.5 overflow-y-auto border-t border-border p-0 pt-2.5", "rail:min-h-[calc(11px+2*50px+2px)] phone:hidden", className),
-    ...props
-  });
-}
-function SidebarMenuItem({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime3.jsx("li", {
-    "data-slot": "sidebar-menu-item",
-    className: cn("relative", className),
-    ...props
-  });
-}
-function SidebarMenuButton({ className, render, ...props }) {
-  return useRender({
-    defaultTagName: "button",
-    props: mergeProps({
-      className: cn("relative flex h-[34px] w-full items-center gap-2.5 rounded-lg border border-transparent bg-transparent pr-2 pl-2.5 text-left text-[0.78125rem] leading-none font-medium text-card-foreground transition-[background-color,color] duration-150 hover:bg-secondary hover:text-foreground focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-[-2px] focus-visible:outline-ring aria-[current=page]:border-border aria-[current=page]:bg-accent aria-[current=page]:text-foreground [&_.icon]:shrink-0", "rail:h-[50px] rail:flex-col rail:justify-center rail:gap-[5px] rail:px-0.5 rail:py-1.5 rail:text-center rail:text-[0.6875rem] rail:leading-[1.1]", className)
-    }, props),
-    render,
-    state: { slot: "sidebar-menu-button" }
-  });
-}
-
-// engine/board/page/app/shell.tsx
-init_ui();
-
-// engine/board/page/app/control.tsx
-init_modern2();
-init_view();
-init_query2();
-init_store();
-init_choice();
-var import_react5 = __toESM(require_react());
-
-// engine/board/page/ui/card.tsx
-var jsx_runtime4 = __toESM(require_jsx_runtime());
-function Card({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime4.jsx("section", {
-    "data-slot": "card",
-    className: cn("group/card min-w-0 rounded-xl border border-border bg-card p-5 text-card-foreground shadow-raise phone:p-4", className),
-    ...props
-  });
-}
-function CardTitle({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime4.jsx("h3", {
-    "data-slot": "card-title",
-    className: cn("text-sm leading-[1.4] font-semibold text-foreground", className),
-    ...props
-  });
-}
-function CardDescription({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime4.jsx("p", {
-    "data-slot": "card-description",
-    className: cn("mt-2 mb-0 text-[0.78125rem] leading-normal text-pretty text-muted-foreground", className),
-    ...props
-  });
-}
-
-// engine/node_modules/@base-ui/react/toggle/Toggle.mjs
-var React27 = __toESM(require_react(), 1);
+// engine/node_modules/@base-ui/react/tabs/root/TabsRoot.mjs
+var React62 = __toESM(require_react(), 1);
 
 // engine/node_modules/@base-ui/utils/useControlled.mjs
-var React20 = __toESM(require_react(), 1);
+var React58 = __toESM(require_react(), 1);
 "use client";
 function useControlled({
   controlled,
@@ -23176,11 +30081,11 @@ function useControlled({
 }) {
   const {
     current: isControlled
-  } = React20.useRef(controlled !== undefined);
-  const [valueState, setValue] = React20.useState(() => defaultProp);
+  } = React58.useRef(controlled !== undefined);
+  const [valueState, setValue] = React58.useState(() => defaultProp);
   const value = isControlled && controlled !== undefined ? controlled : valueState;
   if (false) {}
-  const setValueIfUncontrolled = React20.useCallback((newValue) => {
+  const setValueIfUncontrolled = React58.useCallback((newValue) => {
     if (!isControlled) {
       setValue(newValue);
     }
@@ -23188,72 +30093,13 @@ function useControlled({
   return [value, setValueIfUncontrolled];
 }
 
-// engine/node_modules/@base-ui/utils/useId.mjs
-var React22 = __toESM(require_react(), 1);
-
-// engine/node_modules/@base-ui/utils/useForcedRerendering.mjs
-var React21 = __toESM(require_react(), 1);
-"use client";
-function useForcedRerendering() {
-  const [, setState] = React21.useState({});
-  return React21.useCallback(() => {
-    setState({});
-  }, []);
-}
-
-// engine/node_modules/@base-ui/utils/useId.mjs
-"use client";
-var globalId = 0;
-function useGlobalId(idOverride, prefix = "mui") {
-  const defaultId = React22.useRef(undefined);
-  const forceRerender = useForcedRerendering();
-  const id = idOverride ?? defaultId.current;
-  React22.useEffect(() => {
-    if (defaultId.current == null) {
-      globalId += 1;
-      defaultId.current = `${prefix}-${globalId}`;
-      if (idOverride == null) {
-        forceRerender();
-      }
-    }
-  }, [idOverride, prefix, forceRerender]);
-  return id;
-}
-var maybeReactUseId = SafeReact.useId;
-function useId(idOverride, prefix) {
-  if (maybeReactUseId !== undefined) {
-    const reactId = maybeReactUseId();
-    return idOverride ?? (prefix ? `${prefix}-${reactId}` : reactId);
-  }
-  return useGlobalId(idOverride, prefix);
-}
-
-// engine/node_modules/@base-ui/react/internals/useBaseUiId.mjs
-"use client";
-function useBaseUiId(idOverride) {
-  return useId(idOverride, "base-ui");
-}
-
-// engine/node_modules/@base-ui/react/toggle-group/ToggleGroupContext.mjs
-var React23 = __toESM(require_react(), 1);
-"use client";
-var ToggleGroupContext = /* @__PURE__ */ React23.createContext(undefined);
-if (false)
-  ;
-function useToggleGroupContext() {
-  return React23.useContext(ToggleGroupContext);
-}
-
-// engine/node_modules/@base-ui/react/internals/composite/item/useCompositeItem.mjs
-var React26 = __toESM(require_react(), 1);
-
-// engine/node_modules/@base-ui/react/internals/composite/list/useCompositeListItem.mjs
-var React25 = __toESM(require_react(), 1);
+// engine/node_modules/@base-ui/react/internals/composite/list/CompositeList.mjs
+var React60 = __toESM(require_react(), 1);
 
 // engine/node_modules/@base-ui/react/internals/composite/list/CompositeListContext.mjs
-var React24 = __toESM(require_react(), 1);
+var React59 = __toESM(require_react(), 1);
 "use client";
-var CompositeListContext = /* @__PURE__ */ React24.createContext({
+var CompositeListContext = /* @__PURE__ */ React59.createContext({
   register: () => {},
   unregister: () => {},
   subscribeMapChange: () => () => {},
@@ -23264,10 +30110,482 @@ var CompositeListContext = /* @__PURE__ */ React24.createContext({
 if (false)
   ;
 function useCompositeListContext() {
-  return React24.useContext(CompositeListContext);
+  return React59.useContext(CompositeListContext);
 }
 
+// engine/node_modules/@base-ui/react/internals/composite/list/CompositeList.mjs
+var import_jsx_runtime12 = __toESM(require_jsx_runtime(), 1);
+"use client";
+function CompositeList(props) {
+  const {
+    children,
+    elementsRef,
+    labelsRef,
+    onMapChange: onMapChangeProp
+  } = props;
+  const onMapChange = useStableCallback(onMapChangeProp);
+  const [, setMapTick] = React60.useState(0);
+  const listeners = useRefWithInit(createListeners).current;
+  const map = useRefWithInit(createMap).current;
+  const nextIndexRef = React60.useRef(0);
+  const isDirtyRef = React60.useRef(true);
+  const itemsRef = React60.useRef(null);
+  const mutationObserverRef = React60.useRef(null);
+  const scheduleMapUpdate = useStableCallback(() => {
+    if (isDirtyRef.current) {
+      return;
+    }
+    isDirtyRef.current = true;
+    setMapTick((tick) => tick + 1);
+  });
+  const register = useStableCallback((node, registration) => {
+    map.set(node, registration);
+    scheduleMapUpdate();
+  });
+  const unregister = useStableCallback((node) => {
+    map.delete(node);
+    scheduleMapUpdate();
+  });
+  const syncRefs = useStableCallback((items) => {
+    const nextMap = new Map;
+    elementsRef.current.length = 0;
+    if (labelsRef) {
+      labelsRef.current.length = 0;
+    }
+    items.forEach((item) => {
+      nextMap.set(item.element, {
+        ...item.registration.metadata ?? {},
+        index: item.index
+      });
+      elementsRef.current[item.index] = item.element;
+      if (labelsRef) {
+        labelsRef.current[item.index] = item.registration.label !== undefined ? item.registration.label : item.registration.textRef?.current?.textContent ?? item.element.textContent;
+      }
+    });
+    nextIndexRef.current = elementsRef.current.length;
+    return nextMap;
+  });
+  function observe(sortedNodes) {
+    mutationObserverRef.current?.disconnect();
+    mutationObserverRef.current = null;
+    if (typeof MutationObserver !== "function" || sortedNodes.length < 2) {
+      return;
+    }
+    const mutationObserver = new MutationObserver((entries) => {
+      if (!hasMovedNode(entries)) {
+        return;
+      }
+      let previousConnectedNode = null;
+      for (const node of sortedNodes) {
+        if (!node.isConnected) {
+          continue;
+        }
+        if (previousConnectedNode && sortByDocumentPosition(previousConnectedNode, node) > 0) {
+          mutationObserver.disconnect();
+          scheduleMapUpdate();
+          return;
+        }
+        previousConnectedNode = node;
+      }
+    });
+    mutationObserverRef.current = mutationObserver;
+    const roots = new Set;
+    for (let i = 1;i < sortedNodes.length; i += 1) {
+      const root = getCommonAncestor(sortedNodes[i - 1], sortedNodes[i]);
+      if (root) {
+        roots.add(root);
+      }
+    }
+    roots.forEach((root) => mutationObserver.observe(root, {
+      childList: true
+    }));
+  }
+  const flush = useStableCallback(() => {
+    const [items, automaticNodes] = getCompositeListSnapshot(map);
+    const nextMap = syncRefs(items);
+    const previousItems = itemsRef.current;
+    const changed = !previousItems || previousItems.length !== items.length || items.some((item, index) => {
+      const previousItem = previousItems[index];
+      return item.index !== previousItem.index || item.element !== previousItem.element || item.registration.index !== previousItem.registration.index || item.registration.metadata !== previousItem.registration.metadata;
+    });
+    observe(automaticNodes);
+    itemsRef.current = items;
+    isDirtyRef.current = false;
+    if (!changed) {
+      return;
+    }
+    listeners.forEach((listener) => listener(nextMap));
+    onMapChange(nextMap);
+  });
+  useIsoLayoutEffect(() => {
+    if (!isDirtyRef.current && itemsRef.current) {
+      syncRefs(itemsRef.current);
+    }
+    return () => {
+      elementsRef.current = [];
+      if (labelsRef) {
+        labelsRef.current = [];
+      }
+    };
+  }, [elementsRef, labelsRef, syncRefs]);
+  useIsoLayoutEffect(() => {
+    if (isDirtyRef.current) {
+      flush();
+    }
+  });
+  useIsoLayoutEffect(() => {
+    return () => {
+      mutationObserverRef.current?.disconnect();
+      isDirtyRef.current = true;
+    };
+  }, []);
+  const subscribeMapChange = useStableCallback((fn) => {
+    listeners.add(fn);
+    return () => {
+      listeners.delete(fn);
+    };
+  });
+  const contextValue = React60.useMemo(() => ({
+    register,
+    unregister,
+    subscribeMapChange,
+    nextIndexRef
+  }), [register, unregister, subscribeMapChange, nextIndexRef]);
+  return /* @__PURE__ */ import_jsx_runtime12.jsx(CompositeListContext.Provider, {
+    value: contextValue,
+    children
+  });
+}
+function createMap() {
+  return new Map;
+}
+function createListeners() {
+  return new Set;
+}
+function getCompositeListSnapshot(map) {
+  const reservedIndices = new Set;
+  const items = [];
+  const automaticItems = [];
+  map.forEach((registration, node) => {
+    if (!node.isConnected) {
+      return;
+    }
+    const index = registration.index;
+    const item = {
+      index: index ?? -1,
+      element: node,
+      registration
+    };
+    if (index === null) {
+      automaticItems.push(item);
+    } else if (index >= 0) {
+      reservedIndices.add(index);
+      items.push(item);
+    }
+  });
+  let nextAutomaticIndex = 0;
+  automaticItems.sort((a, b) => sortByDocumentPosition(a.element, b.element));
+  automaticItems.forEach((item) => {
+    while (reservedIndices.has(nextAutomaticIndex)) {
+      nextAutomaticIndex += 1;
+    }
+    item.index = nextAutomaticIndex;
+    items.push(item);
+    nextAutomaticIndex += 1;
+  });
+  if (reservedIndices.size > 0) {
+    items.sort((a, b) => a.index - b.index);
+  }
+  return [items, automaticItems.map((item) => item.element)];
+}
+function getCommonAncestor(firstNode, lastNode) {
+  let ancestor = firstNode.parentElement;
+  while (ancestor && !ancestor.contains(lastNode)) {
+    ancestor = ancestor.parentElement;
+  }
+  return ancestor;
+}
+function hasMovedNode(entries) {
+  for (const entry of entries) {
+    for (let i = 0;i < entry.removedNodes.length; i += 1) {
+      if (entry.removedNodes[i].isConnected) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+function sortByDocumentPosition(a, b) {
+  if (a.nextElementSibling === b) {
+    return -1;
+  }
+  if (b.nextElementSibling === a) {
+    return 1;
+  }
+  return a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+}
+
+// engine/node_modules/@base-ui/react/tabs/root/TabsRootContext.mjs
+var React61 = __toESM(require_react(), 1);
+"use client";
+var TabsRootContext = /* @__PURE__ */ React61.createContext(undefined);
+if (false)
+  ;
+function useTabsRootContext() {
+  const context = React61.useContext(TabsRootContext);
+  if (context === undefined) {
+    throw new Error(formatErrorMessage_default(64));
+  }
+  return context;
+}
+
+// engine/node_modules/@base-ui/react/tabs/root/TabsRootDataAttributes.mjs
+var activationDirection = "data-activation-direction";
+
+// engine/node_modules/@base-ui/react/tabs/root/stateAttributesMapping.mjs
+var tabsStateAttributesMapping = {
+  tabActivationDirection: (dir) => ({
+    [activationDirection]: dir
+  })
+};
+
+// engine/node_modules/@base-ui/react/tabs/root/TabsRoot.mjs
+var import_jsx_runtime13 = __toESM(require_jsx_runtime(), 1);
+"use client";
+var TabsRoot = /* @__PURE__ */ React62.forwardRef(function TabsRoot(componentProps, forwardedRef) {
+  const {
+    className,
+    defaultValue: defaultValueProp = 0,
+    onValueChange: onValueChangeProp,
+    orientation = "horizontal",
+    render,
+    value: valueProp,
+    style,
+    ...elementProps
+  } = componentProps;
+  const hasExplicitDefaultValueProp = componentProps.defaultValue !== undefined;
+  const tabPanelRefs = React62.useRef([]);
+  const [mountedTabPanels, setMountedTabPanels] = React62.useState(() => new Map);
+  const [value, setValue] = useControlled({
+    controlled: valueProp,
+    default: defaultValueProp,
+    name: "Tabs",
+    state: "value"
+  });
+  const isControlled = valueProp !== undefined;
+  const [tabMap, setTabMap] = React62.useState(() => new Map);
+  const lastKnownTabElementRef = React62.useRef(undefined);
+  const getTabElementBySelectedValue = React62.useCallback((selectedValue) => findTabElement(tabMap, selectedValue), [tabMap]);
+  const [activationDirectionState, setActivationDirectionState] = React62.useState(() => ({
+    previousValue: value,
+    tabActivationDirection: "none"
+  }));
+  const {
+    previousValue,
+    tabActivationDirection: committedTabActivationDirection
+  } = activationDirectionState;
+  let tabActivationDirection = committedTabActivationDirection;
+  let directionComputationIncomplete = false;
+  if (previousValue !== value) {
+    tabActivationDirection = computeActivationDirection(previousValue, value, orientation, tabMap);
+    directionComputationIncomplete = previousValue != null && value != null && getTabElementBySelectedValue(value) == null;
+  }
+  const nextPreviousValue = directionComputationIncomplete ? previousValue : value;
+  const shouldSyncActivationDirectionState = previousValue !== nextPreviousValue || committedTabActivationDirection !== tabActivationDirection;
+  useIsoLayoutEffect(() => {
+    if (!shouldSyncActivationDirectionState) {
+      return;
+    }
+    setActivationDirectionState({
+      previousValue: nextPreviousValue,
+      tabActivationDirection
+    });
+  }, [nextPreviousValue, shouldSyncActivationDirectionState, tabActivationDirection]);
+  const onValueChange = useStableCallback((newValue, eventDetails) => {
+    const activationDirection = computeActivationDirection(value, newValue, orientation, tabMap);
+    eventDetails.activationDirection = activationDirection;
+    onValueChangeProp?.(newValue, eventDetails);
+    if (eventDetails.isCanceled) {
+      return;
+    }
+    setValue(() => newValue);
+  });
+  const notifyAutomaticValueChange = useStableCallback((nextValue, reason) => {
+    onValueChangeProp?.(nextValue, createChangeEventDetails(reason, undefined, undefined, {
+      activationDirection: "none"
+    }));
+  });
+  const registerMountedTabPanel = useStableCallback((panelValue, panelId) => {
+    setMountedTabPanels((prev) => {
+      const next = new Map(prev);
+      next.set(panelValue, panelId);
+      return next;
+    });
+    return () => {
+      setMountedTabPanels((prev) => {
+        if (prev.get(panelValue) !== panelId) {
+          return prev;
+        }
+        const next = new Map(prev);
+        next.delete(panelValue);
+        return next;
+      });
+    };
+  });
+  const getTabPanelIdByValue = React62.useCallback((tabValue) => {
+    return mountedTabPanels.get(tabValue);
+  }, [mountedTabPanels]);
+  const getTabIdByPanelValue = React62.useCallback((tabPanelValue) => {
+    for (const tabMetadata of tabMap.values()) {
+      if (tabPanelValue === tabMetadata.value) {
+        return tabMetadata.id;
+      }
+    }
+    return;
+  }, [tabMap]);
+  const tabsContextValue = React62.useMemo(() => ({
+    getTabElementBySelectedValue,
+    getTabIdByPanelValue,
+    getTabPanelIdByValue,
+    onValueChange,
+    orientation,
+    registerMountedTabPanel,
+    setTabMap,
+    tabActivationDirection,
+    value
+  }), [getTabElementBySelectedValue, getTabIdByPanelValue, getTabPanelIdByValue, onValueChange, orientation, registerMountedTabPanel, setTabMap, tabActivationDirection, value]);
+  const selectedTabMetadata = React62.useMemo(() => {
+    for (const tabMetadata of tabMap.values()) {
+      if (tabMetadata.value === value) {
+        return tabMetadata;
+      }
+    }
+    return;
+  }, [tabMap, value]);
+  const firstEnabledTabValue = React62.useMemo(() => {
+    for (const tabMetadata of tabMap.values()) {
+      if (!tabMetadata.disabled) {
+        return tabMetadata.value;
+      }
+    }
+    return;
+  }, [tabMap]);
+  const shouldNotifyInitialValueChangeRef = React62.useRef(!hasExplicitDefaultValueProp);
+  const initialDefaultValueRef = React62.useRef(defaultValueProp);
+  const shouldHonorDisabledDefaultValueRef = React62.useRef(hasExplicitDefaultValueProp);
+  const didRegisterTabsRef = React62.useRef(false);
+  useIsoLayoutEffect(() => {
+    if (isControlled) {
+      return;
+    }
+    function commitAutomaticValueChange(fallbackValue, fallbackReason) {
+      setValue(() => fallbackValue);
+      setActivationDirectionState({
+        previousValue: fallbackValue,
+        tabActivationDirection: "none"
+      });
+      notifyAutomaticValueChange(fallbackValue, fallbackReason);
+      shouldNotifyInitialValueChangeRef.current = false;
+    }
+    if (tabMap.size === 0) {
+      if (didRegisterTabsRef.current && value !== null && !lastKnownTabElementRef.current?.isConnected) {
+        commitAutomaticValueChange(null, missing);
+      }
+      return;
+    }
+    didRegisterTabsRef.current = true;
+    lastKnownTabElementRef.current = tabMap.keys().next().value;
+    const selectionIsDisabled = selectedTabMetadata?.disabled;
+    const selectionIsMissing = selectedTabMetadata == null && value !== null;
+    if (!selectionIsDisabled && value === initialDefaultValueRef.current) {
+      shouldHonorDisabledDefaultValueRef.current = false;
+    }
+    if (shouldHonorDisabledDefaultValueRef.current && selectionIsDisabled && value === initialDefaultValueRef.current) {
+      return;
+    }
+    const shouldNotifyInitialValueChange = shouldNotifyInitialValueChangeRef.current;
+    if (selectionIsDisabled || selectionIsMissing) {
+      const fallbackValue = firstEnabledTabValue ?? null;
+      if (value === fallbackValue) {
+        shouldNotifyInitialValueChangeRef.current = false;
+        return;
+      }
+      let fallbackReason = missing;
+      if (shouldNotifyInitialValueChange) {
+        fallbackReason = initial;
+      } else if (selectionIsDisabled) {
+        fallbackReason = disabled;
+      }
+      commitAutomaticValueChange(fallbackValue, fallbackReason);
+      return;
+    }
+    if (shouldNotifyInitialValueChange && selectedTabMetadata != null) {
+      notifyAutomaticValueChange(value, initial);
+      shouldNotifyInitialValueChangeRef.current = false;
+    }
+  }, [firstEnabledTabValue, isControlled, notifyAutomaticValueChange, selectedTabMetadata, setValue, tabMap, value]);
+  const state = {
+    orientation,
+    tabActivationDirection
+  };
+  const element = useRenderElement("div", componentProps, {
+    state,
+    ref: forwardedRef,
+    props: elementProps,
+    stateAttributesMapping: tabsStateAttributesMapping
+  });
+  return /* @__PURE__ */ import_jsx_runtime13.jsx(TabsRootContext.Provider, {
+    value: tabsContextValue,
+    children: /* @__PURE__ */ import_jsx_runtime13.jsx(CompositeList, {
+      elementsRef: tabPanelRefs,
+      children: element
+    })
+  });
+});
+if (false)
+  ;
+function findTabElement(tabMap, value) {
+  for (const [tabElement, tabMetadata] of tabMap.entries()) {
+    if (value === tabMetadata.value) {
+      return tabElement;
+    }
+  }
+  return null;
+}
+function computeActivationDirection(oldValue, newValue, orientation, tabMap) {
+  if (oldValue == null || newValue == null) {
+    return "none";
+  }
+  const [positionProp, backward, forward] = orientation === "horizontal" ? ["left", "left", "right"] : ["top", "up", "down"];
+  const oldTab = findTabElement(tabMap, oldValue);
+  const newTab = findTabElement(tabMap, newValue);
+  if (oldTab == null || newTab == null) {
+    if (oldTab !== newTab && (typeof oldValue === "number" || typeof oldValue === "string") && typeof oldValue === typeof newValue) {
+      return newValue > oldValue ? forward : backward;
+    }
+    return "none";
+  }
+  const oldPosition = oldTab.getBoundingClientRect()[positionProp];
+  const newPosition = newTab.getBoundingClientRect()[positionProp];
+  if (newPosition < oldPosition) {
+    return backward;
+  }
+  if (newPosition > oldPosition) {
+    return forward;
+  }
+  return "none";
+}
+// engine/node_modules/@base-ui/react/tabs/tab/TabsTab.mjs
+var React66 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/internals/composite/constants.mjs
+var ACTIVE_COMPOSITE_ITEM = "data-composite-item-active";
+
+// engine/node_modules/@base-ui/react/internals/composite/item/useCompositeItem.mjs
+var React64 = __toESM(require_react(), 1);
+
 // engine/node_modules/@base-ui/react/internals/composite/list/useCompositeListItem.mjs
+var React63 = __toESM(require_react(), 1);
 "use client";
 function useCompositeListItem(params = {}) {
   const {
@@ -23283,8 +30601,8 @@ function useCompositeListItem(params = {}) {
     subscribeMapChange,
     nextIndexRef
   } = useCompositeListContext();
-  const indexRef = React25.useRef(-1);
-  const [internalIndex, setInternalIndex] = React25.useState(externalIndex == null && guess ? () => {
+  const indexRef = React63.useRef(-1);
+  const [internalIndex, setInternalIndex] = React63.useState(externalIndex == null && guess ? () => {
     if (indexRef.current === -1) {
       const newIndex = nextIndexRef.current;
       nextIndexRef.current += 1;
@@ -23293,8 +30611,8 @@ function useCompositeListItem(params = {}) {
     return indexRef.current;
   } : -1);
   const index = externalIndex ?? internalIndex;
-  const componentRef = React25.useRef(null);
-  const ref = React25.useCallback((node) => {
+  const componentRef = React63.useRef(null);
+  const ref = React63.useCallback((node) => {
     const previousNode = componentRef.current;
     if (previousNode) {
       unregister(previousNode);
@@ -23339,7 +30657,7 @@ function useCompositeItem(params = {}) {
     index
   } = useCompositeListItem(params);
   const isHighlighted = highlightedIndex === index;
-  const itemRef = React26.useRef(null);
+  const itemRef = React64.useRef(null);
   const mergedRef = useMergedRefs(ref, itemRef);
   const compositeProps = {
     tabIndex: isHighlighted ? 0 : -1,
@@ -23361,6 +30679,3763 @@ function useCompositeItem(params = {}) {
     compositeProps,
     compositeRef: mergedRef,
     index
+  };
+}
+
+// engine/node_modules/@base-ui/react/tabs/list/TabsListContext.mjs
+var React65 = __toESM(require_react(), 1);
+"use client";
+var TabsListContext = /* @__PURE__ */ React65.createContext(undefined);
+if (false)
+  ;
+function useTabsListContext() {
+  const context = React65.useContext(TabsListContext);
+  if (context === undefined) {
+    throw new Error(formatErrorMessage_default(65));
+  }
+  return context;
+}
+
+// engine/node_modules/@base-ui/react/tabs/tab/TabsTab.mjs
+"use client";
+var TabsTab = /* @__PURE__ */ React66.forwardRef(function TabsTab(componentProps, forwardedRef) {
+  const {
+    className,
+    disabled = false,
+    render,
+    value,
+    id: idProp,
+    nativeButton = true,
+    style,
+    ...elementProps
+  } = componentProps;
+  const {
+    value: activeTabValue,
+    getTabPanelIdByValue,
+    onValueChange,
+    orientation,
+    tabActivationDirection
+  } = useTabsRootContext();
+  const {
+    activateOnFocus,
+    registerTabResizeObserverElement,
+    tabsListElement
+  } = useTabsListContext();
+  const {
+    highlightedIndex,
+    onHighlightedIndexChange
+  } = useCompositeRootContext();
+  const id = useBaseUiId(idProp);
+  const tabMetadata = React66.useMemo(() => ({
+    disabled,
+    id,
+    value
+  }), [disabled, id, value]);
+  const {
+    compositeProps,
+    compositeRef,
+    index
+  } = useCompositeItem({
+    metadata: tabMetadata
+  });
+  const active = value === activeTabValue;
+  const isNavigatingRef = React66.useRef(false);
+  const unobserveTabElementRef = React66.useRef(null);
+  const observeTabElement = useStableCallback((element) => {
+    unobserveTabElementRef.current?.();
+    unobserveTabElementRef.current = element ? registerTabResizeObserverElement(element) : null;
+  });
+  useIsoLayoutEffect(() => {
+    if (isNavigatingRef.current) {
+      isNavigatingRef.current = false;
+      return;
+    }
+    if (!(active && index > -1 && highlightedIndex !== index)) {
+      return;
+    }
+    const listElement = tabsListElement;
+    if (listElement != null) {
+      const activeEl = activeElement2(ownerDocument(listElement));
+      if (activeEl && contains(listElement, activeEl)) {
+        return;
+      }
+    }
+    if (!disabled) {
+      onHighlightedIndexChange(index);
+    }
+  }, [active, index, highlightedIndex, onHighlightedIndexChange, disabled, tabsListElement]);
+  const {
+    getButtonProps,
+    buttonRef
+  } = useButton({
+    disabled,
+    native: nativeButton,
+    focusableWhenDisabled: true
+  });
+  const tabPanelId = getTabPanelIdByValue(value);
+  const isPressingRef = React66.useRef(false);
+  const isMainButtonRef = React66.useRef(false);
+  function activate(event) {
+    onValueChange(value, createChangeEventDetails(none, event.nativeEvent, undefined, {
+      activationDirection: "none"
+    }));
+  }
+  function onClick(event) {
+    if (active || disabled) {
+      return;
+    }
+    activate(event);
+  }
+  function onFocus(event) {
+    if (active || disabled) {
+      return;
+    }
+    if (activateOnFocus && (!isPressingRef.current || isMainButtonRef.current)) {
+      activate(event);
+    }
+  }
+  function onPointerDown(event) {
+    if (active || disabled) {
+      return;
+    }
+    isPressingRef.current = true;
+    isMainButtonRef.current = event.button === 0;
+    const doc = ownerDocument(event.currentTarget);
+    function handlePointerEnd() {
+      isPressingRef.current = false;
+      isMainButtonRef.current = false;
+      doc.removeEventListener("pointerup", handlePointerEnd);
+      doc.removeEventListener("pointercancel", handlePointerEnd);
+    }
+    doc.addEventListener("pointerup", handlePointerEnd);
+    doc.addEventListener("pointercancel", handlePointerEnd);
+  }
+  const state = {
+    disabled,
+    active,
+    orientation,
+    tabActivationDirection
+  };
+  const element = useRenderElement("button", componentProps, {
+    state,
+    ref: [forwardedRef, buttonRef, compositeRef, observeTabElement],
+    props: [compositeProps, {
+      role: "tab",
+      "aria-controls": tabPanelId,
+      "aria-selected": active,
+      id,
+      onClick,
+      onFocus,
+      onPointerDown,
+      [ACTIVE_COMPOSITE_ITEM]: active ? "" : undefined,
+      onKeyDownCapture() {
+        isNavigatingRef.current = true;
+      }
+    }, elementProps, getButtonProps],
+    stateAttributesMapping: tabsStateAttributesMapping
+  });
+  return element;
+});
+if (false)
+  ;
+// engine/node_modules/@base-ui/react/tabs/panel/TabsPanel.mjs
+var React67 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/tabs/panel/TabsPanelDataAttributes.mjs
+var index4 = "data-index";
+var startingStyle4 = startingStyle;
+var endingStyle4 = endingStyle;
+
+// engine/node_modules/@base-ui/react/tabs/panel/TabsPanel.mjs
+"use client";
+var stateAttributesMapping = {
+  ...tabsStateAttributesMapping,
+  ...transitionStatusMapping
+};
+var TabsPanel = /* @__PURE__ */ React67.forwardRef(function TabsPanel(componentProps, forwardedRef) {
+  const {
+    className,
+    value,
+    render,
+    keepMounted = false,
+    style,
+    ...elementProps
+  } = componentProps;
+  const {
+    value: selectedValue,
+    getTabIdByPanelValue,
+    orientation,
+    tabActivationDirection,
+    registerMountedTabPanel
+  } = useTabsRootContext();
+  const id = useBaseUiId();
+  const {
+    ref: listItemRef,
+    index
+  } = useCompositeListItem();
+  const open = value === selectedValue;
+  const {
+    mounted,
+    transitionStatus,
+    setMounted
+  } = useTransitionStatus(open);
+  const hidden = !mounted;
+  const correspondingTabId = getTabIdByPanelValue(value);
+  const state = {
+    hidden,
+    orientation,
+    tabActivationDirection,
+    transitionStatus
+  };
+  const panelRef = React67.useRef(null);
+  const element = useRenderElement("div", componentProps, {
+    state,
+    ref: [forwardedRef, listItemRef, panelRef],
+    props: [{
+      "aria-labelledby": correspondingTabId,
+      hidden,
+      id,
+      role: "tabpanel",
+      tabIndex: open ? 0 : -1,
+      inert: inertValue(!open),
+      [index4]: index
+    }, elementProps],
+    stateAttributesMapping
+  });
+  useOpenChangeComplete({
+    open,
+    ref: panelRef,
+    onComplete() {
+      if (!open) {
+        setMounted(false);
+      }
+    }
+  });
+  useIsoLayoutEffect(() => {
+    if (id == null || hidden && !keepMounted) {
+      return;
+    }
+    return registerMountedTabPanel(value, id);
+  }, [hidden, keepMounted, value, id, registerMountedTabPanel]);
+  const shouldRender = keepMounted || mounted;
+  if (!shouldRender) {
+    return null;
+  }
+  return element;
+});
+if (false)
+  ;
+// engine/node_modules/@base-ui/react/tabs/list/TabsList.mjs
+var React71 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/internals/composite/root/CompositeRoot.mjs
+var React70 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/internals/composite/root/useCompositeRoot.mjs
+var React68 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/utils/isElementDisabled.mjs
+function isElementDisabled(element) {
+  return element == null || element.hasAttribute("disabled") || element.getAttribute("aria-disabled") === "true";
+}
+
+// engine/node_modules/@base-ui/react/internals/composite/root/useCompositeRoot.mjs
+"use client";
+function useCompositeRoot(params) {
+  const {
+    loopFocus = true,
+    orientation = "both",
+    grid,
+    onLoop,
+    direction,
+    highlightedIndex: externalHighlightedIndex,
+    onHighlightedIndexChange: externalSetHighlightedIndex,
+    rootRef: externalRef,
+    enableHomeAndEndKeys = false,
+    stopEventPropagation,
+    disabledIndices,
+    modifierKeys = EMPTY_ARRAY
+  } = params;
+  const [internalHighlightedIndex, internalSetHighlightedIndex] = React68.useState(0);
+  const isGrid = grid != null;
+  const rootRef = React68.useRef(null);
+  const mergedRef = useMergedRefs(rootRef, externalRef);
+  const elementsRef = React68.useRef([]);
+  const hasSetDefaultIndexRef = React68.useRef(false);
+  const highlightedElementRef = React68.useRef(null);
+  const highlightedIndex = externalHighlightedIndex ?? internalHighlightedIndex;
+  const onHighlightedIndexChange = useStableCallback((index, shouldScrollIntoView = false) => {
+    highlightedElementRef.current = elementsRef.current[index] ?? null;
+    (externalSetHighlightedIndex ?? internalSetHighlightedIndex)(index);
+    if (shouldScrollIntoView) {
+      const newActiveItem = elementsRef.current[index];
+      scrollIntoViewIfNeeded(rootRef.current, newActiveItem, direction, orientation);
+    }
+  });
+  const onMapChange = useStableCallback((map) => {
+    if (map.size === 0) {
+      return;
+    }
+    if (hasSetDefaultIndexRef.current) {
+      const elements = elementsRef.current;
+      const nextIndex = elements.indexOf(highlightedElementRef.current);
+      if (nextIndex === -1) {
+        const replacement = elements[highlightedIndex];
+        if (!replacement || isListIndexDisabled(elements, highlightedIndex, disabledIndices)) {
+          onHighlightedIndexChange(getFallbackIndex(elements, disabledIndices));
+        } else {
+          highlightedElementRef.current = replacement;
+        }
+      } else if (nextIndex !== highlightedIndex) {
+        onHighlightedIndexChange(nextIndex);
+      }
+      return;
+    }
+    hasSetDefaultIndexRef.current = true;
+    const sortedElements = Array.from(map.keys());
+    const activeItem = sortedElements.find((compositeElement) => compositeElement?.hasAttribute(ACTIVE_COMPOSITE_ITEM)) ?? null;
+    const activeIndex = activeItem ? map.get(activeItem)?.index ?? -1 : -1;
+    if (activeIndex !== -1) {
+      onHighlightedIndexChange(activeIndex);
+    } else if (isListIndexDisabled(sortedElements, highlightedIndex, disabledIndices)) {
+      const firstEnabledIndex = findNonDisabledListIndex(sortedElements, {
+        disabledIndices
+      });
+      if (!isIndexOutOfListBounds(sortedElements, firstEnabledIndex)) {
+        onHighlightedIndexChange(firstEnabledIndex);
+      }
+    }
+    scrollIntoViewIfNeeded(rootRef.current, activeItem, direction, orientation);
+  });
+  useIsoLayoutEffect(() => {
+    if (disabledIndices == null || externalHighlightedIndex != null || !hasSetDefaultIndexRef.current) {
+      return;
+    }
+    const elements = elementsRef.current;
+    if (isListIndexDisabled(elements, highlightedIndex, disabledIndices)) {
+      const firstEnabledIndex = findNonDisabledListIndex(elements, {
+        disabledIndices
+      });
+      if (!isIndexOutOfListBounds(elements, firstEnabledIndex)) {
+        onHighlightedIndexChange(firstEnabledIndex);
+      }
+    }
+  }, [disabledIndices, externalHighlightedIndex, highlightedIndex, elementsRef, onHighlightedIndexChange]);
+  const wrappedOnLoop = useStableCallback((event, prevIndex, nextIndex) => {
+    if (!onLoop) {
+      return nextIndex;
+    }
+    return onLoop(event, prevIndex, nextIndex, elementsRef);
+  });
+  const onKeyDown = useStableCallback((event) => {
+    const isHomeOrEnd = event.key === HOME || event.key === END;
+    if (!COMPOSITE_KEYS.has(event.key) || !enableHomeAndEndKeys && isHomeOrEnd) {
+      return;
+    }
+    if (isModifierKeySet(event, modifierKeys)) {
+      return;
+    }
+    const element = rootRef.current;
+    if (!element) {
+      return;
+    }
+    const isRtl = direction === "rtl";
+    const horizontalForwardKey = isRtl ? ARROW_LEFT2 : ARROW_RIGHT2;
+    const horizontalBackwardKey = isRtl ? ARROW_RIGHT2 : ARROW_LEFT2;
+    const forwardKey = orientation === "vertical" ? ARROW_DOWN2 : horizontalForwardKey;
+    const backwardKey = orientation === "vertical" ? ARROW_UP2 : horizontalBackwardKey;
+    const target = getTarget(event.nativeEvent);
+    if (target != null && isNativeInput(target) && !isElementDisabled(target)) {
+      const selectionStart = target.selectionStart;
+      const selectionEnd = target.selectionEnd;
+      const textContent = target.value;
+      if (selectionStart == null || event.shiftKey || selectionStart !== selectionEnd) {
+        return;
+      }
+      if (event.key !== backwardKey && selectionStart < textContent.length) {
+        return;
+      }
+      if (event.key !== forwardKey && selectionStart > 0) {
+        return;
+      }
+    }
+    let nextIndex = highlightedIndex;
+    const minIndex = getMinListIndex(elementsRef, disabledIndices);
+    const maxIndex = getMaxListIndex(elementsRef, disabledIndices);
+    if (grid != null) {
+      nextIndex = grid({
+        disabledIndices,
+        elementsRef,
+        event,
+        highlightedIndex,
+        loopFocus,
+        maxIndex,
+        minIndex,
+        onLoop: wrappedOnLoop,
+        orientation,
+        rtl: isRtl
+      });
+    }
+    const isForwardKey = orientation !== "vertical" && event.key === horizontalForwardKey || orientation !== "horizontal" && event.key === ARROW_DOWN2;
+    const isBackwardKey = orientation !== "vertical" && event.key === horizontalBackwardKey || orientation !== "horizontal" && event.key === ARROW_UP2;
+    if (enableHomeAndEndKeys) {
+      if (event.key === HOME) {
+        nextIndex = minIndex;
+      } else if (event.key === END) {
+        nextIndex = maxIndex;
+      }
+    }
+    if (nextIndex === highlightedIndex && (isForwardKey || isBackwardKey)) {
+      if (loopFocus && nextIndex === maxIndex && isForwardKey) {
+        nextIndex = minIndex;
+        if (onLoop) {
+          nextIndex = onLoop(event, highlightedIndex, nextIndex, elementsRef);
+        }
+      } else if (loopFocus && nextIndex === minIndex && isBackwardKey) {
+        nextIndex = maxIndex;
+        if (onLoop) {
+          nextIndex = onLoop(event, highlightedIndex, nextIndex, elementsRef);
+        }
+      } else {
+        nextIndex = findNonDisabledListIndex(elementsRef.current, {
+          startingIndex: nextIndex,
+          decrement: isBackwardKey,
+          disabledIndices
+        });
+      }
+    }
+    if (nextIndex !== highlightedIndex && !isIndexOutOfListBounds(elementsRef.current, nextIndex)) {
+      if (stopEventPropagation) {
+        event.stopPropagation();
+      }
+      if (isGrid || isHomeOrEnd || isForwardKey || isBackwardKey) {
+        event.preventDefault();
+      }
+      onHighlightedIndexChange(nextIndex, true);
+      queueMicrotask(() => {
+        elementsRef.current[nextIndex]?.focus();
+      });
+    }
+  });
+  const props = {
+    ref: mergedRef,
+    onFocus(event) {
+      const element = rootRef.current;
+      const target = getTarget(event.nativeEvent);
+      if (!element || target == null || !isNativeInput(target)) {
+        return;
+      }
+      target.setSelectionRange(0, target.value.length);
+    },
+    onKeyDown
+  };
+  return {
+    props,
+    highlightedIndex,
+    onHighlightedIndexChange,
+    elementsRef,
+    onMapChange,
+    relayKeyboardEvent: onKeyDown
+  };
+}
+function getFallbackIndex(elements, disabledIndices) {
+  let fallbackIndex = -1;
+  for (let index = 0;index < elements.length; index += 1) {
+    const element = elements[index];
+    if (!element || isListIndexDisabled(elements, index, disabledIndices)) {
+      continue;
+    }
+    if (element.hasAttribute(ACTIVE_COMPOSITE_ITEM)) {
+      return index;
+    }
+    if (fallbackIndex === -1) {
+      fallbackIndex = index;
+    }
+  }
+  return Math.max(fallbackIndex, 0);
+}
+function isModifierKeySet(event, ignoredModifierKeys) {
+  for (const key of MODIFIER_KEYS) {
+    if (ignoredModifierKeys.includes(key)) {
+      continue;
+    }
+    if (event.getModifierState(key)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// engine/node_modules/@base-ui/react/internals/direction-context/DirectionContext.mjs
+var React69 = __toESM(require_react(), 1);
+"use client";
+var DirectionContext = /* @__PURE__ */ React69.createContext(undefined);
+if (false)
+  ;
+function useDirection() {
+  const context = React69.useContext(DirectionContext);
+  return context?.direction ?? "ltr";
+}
+
+// engine/node_modules/@base-ui/react/internals/composite/root/CompositeRoot.mjs
+var import_jsx_runtime14 = __toESM(require_jsx_runtime(), 1);
+"use client";
+function CompositeRoot(componentProps) {
+  const {
+    render,
+    className,
+    style,
+    refs = EMPTY_ARRAY,
+    props = EMPTY_ARRAY,
+    state = EMPTY_OBJECT,
+    stateAttributesMapping,
+    highlightedIndex: highlightedIndexProp,
+    onHighlightedIndexChange: onHighlightedIndexChangeProp,
+    orientation,
+    grid,
+    loopFocus,
+    onLoop,
+    enableHomeAndEndKeys,
+    onMapChange: onMapChangeProp,
+    stopEventPropagation = true,
+    rootRef,
+    disabledIndices,
+    modifierKeys,
+    highlightItemOnHover = false,
+    tag = "div",
+    ...elementProps
+  } = componentProps;
+  const direction = useDirection();
+  const {
+    props: defaultProps,
+    highlightedIndex,
+    onHighlightedIndexChange,
+    elementsRef,
+    onMapChange: onMapChangeUnwrapped,
+    relayKeyboardEvent
+  } = useCompositeRoot({
+    grid,
+    loopFocus,
+    onLoop,
+    orientation,
+    highlightedIndex: highlightedIndexProp,
+    onHighlightedIndexChange: onHighlightedIndexChangeProp,
+    rootRef,
+    stopEventPropagation,
+    enableHomeAndEndKeys,
+    direction,
+    disabledIndices,
+    modifierKeys
+  });
+  const element = useRenderElement(tag, componentProps, {
+    state,
+    ref: refs,
+    props: [defaultProps, ...props, elementProps],
+    stateAttributesMapping
+  });
+  const contextValue = React70.useMemo(() => ({
+    highlightedIndex,
+    onHighlightedIndexChange,
+    highlightItemOnHover,
+    relayKeyboardEvent
+  }), [highlightedIndex, onHighlightedIndexChange, highlightItemOnHover, relayKeyboardEvent]);
+  return /* @__PURE__ */ import_jsx_runtime14.jsx(CompositeRootContext.Provider, {
+    value: contextValue,
+    children: /* @__PURE__ */ import_jsx_runtime14.jsx(CompositeList, {
+      elementsRef,
+      onMapChange: (newMap) => {
+        onMapChangeProp?.(newMap);
+        onMapChangeUnwrapped(newMap);
+      },
+      children: element
+    })
+  });
+}
+
+// engine/node_modules/@base-ui/react/tabs/list/TabsList.mjs
+var import_jsx_runtime15 = __toESM(require_jsx_runtime(), 1);
+"use client";
+var TabsList = /* @__PURE__ */ React71.forwardRef(function TabsList(componentProps, forwardedRef) {
+  const {
+    activateOnFocus = false,
+    className,
+    loopFocus = true,
+    render,
+    style,
+    ...elementProps
+  } = componentProps;
+  const {
+    orientation,
+    setTabMap,
+    tabActivationDirection
+  } = useTabsRootContext();
+  const [highlightedTabIndex, setHighlightedTabIndex] = React71.useState(0);
+  const [tabsListElement, setTabsListElement] = React71.useState(null);
+  const indicatorUpdateListenersRef = React71.useRef(new Set);
+  const tabResizeObserverElementsRef = React71.useRef(new Set);
+  const resizeObserverRef = React71.useRef(null);
+  useIsoLayoutEffect(() => {
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const resizeObserver = new ResizeObserver(() => {
+      indicatorUpdateListenersRef.current.forEach((listener) => {
+        listener();
+      });
+    });
+    resizeObserverRef.current = resizeObserver;
+    if (tabsListElement) {
+      resizeObserver.observe(tabsListElement);
+    }
+    tabResizeObserverElementsRef.current.forEach((element) => {
+      resizeObserver.observe(element);
+    });
+    return () => {
+      resizeObserver.disconnect();
+      resizeObserverRef.current = null;
+    };
+  }, [tabsListElement]);
+  const registerIndicatorUpdateListener = useStableCallback((listener) => {
+    indicatorUpdateListenersRef.current.add(listener);
+    return () => {
+      indicatorUpdateListenersRef.current.delete(listener);
+    };
+  });
+  const registerTabResizeObserverElement = useStableCallback((element) => {
+    tabResizeObserverElementsRef.current.add(element);
+    resizeObserverRef.current?.observe(element);
+    return () => {
+      tabResizeObserverElementsRef.current.delete(element);
+      resizeObserverRef.current?.unobserve(element);
+    };
+  });
+  const state = {
+    orientation,
+    tabActivationDirection
+  };
+  const defaultProps = {
+    "aria-orientation": orientation === "vertical" ? "vertical" : undefined,
+    role: "tablist"
+  };
+  const tabsListContextValue = React71.useMemo(() => ({
+    activateOnFocus,
+    registerIndicatorUpdateListener,
+    registerTabResizeObserverElement,
+    tabsListElement
+  }), [activateOnFocus, registerIndicatorUpdateListener, registerTabResizeObserverElement, tabsListElement]);
+  return /* @__PURE__ */ import_jsx_runtime15.jsx(TabsListContext.Provider, {
+    value: tabsListContextValue,
+    children: /* @__PURE__ */ import_jsx_runtime15.jsx(CompositeRoot, {
+      render,
+      className,
+      style,
+      state,
+      refs: [forwardedRef, setTabsListElement],
+      props: [defaultProps, elementProps],
+      stateAttributesMapping: tabsStateAttributesMapping,
+      highlightedIndex: highlightedTabIndex,
+      enableHomeAndEndKeys: true,
+      loopFocus,
+      orientation,
+      onHighlightedIndexChange: setHighlightedTabIndex,
+      onMapChange: setTabMap,
+      disabledIndices: EMPTY_ARRAY
+    })
+  });
+});
+if (false)
+  ;
+// engine/board/page/ui/tabs.tsx
+var jsx_runtime5 = __toESM(require_jsx_runtime());
+function Tabs({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime5.jsx(TabsRoot, {
+    "data-slot": "tabs",
+    className: cn("group/tabs flex", className),
+    ...props
+  });
+}
+function TabsList2({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime5.jsx(TabsList, {
+    "data-slot": "tabs-list",
+    className: cn("flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-[9px] border border-border bg-secondary p-0.5 phone:flex-1", className),
+    ...props
+  });
+}
+function TabsTrigger({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime5.jsx(TabsTab, {
+    "data-slot": "tabs-trigger",
+    className: cn("inline-flex min-h-[26px] flex-none items-center gap-1.5 rounded-[7px] border-0 bg-transparent px-2.5 py-0 text-[0.78125rem] leading-none font-medium whitespace-nowrap text-muted-foreground focus-visible:-outline-offset-2 aria-selected:bg-card aria-selected:text-foreground aria-selected:shadow-raise [&:hover]:text-foreground phone:min-h-11 phone:flex-[1_0_auto] phone:justify-center", className),
+    ...props
+  });
+}
+function TabsContent(props) {
+  return /* @__PURE__ */ jsx_runtime5.jsx(TabsPanel, {
+    "data-slot": "tabs-content",
+    ...props
+  });
+}
+
+// engine/board/page/operations/history.tsx
+init_modern2();
+init_grammar();
+init_view();
+var import_react9 = __toESM(require_react());
+
+// engine/board/page/app/icon.tsx
+init_ui();
+var import_react7 = __toESM(require_react());
+var jsx_runtime6 = __toESM(require_jsx_runtime());
+function Icon({ name }) {
+  return /* @__PURE__ */ jsx_runtime6.jsx("svg", {
+    className: `icon i-${name}`,
+    viewBox: "0 0 16 16",
+    "aria-hidden": "true",
+    children: (ICONS[name] ?? []).map(([tag, { class: className, ...attributes }], at) => import_react7.createElement(tag, { key: at, className, ...attributes }))
+  });
+}
+
+// engine/board/page/operations/history.tsx
+init_query2();
+init_store();
+init_ui();
+init_actions();
+
+// engine/board/page/operations/parts.tsx
+init_view();
+var import_react8 = __toESM(require_react());
+init_ui();
+init_state();
+var jsx_runtime7 = __toESM(require_jsx_runtime());
+function Link({
+  className,
+  url,
+  label,
+  title,
+  children
+}) {
+  const href = safeUrl(url);
+  const shared = { className: className || undefined, "aria-label": label, title };
+  return href ? /* @__PURE__ */ jsx_runtime7.jsx("a", {
+    ...shared,
+    href,
+    target: "_blank",
+    rel: "noreferrer",
+    children
+  }) : /* @__PURE__ */ jsx_runtime7.jsx("span", {
+    ...shared,
+    children
+  });
+}
+function Timed({
+  iso,
+  isFine = false,
+  suffix = "",
+  className = ""
+}) {
+  const now = useScreen((state) => state.now);
+  return /* @__PURE__ */ jsx_runtime7.jsx("time", {
+    className: `time ${className}`.trim(),
+    dateTime: iso,
+    title: clock(iso, true),
+    children: `${age(iso, now, isFine)}${suffix}`
+  });
+}
+function Mark({
+  card,
+  registry,
+  identifiedByText = false
+}) {
+  const agent = agentOf(card, registry);
+  if (agent) {
+    const known = knownAgent(registry, card.agent) ? card.agent : null;
+    return /* @__PURE__ */ jsx_runtime7.jsx("span", {
+      className: `mark agent agent-${known ?? "other"}${known ? " agent-image" : ""}`,
+      title: agent.name,
+      children: known ? /* @__PURE__ */ jsx_runtime7.jsx("img", {
+        src: AGENT_ICONS[known],
+        alt: identifiedByText ? "" : agent.name
+      }) : agent.letter
+    });
+  }
+  const name = Object.hasOwn(TYPES, card.type) ? TYPES[card.type] : card.number === null ? "terminal" : "nolane";
+  return /* @__PURE__ */ jsx_runtime7.jsx("span", {
+    className: `mark type-${card.type ?? "none"}`,
+    title: !card.type && card.number !== null ? "No lane yet" : undefined,
+    children: /* @__PURE__ */ jsx_runtime7.jsx(Icon, {
+      name
+    })
+  });
+}
+var chipIcon = (kind) => kind === "pr" ? "pr" : kind.startsWith("checks-fail") ? "xcircle" : kind.startsWith("checks-pass") || kind === "review-approved" ? "check" : "clock";
+function PrChips({ pr }) {
+  const items = prFacts(pr);
+  if (items.length === 0)
+    return null;
+  return /* @__PURE__ */ jsx_runtime7.jsx("div", {
+    className: "chips",
+    children: items.map((item) => /* @__PURE__ */ jsx_runtime7.jsxs(Link, {
+      className: `chip2 chip-${item.kind}`,
+      url: item.url,
+      children: [
+        /* @__PURE__ */ jsx_runtime7.jsx(Icon, {
+          name: chipIcon(item.kind)
+        }),
+        item.text
+      ]
+    }, item.kind))
+  });
+}
+function GateLabel({ mode, className = "" }) {
+  const on = mode === "on";
+  return /* @__PURE__ */ jsx_runtime7.jsx("span", {
+    className: `${on ? "gate gate-auto" : "gate gate-auto is-off"} ${className}`.trim(),
+    title: on ? "Auto mode of the daemon starts this step by itself" : "Auto mode is off: this step waits for Run.",
+    children: on ? "auto" : "auto off"
+  });
+}
+function IconButton({
+  name,
+  label,
+  press,
+  className = "",
+  title = label
+}) {
+  return /* @__PURE__ */ jsx_runtime7.jsx(Button2, {
+    variant: "icon",
+    size: "icon",
+    className,
+    "aria-label": label,
+    title,
+    onClick: (event) => {
+      event.stopPropagation();
+      press(event);
+    },
+    children: /* @__PURE__ */ jsx_runtime7.jsx(Icon, {
+      name
+    })
+  });
+}
+function ActionButton({
+  card,
+  action,
+  isQuiet = false,
+  className: extra = ""
+}) {
+  const isBusy = useScreen((state) => state.pressing.has(pressId(card, action)));
+  const variant = isQuiet || action.isGhost ? "secondary" : "primary";
+  const shared = {
+    title: action.title,
+    "aria-label": action.name,
+    "aria-disabled": action.isDisabled ? "true" : undefined
+  };
+  const inner = /* @__PURE__ */ jsx_runtime7.jsxs(jsx_runtime7.Fragment, {
+    children: [
+      /* @__PURE__ */ jsx_runtime7.jsx(Icon, {
+        name: action.icon
+      }),
+      /* @__PURE__ */ jsx_runtime7.jsx("span", {
+        className: "label",
+        children: isBusy && action.busy ? action.busy : action.label
+      })
+    ]
+  });
+  if (action.href)
+    return /* @__PURE__ */ jsx_runtime7.jsx("a", {
+      ...shared,
+      "data-slot": "button",
+      className: buttonVariants({ variant, size: "action", className: extra }),
+      href: safeUrl(action.href) ?? undefined,
+      target: "_blank",
+      rel: "noreferrer",
+      onClick: (event) => event.stopPropagation(),
+      children: inner
+    });
+  return /* @__PURE__ */ jsx_runtime7.jsx(Button2, {
+    variant,
+    size: "action",
+    className: extra,
+    ...shared,
+    "aria-busy": isBusy ? "true" : undefined,
+    onClick: (event) => {
+      event.stopPropagation();
+      screen.press(card, action);
+    },
+    children: inner
+  });
+}
+var useKeptScroll = (find, content) => {
+  const tops = import_react8.useRef(new Map);
+  const scrolling = import_react8.useRef(new WeakSet);
+  const was = import_react8.useRef(content);
+  if (was.current !== content)
+    tops.current = new Map(find().map((node) => [node, node.scrollTop]));
+  import_react8.useEffect(() => {
+    const start = (event) => scrolling.current.add(event.target);
+    const end = (event) => scrolling.current.delete(event.target);
+    document.addEventListener("scroll", start, true);
+    document.addEventListener("scrollend", end, true);
+    return () => {
+      document.removeEventListener("scroll", start, true);
+      document.removeEventListener("scrollend", end, true);
+    };
+  }, []);
+  import_react8.useLayoutEffect(() => {
+    if (was.current !== content) {
+      for (const [node, top] of tops.current)
+        if (node.isConnected && !scrolling.current.has(node))
+          node.scrollTop = top;
+    }
+    was.current = content;
+  });
+};
+var useKeptFocus = (find) => {
+  const ref = import_react8.useRef(null);
+  const focused = import_react8.useRef(null);
+  const held = import_react8.useRef(false);
+  held.current = ref.current?.contains(document.activeElement) ?? false;
+  import_react8.useLayoutEffect(() => {
+    const lost = focused.current;
+    if (!ref.current || !lost || lost.isConnected)
+      return;
+    focused.current = null;
+    if (held.current && document.activeElement === document.body)
+      find(ref.current, lost)?.focus({ preventScroll: true });
+  });
+  return {
+    ref,
+    onFocus: (event) => {
+      focused.current = event.target;
+    },
+    onBlur: (event) => {
+      if (event.relatedTarget)
+        focused.current = null;
+    }
+  };
+};
+
+// engine/board/page/operations/history.tsx
+init_state();
+var jsx_runtime8 = __toESM(require_jsx_runtime());
+var NOTE = "my-3.5 text-[0.75rem] text-muted-foreground";
+var ACTION = "w-7 p-0 [grid-area:action] phone:min-h-11 phone:min-w-11";
+var LINK = "[a&:hover]:underline [a&:hover]:underline-offset-[3px]";
+var makeVisual = async (number) => {
+  if (screen.visualPresses().has(number))
+    return;
+  screen.setVisualPresses((presses) => presses.add(number));
+  await act("/api/visual", { number }, "Make visual failed");
+  screen.setVisualPresses((presses) => presses.delete(number));
+};
+function VisualControl({ entry, isPressed }) {
+  const { number } = entry;
+  const state = isPressed && entry.visual === "none" ? "starting" : entry.visual;
+  if (state === "ready") {
+    const name = `Open the visual of #${number}`;
+    return /* @__PURE__ */ jsx_runtime8.jsx("a", {
+      className: buttonVariants({ variant: "secondary", size: "action", className: ACTION }),
+      href: `/visual/${entry.sha}`,
+      target: "_blank",
+      rel: "noreferrer",
+      "aria-label": name,
+      title: name,
+      "data-visual": number,
+      children: /* @__PURE__ */ jsx_runtime8.jsx(Icon, {
+        name: "open"
+      })
+    });
+  }
+  if (state === "making") {
+    const name = `The visual of #${number} is in the making`;
+    return /* @__PURE__ */ jsx_runtime8.jsx("span", {
+      className: "inline-flex min-h-7 w-7 items-center justify-center gap-1.5 rounded-lg border phone:min-h-11 phone:min-w-11 border-[color-mix(in_srgb,var(--working)_30%,transparent)] bg-[color-mix(in_srgb,var(--working)_10%,transparent)] p-0 text-[0.78125rem] leading-none font-medium text-[color-mix(in_srgb,var(--working)_80%,var(--fg))] [grid-area:action] [&_.icon]:size-[13px] [&_.icon]:animate-[turn_0.9s_linear_infinite]",
+      role: "status",
+      tabIndex: -1,
+      "aria-label": name,
+      title: name,
+      "data-visual": number,
+      children: /* @__PURE__ */ jsx_runtime8.jsx(Icon, {
+        name: "pending"
+      })
+    });
+  }
+  const name = state === "starting" ? `Starting the visual of #${number}` : `Make the visual of #${number}`;
+  return /* @__PURE__ */ jsx_runtime8.jsx(Button2, {
+    variant: "secondary",
+    size: "action",
+    className: ACTION,
+    "aria-busy": state === "starting" ? "true" : undefined,
+    "aria-label": name,
+    title: name,
+    "data-visual": number,
+    onClick: state === "starting" ? undefined : () => void makeVisual(number),
+    children: /* @__PURE__ */ jsx_runtime8.jsx(Icon, {
+      name: "diff"
+    })
+  });
+}
+function Landed({
+  history,
+  error,
+  presses
+}) {
+  return /* @__PURE__ */ jsx_runtime8.jsxs(jsx_runtime8.Fragment, {
+    children: [
+      /* @__PURE__ */ jsx_runtime8.jsx("div", {
+        className: "flex min-h-12 flex-none items-center justify-between gap-3 py-2.5 pr-2.5 pl-4 phone:min-h-14",
+        children: /* @__PURE__ */ jsx_runtime8.jsx("h2", {
+          className: "m-0 text-[0.875rem] text-foreground [overflow-wrap:anywhere]",
+          children: history ? `Landed on ${history.trunk}` : "Landed history"
+        })
+      }),
+      /* @__PURE__ */ jsx_runtime8.jsx("div", {
+        className: "min-h-0 flex-1 overflow-y-auto px-[18px] pb-[18px] phone:scroll-pb-[calc(var(--dock)+8px)]",
+        children: !history ? /* @__PURE__ */ jsx_runtime8.jsx("p", {
+          className: NOTE,
+          children: error ? `Cannot read history: ${error}` : "Loading landed history…"
+        }) : /* @__PURE__ */ jsx_runtime8.jsxs(jsx_runtime8.Fragment, {
+          children: [
+            error && /* @__PURE__ */ jsx_runtime8.jsx("p", {
+              className: "warning",
+              role: "status",
+              children: `${error}. History shows the last good read.`
+            }),
+            /* @__PURE__ */ jsx_runtime8.jsx("p", {
+              className: NOTE,
+              children: "Latest 20 issues."
+            }),
+            history.entries.length ? /* @__PURE__ */ jsx_runtime8.jsx("ol", {
+              className: "m-0 list-none p-0",
+              children: history.entries.map((entry) => /* @__PURE__ */ jsx_runtime8.jsxs("li", {
+                className: "grid grid-cols-[46px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-1.5 border-b border-border py-4 text-[0.8125rem] [grid-template-areas:'number_title_action''number_meta_action'] [&:hover]:bg-secondary",
+                children: [
+                  /* @__PURE__ */ jsx_runtime8.jsx(Link, {
+                    className: cn("font-mono text-[0.75rem] text-muted-foreground [align-self:start] [grid-area:number]", LINK),
+                    url: entry.url,
+                    children: `#${entry.number}`
+                  }),
+                  /* @__PURE__ */ jsx_runtime8.jsx(Link, {
+                    className: cn("text-foreground [align-self:end] [overflow-wrap:anywhere] [grid-area:title]", LINK),
+                    url: entry.url,
+                    children: entry.title
+                  }),
+                  /* @__PURE__ */ jsx_runtime8.jsxs("span", {
+                    className: "flex items-baseline gap-1.5 text-[0.75rem] text-muted-foreground [align-self:start] [grid-area:meta]",
+                    children: [
+                      /* @__PURE__ */ jsx_runtime8.jsx(CommitLink, {
+                        entry
+                      }),
+                      /* @__PURE__ */ jsx_runtime8.jsx("span", {
+                        "aria-hidden": "true",
+                        children: "·"
+                      }),
+                      /* @__PURE__ */ jsx_runtime8.jsx("time", {
+                        dateTime: entry.committedAt,
+                        title: `Commit time: ${clock(entry.committedAt, true)}`,
+                        children: clock(entry.committedAt, true)
+                      })
+                    ]
+                  }),
+                  /* @__PURE__ */ jsx_runtime8.jsx(VisualControl, {
+                    entry,
+                    isPressed: presses.has(entry.number)
+                  })
+                ]
+              }, entry.number))
+            }) : /* @__PURE__ */ jsx_runtime8.jsx("p", {
+              className: NOTE,
+              children: grammar().kind === "local" ? "The local tracker does not list landed issues." : `No landed issues found on ${history.trunk}.`
+            }),
+            history.url && /* @__PURE__ */ jsx_runtime8.jsx(Link, {
+              className: "mt-4 inline-block text-card-foreground underline underline-offset-[3px] [overflow-wrap:anywhere]",
+              url: history.url,
+              children: `View ${history.trunk}`
+            })
+          ]
+        })
+      })
+    ]
+  });
+}
+function CommitLink({ entry }) {
+  return /* @__PURE__ */ jsx_runtime8.jsx(Link, {
+    className: cn("font-mono text-[0.75rem] text-muted-foreground", LINK),
+    url: entry.commitUrl,
+    label: `Commit ${entry.sha}`,
+    title: entry.sha,
+    children: entry.sha.slice(0, 7)
+  });
+}
+function History() {
+  const isShown = useShellStore((state) => state.shell.tab === "history");
+  const [wasShown, setShown] = import_react9.useState(isShown);
+  if (isShown && !wasShown)
+    setShown(true);
+  const history = useScreen((state) => state.read?.history);
+  const sourceError = useScreen((state) => state.read?.source.error);
+  const presses = useScreen((state) => state.visualPresses);
+  const { isError } = useQuery(viewOptions);
+  const kept = useKeptFocus((box, lost) => {
+    const visual = lost.dataset.visual;
+    const href = lost.getAttribute("href");
+    const label = lost.getAttribute("aria-label");
+    const match = [...box.querySelectorAll("a, button, [data-visual]")].find((node) => visual ? node.dataset.visual === visual : href ? node.getAttribute("href") === href && node.className === lost.className && node.getAttribute("aria-label") === label : node.getAttribute("aria-label") === label);
+    return match ?? box.querySelector("button");
+  });
+  useKeptScroll(() => [...kept.ref.current?.querySelectorAll(".overflow-y-auto") ?? []], history);
+  return /* @__PURE__ */ jsx_runtime8.jsx(TabsContent, {
+    ...kept,
+    value: "history",
+    keepMounted: true,
+    render: /* @__PURE__ */ jsx_runtime8.jsx("section", {}),
+    className: "flex min-h-0 flex-1 flex-col",
+    id: "history-pane",
+    tabIndex: undefined,
+    "data-state": wasShown ? "history" : undefined,
+    children: wasShown && /* @__PURE__ */ jsx_runtime8.jsx(Landed, {
+      history,
+      error: isError ? SERVER_DOWN : sourceError,
+      presses
+    })
+  });
+}
+
+// engine/board/page/operations/panel.tsx
+init_view();
+var import_react10 = __toESM(require_react());
+init_store();
+
+// engine/node_modules/@base-ui/react/separator/Separator.mjs
+var React72 = __toESM(require_react(), 1);
+"use client";
+var Separator = /* @__PURE__ */ React72.forwardRef(function SeparatorComponent(componentProps, forwardedRef) {
+  const {
+    className,
+    render,
+    orientation = "horizontal",
+    style,
+    ...elementProps
+  } = componentProps;
+  const state = {
+    orientation
+  };
+  const element = useRenderElement("div", componentProps, {
+    state,
+    ref: forwardedRef,
+    props: [{
+      role: "separator",
+      "aria-orientation": orientation
+    }, elementProps]
+  });
+  return element;
+});
+if (false)
+  ;
+// engine/board/page/ui/separator.tsx
+var jsx_runtime9 = __toESM(require_jsx_runtime());
+function Separator2({ className, orientation = "horizontal", ...props }) {
+  return /* @__PURE__ */ jsx_runtime9.jsx(Separator, {
+    "data-slot": "separator",
+    orientation,
+    className: cn("shrink-0 bg-border data-horizontal:h-px data-horizontal:w-full data-vertical:w-px data-vertical:self-stretch", className),
+    ...props
+  });
+}
+
+// engine/board/page/operations/panel.tsx
+init_ui();
+init_actions();
+init_state();
+var jsx_runtime10 = __toESM(require_jsx_runtime());
+var SECTION_LABEL = "sec-label flex items-center gap-[7px] text-[0.6875rem] leading-none font-semibold tracking-[0.07em] text-muted-foreground uppercase";
+var MONO_ASIDE = "font-mono text-[0.71875rem] leading-none font-normal normal-nums";
+var TONES = {
+  waits: "text-[color-mix(in_srgb,var(--fg)_20%,var(--needs))] bg-[color-mix(in_srgb,var(--needs-tint)_11%,transparent)]",
+  blocked: "text-[color-mix(in_srgb,var(--fg)_20%,var(--needs))] bg-[color-mix(in_srgb,var(--needs-tint)_11%,transparent)]",
+  works: "text-[color-mix(in_srgb,var(--fg)_30%,var(--working))] bg-[color-mix(in_srgb,var(--working)_13%,transparent)]",
+  starts: "text-[color-mix(in_srgb,var(--fg)_30%,var(--working))] bg-[color-mix(in_srgb,var(--working)_13%,transparent)]",
+  "no-progress": "text-[color-mix(in_srgb,var(--fg)_30%,var(--danger))] bg-[color-mix(in_srgb,var(--danger)_13%,transparent)]",
+  "dirty-tree": "text-[color-mix(in_srgb,var(--fg)_20%,var(--amber))] bg-[color-mix(in_srgb,var(--amber)_13%,transparent)]"
+};
+var MUTED_TONE = "bg-accent text-card-foreground";
+var NODE_TONES = {
+  waits: "text-needs",
+  blocked: "text-needs",
+  works: "text-working",
+  starts: "text-working",
+  "no-progress": "text-destructive",
+  "dirty-tree": "text-caution"
+};
+var PILL_ICONS = {
+  works: "works",
+  starts: "works",
+  waits: "target",
+  "no-progress": "alert",
+  "set-aside": "aside",
+  stopping: "stop",
+  "dirty-tree": "diff",
+  blocked: "person",
+  "quota-wait": "clock"
+};
+var ASKS = {
+  dialog: ["question", "waits for your answer"],
+  turn: ["message", "ended its turn"]
+};
+var COPIES = { "no-progress": "command", "set-aside": "command", "dirty-tree": "path" };
+function Section({ title, aside = null, children }) {
+  return /* @__PURE__ */ jsx_runtime10.jsxs("section", {
+    className: "flex flex-col gap-2",
+    children: [
+      /* @__PURE__ */ jsx_runtime10.jsxs("h3", {
+        className: SECTION_LABEL,
+        children: [
+          title,
+          aside && /* @__PURE__ */ jsx_runtime10.jsx("span", {
+            className: cn(MONO_ASIDE, "ml-auto tracking-[0] normal-case"),
+            children: aside
+          })
+        ]
+      }),
+      children
+    ]
+  });
+}
+var Screen = ({ card }) => card.screen?.length ? /* @__PURE__ */ jsx_runtime10.jsx("pre", {
+  className: "m-0 rounded-lg border border-border bg-secondary px-3 py-2.5 font-mono text-[0.71875rem] leading-[1.55] font-normal [overflow-wrap:anywhere] whitespace-pre-wrap text-foreground",
+  children: card.screen.join(`
+`)
+}) : null;
+function Ask({ card, actions, registry }) {
+  const [glyph, verb] = ASKS[card.waitFor] ?? ["target", "waits for your answer"];
+  return /* @__PURE__ */ jsx_runtime10.jsxs("div", {
+    className: "flex flex-col gap-2.5 rounded-xl border border-[color-mix(in_srgb,var(--needs-tint)_34%,transparent)] bg-[color-mix(in_srgb,var(--needs-tint)_6%,var(--card))] px-3.5 py-3",
+    children: [
+      /* @__PURE__ */ jsx_runtime10.jsxs("div", {
+        className: "flex items-center gap-2 text-[0.75rem] text-muted-foreground [&_.icon]:size-3.5 [&_.icon]:text-needs",
+        children: [
+          /* @__PURE__ */ jsx_runtime10.jsx(Icon, {
+            name: glyph
+          }),
+          /* @__PURE__ */ jsx_runtime10.jsx("b", {
+            className: "font-medium text-card-foreground",
+            children: agentOf(card, registry)?.name ?? "The agent"
+          }),
+          /* @__PURE__ */ jsx_runtime10.jsx("span", {
+            children: verb
+          }),
+          /* @__PURE__ */ jsx_runtime10.jsx(Timed, {
+            iso: card.since,
+            isFine: LIVE.has(card.state),
+            suffix: " ago",
+            className: cn(MONO_ASIDE, "ml-auto")
+          })
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime10.jsx(Screen, {
+        card
+      }),
+      /* @__PURE__ */ jsx_runtime10.jsxs("div", {
+        className: "flex items-center justify-between gap-2",
+        children: [
+          /* @__PURE__ */ jsx_runtime10.jsx("span", {
+            className: "hint text-[0.75rem] text-muted-foreground",
+            children: "Answer it in the terminal pane."
+          }),
+          actions.slice(0, 1).map((action) => /* @__PURE__ */ jsx_runtime10.jsx(ActionButton, {
+            card,
+            action,
+            className: "phone:min-h-11"
+          }, action.id))
+        ]
+      })
+    ]
+  });
+}
+function Steps({ card, flow, auto }) {
+  const track = laneTrack(card, flow);
+  if (!track)
+    return null;
+  return /* @__PURE__ */ jsx_runtime10.jsx(Section, {
+    title: "Lane",
+    aside: `${card.type} · step ${track.findIndex((step) => step.state === "now") + 1} of ${track.length}`,
+    children: /* @__PURE__ */ jsx_runtime10.jsx("ol", {
+      className: "m-0 grid list-none grid-cols-[16px_1fr_auto_auto] gap-x-2.5 py-0 pr-1 pl-0.5",
+      "aria-label": `Steps of the lane ${card.type}`,
+      children: track.map((step) => /* @__PURE__ */ jsx_runtime10.jsxs("li", {
+        "aria-current": step.state === "now" ? "step" : undefined,
+        className: "relative col-span-full grid min-h-8 grid-cols-subgrid items-center gap-2.5 not-last:after:absolute not-last:after:top-[23px] not-last:after:left-[7.5px] not-last:after:h-[18px] not-last:after:w-px not-last:after:bg-border-strong not-last:after:content-['']",
+        children: [
+          /* @__PURE__ */ jsx_runtime10.jsx("span", {
+            className: cn("grid size-4 place-items-center text-muted-foreground [&_.icon]:size-3.5", step.state === "done" && "rounded-[50%] bg-accent text-card-foreground [&_.icon]:size-[11px] [&_.icon]:stroke-2", step.state === "now" && cn("text-foreground", NODE_TONES[card.state])),
+            children: /* @__PURE__ */ jsx_runtime10.jsx(Icon, {
+              name: step.state === "done" ? "check" : step.state === "now" ? PILL_ICONS[card.state] ?? "pending" : "pending"
+            })
+          }),
+          /* @__PURE__ */ jsx_runtime10.jsx("span", {
+            className: cn("font-mono text-[0.78125rem] leading-none font-normal text-card-foreground", step.state === "now" && "font-medium text-foreground", step.state === "next" && "text-muted-foreground"),
+            children: step.name
+          }),
+          /* @__PURE__ */ jsx_runtime10.jsxs("span", {
+            className: cn("justify-self-end text-[0.75rem] text-muted-foreground", step.state === "now" && "first-letter:uppercase"),
+            children: [
+              step.state === "done" ? "done" : step.state === "now" ? card.state ? stateLabel(card) : "next" : "",
+              step.state === "next" && /* @__PURE__ */ jsx_runtime10.jsx("span", {
+                className: "sr-only",
+                children: "not started"
+              })
+            ]
+          }),
+          gateOf(flow, card.type, step.name) === "auto" ? /* @__PURE__ */ jsx_runtime10.jsx(GateLabel, {
+            mode: auto,
+            className: "cursor-default"
+          }) : /* @__PURE__ */ jsx_runtime10.jsx("span", {})
+        ]
+      }, step.name))
+    })
+  });
+}
+function Facts({ rows }) {
+  return /* @__PURE__ */ jsx_runtime10.jsx("dl", {
+    className: "m-0 grid grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0.5",
+    children: rows.filter((row) => Boolean(row)).map(([term, value, copyable]) => {
+      const isText = typeof value === "string";
+      return /* @__PURE__ */ jsx_runtime10.jsxs(import_react10.Fragment, {
+        children: [
+          /* @__PURE__ */ jsx_runtime10.jsx("dt", {
+            className: cn("text-[0.78125rem] leading-[1.875rem] text-muted-foreground", !isText && "[align-self:start]"),
+            children: term
+          }),
+          /* @__PURE__ */ jsx_runtime10.jsx("dd", {
+            className: cn("m-0 min-w-0 [overflow-wrap:anywhere] whitespace-normal text-foreground", isText ? "py-1.5 font-mono text-[0.75rem] leading-normal font-normal" : "py-0 font-sans text-[0.78125rem] leading-normal font-normal"),
+            children: value
+          }),
+          copyable ? /* @__PURE__ */ jsx_runtime10.jsx(IconButton, {
+            name: "copy",
+            label: `Copy the ${copyable[1]}`,
+            press: () => copy(copyable[0], copyable[1]),
+            className: "size-6 [&_.icon]:size-[13px]"
+          }) : /* @__PURE__ */ jsx_runtime10.jsx("span", {})
+        ]
+      }, term);
+    })
+  });
+}
+var whyOf = (pair) => {
+  const pinned = ["model", "level"].filter((part) => pair.source[part] === "pinned");
+  const pin = pinned.length ? `The config pins ${pinned.length === 2 ? "the model and the level" : `the ${pinned[0]}`} of this step.` : "";
+  const decision = pair.decision ? pair.decision.reason || "No reason given." : pin ? "" : "No decision on the issue; the default applies.";
+  return [decision, pin].filter(Boolean).join(" ");
+};
+var effortFacts = (pair) => pair ? [
+  ["Model", `${pair.model} · ${modelSource(pair)}`],
+  ["Effort", `${pair.level} · ${levelSource(pair)}`],
+  [
+    "Why",
+    /* @__PURE__ */ jsx_runtime10.jsx("span", {
+      className: "block py-1.5 leading-[1.125rem] [overflow-wrap:anywhere] whitespace-normal",
+      children: whyOf(pair)
+    })
+  ]
+] : [];
+function Details({ card }) {
+  const { flow, registry, daemon } = screen.read();
+  const actions = detailActions(card);
+  const hasHelp = actions.some((action) => action.help);
+  const firstGroup = actions.findIndex((action, at) => action.group && action.group !== actions[at - 1]?.group);
+  const on = onTracker();
+  const { state } = card;
+  const asks = state === "waits" && (card.number !== null || card.waitFor === "dialog");
+  const isSession = Boolean(card.sessionId);
+  const open = safeUrl(card.url);
+  const facts = isSession ? [
+    ["Agent", agentOf(card, registry)?.name ?? "unknown"],
+    card.cwd && ["Folder", card.cwd, [card.cwd, "folder"]],
+    card.diff && [
+      "Changes",
+      `${diffText(card.diff)} · ${card.diff.files} ${card.diff.files === 1 ? "file" : "files"}`
+    ]
+  ] : [
+    card.act && COPIES[card.state] && [
+      COPIES[card.state] === "path" ? "Worktree" : "Command",
+      shortPath(card.act),
+      [card.act, COPIES[card.state]]
+    ],
+    card.act && !COPIES[card.state] && ["Your act", card.act],
+    ...effortFacts(card.effort),
+    ["Updated", clock(card.since)]
+  ];
+  return /* @__PURE__ */ jsx_runtime10.jsxs(jsx_runtime10.Fragment, {
+    children: [
+      /* @__PURE__ */ jsx_runtime10.jsxs("div", {
+        className: "relative flex min-h-12 flex-none items-center gap-1 pr-2.5 pb-px pl-4 phone:min-h-14",
+        children: [
+          /* @__PURE__ */ jsx_runtime10.jsxs("div", {
+            className: "flex min-w-0 flex-1 items-center gap-[7px] overflow-hidden font-mono text-[0.71875rem] leading-none font-normal whitespace-nowrap text-muted-foreground phone:[&_a]:inline-flex phone:[&_a]:min-h-11 phone:[&_a]:items-center",
+            children: [
+              /* @__PURE__ */ jsx_runtime10.jsx(Mark, {
+                card,
+                registry,
+                identifiedByText: true
+              }),
+              card.number === null ? /* @__PURE__ */ jsx_runtime10.jsx("span", {
+                className: "num none",
+                children: "human session"
+              }) : /* @__PURE__ */ jsx_runtime10.jsx(Link, {
+                className: "num",
+                url: card.url,
+                children: `#${card.number}`
+              }),
+              [card.type, card.step === card.type ? null : card.step].map((part, at) => part && /* @__PURE__ */ jsx_runtime10.jsxs(import_react10.Fragment, {
+                children: [
+                  /* @__PURE__ */ jsx_runtime10.jsx("span", {
+                    className: "sep",
+                    children: "·"
+                  }),
+                  /* @__PURE__ */ jsx_runtime10.jsx("span", {
+                    children: part
+                  })
+                ]
+              }, at))
+            ]
+          }),
+          open && /* @__PURE__ */ jsx_runtime10.jsx("a", {
+            "data-slot": "button",
+            className: buttonVariants({ variant: "icon", size: "icon", className: "phone:size-11" }),
+            href: open,
+            target: "_blank",
+            rel: "noreferrer",
+            title: `Open the issue${on} (o)`,
+            "aria-label": `Open the issue${on}`,
+            children: /* @__PURE__ */ jsx_runtime10.jsx(Icon, {
+              name: "open"
+            })
+          }),
+          /* @__PURE__ */ jsx_runtime10.jsx(IconButton, {
+            name: "close",
+            label: "Close the details (Esc)",
+            press: () => closeDetails(true),
+            className: "phone:size-11"
+          }),
+          /* @__PURE__ */ jsx_runtime10.jsx(Separator2, {
+            className: "absolute inset-x-0 bottom-0"
+          })
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime10.jsxs("div", {
+        className: "flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pt-4 pb-[22px] phone:scroll-pb-[calc(var(--dock)+8px)]",
+        children: [
+          /* @__PURE__ */ jsx_runtime10.jsxs("div", {
+            children: [
+              /* @__PURE__ */ jsx_runtime10.jsx("h2", {
+                className: "m-0 text-[1.03125rem] leading-[1.4] font-semibold tracking-[-0.016em] text-pretty text-foreground [overflow-wrap:anywhere]",
+                id: "panel-title",
+                children: card.title || (card.number === null ? "A session" : `Issue #${card.number}`)
+              }),
+              /* @__PURE__ */ jsx_runtime10.jsxs("div", {
+                className: "mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[0.78125rem] text-muted-foreground",
+                children: [
+                  /* @__PURE__ */ jsx_runtime10.jsxs("span", {
+                    className: cn("inline-flex min-h-6 items-center gap-1.5 rounded-[7px] py-1 pr-[9px] pl-[7px] text-[0.75rem] leading-[1.25] font-medium [&_.icon]:size-[13px]", (state && (state !== "waits" || asks) ? TONES[state] : undefined) ?? MUTED_TONE, state === "starts" && "[&_.icon]:animate-[turn_0.9s_linear_infinite] [&_.icon]:text-working"),
+                    children: [
+                      /* @__PURE__ */ jsx_runtime10.jsx(Icon, {
+                        name: state ? PILL_ICONS[state] ?? "pending" : "pending"
+                      }),
+                      /* @__PURE__ */ jsx_runtime10.jsx("span", {
+                        className: "[overflow-wrap:anywhere] whitespace-normal first-letter:uppercase",
+                        children: state ? stateLabel(card) : `next: ${card.step}`
+                      })
+                    ]
+                  }),
+                  card.state !== "starts" && /* @__PURE__ */ jsx_runtime10.jsxs(jsx_runtime10.Fragment, {
+                    children: [
+                      /* @__PURE__ */ jsx_runtime10.jsx("span", {
+                        children: "since"
+                      }),
+                      /* @__PURE__ */ jsx_runtime10.jsx(Timed, {
+                        iso: card.since,
+                        isFine: Boolean(card.sessionId) && LIVE.has(card.state),
+                        className: "font-mono text-[0.75rem] leading-none font-normal normal-nums"
+                      })
+                    ]
+                  })
+                ]
+              }),
+              card.warning && /* @__PURE__ */ jsx_runtime10.jsx("p", {
+                className: "warning",
+                children: card.warning
+              })
+            ]
+          }),
+          asks ? /* @__PURE__ */ jsx_runtime10.jsx(Ask, {
+            card,
+            actions,
+            registry
+          }) : actions.length ? /* @__PURE__ */ jsx_runtime10.jsx("div", {
+            className: cn("flex flex-wrap gap-2", hasHelp && "grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1.5"),
+            children: actions.map((action, index) => /* @__PURE__ */ jsx_runtime10.jsxs(import_react10.Fragment, {
+              children: [
+                action.group && action.group !== actions[index - 1]?.group && /* @__PURE__ */ jsx_runtime10.jsx("span", {
+                  className: cn("mt-1 basis-full text-[0.6875rem] leading-none font-semibold tracking-[0.07em] text-muted-foreground uppercase", hasHelp && "[grid-column:1/-1]"),
+                  children: action.group
+                }),
+                /* @__PURE__ */ jsx_runtime10.jsx(ActionButton, {
+                  card,
+                  action,
+                  className: cn("phone:min-h-11", hasHelp && firstGroup !== -1 && index >= firstGroup && "justify-self-start [grid-column:1/-1]")
+                }),
+                action.help && /* @__PURE__ */ jsx_runtime10.jsx("span", {
+                  className: "self-center text-[0.75rem] text-muted-foreground",
+                  children: action.help
+                })
+              ]
+            }, action.id))
+          }) : null,
+          prFacts(card.pr).length > 0 && /* @__PURE__ */ jsx_runtime10.jsx(Section, {
+            title: "Pull request",
+            children: /* @__PURE__ */ jsx_runtime10.jsx(PrChips, {
+              pr: card.pr
+            })
+          }),
+          /* @__PURE__ */ jsx_runtime10.jsx(Steps, {
+            card,
+            flow,
+            auto: daemon.auto
+          }),
+          /* @__PURE__ */ jsx_runtime10.jsx(Section, {
+            title: isSession ? "Session" : "Issue",
+            children: /* @__PURE__ */ jsx_runtime10.jsx(Facts, {
+              rows: facts
+            })
+          }),
+          isSession && !asks && card.screen?.length ? /* @__PURE__ */ jsx_runtime10.jsx(Section, {
+            title: "Screen",
+            aside: "the last lines of its pane",
+            children: /* @__PURE__ */ jsx_runtime10.jsx(Screen, {
+              card
+            })
+          }) : null
+        ]
+      })
+    ]
+  });
+}
+function Panel() {
+  const details = useShellStore((state) => state.shell.details);
+  useScreen((state) => state);
+  const entry = details === null ? undefined : screen.index().byKey.get(details);
+  const last = import_react10.useRef(null);
+  if (details !== null && entry)
+    last.current = { key: details, card: entry.card };
+  const card = details === null ? null : entry?.card ?? (last.current?.key === details ? last.current.card : null);
+  const kept = useKeptFocus((box, lost) => {
+    const label = lost.getAttribute("aria-label");
+    if (!label)
+      return null;
+    return box.querySelector(`[aria-label="${CSS.escape(label)}"]`) ?? box.querySelector('[aria-label^="Close the details"]');
+  });
+  return /* @__PURE__ */ jsx_runtime10.jsx("section", {
+    ...kept,
+    className: "flex min-h-0 min-w-0 flex-1 animate-[panel-in_0.18s_cubic-bezier(0.2,0.8,0.2,1)] flex-col overflow-hidden rounded-3xl border border-border-strong bg-panel phone:scroll-pb-[calc(var(--dock)+8px)] min-[720px]:group-data-[tab=pipeline]/ops:flex-[0_1_auto] min-[720px]:group-data-[tab=pipeline]/ops:[grid-area:1/2]",
+    id: "panel",
+    "aria-label": "Card details",
+    tabIndex: -1,
+    hidden: card === null,
+    "aria-labelledby": card ? "panel-title" : undefined,
+    "data-state": card ? card.state ?? "next" : undefined,
+    "data-key": card ? details ?? undefined : undefined,
+    children: card && /* @__PURE__ */ jsx_runtime10.jsx(Details, {
+      card
+    }, details)
+  });
+}
+
+// engine/board/page/operations/operations.tsx
+init_state();
+
+// engine/board/page/operations/views.tsx
+init_view();
+var import_react12 = __toESM(require_react());
+init_store();
+init_actions();
+
+// engine/board/page/operations/card.tsx
+init_view();
+var import_react11 = __toESM(require_react());
+
+// engine/board/page/ui/card.tsx
+var jsx_runtime11 = __toESM(require_jsx_runtime());
+var cardVariants = cva("group/card rounded-xl border border-border bg-card text-card-foreground", {
+  variants: { inset: { default: "min-w-0 p-5 shadow-raise phone:p-4", none: "" } },
+  defaultVariants: { inset: "default" }
+});
+function Card({
+  className,
+  inset,
+  render,
+  ...props
+}) {
+  return useRender({
+    defaultTagName: "section",
+    props: mergeProps({ className: cn(cardVariants({ inset }), className) }, props),
+    render,
+    state: { slot: "card" }
+  });
+}
+function CardTitle({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime11.jsx("h3", {
+    "data-slot": "card-title",
+    className: cn("text-sm leading-[1.4] font-semibold text-foreground", className),
+    ...props
+  });
+}
+function CardDescription({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime11.jsx("p", {
+    "data-slot": "card-description",
+    className: cn("mt-2 mb-0 text-[0.78125rem] leading-normal text-pretty text-muted-foreground", className),
+    ...props
+  });
+}
+
+// engine/node_modules/@base-ui/react/menu/positioner/MenuPositionerContext.mjs
+var React73 = __toESM(require_react(), 1);
+"use client";
+var MenuPositionerContext = /* @__PURE__ */ React73.createContext(undefined);
+if (false)
+  ;
+function useMenuPositionerContext(optional) {
+  const context = React73.useContext(MenuPositionerContext);
+  if (context === undefined && !optional) {
+    throw new Error(formatErrorMessage_default(33));
+  }
+  return context;
+}
+
+// engine/node_modules/@base-ui/react/menu/root/MenuRootContext.mjs
+var React74 = __toESM(require_react(), 1);
+"use client";
+var MenuRootContext = /* @__PURE__ */ React74.createContext(undefined);
+if (false)
+  ;
+function useMenuRootContext(optional) {
+  const context = React74.useContext(MenuRootContext);
+  if (context === undefined && !optional) {
+    throw new Error(formatErrorMessage_default(36));
+  }
+  return context;
+}
+
+// engine/node_modules/@base-ui/react/context-menu/root/ContextMenuRootContext.mjs
+var React75 = __toESM(require_react(), 1);
+"use client";
+var ContextMenuRootContext = /* @__PURE__ */ React75.createContext(undefined);
+if (false)
+  ;
+function useContextMenuRootContext(optional = true) {
+  const context = React75.useContext(ContextMenuRootContext);
+  if (context === undefined && !optional) {
+    throw new Error(formatErrorMessage_default(25));
+  }
+  return context;
+}
+
+// engine/node_modules/@base-ui/react/menu/filter-root/MenuFilterContext.mjs
+var React76 = __toESM(require_react(), 1);
+"use client";
+var MenuFilterImplContext = /* @__PURE__ */ React76.createContext(null);
+if (false)
+  ;
+function useMenuFilterImpl(scope = "root") {
+  const impl = React76.useContext(MenuFilterImplContext);
+  const root = React76.useContext(MenuRootContext);
+  if (impl === null || root === undefined) {
+    return null;
+  }
+  const filterable = scope === "submenu-trigger" ? root.virtualFocus || root.parentVirtualFocus : root.virtualFocus;
+  return filterable ? impl : null;
+}
+var UNFILTERED = {
+  visible: true,
+  ref: null
+};
+function useUnfilteredItem() {
+  return UNFILTERED;
+}
+function useMenuFilterItem(props, forwardedRef, scope = "root") {
+  const impl = useMenuFilterImpl(scope);
+  const useItem = (scope === "submenu-trigger" ? impl?.useSubmenuTrigger : impl?.useItem) ?? useUnfilteredItem;
+  const item = useItem({
+    label: props.label,
+    children: props.children,
+    render: props.render
+  });
+  const ref = useMergedRefs(forwardedRef, item.ref);
+  return {
+    visible: item.visible,
+    ref,
+    props: item.props
+  };
+}
+
+// engine/node_modules/@base-ui/react/menu/item/useMenuItem.mjs
+var React78 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/menu/item/useMenuItemCommonProps.mjs
+var React77 = __toESM(require_react(), 1);
+"use client";
+function preventMouseDownDefault(event) {
+  event.preventDefault();
+}
+function useMenuItemCommonProps(params) {
+  const {
+    closeOnClick,
+    highlighted,
+    id,
+    nodeId,
+    store,
+    typingRef,
+    itemRef,
+    itemMetadata
+  } = params;
+  const rootContext = useMenuRootContext();
+  const contextMenuContext = useContextMenuRootContext(true);
+  const isSubmenuTrigger = itemMetadata.type === "submenu-trigger";
+  const virtualFocus = isSubmenuTrigger ? rootContext.parentVirtualFocus : rootContext.virtualFocus;
+  const selectionStore = isSubmenuTrigger && rootContext.parent.type === "menu" ? rootContext.parent.store : rootContext.store;
+  const ariaSelected = selectionStore.useState("webkitAriaSelected", highlighted);
+  const {
+    events: menuEvents
+  } = store.useState("floatingTreeRoot");
+  const open = store.useState("open");
+  const isContextMenu = contextMenuContext !== undefined;
+  const tabIndex = !virtualFocus && open && highlighted ? 0 : -1;
+  return React77.useMemo(() => ({
+    id,
+    role: "menuitem",
+    tabIndex,
+    "aria-selected": ariaSelected,
+    onMouseDown: virtualFocus ? preventMouseDownDefault : undefined,
+    onKeyDown(event) {
+      if (event.key === " " && typingRef?.current) {
+        event.preventDefault();
+      }
+    },
+    onMouseMove(event) {
+      if (!nodeId) {
+        return;
+      }
+      menuEvents.emit("itemhover", {
+        nodeId,
+        target: event.currentTarget
+      });
+    },
+    onClick(event) {
+      if (closeOnClick) {
+        menuEvents.emit("close", {
+          domEvent: event.nativeEvent,
+          reason: itemPress
+        });
+      }
+    },
+    onMouseUp(event) {
+      if (contextMenuContext) {
+        const initialCursorPoint = contextMenuContext.initialCursorPointRef.current;
+        contextMenuContext.initialCursorPointRef.current = null;
+        if (isContextMenu && initialCursorPoint && Math.abs(event.clientX - initialCursorPoint.x) <= 1 && Math.abs(event.clientY - initialCursorPoint.y) <= 1) {
+          return;
+        }
+        if (isContextMenu && !exports_os.mac && event.button === 2) {
+          return;
+        }
+      }
+      if (itemRef.current && store.context.allowMouseUpTriggerRef.current && (!isContextMenu || event.button === 2)) {
+        if (itemMetadata.type === "regular-item") {
+          dispatchClickWithModifiers(itemRef.current, event, {
+            detail: 1,
+            pointerType: "mouse"
+          });
+        }
+      }
+    }
+  }), [closeOnClick, tabIndex, id, menuEvents, nodeId, store.context.allowMouseUpTriggerRef, typingRef, itemRef, contextMenuContext, isContextMenu, itemMetadata.type, ariaSelected, virtualFocus]);
+}
+
+// engine/node_modules/@base-ui/react/menu/item/useMenuItem.mjs
+"use client";
+var REGULAR_ITEM = {
+  type: "regular-item"
+};
+function useMenuItem(params) {
+  const {
+    closeOnClick,
+    disabled,
+    highlighted,
+    id,
+    store,
+    typingRef = store.context.typingRef,
+    nativeButton,
+    itemMetadata,
+    nodeId
+  } = params;
+  const itemRef = React78.useRef(null);
+  const {
+    getButtonProps,
+    buttonRef
+  } = useButton({
+    disabled,
+    focusableWhenDisabled: true,
+    native: nativeButton,
+    composite: true
+  });
+  const commonProps = useMenuItemCommonProps({
+    closeOnClick,
+    highlighted,
+    id,
+    nodeId,
+    store,
+    typingRef,
+    itemRef,
+    itemMetadata
+  });
+  const getItemProps = React78.useCallback((externalProps) => {
+    return mergeProps(commonProps, {
+      onMouseEnter(event) {
+        if (itemMetadata.type !== "submenu-trigger") {
+          return;
+        }
+        itemMetadata.setActive(event.nativeEvent);
+      }
+    }, externalProps, getButtonProps);
+  }, [commonProps, getButtonProps, itemMetadata]);
+  const mergedRef = useMergedRefs(itemRef, buttonRef);
+  return React78.useMemo(() => ({
+    getItemProps,
+    itemRef: mergedRef
+  }), [getItemProps, mergedRef]);
+}
+
+// engine/node_modules/@base-ui/react/menu/item/MenuItem.mjs
+var React79 = __toESM(require_react(), 1);
+var import_jsx_runtime16 = __toESM(require_jsx_runtime(), 1);
+"use client";
+var MenuItemPlain = /* @__PURE__ */ React79.forwardRef(function MenuItemPlain(componentProps, forwardedRef) {
+  const {
+    render,
+    className,
+    id: idProp,
+    label,
+    nativeButton = false,
+    disabled: disabledProp = false,
+    closeOnClick = true,
+    style,
+    ...elementProps
+  } = componentProps;
+  const {
+    store
+  } = useMenuRootContext();
+  const listItem = useCompositeListItem({
+    guess: true,
+    label
+  });
+  const id = useBaseUiId(idProp);
+  const rootDisabled = store.useState("disabled");
+  const highlighted = store.useState("isActive", listItem.index);
+  const nodeId = store.useState("floatingNodeId");
+  const itemProps = store.useState("itemProps");
+  const disabled = disabledProp || rootDisabled;
+  const {
+    getItemProps,
+    itemRef
+  } = useMenuItem({
+    closeOnClick,
+    disabled,
+    highlighted,
+    id,
+    store,
+    nativeButton,
+    nodeId,
+    itemMetadata: REGULAR_ITEM
+  });
+  const state = {
+    disabled,
+    highlighted
+  };
+  return useRenderElement("div", componentProps, {
+    state,
+    props: [itemProps, elementProps, getItemProps],
+    ref: [itemRef, forwardedRef, listItem.ref]
+  });
+});
+if (false)
+  ;
+var MenuItem = /* @__PURE__ */ React79.forwardRef(function MenuItem(props, forwardedRef) {
+  const filterItem = useMenuFilterItem(props, forwardedRef);
+  if (!filterItem.visible) {
+    return null;
+  }
+  return /* @__PURE__ */ import_jsx_runtime16.jsx(MenuItemPlain, {
+    ...props,
+    ref: filterItem.ref
+  });
+});
+if (false)
+  ;
+// engine/node_modules/@base-ui/react/menu/popup/MenuPopup.mjs
+var React84 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/toolbar/root/ToolbarRootContext.mjs
+var React80 = __toESM(require_react(), 1);
+"use client";
+var ToolbarRootContext = /* @__PURE__ */ React80.createContext(undefined);
+if (false)
+  ;
+function useToolbarRootContext(optional) {
+  const context = React80.useContext(ToolbarRootContext);
+  if (context === undefined && !optional) {
+    throw new Error(formatErrorMessage_default(69));
+  }
+  return context;
+}
+
+// engine/node_modules/@base-ui/react/internals/getDisabledMountTransitionStyles.mjs
+function getDisabledMountTransitionStyles(transitionStatus) {
+  return transitionStatus === "starting" ? DISABLED_TRANSITIONS_STYLE : EMPTY_OBJECT;
+}
+
+// engine/node_modules/@base-ui/react/menu/submenu-root/MenuSubmenuRootContext.mjs
+var React81 = __toESM(require_react(), 1);
+"use client";
+var MenuSubmenuRootContext = /* @__PURE__ */ React81.createContext(undefined);
+if (false)
+  ;
+function useMenuSubmenuRootContext() {
+  return React81.useContext(MenuSubmenuRootContext);
+}
+
+// engine/node_modules/@base-ui/react/internals/resolveRenderedId.mjs
+var React82 = __toESM(require_react(), 1);
+function resolveRenderedId(props, fallbackId) {
+  const render = unwrapLazyRenderProp(props.render);
+  if (/* @__PURE__ */ React82.isValidElement(render)) {
+    const renderProps = render.props;
+    if (Object.hasOwn(renderProps, "id")) {
+      return renderProps.id ?? "";
+    }
+  }
+  return props.id ?? fallbackId;
+}
+function useRenderedId(props, defaultId, setId) {
+  const id = resolveRenderedId(props, defaultId);
+  const registeredId = id === defaultId ? undefined : id;
+  const ref = React82.useCallback((element) => setId?.(element ? registeredId : undefined), [registeredId, setId]);
+  return [id, ref];
+}
+
+// engine/node_modules/@base-ui/react/internals/resolvePopupLabel.mjs
+var React83 = __toESM(require_react(), 1);
+function resolvePopupLabel(props, activeTriggerElement, activeTriggerId) {
+  const render = unwrapLazyRenderProp(props.render);
+  const renderedElementProps = /* @__PURE__ */ React83.isValidElement(render) ? render.props : undefined;
+  const ariaLabel = props["aria-label"] ?? renderedElementProps?.["aria-label"];
+  let ariaLabelledBy = props["aria-labelledby"] ?? renderedElementProps?.["aria-labelledby"];
+  if (ariaLabelledBy == null && !ariaLabel) {
+    ariaLabelledBy = activeTriggerElement ? activeTriggerElement.id || undefined : activeTriggerId || undefined;
+  }
+  return ariaLabelledBy;
+}
+
+// engine/node_modules/@base-ui/react/menu/popup/MenuPopup.mjs
+var import_jsx_runtime17 = __toESM(require_jsx_runtime(), 1);
+"use client";
+var MenuPopupPlain = /* @__PURE__ */ React84.forwardRef(function MenuPopupPlain(componentProps, forwardedRef) {
+  const {
+    render,
+    className,
+    style,
+    finalFocus,
+    id: idProp,
+    initialFocus: initialFocusProp,
+    ...elementProps
+  } = componentProps;
+  const {
+    store,
+    defaultFloatingId,
+    setRenderedFloatingId,
+    virtualFocus,
+    orientation
+  } = useMenuRootContext();
+  const inheritedSubmenuRootContext = useMenuSubmenuRootContext();
+  const {
+    side,
+    align
+  } = useMenuPositionerContext();
+  const insideToolbar = useToolbarRootContext(true) != null;
+  const open = store.useState("open");
+  const transitionStatus = store.useState("transitionStatus");
+  const popupProps = store.useState("popupProps");
+  const mounted = store.useState("mounted");
+  const instantType = store.useState("instantType");
+  const activeTriggerElement = store.useState("activeTriggerElement");
+  const parent = store.useState("parent");
+  const lastOpenChangeReason = store.useState("lastOpenChangeReason");
+  const rootId = store.useState("rootId");
+  const floatingContext = store.useState("floatingRootContext");
+  const floatingTreeRoot = store.useState("floatingTreeRoot");
+  const closeDelay = store.useState("closeDelay");
+  const hoverEnabled = store.useState("hoverEnabled");
+  const disabled = store.useState("disabled");
+  const openMethod = store.useState("openMethod");
+  const activeTriggerId = store.useState("activeTriggerId");
+  const listElement = store.useState("listElement");
+  const [id, registerIdRef] = useRenderedId(componentProps, defaultFloatingId, setRenderedFloatingId);
+  const ariaLabelledBy = resolvePopupLabel(componentProps, activeTriggerElement, activeTriggerId);
+  const submenuRootContext = parent.type === "menu" ? inheritedSubmenuRootContext : undefined;
+  const isContextMenu = parent.type === "context-menu";
+  let initialFocus = initialFocusProp ?? parent.type !== "menu";
+  if (initialFocusProp === undefined && listElement && parent.type !== "menu") {
+    initialFocus = () => {
+      if (store.state.activeIndex !== null) {
+        return false;
+      }
+      return listElement;
+    };
+  }
+  useOpenChangeComplete({
+    open,
+    ref: store.context.popupRef,
+    onComplete() {
+      if (open) {
+        store.context.onOpenChangeComplete?.(true);
+      }
+    }
+  });
+  React84.useEffect(() => {
+    function handleClose(event) {
+      store.setOpen(false, createChangeEventDetails(event.reason, event.domEvent));
+    }
+    floatingTreeRoot.events.on("close", handleClose);
+    return () => {
+      floatingTreeRoot.events.off("close", handleClose);
+    };
+  }, [floatingTreeRoot.events, store]);
+  useHoverFloatingInteraction(floatingContext, {
+    enabled: hoverEnabled && !disabled && !isContextMenu && parent.type !== "menubar",
+    closeDelay
+  });
+  const setPopupElement = store.useStateSetter("popupElement");
+  const useParentHandoff = React84.useContext(MenuFilterImplContext)?.useParentHandoff ?? useNoParentHandoff;
+  const {
+    parentVirtualFocusRef,
+    handleFocus
+  } = useParentHandoff(store, parent, open, virtualFocus);
+  const state = {
+    transitionStatus,
+    side,
+    align,
+    open,
+    nested: parent.type === "menu",
+    instant: instantType
+  };
+  const element = useRenderElement("div", componentProps, {
+    state,
+    ref: [forwardedRef, store.context.popupRef, setPopupElement, registerIdRef],
+    stateAttributesMapping: popupTransitionStateMapping,
+    props: [popupProps, {
+      id,
+      ...listElement ? {
+        role: "presentation"
+      } : {
+        role: "menu",
+        "aria-orientation": orientation === "horizontal" ? "horizontal" : undefined,
+        "aria-labelledby": ariaLabelledBy
+      },
+      onKeyDown(event) {
+        submenuRootContext?.onPopupKeyDown?.(event);
+        if (insideToolbar && COMPOSITE_KEYS.has(event.key)) {
+          event.stopPropagation();
+        }
+      },
+      onFocus: handleFocus
+    }, getDisabledMountTransitionStyles(transitionStatus), elementProps, {
+      "data-rootownerid": rootId
+    }]
+  });
+  let returnFocus = parent.type === undefined || isContextMenu;
+  if (activeTriggerElement || parent.type === "menubar" && lastOpenChangeReason !== outsidePress) {
+    returnFocus = true;
+  }
+  const dynamicReturnFocus = submenuRootContext?.getReturnElement ?? parentVirtualFocusRef;
+  return /* @__PURE__ */ import_jsx_runtime17.jsx(FloatingFocusManager, {
+    context: floatingContext,
+    openInteractionType: openMethod,
+    modal: isContextMenu,
+    disabled: !mounted,
+    returnFocus: finalFocus ?? dynamicReturnFocus ?? returnFocus,
+    explicitReturnFocus: finalFocus === undefined && dynamicReturnFocus ? false : undefined,
+    initialFocus,
+    restoreFocus: true,
+    getInsideElements: parent.type === undefined ? () => [store.context.beforeTriggerFocusGuardRef.current] : undefined,
+    externalTree: parent.type !== "menubar" ? floatingTreeRoot : undefined,
+    previousFocusableElement: activeTriggerElement,
+    nextFocusableElement: parent.type === undefined ? store.context.triggerFocusTargetRef : undefined,
+    beforeContentFocusGuardRef: store.context.beforeContentFocusGuardRef,
+    children: element
+  });
+});
+if (false)
+  ;
+var NO_PARENT_HANDOFF = {
+  parentVirtualFocusRef: undefined,
+  handleFocus: undefined
+};
+function useNoParentHandoff() {
+  return NO_PARENT_HANDOFF;
+}
+var MenuPopup = /* @__PURE__ */ React84.forwardRef(function MenuPopup(props, forwardedRef) {
+  const Popup = useMenuFilterImpl()?.Popup ?? MenuPopupPlain;
+  return /* @__PURE__ */ import_jsx_runtime17.jsx(Popup, {
+    ...props,
+    ref: forwardedRef
+  });
+});
+if (false)
+  ;
+// engine/node_modules/@base-ui/react/menu/portal/MenuPortal.mjs
+var React86 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/menu/portal/MenuPortalContext.mjs
+var React85 = __toESM(require_react(), 1);
+"use client";
+var MenuPortalContext = /* @__PURE__ */ React85.createContext(undefined);
+if (false)
+  ;
+function useMenuPortalContext() {
+  const value = React85.useContext(MenuPortalContext);
+  if (value === undefined) {
+    throw new Error(formatErrorMessage_default(32));
+  }
+  return value;
+}
+
+// engine/node_modules/@base-ui/react/menu/portal/MenuPortal.mjs
+var import_jsx_runtime18 = __toESM(require_jsx_runtime(), 1);
+"use client";
+var MenuPortal = /* @__PURE__ */ React86.forwardRef(function MenuPortal(props, forwardedRef) {
+  const {
+    keepMounted = false,
+    ...portalProps
+  } = props;
+  const {
+    store,
+    parent
+  } = useMenuRootContext();
+  const mounted = store.useState("mounted");
+  const shouldRender = mounted || keepMounted;
+  if (!shouldRender) {
+    return null;
+  }
+  const portalOwnerRole = parent.type === "menu" || parent.type === "menubar" ? "group" : undefined;
+  return /* @__PURE__ */ import_jsx_runtime18.jsx(MenuPortalContext.Provider, {
+    value: keepMounted,
+    children: /* @__PURE__ */ import_jsx_runtime18.jsx(FloatingPortal, {
+      ref: forwardedRef,
+      ...portalProps,
+      portalOwnerRole
+    })
+  });
+});
+if (false)
+  ;
+// engine/node_modules/@base-ui/react/menu/positioner/MenuPositioner.mjs
+var React91 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/internals/useAnchorPositioning.mjs
+var React88 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/floating-ui-react/hooks/useFloating.mjs
+var React87 = __toESM(require_react(), 1);
+"use client";
+function useBaseUIFloating(options) {
+  const {
+    nodeId,
+    externalTree,
+    rootContext: store
+  } = options;
+  const referenceElement = store.useState("referenceElement");
+  const floatingElement = store.useState("floatingElement");
+  const domReferenceElement = store.useState("domReferenceElement");
+  const open = store.useState("open");
+  const floatingId = store.useState("floatingId");
+  const [positionReference, setPositionReferenceRaw] = React87.useState(null);
+  const domReferenceRef = React87.useRef(null);
+  const tree = useFloatingTree(externalTree);
+  const storeElements = React87.useMemo(() => ({
+    reference: referenceElement,
+    floating: floatingElement,
+    domReference: domReferenceElement
+  }), [referenceElement, floatingElement, domReferenceElement]);
+  const position = useFloating({
+    ...options,
+    elements: {
+      ...storeElements,
+      ...positionReference && {
+        reference: positionReference
+      }
+    }
+  });
+  const setPositionReference = React87.useCallback((node) => {
+    const computedPositionReference = isElement(node) ? {
+      getBoundingClientRect: () => node.getBoundingClientRect(),
+      getClientRects: () => node.getClientRects(),
+      contextElement: node
+    } : node;
+    setPositionReferenceRaw(computedPositionReference);
+    position.refs.setReference(computedPositionReference);
+  }, [position.refs]);
+  const refs = React87.useMemo(() => ({
+    ...position.refs,
+    setPositionReference,
+    domReference: domReferenceRef
+  }), [position.refs, setPositionReference]);
+  const elements = React87.useMemo(() => ({
+    ...position.elements,
+    domReference: domReferenceElement
+  }), [position.elements, domReferenceElement]);
+  const context = React87.useMemo(() => ({
+    ...position,
+    dataRef: store.context.dataRef,
+    open,
+    onOpenChange: store.setOpen,
+    events: store.context.events,
+    floatingId,
+    refs,
+    elements,
+    nodeId,
+    rootStore: store
+  }), [position, refs, elements, nodeId, store, open, floatingId]);
+  useIsoLayoutEffect(() => {
+    if (domReferenceElement) {
+      domReferenceRef.current = domReferenceElement;
+    }
+  }, [domReferenceElement]);
+  useIsoLayoutEffect(() => {
+    store.context.dataRef.current.floatingContext = context;
+    const node = tree?.nodesRef.current.find((n) => n.id === nodeId);
+    if (node) {
+      node.context = context;
+    }
+  });
+  return React87.useMemo(() => ({
+    ...position,
+    context,
+    refs,
+    elements,
+    rootStore: store
+  }), [position, refs, elements, context, store]);
+}
+
+// engine/node_modules/@base-ui/react/floating-ui-react/middleware/arrow.mjs
+var baseArrow = (options) => ({
+  name: "arrow",
+  options,
+  async fn(state) {
+    const {
+      x,
+      y,
+      placement,
+      rects,
+      platform,
+      elements,
+      middlewareData
+    } = state;
+    const {
+      element,
+      padding = 0
+    } = evaluate(options, state) || {};
+    if (element == null) {
+      return {};
+    }
+    const paddingObject = getPaddingObject(padding);
+    const coords = {
+      x,
+      y
+    };
+    const axis = getAlignmentAxis(placement);
+    const length = getAxisLength(axis);
+    const arrowDimensions = await platform.getDimensions(element);
+    const isYAxis = axis === "y";
+    const minProp = isYAxis ? "top" : "left";
+    const maxProp = isYAxis ? "bottom" : "right";
+    const clientProp = isYAxis ? "clientHeight" : "clientWidth";
+    const endDiff = rects.reference[length] + rects.reference[axis] - coords[axis] - rects.floating[length];
+    const startDiff = coords[axis] - rects.reference[axis];
+    const clientSize = elements.floating[clientProp] || rects.floating[length];
+    const centerToReference = endDiff / 2 - startDiff / 2;
+    const largestPossiblePadding = clientSize / 2 - arrowDimensions[length] / 2 - 1;
+    const minPadding = Math.min(paddingObject[minProp], largestPossiblePadding);
+    const maxPadding = Math.min(paddingObject[maxProp], largestPossiblePadding);
+    const min = minPadding;
+    const max = clientSize - arrowDimensions[length] - maxPadding;
+    const center = clientSize / 2 - arrowDimensions[length] / 2 + centerToReference;
+    const offset = clamp(min, center, max);
+    const shouldAddOffset = !middlewareData.arrow && getAlignment(placement) != null && center !== offset && rects.reference[length] / 2 - (center < min ? minPadding : maxPadding) - arrowDimensions[length] / 2 < 0;
+    const alignmentOffset = shouldAddOffset ? center < min ? center - min : center - max : 0;
+    return {
+      [axis]: coords[axis] + alignmentOffset,
+      data: {
+        [axis]: offset,
+        centerOffset: center - offset - alignmentOffset,
+        ...shouldAddOffset && {
+          alignmentOffset
+        }
+      },
+      reset: shouldAddOffset
+    };
+  }
+});
+var arrow4 = (options, deps) => {
+  const {
+    name,
+    fn
+  } = baseArrow(options);
+  return {
+    name,
+    fn,
+    options: [options, deps]
+  };
+};
+
+// engine/node_modules/@base-ui/react/utils/hideMiddleware.mjs
+var hide4 = {
+  name: "hide",
+  async fn(state) {
+    const {
+      width,
+      height,
+      x,
+      y
+    } = state.rects.reference;
+    const anchorHidden = width === 0 && height === 0 && x === 0 && y === 0;
+    const overflow = await state.platform.detectOverflow(state, {
+      elementContext: "reference"
+    });
+    const referenceHidden = overflow.top - height >= 0 || overflow.right - width >= 0 || overflow.bottom - height >= 0 || overflow.left - width >= 0;
+    return {
+      data: {
+        referenceHidden: referenceHidden || anchorHidden
+      }
+    };
+  }
+};
+
+// engine/node_modules/@base-ui/react/utils/adaptiveOriginConstants.mjs
+var DEFAULT_SIDES = {
+  sideX: "left",
+  sideY: "top"
+};
+
+// engine/node_modules/@base-ui/react/utils/CommonPositionerCssVars.mjs
+var availableWidth = "--available-width";
+var availableHeight = "--available-height";
+var anchorWidth = "--anchor-width";
+var anchorHeight = "--anchor-height";
+var transformOrigin = "--transform-origin";
+
+// engine/node_modules/@base-ui/react/internals/useAnchorPositioning.mjs
+"use client";
+var AVAILABLE_WIDTH_VAR = availableWidth;
+var AVAILABLE_HEIGHT_VAR = availableHeight;
+function getLogicalSide(sideParam, renderedSide, isRtl) {
+  const isLogicalSideParam = sideParam === "inline-start" || sideParam === "inline-end";
+  const logicalRight = isRtl ? "inline-start" : "inline-end";
+  const logicalLeft = isRtl ? "inline-end" : "inline-start";
+  return {
+    top: "top",
+    right: isLogicalSideParam ? logicalRight : "right",
+    bottom: "bottom",
+    left: isLogicalSideParam ? logicalLeft : "left"
+  }[renderedSide];
+}
+function getOffsetData(state, sideParam, isRtl) {
+  const {
+    rects,
+    placement
+  } = state;
+  const data = {
+    side: getLogicalSide(sideParam, getSide(placement), isRtl),
+    align: getAlignment(placement) || "center",
+    anchor: {
+      width: rects.reference.width,
+      height: rects.reference.height
+    },
+    positioner: {
+      width: rects.floating.width,
+      height: rects.floating.height
+    }
+  };
+  return data;
+}
+function useAnchorPositioning(params) {
+  return useAnchorPositioningWithHook(params, useBaseUIFloating);
+}
+function useAnchorPositioningWithHook(params, useFloatingHook) {
+  const {
+    anchor,
+    positionMethod = "absolute",
+    side: sideParam = "bottom",
+    sideOffset = 0,
+    align = "center",
+    alignOffset = 0,
+    collisionBoundary,
+    collisionPadding: collisionPaddingParam = 5,
+    sticky = false,
+    arrowPadding = 5,
+    disableAnchorTracking = false,
+    inline: inlineMiddleware,
+    keepMounted = false,
+    floatingRootContext,
+    mounted,
+    collisionAvoidance,
+    shift,
+    nodeId,
+    adaptiveOrigin,
+    lazyFlip = false,
+    externalTree
+  } = params;
+  const collisionAvoidanceSide = collisionAvoidance.side || "flip";
+  const collisionAvoidanceAlign = collisionAvoidance.align || "flip";
+  const collisionAvoidanceFallbackAxisSide = collisionAvoidance.fallbackAxisSide || "end";
+  const shiftCrossAxis = shift?.crossAxis ?? false;
+  const shiftRootBoundary = shift?.rootBoundary;
+  const anchorFn = typeof anchor === "function" ? anchor : undefined;
+  const anchorFnCallback = useStableCallback(anchorFn);
+  const anchorDep = anchorFn ? anchorFnCallback : anchor;
+  const anchorValueRef = useValueAsRef(anchor);
+  const mountedRef = useValueAsRef(mounted);
+  const direction = useDirection();
+  const isRtl = direction === "rtl";
+  const [mountPlacement, setMountPlacement] = React88.useState(null);
+  if (!mounted && mountPlacement !== null) {
+    setMountPlacement(null);
+  }
+  const lockAlign = lazyFlip === "placement";
+  const mountSide = mountPlacement ? getSide(mountPlacement) : null;
+  const mountAlign = mountPlacement && lockAlign ? getAlignment(mountPlacement) || "center" : null;
+  const side = mountSide || {
+    top: "top",
+    right: "right",
+    bottom: "bottom",
+    left: "left",
+    "inline-end": isRtl ? "left" : "right",
+    "inline-start": isRtl ? "right" : "left"
+  }[sideParam];
+  const placementAlign = mountAlign || align;
+  const placement = placementAlign === "center" ? side : `${side}-${placementAlign}`;
+  let collisionPadding = collisionPaddingParam;
+  if (typeof collisionPadding === "number") {
+    collisionPadding = {
+      top: collisionPadding,
+      right: collisionPadding,
+      bottom: collisionPadding,
+      left: collisionPadding
+    };
+  } else if (collisionPadding) {
+    collisionPadding = {
+      top: collisionPadding.top || 0,
+      right: collisionPadding.right || 0,
+      bottom: collisionPadding.bottom || 0,
+      left: collisionPadding.left || 0
+    };
+  }
+  const bias = 1;
+  const biasTop = sideParam === "bottom" ? bias : 0;
+  const biasBottom = sideParam === "top" ? bias : 0;
+  const biasLeft = sideParam === "right" ? bias : 0;
+  const biasRight = sideParam === "left" ? bias : 0;
+  const commonCollisionProps = {
+    boundary: collisionBoundary === "clipping-ancestors" ? "clippingAncestors" : collisionBoundary,
+    padding: collisionPadding
+  };
+  const arrowRef = React88.useRef(null);
+  const sideOffsetRef = useValueAsRef(sideOffset);
+  const alignOffsetRef = useValueAsRef(alignOffset);
+  const sideOffsetDep = typeof sideOffset !== "function" ? sideOffset : 0;
+  const alignOffsetDep = typeof alignOffset !== "function" ? alignOffset : 0;
+  const middleware = [];
+  if (inlineMiddleware) {
+    middleware.push(inlineMiddleware);
+  }
+  middleware.push(offset3((state) => {
+    const data = getOffsetData(state, sideParam, isRtl);
+    const sideAxis = typeof sideOffsetRef.current === "function" ? sideOffsetRef.current(data) : sideOffsetRef.current;
+    const alignAxis = typeof alignOffsetRef.current === "function" ? alignOffsetRef.current(data) : alignOffsetRef.current;
+    return {
+      mainAxis: sideAxis,
+      crossAxis: alignAxis,
+      alignmentAxis: alignAxis
+    };
+  }, [sideOffsetDep, alignOffsetDep, isRtl, sideParam]));
+  const shiftDisabled = collisionAvoidanceAlign === "none" && collisionAvoidanceSide !== "shift";
+  const crossAxisShiftEnabled = !shiftDisabled && (sticky || shiftCrossAxis || collisionAvoidanceSide === "shift");
+  const flipMiddleware = collisionAvoidanceSide === "none" ? null : flip3({
+    ...commonCollisionProps,
+    padding: {
+      top: collisionPadding.top + bias + biasTop,
+      right: collisionPadding.right + bias + biasRight,
+      bottom: collisionPadding.bottom + bias + biasBottom,
+      left: collisionPadding.left + bias + biasLeft
+    },
+    mainAxis: !shiftCrossAxis && collisionAvoidanceSide === "flip",
+    crossAxis: collisionAvoidanceAlign === "flip" ? "alignment" : false,
+    fallbackAxisSideDirection: collisionAvoidanceFallbackAxisSide
+  });
+  const shiftMiddleware = shiftDisabled ? null : shift3({
+    ...commonCollisionProps,
+    rootBoundary: shiftRootBoundary,
+    mainAxis: collisionAvoidanceAlign !== "none",
+    crossAxis: crossAxisShiftEnabled,
+    limiter: sticky || shiftCrossAxis ? undefined : limitShift3((limitData) => {
+      if (!arrowRef.current) {
+        return {};
+      }
+      const {
+        width,
+        height
+      } = arrowRef.current.getBoundingClientRect();
+      const sideAxis = getSideAxis(getSide(limitData.placement));
+      const arrowSize = sideAxis === "y" ? width : height;
+      const offsetAmount = sideAxis === "y" ? collisionPadding.left + collisionPadding.right : collisionPadding.top + collisionPadding.bottom;
+      return {
+        offset: arrowSize / 2 + offsetAmount / 2
+      };
+    })
+  }, [commonCollisionProps, sticky, shiftCrossAxis, shiftRootBoundary, collisionPadding, collisionAvoidanceAlign]);
+  if (collisionAvoidanceSide === "shift" || collisionAvoidanceAlign === "shift" || placementAlign === "center") {
+    middleware.push(shiftMiddleware, flipMiddleware);
+  } else {
+    middleware.push(flipMiddleware, shiftMiddleware);
+  }
+  middleware.push(size3({
+    ...commonCollisionProps,
+    apply({
+      elements: {
+        floating
+      },
+      availableWidth,
+      availableHeight,
+      rects
+    }) {
+      if (!mountedRef.current) {
+        return;
+      }
+      const floatingStyle = floating.style;
+      floatingStyle.setProperty(AVAILABLE_WIDTH_VAR, `${availableWidth}px`);
+      floatingStyle.setProperty(AVAILABLE_HEIGHT_VAR, `${availableHeight}px`);
+      const dpr = getWindow(floating).devicePixelRatio || 1;
+      const {
+        x,
+        y,
+        width,
+        height
+      } = rects.reference;
+      const anchorWidth2 = (Math.round((x + width) * dpr) - Math.round(x * dpr)) / dpr;
+      const anchorHeight2 = (Math.round((y + height) * dpr) - Math.round(y * dpr)) / dpr;
+      floatingStyle.setProperty(anchorWidth, `${anchorWidth2}px`);
+      floatingStyle.setProperty(anchorHeight, `${anchorHeight2}px`);
+    }
+  }), arrow4((state) => ({
+    element: arrowRef.current || ownerDocument(state.elements.floating).createElement("div"),
+    padding: arrowRef.current ? arrowPadding : 0
+  }), [arrowPadding]), {
+    name: "transformOrigin",
+    fn(state) {
+      const {
+        elements: {
+          floating
+        },
+        middlewareData,
+        placement: renderedPlacement,
+        platform,
+        rects,
+        y
+      } = state;
+      const renderedSide = getSide(renderedPlacement);
+      const renderedAlign = getAlignment(renderedPlacement);
+      const isVertical = getSideAxis(renderedSide) === "y";
+      const arrowEl = arrowRef.current;
+      const sideOffsetValue = typeof sideOffset === "function" ? sideOffset(getOffsetData(state, sideParam, isRtl)) : sideOffset;
+      let crossOrigin;
+      if (!arrowEl && renderedAlign && Math.abs(isVertical ? middlewareData.shift?.x || 0 : middlewareData.shift?.y || 0) <= 1) {
+        crossOrigin = renderedAlign === "start" === (isVertical && platform.isRTL?.(floating) === true) ? "100%" : "0%";
+      } else {
+        const arrowOffset = isVertical ? middlewareData.arrow?.x || 0 : middlewareData.arrow?.y || 0;
+        const arrowSize = isVertical ? arrowEl?.clientWidth || 0 : arrowEl?.clientHeight || 0;
+        crossOrigin = `${arrowOffset + arrowSize / 2}px`;
+      }
+      let sideOrigin = renderedSide === "top" || renderedSide === "left" ? `calc(100% + ${sideOffsetValue}px)` : `${-sideOffsetValue}px`;
+      if (crossAxisShiftEnabled && isVertical && Math.abs(middlewareData.shift?.y || 0) > sideOffsetValue) {
+        sideOrigin = `${rects.reference.y + rects.reference.height / 2 - y}px`;
+      }
+      floating.style.setProperty(transformOrigin, isVertical ? `${crossOrigin} ${sideOrigin}` : `${sideOrigin} ${crossOrigin}`);
+      return {};
+    }
+  }, hide4, adaptiveOrigin);
+  useIsoLayoutEffect(() => {
+    if (!mounted && floatingRootContext) {
+      floatingRootContext.update({
+        referenceElement: null,
+        floatingElement: null,
+        domReferenceElement: null,
+        positionReference: null
+      });
+    }
+  }, [mounted, floatingRootContext]);
+  const autoUpdateOptions = React88.useMemo(() => ({
+    ancestorScroll: !disableAnchorTracking,
+    elementResize: !disableAnchorTracking && typeof ResizeObserver !== "undefined",
+    layoutShift: !disableAnchorTracking && typeof IntersectionObserver !== "undefined"
+  }), [disableAnchorTracking]);
+  const {
+    refs,
+    elements,
+    x,
+    y,
+    middlewareData,
+    update,
+    placement: renderedPlacement,
+    context,
+    isPositioned,
+    floatingStyles: originalFloatingStyles
+  } = useFloatingHook({
+    rootContext: floatingRootContext,
+    open: keepMounted ? mounted : undefined,
+    placement,
+    middleware,
+    strategy: positionMethod,
+    whileElementsMounted: keepMounted ? undefined : (...args) => autoUpdate(...args, autoUpdateOptions),
+    nodeId,
+    externalTree
+  });
+  const {
+    sideX,
+    sideY
+  } = middlewareData.adaptiveOrigin || DEFAULT_SIDES;
+  const resolvedPosition = isPositioned ? positionMethod : "fixed";
+  const floatingStyles = React88.useMemo(() => {
+    let base;
+    if (!isPositioned) {
+      base = {
+        position: resolvedPosition,
+        top: 0,
+        left: 0
+      };
+    } else if (adaptiveOrigin) {
+      base = {
+        position: resolvedPosition,
+        [sideX]: x,
+        [sideY]: y
+      };
+    } else {
+      base = {
+        ...originalFloatingStyles,
+        position: resolvedPosition
+      };
+    }
+    base[AVAILABLE_WIDTH_VAR] = "100vw";
+    base[AVAILABLE_HEIGHT_VAR] = "100vh";
+    if (!isPositioned) {
+      base.opacity = 0;
+    }
+    return base;
+  }, [adaptiveOrigin, resolvedPosition, sideX, x, sideY, y, originalFloatingStyles, isPositioned]);
+  const registeredPositionReferenceRef = React88.useRef(null);
+  useIsoLayoutEffect(() => {
+    if (!mounted) {
+      return;
+    }
+    const anchorValue = anchorValueRef.current;
+    const resolvedAnchor = typeof anchorValue === "function" ? anchorValue() : anchorValue;
+    const unwrappedElement = (isRef(resolvedAnchor) ? resolvedAnchor.current : resolvedAnchor) || null;
+    const finalAnchor = unwrappedElement || null;
+    if (finalAnchor !== registeredPositionReferenceRef.current) {
+      refs.setPositionReference(finalAnchor);
+      registeredPositionReferenceRef.current = finalAnchor;
+    }
+  }, [mounted, refs, anchorDep, anchorValueRef]);
+  React88.useEffect(() => {
+    if (!mounted) {
+      return;
+    }
+    const anchorValue = anchorValueRef.current;
+    if (typeof anchorValue === "function") {
+      return;
+    }
+    if (isRef(anchorValue) && anchorValue.current !== registeredPositionReferenceRef.current) {
+      refs.setPositionReference(anchorValue.current);
+      registeredPositionReferenceRef.current = anchorValue.current;
+    }
+  }, [mounted, refs, anchorDep, anchorValueRef]);
+  React88.useEffect(() => {
+    if (keepMounted && mounted && elements.reference && elements.floating) {
+      return autoUpdate(elements.reference, elements.floating, update, autoUpdateOptions);
+    }
+    return;
+  }, [keepMounted, mounted, elements, update, autoUpdateOptions]);
+  const renderedSide = getSide(renderedPlacement);
+  const logicalRenderedSide = getLogicalSide(sideParam, renderedSide, isRtl);
+  const renderedAlign = getAlignment(renderedPlacement) || "center";
+  const anchorHidden = Boolean(middlewareData.hide?.referenceHidden);
+  useIsoLayoutEffect(() => {
+    if (lazyFlip && mounted && isPositioned && (renderedSide !== side || lockAlign && renderedAlign !== placementAlign)) {
+      setMountPlacement(renderedPlacement);
+    }
+  }, [lazyFlip, lockAlign, mounted, isPositioned, renderedPlacement, renderedSide, renderedAlign, side, placementAlign]);
+  const arrowStyles = React88.useMemo(() => ({
+    position: "absolute",
+    top: middlewareData.arrow?.y,
+    left: middlewareData.arrow?.x
+  }), [middlewareData.arrow]);
+  const arrowUncentered = middlewareData.arrow?.centerOffset !== 0;
+  return React88.useMemo(() => ({
+    positionerStyles: floatingStyles,
+    arrowStyles,
+    arrowRef,
+    arrowUncentered,
+    side: logicalRenderedSide,
+    align: renderedAlign,
+    physicalSide: renderedSide,
+    anchorHidden,
+    refs,
+    context,
+    isPositioned,
+    update
+  }), [floatingStyles, arrowStyles, arrowRef, arrowUncentered, logicalRenderedSide, renderedAlign, renderedSide, anchorHidden, refs, context, isPositioned, update]);
+}
+function isRef(param) {
+  return param != null && "current" in param;
+}
+
+// engine/node_modules/@base-ui/react/internals/useTriggerSwitchTransition.mjs
+var React89 = __toESM(require_react(), 1);
+"use client";
+function useTriggerSwitchTransition(parameters) {
+  const {
+    store,
+    domReference,
+    positionerElement,
+    open
+  } = parameters;
+  const previousTriggerRef = React89.useRef(null);
+  const pendingSwitchRef = React89.useRef(null);
+  const runOnceAnimationsFinish = useAnimationsFinished(positionerElement);
+  useIsoLayoutEffect(() => {
+    if (open) {
+      return;
+    }
+    pendingSwitchRef.current?.abort();
+    pendingSwitchRef.current = null;
+    if (store.state.instantType === "trigger-change") {
+      store.set("instantType", undefined);
+    }
+  }, [open, store]);
+  useIsoLayoutEffect(() => {
+    const currentTrigger = domReference;
+    const previousTrigger = previousTriggerRef.current;
+    if (currentTrigger) {
+      previousTriggerRef.current = currentTrigger;
+    }
+    if (!previousTrigger || !currentTrigger || currentTrigger === previousTrigger) {
+      return;
+    }
+    if (!store.select("open")) {
+      return;
+    }
+    store.set("instantType", undefined);
+    const abortController = new AbortController;
+    pendingSwitchRef.current = abortController;
+    runOnceAnimationsFinish(() => {
+      if (store.select("open")) {
+        store.set("instantType", "trigger-change");
+      }
+    }, abortController.signal);
+    return () => {
+      abortController.abort();
+    };
+  }, [domReference, runOnceAnimationsFinish, store]);
+}
+
+// engine/node_modules/@base-ui/react/utils/usePositioner.mjs
+"use client";
+function usePositioner(componentProps, state, {
+  styles,
+  transitionStatus,
+  props,
+  refs,
+  hidden,
+  inert = false
+}) {
+  const style = {
+    ...styles
+  };
+  if (inert) {
+    style.pointerEvents = "none";
+  }
+  return useRenderElement("div", componentProps, {
+    state,
+    ref: refs,
+    props: [{
+      role: "presentation",
+      hidden,
+      style
+    }, getDisabledMountTransitionStyles(transitionStatus), props],
+    stateAttributesMapping: popupStateMapping
+  });
+}
+
+// engine/node_modules/@base-ui/react/utils/useAnchoredPopupScrollLock.mjs
+var React90 = __toESM(require_react(), 1);
+"use client";
+var VIEWPORT_WIDTH_TOLERANCE_PX = 20;
+function useAnchoredPopupScrollLock(enabled, touchOpen, positionerElement, referenceElement) {
+  const [touchOpenShouldLockScroll, setTouchOpenShouldLockScroll] = React90.useState(false);
+  useIsoLayoutEffect(() => {
+    if (!enabled || !touchOpen || positionerElement == null) {
+      setTouchOpenShouldLockScroll(false);
+      return;
+    }
+    const viewportWidth = ownerDocument(positionerElement).documentElement.clientWidth;
+    const popupWidth = positionerElement.offsetWidth;
+    setTouchOpenShouldLockScroll(viewportWidth > 0 && popupWidth > 0 && popupWidth >= viewportWidth - VIEWPORT_WIDTH_TOLERANCE_PX);
+  }, [enabled, touchOpen, positionerElement]);
+  useScrollLock(enabled && (!touchOpen || touchOpenShouldLockScroll), referenceElement);
+}
+
+// engine/node_modules/@base-ui/react/menu/positioner/MenuPositioner.mjs
+var import_jsx_runtime19 = __toESM(require_jsx_runtime(), 1);
+"use client";
+var MenuPositioner = /* @__PURE__ */ React91.forwardRef(function MenuPositioner(componentProps, forwardedRef) {
+  const {
+    anchor: anchorProp,
+    positionMethod: positionMethodProp = "absolute",
+    className,
+    render,
+    side,
+    align: alignProp,
+    sideOffset: sideOffsetProp = 0,
+    alignOffset: alignOffsetProp = 0,
+    collisionBoundary = "clipping-ancestors",
+    collisionPadding = 5,
+    arrowPadding = 5,
+    sticky = false,
+    disableAnchorTracking = false,
+    collisionAvoidance: collisionAvoidanceProp = DROPDOWN_COLLISION_AVOIDANCE,
+    style,
+    ...elementProps
+  } = componentProps;
+  const {
+    store,
+    virtualFocus,
+    syncHighlightedItem
+  } = useMenuRootContext();
+  const keepMounted = useMenuPortalContext();
+  const contextMenuContext = useContextMenuRootContext(true);
+  const parent = store.useState("parent");
+  const floatingRootContext = store.useState("floatingRootContext");
+  const floatingTreeRoot = store.useState("floatingTreeRoot");
+  const mounted = store.useState("mounted");
+  const open = store.useState("open");
+  const modal = store.useState("modal");
+  const openMethod = store.useState("openMethod");
+  const triggerElement = store.useState("activeTriggerElement");
+  const transitionStatus = store.useState("transitionStatus");
+  const positionerElement = store.useState("positionerElement");
+  const instantType = store.useState("instantType");
+  const adaptiveOrigin = store.useState("adaptiveOrigin");
+  const lastOpenChangeReason = store.useState("lastOpenChangeReason");
+  const floatingNodeId = store.useState("floatingNodeId");
+  const floatingParentNodeId = store.useState("floatingParentNodeId");
+  const domReference = floatingRootContext.useState("domReferenceElement");
+  let anchor = anchorProp;
+  let sideOffset = sideOffsetProp;
+  let alignOffset = alignOffsetProp;
+  let align = alignProp;
+  let collisionAvoidance = collisionAvoidanceProp;
+  if (parent.type === "context-menu") {
+    anchor = anchorProp ?? parent.context?.anchor;
+    align = align ?? "start";
+    if (!side && align !== "center") {
+      alignOffset = componentProps.alignOffset ?? 2;
+      sideOffset = componentProps.sideOffset ?? -5;
+    }
+  }
+  let computedSide = side;
+  let computedAlign = align;
+  if (parent.type === "menu") {
+    computedSide = computedSide ?? "inline-end";
+    computedAlign = computedAlign ?? "start";
+    collisionAvoidance = componentProps.collisionAvoidance ?? POPUP_COLLISION_AVOIDANCE;
+  } else if (parent.type === "menubar") {
+    computedSide = computedSide ?? (parent.context.orientation === "vertical" ? "inline-end" : "bottom");
+    computedAlign = computedAlign ?? "start";
+  }
+  const contextMenu = parent.type === "context-menu";
+  const positioner = useAnchorPositioning({
+    anchor,
+    floatingRootContext,
+    positionMethod: contextMenuContext ? "fixed" : positionMethodProp,
+    mounted,
+    side: computedSide,
+    sideOffset,
+    align: computedAlign,
+    alignOffset,
+    arrowPadding: contextMenu ? 0 : arrowPadding,
+    collisionBoundary,
+    collisionPadding,
+    sticky,
+    nodeId: floatingNodeId,
+    keepMounted,
+    disableAnchorTracking,
+    collisionAvoidance,
+    shift: contextMenu ? {
+      crossAxis: !(("side" in collisionAvoidance) && collisionAvoidance.side === "flip"),
+      rootBoundary: "layoutViewport"
+    } : undefined,
+    externalTree: floatingTreeRoot,
+    adaptiveOrigin,
+    lazyFlip: virtualFocus ? "placement" : false
+  });
+  React91.useEffect(() => {
+    function onMenuOpenChange(details) {
+      if (details.open) {
+        if (details.parentNodeId === floatingNodeId) {
+          store.set("hoverEnabled", false);
+        }
+        if (details.nodeId !== floatingNodeId && details.parentNodeId === store.select("floatingParentNodeId")) {
+          store.setOpen(false, createChangeEventDetails(siblingOpen));
+        }
+      }
+    }
+    floatingTreeRoot.events.on("menuopenchange", onMenuOpenChange);
+    return () => {
+      floatingTreeRoot.events.off("menuopenchange", onMenuOpenChange);
+    };
+  }, [store, floatingTreeRoot.events, floatingNodeId]);
+  React91.useEffect(() => {
+    if (store.select("floatingParentNodeId") == null) {
+      return;
+    }
+    function onParentClose(details) {
+      if (details.open || details.nodeId !== store.select("floatingParentNodeId")) {
+        return;
+      }
+      const reason = details.reason ?? siblingOpen;
+      store.setOpen(false, createChangeEventDetails(reason));
+    }
+    floatingTreeRoot.events.on("menuopenchange", onParentClose);
+    return () => {
+      floatingTreeRoot.events.off("menuopenchange", onParentClose);
+    };
+  }, [floatingTreeRoot.events, store]);
+  const closeTimeout = useTimeout();
+  React91.useEffect(() => {
+    if (!open) {
+      closeTimeout.clear();
+    }
+  }, [open, closeTimeout]);
+  React91.useEffect(() => {
+    function onItemHover(event) {
+      if (!open || event.nodeId !== store.select("floatingParentNodeId")) {
+        return;
+      }
+      if (event.target && triggerElement && triggerElement !== event.target) {
+        const delay = store.select("closeDelay");
+        if (delay > 0) {
+          if (!closeTimeout.isStarted()) {
+            closeTimeout.start(delay, () => {
+              store.setOpen(false, createChangeEventDetails(siblingOpen));
+            });
+          }
+        } else {
+          store.setOpen(false, createChangeEventDetails(siblingOpen));
+        }
+      } else {
+        closeTimeout.clear();
+      }
+    }
+    floatingTreeRoot.events.on("itemhover", onItemHover);
+    return () => {
+      floatingTreeRoot.events.off("itemhover", onItemHover);
+    };
+  }, [floatingTreeRoot.events, open, triggerElement, store, closeTimeout]);
+  React91.useEffect(() => {
+    const eventDetails = {
+      open,
+      nodeId: floatingNodeId,
+      parentNodeId: floatingParentNodeId,
+      reason: store.select("lastOpenChangeReason")
+    };
+    floatingTreeRoot.events.emit("menuopenchange", eventDetails);
+  }, [floatingTreeRoot.events, open, store, floatingNodeId, floatingParentNodeId]);
+  useTriggerSwitchTransition({
+    store,
+    domReference,
+    positionerElement,
+    open
+  });
+  const state = {
+    open,
+    side: positioner.side,
+    align: positioner.align,
+    anchorHidden: positioner.anchorHidden,
+    nested: parent.type === "menu",
+    instant: instantType
+  };
+  const menubarModal = parent.type === "menubar" && parent.context.modal;
+  const popupModal = modal && lastOpenChangeReason !== triggerHover;
+  useAnchoredPopupScrollLock(open && (menubarModal || popupModal), openMethod === "touch", positionerElement, triggerElement);
+  const element = usePositioner(componentProps, state, {
+    styles: positioner.positionerStyles,
+    transitionStatus,
+    props: elementProps,
+    refs: [forwardedRef, store.useStateSetter("positionerElement")],
+    hidden: !mounted,
+    inert: !open
+  });
+  const shouldRenderBackdrop = mounted && parent.type !== "menu" && (parent.type !== "menubar" && modal && lastOpenChangeReason !== triggerHover || parent.type === "menubar" && parent.context.modal);
+  let backdropCutout = null;
+  if (parent.type === "menubar") {
+    backdropCutout = parent.context.contentElement;
+  } else if (parent.type === undefined) {
+    backdropCutout = triggerElement;
+  }
+  return /* @__PURE__ */ import_jsx_runtime19.jsxs(MenuPositionerContext.Provider, {
+    value: positioner,
+    children: [shouldRenderBackdrop && /* @__PURE__ */ import_jsx_runtime19.jsx(InternalBackdrop, {
+      ref: parent.type === "context-menu" || parent.type === "nested-context-menu" ? parent.context.internalBackdropRef : null,
+      inert: inertValue(!open),
+      cutout: backdropCutout
+    }), /* @__PURE__ */ import_jsx_runtime19.jsx(FloatingNode, {
+      id: floatingNodeId,
+      children: /* @__PURE__ */ import_jsx_runtime19.jsx(CompositeList, {
+        elementsRef: store.context.itemDomElements,
+        labelsRef: store.context.itemLabels,
+        onMapChange: syncHighlightedItem,
+        children: element
+      })
+    })]
+  });
+});
+if (false)
+  ;
+// engine/node_modules/@base-ui/react/menu/root/MenuRoot.mjs
+var React95 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/menubar/MenubarContext.mjs
+var React92 = __toESM(require_react(), 1);
+"use client";
+var MenubarContext = /* @__PURE__ */ React92.createContext(null);
+if (false)
+  ;
+function useMenubarContext(optional) {
+  const context = React92.useContext(MenubarContext);
+  if (context === null && !optional) {
+    throw new Error(formatErrorMessage_default(5));
+  }
+  return context;
+}
+
+// engine/node_modules/@base-ui/react/utils/getHighlightReason.mjs
+function getHighlightReason(event) {
+  if (event == null) {
+    return none;
+  }
+  if (event.type.startsWith("key")) {
+    return keyboard;
+  }
+  if (event.type.startsWith("mouse") || event.type.startsWith("pointer")) {
+    return pointer;
+  }
+  return none;
+}
+
+// engine/node_modules/@base-ui/react/menu/store/MenuStore.mjs
+var React93 = __toESM(require_react(), 1);
+var selectors3 = {
+  ...popupStoreSelectors,
+  disabled: (state) => state.parent.type === "menubar" ? state.parent.context.disabled || state.disabled : state.disabled,
+  modal: (state) => (state.parent.type === undefined || state.parent.type === "context-menu") && (state.modal ?? true),
+  openMethod: (state) => state.openMethod,
+  keyboardOpen: (state) => state.keyboardOpen,
+  allowMouseEnter: (state) => state.allowMouseEnter,
+  highlightItemOnHover: (state) => state.highlightItemOnHover,
+  parent: (state) => state.parent,
+  rootId: (state) => {
+    if (state.parent.type === "menu") {
+      return state.parent.store.select("rootId");
+    }
+    return state.parent.type !== undefined ? state.parent.context.rootId : state.rootId;
+  },
+  activeIndex: (state) => state.activeIndex,
+  listElement: (state) => state.listElement,
+  triggerControlsId: (state, triggerId) => {
+    const popupId = popupStoreSelectors.triggerPopupId(state, triggerId);
+    return popupId ? state.listElement?.id || popupId : undefined;
+  },
+  filterTriggerProps: (state) => state.filterTriggerProps,
+  inputProps: (state) => state.inputProps,
+  webkitAriaSelected: (state, highlighted) => exports_engine.webkit && state.inputFocused && highlighted ? true : undefined,
+  highlightedItemId: (state) => state.highlightedItem?.id || undefined,
+  isActive: (state, itemIndex) => state.activeIndex === itemIndex,
+  hoverEnabled: (state) => state.hoverEnabled,
+  instantType: (state) => state.instantType === "trigger-change" && !popupStoreSelectors.open(state) ? undefined : state.instantType,
+  lastOpenChangeReason: (state) => state.openChangeReason,
+  floatingTreeRoot: (state) => {
+    if (state.parent.type === "menu") {
+      return state.parent.store.select("floatingTreeRoot");
+    }
+    return state.floatingTreeRoot;
+  },
+  floatingNodeId: (state) => state.floatingNodeId,
+  floatingParentNodeId: (state) => state.floatingParentNodeId,
+  itemProps: (state) => state.itemProps,
+  closeDelay: (state) => state.closeDelay,
+  adaptiveOrigin: (state) => state.adaptiveOrigin,
+  keyboardEventRelay: (state) => {
+    if (state.keyboardEventRelay) {
+      return state.keyboardEventRelay;
+    }
+    if (state.parent.type === "menu") {
+      return state.parent.store.select("keyboardEventRelay");
+    }
+    return;
+  }
+};
+
+class MenuStore extends ReactStore {
+  constructor(initialState, floatingId, nested = false) {
+    const triggerElements = new PopupTriggerMap;
+    const state = createInitialState2(triggerElements, floatingId, nested, initialState);
+    super(state, createInitialContext2(triggerElements), selectors3);
+    this.observe("parent", (parent) => {
+      if (parent.type === "menu") {
+        this.context.allowMouseUpTriggerRef = parent.store.context.allowMouseUpTriggerRef;
+      } else if (parent.type !== undefined) {
+        this.context.allowMouseUpTriggerRef = parent.context.allowMouseUpTriggerRef;
+      }
+    });
+  }
+  subscribeToParentMenu() {
+    const parent = this.state.parent;
+    if (parent.type !== "menu") {
+      return;
+    }
+    let rootId = parent.store.select("rootId");
+    let floatingTreeRoot = parent.store.select("floatingTreeRoot");
+    let keyboardEventRelay = parent.store.select("keyboardEventRelay");
+    return parent.store.subscribe(() => {
+      const nextRootId = parent.store.select("rootId");
+      const nextFloatingTreeRoot = parent.store.select("floatingTreeRoot");
+      const nextKeyboardEventRelay = parent.store.select("keyboardEventRelay");
+      if (rootId === nextRootId && floatingTreeRoot === nextFloatingTreeRoot && keyboardEventRelay === nextKeyboardEventRelay) {
+        return;
+      }
+      rootId = nextRootId;
+      floatingTreeRoot = nextFloatingTreeRoot;
+      keyboardEventRelay = nextKeyboardEventRelay;
+      this.notifyAll();
+    });
+  }
+  setOpen(open, eventDetails) {
+    this.state.floatingRootContext.context.events.emit("setOpen", {
+      open,
+      eventDetails
+    });
+  }
+  setActiveIndex(activeIndex, reason, event) {
+    if (this.state.activeIndex !== activeIndex) {
+      const item = activeIndex === null ? undefined : this.context.itemDomElements.current[activeIndex];
+      const isWriteBack = item === this.context.reportedItem;
+      this.context.highlightReason = isWriteBack ? "none" : reason;
+      this.context.highlightEvent = isWriteBack ? undefined : event;
+    }
+    this.set("activeIndex", activeIndex);
+  }
+  highlightItem(element, reason, event) {
+    const index = this.context.itemDomElements.current.indexOf(element);
+    if (index > -1) {
+      this.setActiveIndex(index, reason, event);
+    }
+  }
+}
+function createInitialContext2(triggerElements) {
+  return {
+    positionerRef: /* @__PURE__ */ React93.createRef(),
+    popupRef: /* @__PURE__ */ React93.createRef(),
+    typingRef: {
+      current: false
+    },
+    itemDomElements: {
+      current: []
+    },
+    itemLabels: {
+      current: []
+    },
+    highlightReason: "none",
+    highlightEvent: undefined,
+    reportedItem: undefined,
+    allowMouseUpTriggerRef: {
+      current: false
+    },
+    virtualFocusRef: undefined,
+    triggerFocusTargetRef: /* @__PURE__ */ React93.createRef(),
+    beforeTriggerFocusGuardRef: /* @__PURE__ */ React93.createRef(),
+    beforeContentFocusGuardRef: /* @__PURE__ */ React93.createRef(),
+    onOpenChangeComplete: undefined,
+    triggerElements
+  };
+}
+function createInitialState2(triggerElements, floatingId, nested = false, initialState) {
+  return {
+    ...createInitialPopupStoreState(triggerElements, floatingId, nested),
+    disabled: false,
+    modal: true,
+    openMethod: null,
+    keyboardOpen: false,
+    allowMouseEnter: false,
+    highlightItemOnHover: true,
+    parent: {
+      type: undefined
+    },
+    rootId: undefined,
+    activeIndex: null,
+    listElement: null,
+    filterTriggerProps: EMPTY_OBJECT,
+    inputProps: EMPTY_OBJECT,
+    inputFocused: false,
+    highlightedItem: undefined,
+    hoverEnabled: true,
+    instantType: undefined,
+    openChangeReason: null,
+    floatingTreeRoot: new FloatingTreeStore,
+    floatingNodeId: undefined,
+    floatingParentNodeId: null,
+    itemProps: EMPTY_OBJECT,
+    keyboardEventRelay: undefined,
+    closeDelay: 0,
+    adaptiveOrigin: undefined,
+    ...initialState
+  };
+}
+
+// engine/node_modules/@base-ui/react/menu/filter-provider/MenuFilterProviderContext.mjs
+var React94 = __toESM(require_react(), 1);
+"use client";
+var MenuFilterProviderContext = /* @__PURE__ */ React94.createContext(null);
+if (false)
+  ;
+
+// engine/node_modules/@base-ui/react/menu/utils/isKeyboardOpen.mjs
+function isKeyboardClick(reason, event) {
+  return (reason === triggerPress || reason === itemPress) && event?.detail === 0;
+}
+function isKeyboardOpen(reason, event) {
+  return reason === listNavigation || isKeyboardClick(reason, event);
+}
+
+// engine/node_modules/@base-ui/react/menu/root/MenuRoot.mjs
+var import_jsx_runtime20 = __toESM(require_jsx_runtime(), 1);
+"use client";
+var MenuRootInternal = fastComponent(function MenuRootInternal(props) {
+  const {
+    children,
+    open: openProp,
+    onOpenChange,
+    onOpenChangeComplete,
+    onItemHighlighted: onItemHighlightedProp,
+    defaultOpen = false,
+    disabled: disabledProp = false,
+    modal: modalProp,
+    loopFocus = true,
+    orientation = "vertical",
+    actionsRef,
+    closeParentOnEsc = false,
+    handle,
+    triggerId: triggerIdProp,
+    defaultTriggerId: defaultTriggerIdProp = null,
+    highlightItemOnHover = true,
+    isSubmenu = false,
+    virtualFocus = false,
+    virtualFocusRef,
+    allowEscape = true,
+    resetOnPointerLeave = true
+  } = props;
+  const contextMenuContext = useContextMenuRootContext(true);
+  const parentMenuRootContext = useMenuRootContext(true);
+  const menubarContext = useMenubarContext(true);
+  const enclosingMenuStore = parentMenuRootContext?.store;
+  const parentVirtualFocus = parentMenuRootContext?.virtualFocus ?? false;
+  const parentFromContext = React95.useMemo(() => {
+    if (isSubmenu && enclosingMenuStore) {
+      return {
+        type: "menu",
+        store: enclosingMenuStore
+      };
+    }
+    if (menubarContext) {
+      return {
+        type: "menubar",
+        context: menubarContext
+      };
+    }
+    if (contextMenuContext && !enclosingMenuStore) {
+      return {
+        type: "context-menu",
+        context: contextMenuContext
+      };
+    }
+    return {
+      type: undefined
+    };
+  }, [contextMenuContext, enclosingMenuStore, menubarContext, isSubmenu]);
+  const rootId = useBaseUiId();
+  const defaultFloatingId = useBaseUiId();
+  const [renderedFloatingId, setRenderedFloatingId] = React95.useState(undefined);
+  const floatingId = (renderedFloatingId ?? defaultFloatingId) || undefined;
+  const floatingParentNodeIdFromContext = useFloatingParentNodeId();
+  const parentMenuStore = parentFromContext.type === "menu" ? parentFromContext.store : undefined;
+  const animateInitialOpen = (openProp ?? defaultOpen) && parentMenuStore?.state.transitionStatus === "starting";
+  const seededInstantType = useRefWithInit(() => animateInitialOpen ? parentMenuStore?.state.instantType : undefined).current;
+  const store = useRefWithInit(() => {
+    const menuStore = new MenuStore({
+      open: defaultOpen,
+      openProp,
+      activeTriggerId: defaultTriggerIdProp,
+      triggerIdProp,
+      parent: parentFromContext,
+      disabled: disabledProp,
+      highlightItemOnHover,
+      modal: parentFromContext.type === undefined ? modalProp : undefined,
+      rootId,
+      instantType: seededInstantType
+    }, floatingId, floatingParentNodeIdFromContext != null);
+    menuStore.context.virtualFocusRef = virtualFocusRef;
+    return menuStore;
+  }).current;
+  store.useControlledProp("openProp", openProp);
+  store.useControlledProp("triggerIdProp", triggerIdProp);
+  store.useContextCallback("onOpenChangeComplete", onOpenChangeComplete);
+  const floatingTreeRoot = store.useState("floatingTreeRoot");
+  const floatingNodeIdFromContext = useFloatingNodeId(floatingTreeRoot);
+  const open = store.useState("open");
+  const activeTriggerElement = store.useState("activeTriggerElement");
+  const positionerElement = store.useState("positionerElement");
+  const hoverEnabled = store.useState("hoverEnabled");
+  const disabled = store.useState("disabled");
+  const lastOpenChangeReason = store.useState("lastOpenChangeReason");
+  const parent = store.useState("parent");
+  const activeIndex = store.useState("activeIndex");
+  const keyboardOpen = store.useState("keyboardOpen");
+  const payload = store.useState("payload");
+  const floatingParentNodeId = store.useState("floatingParentNodeId");
+  const openEventRef = React95.useRef(null);
+  const allowOutsidePressDismissalRef = React95.useRef(parent.type !== "context-menu");
+  const allowOutsidePressDismissalTimeout = useTimeout();
+  const allowTouchToCloseRef = React95.useRef(true);
+  const allowTouchToCloseTimeout = useTimeout();
+  const nested = floatingParentNodeId != null;
+  if (false) {}
+  const {
+    openMethod,
+    triggerProps: interactionTypeProps
+  } = useOpenInteractionType(open);
+  store.useSyncedValues({
+    disabled: disabledProp,
+    highlightItemOnHover,
+    modal: parent.type === undefined ? modalProp : undefined,
+    openMethod,
+    rootId
+  });
+  useImplicitActiveTrigger(store);
+  const {
+    forceUnmount,
+    transitionStatus
+  } = useOpenStateTransitions(open, store, () => {
+    store.set("allowMouseEnter", false);
+  }, animateInitialOpen);
+  const runOnceAnimationsFinish = useAnimationsFinished(store.context.popupRef);
+  React95.useEffect(() => {
+    if (seededInstantType === undefined) {
+      return;
+    }
+    const clearSeededInstantType = () => {
+      if (store.state.instantType === seededInstantType) {
+        store.set("instantType", undefined);
+      }
+    };
+    if (!open) {
+      clearSeededInstantType();
+      return;
+    }
+    if (transitionStatus !== undefined) {
+      return;
+    }
+    if (store.context.popupRef.current == null) {
+      clearSeededInstantType();
+      return;
+    }
+    const abortController = new AbortController;
+    runOnceAnimationsFinish(clearSeededInstantType, abortController.signal);
+    return () => {
+      abortController.abort();
+    };
+  }, [seededInstantType, open, transitionStatus, runOnceAnimationsFinish, store]);
+  useIsoLayoutEffect(() => {
+    if (contextMenuContext && !parentMenuRootContext) {
+      store.update({
+        parent: {
+          type: "context-menu",
+          context: contextMenuContext
+        },
+        floatingNodeId: floatingNodeIdFromContext,
+        floatingParentNodeId: floatingParentNodeIdFromContext
+      });
+    } else if (parentMenuRootContext || !store.select("activeTriggerElement")) {
+      store.update({
+        floatingNodeId: floatingNodeIdFromContext,
+        floatingParentNodeId: floatingParentNodeIdFromContext
+      });
+    }
+  }, [contextMenuContext, parentMenuRootContext, floatingNodeIdFromContext, floatingParentNodeIdFromContext, activeTriggerElement, store]);
+  React95.useEffect(() => {
+    if (!open) {
+      openEventRef.current = null;
+    }
+    if (parent.type !== "context-menu") {
+      return;
+    }
+    if (!open) {
+      allowOutsidePressDismissalTimeout.clear();
+      allowOutsidePressDismissalRef.current = false;
+      return;
+    }
+    allowOutsidePressDismissalTimeout.start(500, () => {
+      allowOutsidePressDismissalRef.current = true;
+    });
+  }, [allowOutsidePressDismissalTimeout, open, parent.type]);
+  useIsoLayoutEffect(() => {
+    if (!open && !hoverEnabled) {
+      store.set("hoverEnabled", true);
+    }
+  }, [open, hoverEnabled, store]);
+  const setOpen = useStableCallback((nextOpen, eventDetails) => {
+    const reason = eventDetails.reason;
+    if (!nextOpen && !store.select("open")) {
+      return;
+    }
+    if (open === nextOpen && eventDetails.trigger === activeTriggerElement && lastOpenChangeReason === reason) {
+      return;
+    }
+    const shouldPreventUnmountOnClose = attachPreventUnmountOnClose(eventDetails);
+    if (!nextOpen && eventDetails.trigger == null) {
+      eventDetails.trigger = activeTriggerElement ?? undefined;
+    }
+    onOpenChange?.(nextOpen, eventDetails);
+    if (eventDetails.isCanceled) {
+      return;
+    }
+    store.state.floatingRootContext.dispatchOpenChange(nextOpen, eventDetails);
+    const nativeEvent = eventDetails.event;
+    if (nextOpen === false && reason !== itemPress && nativeEvent?.type === "click" && nativeEvent.pointerType === "touch" && !allowTouchToCloseRef.current) {
+      return;
+    }
+    if (nextOpen && reason === triggerFocus) {
+      allowTouchToCloseRef.current = false;
+      allowTouchToCloseTimeout.start(300, () => {
+        allowTouchToCloseRef.current = true;
+      });
+    } else {
+      allowTouchToCloseRef.current = true;
+      allowTouchToCloseTimeout.clear();
+    }
+    const isDismissClose = !nextOpen && (reason === escapeKey || reason == null);
+    openEventRef.current = eventDetails.event;
+    const popupOpenState = createPopupOpenState(store.state, nextOpen, eventDetails.trigger, shouldPreventUnmountOnClose());
+    popupOpenState.openChangeReason = reason;
+    popupOpenState.keyboardOpen = nextOpen && isKeyboardOpen(reason, nativeEvent);
+    if (parent.type === "menubar" && (reason === triggerFocus || reason === focusOut || reason === triggerHover || reason === listNavigation || reason === siblingOpen)) {
+      popupOpenState.instantType = "group";
+    } else if (isKeyboardClick(reason, nativeEvent)) {
+      popupOpenState.instantType = "click";
+    } else if (isDismissClose) {
+      popupOpenState.instantType = "dismiss";
+    } else {
+      popupOpenState.instantType = undefined;
+    }
+    store.update(popupOpenState);
+  });
+  const floatingRootContext = useSyncedFloatingRootContext({
+    popupStore: store,
+    floatingRootContext: store.state.floatingRootContext,
+    floatingId,
+    nested: floatingParentNodeIdFromContext != null,
+    onOpenChange: setOpen
+  });
+  const floatingEvents = floatingRootContext.context.events;
+  useIsoLayoutEffect(() => {
+    const handleSetOpenEvent = ({
+      open: nextOpen,
+      eventDetails
+    }) => setOpen(nextOpen, eventDetails);
+    floatingEvents.on("setOpen", handleSetOpenEvent);
+    return () => {
+      floatingEvents?.off("setOpen", handleSetOpenEvent);
+    };
+  }, [floatingEvents, setOpen]);
+  useIsoLayoutEffect(() => store.subscribeToParentMenu(), [store]);
+  const handleImperativeClose = React95.useCallback(() => {
+    store.setOpen(false, createChangeEventDetails(imperativeAction));
+  }, [store]);
+  React95.useImperativeHandle(actionsRef, () => ({
+    unmount: forceUnmount,
+    close: handleImperativeClose
+  }), [forceUnmount, handleImperativeClose]);
+  let ctx;
+  if (parent.type === "context-menu") {
+    ctx = parent.context;
+  }
+  React95.useImperativeHandle(ctx?.positionerRef, () => positionerElement, [positionerElement]);
+  React95.useImperativeHandle(ctx?.actionsRef, () => ({
+    setOpen
+  }), [setOpen]);
+  const dismiss = useDismiss(floatingRootContext, {
+    enabled: !disabled,
+    bubbles: {
+      escapeKey: closeParentOnEsc && parent.type === "menu"
+    },
+    outsidePress() {
+      if (parent.type !== "context-menu" || openEventRef.current?.type === "contextmenu") {
+        return true;
+      }
+      return allowOutsidePressDismissalRef.current;
+    },
+    externalTree: nested ? floatingTreeRoot : undefined
+  });
+  const direction = useDirection();
+  const listNavigation2 = useListNavigation(floatingRootContext, {
+    enabled: !disabled,
+    listRef: store.context.itemDomElements,
+    activeIndex,
+    virtual: virtualFocus,
+    nested: parent.type === "menubar" || !virtualFocus && parent.type !== undefined,
+    parentOrientation: parent.type === "menubar" ? parent.context.orientation : undefined,
+    loopFocus,
+    focusItemOnOpen: virtualFocus ? keyboardOpen : undefined,
+    allowEscape: virtualFocus && loopFocus && allowEscape,
+    orientation,
+    triggerOrientation: virtualFocus ? "vertical" : orientation,
+    rtl: direction === "rtl",
+    disabledIndices: EMPTY_ARRAY,
+    onNavigate(nextActiveIndex, event) {
+      store.setActiveIndex(nextActiveIndex, getHighlightReason(event), event?.nativeEvent);
+    },
+    openOnArrowKeyDown: parent.type !== "context-menu" && !(virtualFocus && isSubmenu),
+    externalTree: !virtualFocus && nested ? floatingTreeRoot : undefined,
+    nestedReturnFocusRef: parentMenuStore?.context.virtualFocusRef,
+    focusItemOnHover: highlightItemOnHover,
+    resetOnPointerLeave
+  });
+  const onTyping = React95.useCallback((nextTyping) => {
+    store.context.typingRef.current = nextTyping;
+  }, [store]);
+  const typeahead = useTypeahead(floatingRootContext, {
+    enabled: !disabled && !virtualFocus,
+    listRef: store.context.itemLabels,
+    elementsRef: store.context.itemDomElements,
+    activeIndex,
+    resetMs: TYPEAHEAD_RESET_MS,
+    onMatch: (index, event) => {
+      if (open && index !== activeIndex) {
+        store.setActiveIndex(index, keyboard, event.nativeEvent);
+      }
+    },
+    onTyping
+  });
+  const onItemHighlighted = useStableCallback(onItemHighlightedProp);
+  const lastHighlightIndexRef = React95.useRef(-1);
+  const syncHighlightedItem = useStableCallback(() => {
+    const index = store.state.activeIndex;
+    const item = index === null ? undefined : store.context.itemDomElements.current[index] ?? undefined;
+    if (item?.isConnected === false) {
+      return;
+    }
+    const itemIndex = item === undefined ? -1 : index;
+    if (lastHighlightIndexRef.current === itemIndex && store.context.reportedItem === item) {
+      return;
+    }
+    lastHighlightIndexRef.current = itemIndex;
+    store.context.reportedItem = item;
+    if (virtualFocus) {
+      store.set("highlightedItem", item);
+    }
+    const {
+      highlightReason,
+      highlightEvent
+    } = store.context;
+    store.context.highlightReason = none;
+    store.context.highlightEvent = undefined;
+    if (!onItemHighlightedProp) {
+      return;
+    }
+    onItemHighlighted(item, createGenericEventDetails(highlightReason, highlightEvent, {
+      label: item === undefined ? undefined : store.context.itemLabels.current[itemIndex] ?? undefined
+    }));
+  });
+  useIsoLayoutEffect(() => {
+    syncHighlightedItem();
+  }, [activeIndex, syncHighlightedItem]);
+  const openTriggerProps = React95.useMemo(() => {
+    if (!virtualFocus) {
+      return listNavigation2.reference;
+    }
+    if (!listNavigation2.trigger) {
+      return EMPTY_OBJECT;
+    }
+    const {
+      onFocus,
+      ...rest
+    } = listNavigation2.trigger;
+    return rest;
+  }, [virtualFocus, listNavigation2.reference, listNavigation2.trigger]);
+  store.useSyncedValue("inputProps", virtualFocus ? listNavigation2.reference ?? EMPTY_OBJECT : EMPTY_OBJECT);
+  const activeTriggerProps = React95.useMemo(() => {
+    const mergedProps = mergeProps(typeahead.reference, openTriggerProps, dismiss.reference, {
+      onMouseMove() {
+        store.set("allowMouseEnter", true);
+      }
+    }, interactionTypeProps);
+    mergedProps["aria-haspopup"] = "menu";
+    mergedProps["aria-expanded"] = open;
+    return mergedProps;
+  }, [store, typeahead.reference, openTriggerProps, dismiss.reference, interactionTypeProps, open]);
+  const inactiveTriggerProps = React95.useMemo(() => {
+    const mergedProps = mergeProps(listNavigation2.trigger, dismiss.trigger, interactionTypeProps);
+    mergedProps["aria-haspopup"] = "menu";
+    mergedProps["aria-expanded"] = false;
+    return mergedProps;
+  }, [listNavigation2.trigger, dismiss.trigger, interactionTypeProps]);
+  useRefWithInit(() => {
+    store.update({
+      inactiveTriggerProps
+    });
+    return null;
+  });
+  const popupProps = React95.useMemo(() => mergeProps(FOCUSABLE_POPUP_PROPS, {
+    onMouseMove() {
+      store.set("allowMouseEnter", true);
+      if (parent.type === "menu") {
+        store.set("hoverEnabled", false);
+      }
+    },
+    onClick() {
+      if (store.select("hoverEnabled")) {
+        store.set("hoverEnabled", false);
+      }
+    },
+    onKeyDown(event) {
+      const relay = store.select("keyboardEventRelay");
+      if (relay && !event.isPropagationStopped()) {
+        relay(event);
+      }
+    }
+  }, typeahead.floating, listNavigation2.floating, dismiss.floating), [parent.type, store, typeahead.floating, listNavigation2.floating, dismiss.floating]);
+  const itemProps = listNavigation2.item ?? EMPTY_OBJECT;
+  usePopupInteractionProps(store, {
+    floatingRootContext,
+    activeTriggerProps,
+    inactiveTriggerProps,
+    popupProps,
+    itemProps
+  });
+  const context = React95.useMemo(() => ({
+    store,
+    parent: parentFromContext,
+    orientation,
+    loopFocus,
+    allowEscape,
+    defaultFloatingId,
+    setRenderedFloatingId,
+    virtualFocus,
+    parentVirtualFocus,
+    syncHighlightedItem
+  }), [store, parentFromContext, orientation, loopFocus, allowEscape, defaultFloatingId, virtualFocus, parentVirtualFocus, syncHighlightedItem]);
+  const renderedChildren = typeof children === "function" ? children({
+    payload
+  }) : children;
+  let content = /* @__PURE__ */ import_jsx_runtime20.jsxs(MenuRootContext.Provider, {
+    value: context,
+    children: [handle && /* @__PURE__ */ import_jsx_runtime20.jsx(PopupHandleAttachment, {
+      handle,
+      store
+    }), renderedChildren]
+  });
+  if (parent.type === undefined || parent.type === "context-menu") {
+    content = /* @__PURE__ */ import_jsx_runtime20.jsx(FloatingTree, {
+      externalTree: floatingTreeRoot,
+      children: content
+    });
+  }
+  return content;
+});
+if (false)
+  ;
+function MenuRoot(props) {
+  const filterProvider = React95.useContext(MenuFilterProviderContext);
+  if (filterProvider === null) {
+    return /* @__PURE__ */ import_jsx_runtime20.jsx(MenuRootInternal, {
+      ...props
+    });
+  }
+  const FilterRoot = filterProvider.Root;
+  return /* @__PURE__ */ import_jsx_runtime20.jsx(MenuFilterProviderContext.Provider, {
+    value: null,
+    children: /* @__PURE__ */ import_jsx_runtime20.jsx(FilterRoot, {
+      ...filterProvider.options,
+      ...props
+    })
+  });
+}
+// engine/node_modules/@base-ui/react/menu/trigger/MenuTrigger.mjs
+var React97 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/utils/getPseudoElementBounds.mjs
+var BOUNDARY_OFFSET = 5;
+function isMouseWithinBounds(event, element) {
+  const bounds = getPseudoElementBounds(element);
+  return event.clientX >= bounds.left - BOUNDARY_OFFSET && event.clientX <= bounds.right + BOUNDARY_OFFSET && event.clientY >= bounds.top - BOUNDARY_OFFSET && event.clientY <= bounds.bottom + BOUNDARY_OFFSET;
+}
+function getPseudoElementBounds(element) {
+  const elementRect = element.getBoundingClientRect();
+  const win = getWindow(element);
+  if (exports_env.jsdom) {
+    return elementRect;
+  }
+  const beforeStyles = win.getComputedStyle(element, "::before");
+  const afterStyles = win.getComputedStyle(element, "::after");
+  const hasPseudoElements = beforeStyles.content !== "none" || afterStyles.content !== "none";
+  if (!hasPseudoElements) {
+    return elementRect;
+  }
+  const beforeWidth = parseFloat(beforeStyles.width) || 0;
+  const beforeHeight = parseFloat(beforeStyles.height) || 0;
+  const afterWidth = parseFloat(afterStyles.width) || 0;
+  const afterHeight = parseFloat(afterStyles.height) || 0;
+  const totalWidth = Math.max(elementRect.width, beforeWidth, afterWidth);
+  const totalHeight = Math.max(elementRect.height, beforeHeight, afterHeight);
+  const widthDiff = totalWidth - elementRect.width;
+  const heightDiff = totalHeight - elementRect.height;
+  return {
+    left: elementRect.left - widthDiff / 2,
+    right: elementRect.right + widthDiff / 2,
+    top: elementRect.top - heightDiff / 2,
+    bottom: elementRect.bottom + heightDiff / 2
   };
 }
 
@@ -23393,39 +34468,1886 @@ function CompositeItem(componentProps) {
   });
 }
 
-// engine/node_modules/@base-ui/react/internals/createBaseUIEventDetails.mjs
-function createChangeEventDetails(reason, event, trigger, customProperties) {
-  let canceled = false;
-  let allowPropagation = false;
-  const custom = customProperties ?? EMPTY_OBJECT;
-  const details = {
-    reason,
-    event: event ?? new Event("base-ui"),
-    cancel() {
-      canceled = true;
-    },
-    allowPropagation() {
-      allowPropagation = true;
-    },
-    get isCanceled() {
-      return canceled;
-    },
-    get isPropagationAllowed() {
-      return allowPropagation;
-    },
-    trigger,
-    ...custom
-  };
-  return details;
+// engine/node_modules/@base-ui/react/menu/utils/findRootOwnerId.mjs
+function findRootOwnerId(node) {
+  if (isHTMLElement(node) && node.hasAttribute("data-rootownerid")) {
+    return node.getAttribute("data-rootownerid");
+  }
+  if (isLastTraversableNode(node)) {
+    return;
+  }
+  return findRootOwnerId(getParentNode(node));
 }
 
-// engine/node_modules/@base-ui/react/internals/reason-parts.mjs
-var none = "none";
+// engine/node_modules/@base-ui/react/utils/popups/useTriggerFocusGuards.mjs
+var ReactDOM7 = __toESM(require_react_dom(), 1);
+"use client";
+function useTriggerFocusGuards(store, triggerElementRef) {
+  function closeAndFocus(event, direction, positionerElement) {
+    const guard = event.currentTarget;
+    ReactDOM7.flushSync(() => {
+      store.setOpen(false, createChangeEventDetails(focusOut, event.nativeEvent, guard));
+    });
+    getTabbableNearElement(guard.isConnected ? guard : triggerElementRef.current, direction, positionerElement)?.focus();
+  }
+  function handlePreFocusGuardFocus(event) {
+    closeAndFocus(event, -1, store.select("positionerElement"));
+  }
+  function handleFocusTargetFocus(event) {
+    const positionerElement = store.select("positionerElement");
+    if (positionerElement && isOutsideEvent(event, positionerElement)) {
+      store.context.beforeContentFocusGuardRef.current?.focus();
+    } else {
+      closeAndFocus(event, 1, positionerElement);
+    }
+  }
+  return {
+    handlePreFocusGuardFocus,
+    handleFocusTargetFocus
+  };
+}
+
+// engine/node_modules/@base-ui/react/utils/useMixedToggleClickHandler.mjs
+var React96 = __toESM(require_react(), 1);
+"use client";
+function useMixedToggleClickHandler(params) {
+  const {
+    enabled = true,
+    mouseDownAction,
+    open
+  } = params;
+  const ignoreClickRef = React96.useRef(false);
+  return React96.useMemo(() => {
+    if (!enabled) {
+      return EMPTY_OBJECT;
+    }
+    return {
+      onMouseDown: (event) => {
+        if (mouseDownAction === "open" && !open || mouseDownAction === "close" && open) {
+          ignoreClickRef.current = true;
+          ownerDocument(event.currentTarget).addEventListener("click", () => {
+            ignoreClickRef.current = false;
+          }, {
+            once: true
+          });
+        }
+      },
+      onClick: (event) => {
+        if (ignoreClickRef.current) {
+          ignoreClickRef.current = false;
+          event.preventBaseUIHandler();
+        }
+      }
+    };
+  }, [enabled, mouseDownAction, open]);
+}
+
+// engine/node_modules/@base-ui/react/menu/trigger/MenuTrigger.mjs
+var import_jsx_runtime21 = __toESM(require_jsx_runtime(), 1);
+"use client";
+var MenuTrigger = fastComponentRef(function MenuTrigger(componentProps, forwardedRef) {
+  const {
+    render,
+    className,
+    style,
+    disabled: disabledProp = false,
+    nativeButton = true,
+    id: idProp,
+    openOnHover: openOnHoverProp,
+    delay = 100,
+    closeDelay = 0,
+    handle,
+    payload,
+    ...elementProps
+  } = componentProps;
+  const rootContext = useMenuRootContext(true);
+  const handleStore = usePopupHandleStore(handle);
+  const store = handleStore ?? rootContext?.store;
+  if (!store) {
+    throw new Error(formatErrorMessage_default(85));
+  }
+  const thisTriggerId = useBaseUiId(idProp);
+  const isTriggerActive = store.useState("isTriggerActive", thisTriggerId);
+  const floatingRootContext = store.useState("floatingRootContext");
+  const isOpenedByThisTrigger = store.useState("isOpenedByTrigger", thisTriggerId);
+  const controlsId = store.useState("triggerControlsId", thisTriggerId);
+  const triggerElementRef = React97.useRef(null);
+  const parent = useMenuParent();
+  const compositeRootContext = useCompositeRootContext(true);
+  const floatingTreeRootFromContext = useFloatingTree();
+  const floatingTreeRoot = React97.useMemo(() => {
+    return floatingTreeRootFromContext ?? new FloatingTreeStore;
+  }, [floatingTreeRootFromContext]);
+  const floatingNodeId = useFloatingNodeId(floatingTreeRoot);
+  const floatingParentNodeId = useFloatingParentNodeId();
+  const {
+    registerTrigger,
+    isMountedByThisTrigger
+  } = useTriggerDataForwarding(thisTriggerId, triggerElementRef, store, {
+    payload,
+    closeDelay,
+    parent,
+    floatingTreeRoot,
+    floatingNodeId,
+    floatingParentNodeId,
+    keyboardEventRelay: compositeRootContext?.relayKeyboardEvent
+  });
+  const isInMenubar = parent.type === "menubar";
+  const rootDisabled = store.useState("disabled");
+  const disabled = disabledProp || rootDisabled || isInMenubar && parent.context.disabled;
+  const {
+    getButtonProps,
+    buttonRef
+  } = useButton({
+    disabled,
+    native: nativeButton
+  });
+  React97.useEffect(() => {
+    if (!isOpenedByThisTrigger && parent.type === undefined) {
+      store.context.allowMouseUpTriggerRef.current = false;
+    }
+  }, [store, isOpenedByThisTrigger, parent.type]);
+  const triggerRef = React97.useRef(null);
+  const allowMouseUpTriggerTimeout = useTimeout();
+  const handleDocumentMouseUp = useStableCallback((mouseEvent) => {
+    if (!triggerRef.current) {
+      return;
+    }
+    allowMouseUpTriggerTimeout.clear();
+    store.context.allowMouseUpTriggerRef.current = false;
+    const mouseUpTarget = mouseEvent.target;
+    if (contains(triggerRef.current, mouseUpTarget) || contains(store.select("positionerElement"), mouseUpTarget) || mouseUpTarget === triggerRef.current) {
+      return;
+    }
+    if (mouseUpTarget != null && findRootOwnerId(mouseUpTarget) === store.select("rootId")) {
+      return;
+    }
+    if (isMouseWithinBounds(mouseEvent, triggerRef.current)) {
+      return;
+    }
+    floatingTreeRoot.events.emit("close", {
+      domEvent: mouseEvent,
+      reason: cancelOpen
+    });
+  });
+  React97.useEffect(() => {
+    const doc = ownerDocument(triggerRef.current);
+    if (isOpenedByThisTrigger && store.select("lastOpenChangeReason") === triggerHover) {
+      doc.addEventListener("mouseup", handleDocumentMouseUp, {
+        once: true
+      });
+      return () => {
+        doc.removeEventListener("mouseup", handleDocumentMouseUp);
+      };
+    }
+    return;
+  }, [isOpenedByThisTrigger, handleDocumentMouseUp, store]);
+  const parentMenubarHasSubmenuOpen = isInMenubar && parent.context.hasSubmenuOpen;
+  const openOnHover = openOnHoverProp ?? parentMenubarHasSubmenuOpen;
+  const hoverProps = useHoverReferenceInteraction(floatingRootContext, {
+    enabled: openOnHover && !disabled && (!isInMenubar || parentMenubarHasSubmenuOpen && !isMountedByThisTrigger),
+    handleClose: safePolygon({
+      blockPointerEvents: !isInMenubar
+    }),
+    mouseOnly: true,
+    move: false,
+    restMs: parent.type === undefined ? delay : undefined,
+    delay: {
+      close: closeDelay
+    },
+    triggerElementRef,
+    externalTree: floatingTreeRoot,
+    isActiveTrigger: isTriggerActive,
+    isClosing: () => store.select("transitionStatus") === "ending"
+  });
+  const stickIfOpen = useStickIfOpen(isOpenedByThisTrigger, store.select("lastOpenChangeReason"));
+  const click = useClick(floatingRootContext, {
+    enabled: !disabled,
+    event: isOpenedByThisTrigger && isInMenubar ? "click" : "mousedown",
+    toggle: true,
+    ignoreMouse: false,
+    stickIfOpen: parent.type === undefined ? stickIfOpen : false
+  });
+  const focus = useFocus(floatingRootContext, {
+    enabled: !disabled && parentMenubarHasSubmenuOpen
+  });
+  const mixedToggleHandlers = useMixedToggleClickHandler({
+    open: isOpenedByThisTrigger,
+    enabled: isInMenubar,
+    mouseDownAction: "open"
+  });
+  const localInteractionProps = React97.useMemo(() => mergeProps(focus.reference, click.reference), [focus.reference, click.reference]);
+  const rootTriggerProps = store.useState("triggerProps", isMountedByThisTrigger);
+  const filterTriggerProps = store.useState("filterTriggerProps");
+  const {
+    handlePreFocusGuardFocus,
+    handleFocusTargetFocus
+  } = useTriggerFocusGuards(store, triggerElementRef);
+  const state = {
+    disabled,
+    open: isOpenedByThisTrigger
+  };
+  const ref = [triggerRef, forwardedRef, buttonRef, registerTrigger, triggerElementRef];
+  const props = [localInteractionProps, hoverProps ?? EMPTY_OBJECT, rootTriggerProps, {
+    "aria-haspopup": "menu",
+    "aria-controls": controlsId,
+    id: thisTriggerId,
+    onMouseDown: (event) => {
+      if (store.select("open")) {
+        return;
+      }
+      allowMouseUpTriggerTimeout.start(200, () => {
+        store.context.allowMouseUpTriggerRef.current = true;
+      });
+      const doc = ownerDocument(event.currentTarget);
+      doc.addEventListener("mouseup", handleDocumentMouseUp, {
+        once: true
+      });
+    }
+  }, filterTriggerProps, isInMenubar ? {
+    role: "menuitem"
+  } : {}, mixedToggleHandlers, elementProps, getButtonProps];
+  const element = useRenderElement("button", componentProps, {
+    enabled: !isInMenubar,
+    stateAttributesMapping: pressableTriggerOpenStateMapping,
+    state,
+    ref,
+    props
+  });
+  if (isInMenubar) {
+    return /* @__PURE__ */ import_jsx_runtime21.jsx(CompositeItem, {
+      tag: "button",
+      render,
+      className,
+      style,
+      state,
+      refs: ref,
+      props,
+      stateAttributesMapping: pressableTriggerOpenStateMapping
+    });
+  }
+  if (isOpenedByThisTrigger) {
+    return /* @__PURE__ */ import_jsx_runtime21.jsxs(React97.Fragment, {
+      children: [/* @__PURE__ */ import_jsx_runtime21.jsx(FocusGuard, {
+        ref: store.context.beforeTriggerFocusGuardRef,
+        onFocus: handlePreFocusGuardFocus
+      }, `${thisTriggerId}-pre-focus-guard`), /* @__PURE__ */ import_jsx_runtime21.jsx(React97.Fragment, {
+        children: element
+      }, thisTriggerId), /* @__PURE__ */ import_jsx_runtime21.jsx(FocusGuard, {
+        ref: store.context.triggerFocusTargetRef,
+        onFocus: handleFocusTargetFocus
+      }, `${thisTriggerId}-post-focus-guard`)]
+    });
+  }
+  return /* @__PURE__ */ import_jsx_runtime21.jsx(React97.Fragment, {
+    children: element
+  }, thisTriggerId);
+});
+if (false)
+  ;
+function useStickIfOpen(open, openReason) {
+  const stickIfOpenTimeout = useTimeout();
+  const [stickIfOpen, setStickIfOpen] = React97.useState(false);
+  useIsoLayoutEffect(() => {
+    if (open && openReason === triggerHover) {
+      setStickIfOpen(true);
+      stickIfOpenTimeout.start(PATIENT_CLICK_THRESHOLD, () => {
+        setStickIfOpen(false);
+      });
+    } else if (!open) {
+      stickIfOpenTimeout.clear();
+      setStickIfOpen(false);
+    }
+  }, [open, openReason, stickIfOpenTimeout]);
+  return stickIfOpen;
+}
+function useMenuParent() {
+  const menubarContext = useMenubarContext(true);
+  const parent = React97.useMemo(() => {
+    if (menubarContext) {
+      return {
+        type: "menubar",
+        context: menubarContext
+      };
+    }
+    return {
+      type: undefined
+    };
+  }, [menubarContext]);
+  return parent;
+}
+// engine/board/page/ui/dropdown-menu.tsx
+var jsx_runtime12 = __toESM(require_jsx_runtime());
+function DropdownMenu(props) {
+  return /* @__PURE__ */ jsx_runtime12.jsx(MenuRoot, {
+    "data-slot": "dropdown-menu",
+    ...props
+  });
+}
+function DropdownMenuTrigger(props) {
+  return /* @__PURE__ */ jsx_runtime12.jsx(MenuTrigger, {
+    "data-slot": "dropdown-menu-trigger",
+    ...props
+  });
+}
+function DropdownMenuContent({
+  anchor,
+  align = "end",
+  side = "bottom",
+  sideOffset = 6,
+  className,
+  ...props
+}) {
+  return /* @__PURE__ */ jsx_runtime12.jsx(MenuPortal, {
+    children: /* @__PURE__ */ jsx_runtime12.jsx(MenuPositioner, {
+      className: "isolate z-50 outline-none",
+      anchor,
+      align,
+      side,
+      sideOffset,
+      collisionPadding: 12,
+      children: /* @__PURE__ */ jsx_runtime12.jsx(MenuPopup, {
+        "data-slot": "dropdown-menu-content",
+        className: cn("max-h-(--available-height) w-max min-w-60 max-w-[min(340px,calc(100vw-16px))] overflow-auto rounded-xl bg-popover p-[5px] text-popover-foreground shadow-float outline-none phone:max-w-[calc(100vw-24px)]", className),
+        ...props
+      })
+    })
+  });
+}
+function DropdownMenuItem({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime12.jsx(MenuItem, {
+    "data-slot": "dropdown-menu-item",
+    className: cn("grid min-h-8 w-full cursor-pointer grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[7px] px-[9px] py-1.5 text-left text-[0.8125rem] outline-none [&:hover]:bg-accent focus-visible:bg-accent focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-ring aria-disabled:cursor-not-allowed aria-disabled:opacity-45 phone:min-h-11 [&_.icon]:size-3.5 [&_.icon]:text-muted-foreground [&_kbd]:min-h-5 [&_kbd]:min-w-5 [&_kbd]:text-[0.6875rem] [&_kbd]:text-card-foreground pointer-coarse:[&_kbd]:hidden phone:[&_kbd]:hidden", className),
+    ...props
+  });
+}
+function DropdownMenuSeparator({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime12.jsx(Separator, {
+    "data-slot": "dropdown-menu-separator",
+    className: cn("mx-1 my-[5px] h-px bg-border", className),
+    ...props
+  });
+}
+
+// engine/board/page/operations/card.tsx
+init_ui();
+init_actions();
+init_cards();
+init_keys();
+init_state();
+var jsx_runtime13 = __toESM(require_jsx_runtime());
+var STATUS_ICONS = {
+  works: "works",
+  starts: "works",
+  waits: "target",
+  "no-progress": "alert",
+  stopping: "stop",
+  "dirty-tree": "diff",
+  blocked: "person",
+  "quota-wait": "clock"
+};
+function UnseenDot({ className }) {
+  return /* @__PURE__ */ jsx_runtime13.jsx("i", {
+    className: cn("size-[7px] flex-none rounded-[50%] bg-foreground shadow-[0_0_0_3px_color-mix(in_srgb,var(--fg)_14%,transparent)]", className),
+    title: "Changed since you last looked",
+    children: /* @__PURE__ */ jsx_runtime13.jsx("span", {
+      className: "sr-only",
+      children: "Changed since you last looked"
+    })
+  });
+}
+var SEG_NOW = {
+  works: "animate-[flow_1.6s_linear_infinite] [background:linear-gradient(90deg,var(--working)_30%,color-mix(in_srgb,var(--working)_75%,var(--card))_50%,var(--working)_70%)_0_0/300%_100%] [box-shadow:none]",
+  waits: "bg-needs [box-shadow:none]",
+  blocked: "bg-needs [box-shadow:none]",
+  "no-progress": "bg-destructive [box-shadow:none]",
+  "dirty-tree": "bg-caution [box-shadow:none]",
+  starts: "bg-transparent [box-shadow:inset_0_0_0_1.5px_var(--working)]"
+};
+var segOf = (state, cardState) => state === "done" ? "w-3.5 bg-muted-foreground [box-shadow:none]" : state === "now" ? `w-5 ${SEG_NOW[cardState ?? ""] ?? "bg-foreground [box-shadow:none]"}` : "w-3.5 bg-transparent [box-shadow:inset_0_0_0_1px_var(--fg3)]";
+function Track({ card, flow }) {
+  const steps = laneTrack(card, flow);
+  if (!steps)
+    return null;
+  const at = steps.findIndex((step) => step.state === "now");
+  return /* @__PURE__ */ jsx_runtime13.jsx("span", {
+    className: "ml-auto inline-flex flex-none items-center gap-[3px] pl-2",
+    "data-track": "",
+    role: "img",
+    "aria-label": `Step ${at + 1} of ${steps.length}: ${steps[at]?.name}`,
+    title: steps.map((step) => step.state === "next" ? step.name : `${step.name} (${step.state === "now" ? "now" : "done"})`).join(" · "),
+    children: steps.map((step) => /* @__PURE__ */ jsx_runtime13.jsx("i", {
+      className: `h-1.5 rounded-[3px] ${segOf(step.state, card.state)}`
+    }, step.name))
+  });
+}
+function StartLabel({ pair }) {
+  const name = startName(pair);
+  return /* @__PURE__ */ jsx_runtime13.jsx("span", {
+    className: "inline-flex min-h-[18px] cursor-help items-stretch font-mono text-[0.6875rem] leading-none font-medium whitespace-nowrap text-card-foreground",
+    title: name,
+    role: "img",
+    "aria-label": name,
+    children: ["model", "level"].map((part) => {
+      const isDefault = pair.source[part] === "default";
+      const bothDefault = pair.source.model === "default" && pair.source.level === "default";
+      return /* @__PURE__ */ jsx_runtime13.jsxs("span", {
+        className: cn("inline-flex items-center gap-[3px] px-[7px] text-foreground [&_svg.icon]:size-[9px]", part === "model" ? "rounded-l-[9px] bg-[color-mix(in_srgb,var(--fg)_17%,transparent)]" : "rounded-r-[9px] bg-accent text-card-foreground", part === "level" && pair.source.model !== "default" && !isDefault && "ml-px", isDefault && "border border-dashed border-current bg-transparent px-1.5 text-muted-foreground", isDefault && part === "level" && bothDefault && "border-l-0 pl-[7px]"),
+        "data-part": part,
+        "data-source": pair.source[part],
+        children: [
+          pair.source[part] === "pinned" && /* @__PURE__ */ jsx_runtime13.jsx(Icon, {
+            name: "pin"
+          }),
+          /* @__PURE__ */ jsx_runtime13.jsx("span", {
+            children: pair[part]
+          })
+        ]
+      }, part);
+    })
+  });
+}
+var STATE_TEXT = {
+  works: "text-working",
+  waits: "text-needs",
+  blocked: "text-needs",
+  "dirty-tree": "text-caution",
+  "no-progress": "text-destructive"
+};
+var STATUS = "inline-flex items-center overflow-hidden font-sans text-[0.75rem] leading-[1.2] font-medium [&>*]:flex-none [&>*]:whitespace-nowrap [&>:last-child]:min-w-0 [&>:last-child]:text-ellipsis [&_.icon]:size-[13px]";
+var DETAIL = "font-normal text-muted-foreground before:mr-[7px] before:opacity-70 before:content-['·'_/_'']";
+function Status({
+  card,
+  env,
+  hasGlyph = true,
+  isShort = false,
+  className
+}) {
+  const quiet = isShort ? "text-muted-foreground" : "text-card-foreground";
+  if (card.state === "set-aside")
+    return /* @__PURE__ */ jsx_runtime13.jsxs("span", {
+      className: cn(STATUS, "min-w-0 gap-1 rounded-[999px] border border-dashed border-border-strong py-px pr-[7px] pl-[5px] text-card-foreground [&>:last-child]:flex-[0_1_auto] [&>:last-child]:overflow-hidden [&_.icon]:size-3", className),
+      children: [
+        /* @__PURE__ */ jsx_runtime13.jsx(Icon, {
+          name: "aside"
+        }),
+        /* @__PURE__ */ jsx_runtime13.jsx("span", {
+          className: "font-semibold text-foreground first-letter:uppercase",
+          children: stateLabel(card)
+        }),
+        card.step && /* @__PURE__ */ jsx_runtime13.jsx("span", {
+          className: cn(DETAIL, "mono cq-300:hidden"),
+          children: card.step
+        })
+      ]
+    });
+  if (card.state) {
+    const agent = isShort ? null : agentOf(card, env.registry);
+    return /* @__PURE__ */ jsx_runtime13.jsxs("span", {
+      className: cn(STATUS, "min-w-0 gap-[7px] [&>:last-child]:flex-[0_1_auto] [&>:last-child]:overflow-hidden", STATE_TEXT[card.state] ?? quiet, card.state === "starts" && "[&_.icon]:animate-[turn_0.9s_linear_infinite] [&_.icon]:text-working", className),
+      children: [
+        hasGlyph && /* @__PURE__ */ jsx_runtime13.jsx(Icon, {
+          name: STATUS_ICONS[card.state] ?? "pending"
+        }),
+        /* @__PURE__ */ jsx_runtime13.jsx("span", {
+          className: "first-letter:uppercase",
+          children: stateLabel(card)
+        }),
+        agent && /* @__PURE__ */ jsx_runtime13.jsx("span", {
+          className: cn(DETAIL, "cq-360:absolute cq-360:-m-px cq-360:size-px cq-360:overflow-hidden cq-360:[clip:rect(0_0_0_0)] cq-360:whitespace-nowrap"),
+          children: agent.name
+        }),
+        !isShort && card.step && card.step !== card.type && /* @__PURE__ */ jsx_runtime13.jsx("span", {
+          className: cn(DETAIL, "mono cq-300:hidden"),
+          children: card.step
+        })
+      ]
+    });
+  }
+  if (!card.step)
+    return /* @__PURE__ */ jsx_runtime13.jsx("span", {
+      className: cn(STATUS, "min-w-0 gap-[7px] [&>:last-child]:overflow-hidden", quiet, className)
+    });
+  return /* @__PURE__ */ jsx_runtime13.jsxs("span", {
+    className: cn(STATUS, "min-w-[auto] gap-1 overflow-visible [&>:last-child]:flex-none [&>:last-child]:overflow-visible [&_.icon]:text-muted-foreground", isShort && "flex-wrap gap-y-1", quiet, className),
+    children: [
+      hasGlyph && /* @__PURE__ */ jsx_runtime13.jsx(Icon, {
+        name: "pending"
+      }),
+      /* @__PURE__ */ jsx_runtime13.jsx("span", {
+        className: "font-normal text-muted-foreground",
+        children: "next"
+      }),
+      /* @__PURE__ */ jsx_runtime13.jsx("span", {
+        className: "mono font-normal text-foreground",
+        children: card.step
+      }),
+      card.effort && /* @__PURE__ */ jsx_runtime13.jsx(StartLabel, {
+        pair: card.effort
+      }),
+      card.gate === "auto" && /* @__PURE__ */ jsx_runtime13.jsx(GateLabel, {
+        mode: env.auto
+      })
+    ]
+  });
+}
+function LiveLine({ card }) {
+  if (!card.diff)
+    return null;
+  return /* @__PURE__ */ jsx_runtime13.jsxs("div", {
+    className: "flex min-h-[18px] min-w-0 items-center gap-2 font-mono text-[0.75rem] leading-none font-normal text-card-foreground [&_.icon]:size-[13px] [&_.icon]:text-working",
+    title: "Changed since the branch left its base",
+    children: [
+      /* @__PURE__ */ jsx_runtime13.jsx(Icon, {
+        name: "diff"
+      }),
+      /* @__PURE__ */ jsx_runtime13.jsx("span", {
+        className: "min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap",
+        children: `${card.diff.files} ${card.diff.files === 1 ? "file" : "files"} changed`
+      }),
+      /* @__PURE__ */ jsx_runtime13.jsxs("span", {
+        className: "ml-auto flex-none text-muted-foreground tabular-nums",
+        children: [
+          /* @__PURE__ */ jsx_runtime13.jsx("i", {
+            className: "text-card-foreground not-italic",
+            children: `+${card.diff.added}`
+          }),
+          ` −${card.diff.removed}`
+        ]
+      })
+    ]
+  });
+}
+var ACT = "m-0 rounded-lg border border-[color-mix(in_srgb,var(--needs-tint)_22%,transparent)] bg-[color-mix(in_srgb,var(--needs-tint)_7%,transparent)] px-2.5 py-2 text-[0.75rem] leading-[1.45] text-card-foreground [overflow-wrap:anywhere]";
+function ActLine({ card }) {
+  const what = copyWhat(card);
+  const act = card.act;
+  if (!what)
+    return /* @__PURE__ */ jsx_runtime13.jsx("p", {
+      className: ACT,
+      children: card.act
+    });
+  return /* @__PURE__ */ jsx_runtime13.jsxs("p", {
+    className: cn(ACT, "flex items-center gap-1.5 border-border bg-secondary py-[3px] pr-[3px] pl-2.5"),
+    children: [
+      /* @__PURE__ */ jsx_runtime13.jsx("code", {
+        className: "min-w-0 flex-1 font-mono text-[0.71875rem] leading-normal font-normal text-foreground [overflow-wrap:normal]",
+        title: act,
+        children: shortPath(act).split("/").map((part, index) => /* @__PURE__ */ jsx_runtime13.jsx(import_react11.Fragment, {
+          children: index ? [/* @__PURE__ */ jsx_runtime13.jsx("wbr", {}, "w"), `/${part}`] : part
+        }, index))
+      }),
+      /* @__PURE__ */ jsx_runtime13.jsx(IconButton, {
+        name: "copy",
+        label: `Copy the ${what}`,
+        title: `Copy the ${what} (c)`,
+        className: "phone:size-11",
+        press: () => copy(act, what)
+      })
+    ]
+  });
+}
+var NOTE2 = "m-0 text-[0.75rem] leading-[1.45] [overflow-wrap:anywhere]";
+function StartLine({ number, launch, isCompact }) {
+  const now = useScreen((state) => state.now);
+  const isSlow = launch.phase === "pending" && now - launch.at >= SLOW_START;
+  import_react11.useEffect(() => {
+    if (isSlow)
+      screen.announceStart(number);
+  }, [isSlow, number]);
+  return /* @__PURE__ */ jsx_runtime13.jsx("p", {
+    className: cn(NOTE2, "text-card-foreground", isCompact && "col-[2/-1]"),
+    "data-number": number,
+    hidden: !isSlow,
+    children: isSlow ? `${SLOW_START_TEXT} · ${age(new Date(launch.at).toISOString(), now, true)}` : null
+  });
+}
+function StartNote({
+  card,
+  failure,
+  launch,
+  isCompact
+}) {
+  if (failure !== undefined)
+    return /* @__PURE__ */ jsx_runtime13.jsx("p", {
+      className: cn(NOTE2, "text-destructive", isCompact && "col-[2/-1]"),
+      children: `Last start failed: ${failure}`
+    });
+  if (card.state !== "starts" || card.number === null || launch?.phase !== "pending")
+    return null;
+  return /* @__PURE__ */ jsx_runtime13.jsx(StartLine, {
+    number: card.number,
+    launch,
+    isCompact
+  });
+}
+function AsideChip({ action }) {
+  const isOpen = action.isBusy;
+  return /* @__PURE__ */ jsx_runtime13.jsxs("button", {
+    type: "button",
+    className: cn('group/chip ml-1 inline-flex [&_.icon]:size-[13px] h-[26px] min-w-[26px] shrink-0 cursor-pointer items-center gap-0 py-0 rounded-[7px] border border-transparent bg-transparent px-1.5 text-[0.75rem] font-medium text-muted-foreground transition-[background,border-color,color,gap] duration-150 ease-[ease] group-focus-within/card:text-card-foreground group-[:hover]/card:text-card-foreground focus-visible:gap-[5px] focus-visible:border-border focus-visible:bg-accent focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-ring no-hover:gap-[5px] phone:relative phone:before:absolute phone:before:top-1/2 phone:before:left-1/2 phone:before:h-[max(100%,44px)] phone:before:w-[max(100%,44px)] phone:before:content-[""] phone:before:[transform:translate(-50%,-50%)]', !action.isDisabled && "[&:hover]:gap-[5px] [&:hover]:border-border [&:hover]:bg-accent [&:hover]:text-foreground", action.isDisabled && "cursor-not-allowed opacity-[0.42]", isOpen && "cursor-not-allowed gap-[5px] opacity-70"),
+    title: action.title,
+    "aria-label": action.name,
+    "aria-disabled": action.isDisabled ? "true" : undefined,
+    "aria-busy": action.isBusy ? "true" : undefined,
+    onClick: () => void action.run?.(),
+    children: [
+      /* @__PURE__ */ jsx_runtime13.jsx(Icon, {
+        name: action.icon
+      }),
+      /* @__PURE__ */ jsx_runtime13.jsx("span", {
+        className: cn("max-w-0 overflow-hidden whitespace-nowrap transition-[max-width] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-focus-visible/chip:max-w-[80px] no-hover:max-w-[80px]", !action.isDisabled && "group-[:hover]/chip:max-w-[80px]", isOpen && "max-w-[100px] group-focus-visible/chip:max-w-[100px] group-[:hover]/chip:max-w-[100px] no-hover:max-w-[100px]"),
+        children: action.label
+      })
+    ]
+  });
+}
+function Entries({ list, close }) {
+  return list().map((entry, at) => entry === "rule" ? /* @__PURE__ */ jsx_runtime13.jsx(DropdownMenuSeparator, {}, `rule-${at}`) : /* @__PURE__ */ jsx_runtime13.jsxs(DropdownMenuItem, {
+    title: entry.title,
+    "aria-disabled": entry.isDisabled ? "true" : undefined,
+    closeOnClick: false,
+    onClick: () => {
+      close();
+      queueMicrotask(entry.run);
+    },
+    children: [
+      entry.host ? /* @__PURE__ */ jsx_runtime13.jsx("span", {
+        className: "grid size-4 place-items-center",
+        children: /* @__PURE__ */ jsx_runtime13.jsx("img", {
+          className: "block size-4",
+          src: AGENT_ICONS[entry.host],
+          alt: ""
+        })
+      }) : /* @__PURE__ */ jsx_runtime13.jsx(Icon, {
+        name: entry.icon
+      }),
+      /* @__PURE__ */ jsx_runtime13.jsxs("div", {
+        className: "flex min-w-0 items-center gap-2",
+        children: [
+          /* @__PURE__ */ jsx_runtime13.jsx("span", {
+            children: entry.label
+          }),
+          entry.tag && /* @__PURE__ */ jsx_runtime13.jsx("em", {
+            className: "flex-none rounded-full bg-accent px-[7px] py-px text-[0.6875rem] text-foreground not-italic",
+            children: entry.tag
+          })
+        ]
+      }),
+      entry.key ? /* @__PURE__ */ jsx_runtime13.jsx("kbd", {
+        children: entry.key
+      }) : /* @__PURE__ */ jsx_runtime13.jsx("span", {})
+    ]
+  }, entry.label));
+}
+var finalFocus = (trigger, key, column) => () => {
+  if (screen.get().menu !== null)
+    return false;
+  const active = document.activeElement;
+  if (active !== null && active !== document.body && !active.closest('[data-slot="dropdown-menu-content"]'))
+    return false;
+  return (trigger.current?.isConnected ? trigger.current : null) ?? document.querySelector(`#tp-board .card[data-key="${CSS.escape(key)}"]`) ?? columnStop(column.current) ?? true;
+};
+function CardMenu({
+  kind,
+  card,
+  cardKey,
+  isCompact,
+  menu,
+  anchor,
+  trigger,
+  column,
+  list,
+  children
+}) {
+  const close = () => screen.closeMenu(cardKey, kind);
+  return /* @__PURE__ */ jsx_runtime13.jsxs(DropdownMenu, {
+    open: menu === kind,
+    modal: false,
+    onOpenChange: (isOpen) => isOpen ? screen.openMenu(cardKey, kind, isCompact) : close(),
+    children: [
+      children,
+      /* @__PURE__ */ jsx_runtime13.jsxs(DropdownMenuContent, {
+        anchor,
+        "aria-label": menuName(card, kind === "actions" ? "Actions of" : "Run options of"),
+        finalFocus: finalFocus(trigger, cardKey, column),
+        children: [
+          /* @__PURE__ */ jsx_runtime13.jsx(FirstFocus, {}),
+          /* @__PURE__ */ jsx_runtime13.jsx(Entries, {
+            list,
+            close
+          })
+        ]
+      })
+    ]
+  });
+}
+function FirstFocus() {
+  const ref = import_react11.useRef(null);
+  import_react11.useEffect(() => {
+    ref.current?.parentElement?.querySelector('[role="menuitem"]')?.focus({ preventScroll: true });
+  }, []);
+  return /* @__PURE__ */ jsx_runtime13.jsx("span", {
+    ref,
+    hidden: true
+  });
+}
+var RINGS = {
+  plain: {
+    none: "[box-shadow:var(--raise)]",
+    fg: "[box-shadow:0_0_0_1px_color-mix(in_srgb,var(--fg3)_80%,transparent),var(--raise)]",
+    needs: "[box-shadow:0_0_0_1px_color-mix(in_srgb,var(--needs)_80%,transparent),var(--raise)]"
+  },
+  stripe: {
+    none: "[box-shadow:inset_3px_0_0_var(--needs-tint),var(--raise)]",
+    fg: "[box-shadow:inset_3px_0_0_var(--needs-tint),0_0_0_1px_color-mix(in_srgb,var(--fg3)_80%,transparent),var(--raise)]",
+    needs: "[box-shadow:inset_3px_0_0_var(--needs-tint),0_0_0_1px_color-mix(in_srgb,var(--needs)_80%,transparent),var(--raise)]"
+  }
+};
+var lookOf = (isSelected, isWaits, isStripe) => cn(isSelected ? isWaits ? "border-[color-mix(in_srgb,var(--needs)_80%,transparent)]" : "border-[color-mix(in_srgb,var(--fg3)_80%,transparent)]" : isWaits ? "border-[color-mix(in_srgb,var(--needs-tint)_55%,transparent)]" : "[&:hover]:border-border-strong", isWaits ? "isolate bg-[color-mix(in_srgb,var(--needs-tint)_6%,var(--card))] [--fg3:var(--fg2)] before:pointer-events-none before:absolute before:inset-0 before:z-[-1] before:animate-[attention_3s_cubic-bezier(0.45,0,0.55,1)_infinite] before:rounded-[inherit] before:bg-[color-mix(in_srgb,var(--needs-tint)_10%,transparent)] before:content-[''] motion-reduce:before:opacity-70" : "[&:hover]:bg-card-hover", RINGS[isStripe ? "stripe" : "plain"][isSelected ? isWaits ? "needs" : "fg" : "none"]);
+var OPEN = {
+  stop: { idle: "open-288:hidden open-304:hidden", busy: "open-317:hidden open-333:hidden" },
+  aside: { idle: "open-324:hidden open-340:hidden", busy: "open-353:hidden open-369:hidden" }
+};
+var Card2 = import_react11.memo(function Card2({
+  card,
+  cardKey,
+  column,
+  isCompact,
+  level,
+  isSelected,
+  isUnseen,
+  isStop,
+  isBelow,
+  isHold,
+  isPipeline,
+  menu,
+  env,
+  refusal,
+  failure,
+  launch
+}) {
+  const node = import_react11.useRef(null);
+  const more = import_react11.useRef(null);
+  const runWith = import_react11.useRef(null);
+  const columnOf = import_react11.useRef(null);
+  import_react11.useEffect(() => {
+    const col = node.current?.closest(".col");
+    columnOf.current = col ? columnId(col) : null;
+  });
+  const actions = actionsOf(card);
+  const [main] = actions;
+  const isQuiet = column !== "needs";
+  const text = card.title || `Issue #${card.number}`;
+  const Heading = level;
+  const title = /* @__PURE__ */ jsx_runtime13.jsx(Heading, {
+    className: cn("m-0 line-clamp-2 min-w-0 font-sans text-[0.875rem] leading-[1.38] font-semibold tracking-[-0.012em] text-pretty text-foreground [&_a:hover]:underline [&_a:hover]:decoration-border-strong [&_a:hover]:underline-offset-3", isCompact && "text-[0.8125rem] leading-[1.125rem] font-medium"),
+    id: `t-${cardKey}`,
+    title: text,
+    children: /* @__PURE__ */ jsx_runtime13.jsx(Link, {
+      className: "",
+      url: card.url,
+      children: text
+    })
+  });
+  const number = /* @__PURE__ */ jsx_runtime13.jsx(Link, {
+    className: isCompact ? "num flex-none whitespace-nowrap" : "num",
+    url: card.url,
+    children: `#${card.number}`
+  });
+  const runs = runEntries(card);
+  const hasTrigger = menu !== null && (menu.kind === "run" ? runs.length > 0 : menu.isCompact === isCompact);
+  const open = hasTrigger ? menu.kind : null;
+  import_react11.useEffect(() => {
+    if (menu !== null && !hasTrigger)
+      screen.closeMenu(cardKey, menu.kind);
+  });
+  const runMenu = runs.length === 0 ? null : /* @__PURE__ */ jsx_runtime13.jsx(CardMenu, {
+    kind: "run",
+    card,
+    cardKey,
+    isCompact,
+    menu: open,
+    anchor: runWith,
+    trigger: runWith,
+    column: columnOf,
+    list: () => runEntries(card),
+    children: /* @__PURE__ */ jsx_runtime13.jsx(DropdownMenuTrigger, {
+      ref: runWith,
+      className: buttonVariants({
+        variant: "icon",
+        size: "icon",
+        className: cn("[&_.i-chevron]:[transform:rotate(90deg)]", isCompact && "phone:h-11 phone:min-w-11")
+      }),
+      "aria-label": runs.includes("rule") ? "Run with another agent or at another level" : "Run with another agent",
+      title: runs.includes("rule") ? "Run with another agent or at another level" : "Run with another agent",
+      children: /* @__PURE__ */ jsx_runtime13.jsx(Icon, {
+        name: "chevron"
+      })
+    })
+  });
+  const isIconOnly = isPipeline && isCompact && main !== undefined && !main.isMain;
+  const mainButton = main ? /* @__PURE__ */ jsx_runtime13.jsx(ActionButton, {
+    card,
+    action: main,
+    isQuiet,
+    className: cn(isCompact ? "phone:h-11 phone:min-w-11" : "phone:h-11", isCompact && !runMenu && "[grid-area:1/3] cq-259:justify-self-start cq-259:[grid-area:3/2]", isIconOnly && "w-7 p-0 [&_.label]:hidden")
+  }, main.id) : null;
+  const aside = card.state === "set-aside" && card.path ? `The lane worktree has uncommitted changes: ${shortPath(card.path)}` : null;
+  const headAct = actions.find((action) => action.id === "aside" || action.id === "stop");
+  const chipKind = headAct?.icon === "stop" ? "stop" : headAct?.icon === "aside" ? "aside" : null;
+  const hideOnOpen = chipKind ? cn(OPEN[chipKind].idle, headAct?.isBusy && OPEN[chipKind].busy) : "";
+  const isWaits = card.state === "waits";
+  const isNext = !card.state && Boolean(card.step);
+  const className = cn("@container cursor-default", isCompact ? "compact flex-col grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-[5px] py-2.5 pr-2.5 pl-3" : "flex flex-col gap-2 px-3.5 py-3", "relative flex-none transition-[border-color,background-color] duration-150 ease-[ease]", lookOf(isSelected, isWaits, isPipeline && column === "needs"), isHold && "w-[340px] phone:w-auto", isSelected && "is-selected", isUnseen && "is-unseen", column === "needs" && "is-needs");
+  const warning = isCompact ? "warning col-[2/-1] mt-1.5 px-2 py-[5px]" : "warning";
+  const body = isCompact ? /* @__PURE__ */ jsx_runtime13.jsxs(jsx_runtime13.Fragment, {
+    children: [
+      /* @__PURE__ */ jsx_runtime13.jsx(Mark, {
+        card,
+        registry: env.registry
+      }),
+      /* @__PURE__ */ jsx_runtime13.jsxs("div", {
+        className: "contents",
+        children: [
+          title,
+          /* @__PURE__ */ jsx_runtime13.jsxs("div", {
+            className: "col-[2/-1] flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 overflow-hidden font-mono text-[0.75rem] leading-[1.3] font-normal text-muted-foreground",
+            children: [
+              number,
+              card.type && card.type !== card.step && /* @__PURE__ */ jsx_runtime13.jsxs("span", {
+                className: "inline-flex flex-none gap-1.5 whitespace-nowrap cq-340:hidden",
+                children: [
+                  /* @__PURE__ */ jsx_runtime13.jsx("span", {
+                    className: "sep",
+                    children: "·"
+                  }),
+                  card.type
+                ]
+              }),
+              /* @__PURE__ */ jsx_runtime13.jsx("span", {
+                className: isNext ? "sep hidden flex-none whitespace-nowrap" : "sep flex-none whitespace-nowrap",
+                children: "·"
+              }),
+              /* @__PURE__ */ jsx_runtime13.jsx(Status, {
+                card,
+                env,
+                hasGlyph: card.state === "starts",
+                isShort: true,
+                className: "flex-[0_1_auto] whitespace-nowrap"
+              })
+            ]
+          }),
+          /* @__PURE__ */ jsx_runtime13.jsx(StartNote, {
+            card,
+            failure,
+            launch,
+            isCompact: true
+          }),
+          card.warning && /* @__PURE__ */ jsx_runtime13.jsx("p", {
+            className: warning,
+            children: card.warning
+          }),
+          aside && /* @__PURE__ */ jsx_runtime13.jsx("p", {
+            className: warning,
+            children: aside
+          })
+        ]
+      }),
+      mainButton && (runMenu ? /* @__PURE__ */ jsx_runtime13.jsxs("div", {
+        className: "inline-flex items-center gap-1.5 [grid-area:1/3] cq-259:justify-self-start cq-259:[grid-area:3/2]",
+        children: [
+          mainButton,
+          runMenu
+        ]
+      }) : mainButton),
+      isUnseen && /* @__PURE__ */ jsx_runtime13.jsx(UnseenDot, {
+        className: "absolute top-[9px] left-[5px]"
+      })
+    ]
+  }) : /* @__PURE__ */ jsx_runtime13.jsxs(jsx_runtime13.Fragment, {
+    children: [
+      /* @__PURE__ */ jsx_runtime13.jsxs("div", {
+        className: "flex h-[18px] min-w-0 items-center gap-[7px] [&:not(:has(>[data-track]))>button:first-of-type]:ml-auto font-mono text-[0.71875rem] leading-none font-normal text-muted-foreground phone:min-h-8",
+        children: [
+          isUnseen && /* @__PURE__ */ jsx_runtime13.jsx(UnseenDot, {}),
+          /* @__PURE__ */ jsx_runtime13.jsx(Mark, {
+            card,
+            registry: env.registry,
+            identifiedByText: Boolean(card.state)
+          }),
+          number,
+          card.type && /* @__PURE__ */ jsx_runtime13.jsxs(jsx_runtime13.Fragment, {
+            children: [
+              /* @__PURE__ */ jsx_runtime13.jsx("span", {
+                className: cn("sep", hideOnOpen),
+                children: "·"
+              }),
+              /* @__PURE__ */ jsx_runtime13.jsx("span", {
+                className: cn("min-w-0 overflow-hidden text-ellipsis whitespace-nowrap", hideOnOpen),
+                children: card.type
+              })
+            ]
+          }),
+          /* @__PURE__ */ jsx_runtime13.jsx(Track, {
+            card,
+            flow: env.flow
+          }),
+          headAct && /* @__PURE__ */ jsx_runtime13.jsx(AsideChip, {
+            action: headAct
+          }),
+          /* @__PURE__ */ jsx_runtime13.jsx(DropdownMenuTrigger, {
+            ref: more,
+            className: buttonVariants({
+              variant: "icon",
+              size: "icon",
+              className: "-mt-[5px] -mr-1.5 -mb-[5px] phone:-mt-1.5 phone:-mr-2 phone:-mb-1.5 phone:size-11"
+            }),
+            "aria-label": "More actions (m)",
+            title: "More actions (m)",
+            children: /* @__PURE__ */ jsx_runtime13.jsx(Icon, {
+              name: "dots"
+            })
+          })
+        ]
+      }),
+      title,
+      /* @__PURE__ */ jsx_runtime13.jsx(StartNote, {
+        card,
+        failure,
+        launch,
+        isCompact: false
+      }),
+      card.state === "works" && /* @__PURE__ */ jsx_runtime13.jsx(LiveLine, {
+        card
+      }),
+      /* @__PURE__ */ jsx_runtime13.jsx(PrChips, {
+        pr: card.pr
+      }),
+      card.act && card.state !== "no-progress" && /* @__PURE__ */ jsx_runtime13.jsx(ActLine, {
+        card
+      }),
+      card.warning && /* @__PURE__ */ jsx_runtime13.jsx("p", {
+        className: warning,
+        children: card.warning
+      }),
+      refusal && /* @__PURE__ */ jsx_runtime13.jsx("p", {
+        className: warning,
+        children: refusal
+      }),
+      /* @__PURE__ */ jsx_runtime13.jsxs("div", {
+        className: "flex min-h-7 items-center justify-between gap-2.5 cq-360:flex-col cq-360:items-stretch",
+        children: [
+          /* @__PURE__ */ jsx_runtime13.jsx(Status, {
+            card,
+            env
+          }),
+          /* @__PURE__ */ jsx_runtime13.jsxs("div", {
+            className: "flex flex-none items-center gap-2 cq-360:justify-end",
+            children: [
+              card.state !== "starts" && /* @__PURE__ */ jsx_runtime13.jsx(Timed, {
+                iso: card.since,
+                isFine: Boolean(card.sessionId) && LIVE.has(card.state),
+                className: "mr-0.5 font-mono text-[0.71875rem] leading-none font-normal text-muted-foreground normal-nums cq-360:mr-auto"
+              }),
+              mainButton,
+              runMenu
+            ]
+          })
+        ]
+      })
+    ]
+  });
+  return /* @__PURE__ */ jsx_runtime13.jsx(CardMenu, {
+    kind: "actions",
+    card,
+    cardKey,
+    isCompact,
+    menu: open,
+    anchor: isCompact ? node : more,
+    trigger: isCompact ? node : more,
+    column: columnOf,
+    list: () => menuOf(card, cardKey),
+    children: /* @__PURE__ */ jsx_runtime13.jsx(Card, {
+      inset: "none",
+      render: /* @__PURE__ */ jsx_runtime13.jsx("article", {}),
+      ref: node,
+      className: `card ${className}`,
+      "data-state": card.state ?? "next",
+      "data-key": cardKey,
+      "data-url": card.url ?? undefined,
+      "data-hidden": isBelow === undefined ? undefined : String(isBelow),
+      tabIndex: isStop ? 0 : -1,
+      "aria-labelledby": `t-${cardKey}`,
+      children: body
+    })
+  });
+});
+
+// engine/board/page/operations/views.tsx
+init_cards();
+init_keys();
+init_state();
+var jsx_runtime14 = __toESM(require_jsx_runtime());
+var MENU = '[data-slot="dropdown-menu-content"]';
+document.documentElement.style.viewTransitionName = "root";
+var markOf = (active, menu) => {
+  if (!(active instanceof HTMLElement))
+    return null;
+  if (menu && active.closest(MENU)) {
+    const col = document.querySelector(`#columns [data-key="${CSS.escape(menu.key)}"]`)?.closest(".col");
+    return { node: active, kind: "menu", key: menu.key, column: col ? columnId(col) : undefined };
+  }
+  const pill = active.closest(".human-pill");
+  if (pill) {
+    const key = pill.querySelector("[data-key]")?.dataset.key ?? "";
+    return { node: active, kind: "pill", key, label: active.matches(".human-go") ? "go" : undefined };
+  }
+  const col = active.closest("#columns .col");
+  if (!col)
+    return null;
+  const column = columnId(col);
+  if (active.closest(".tail"))
+    return { node: active, kind: "tail", key: "", column };
+  const row = active.closest(".epic-row");
+  if (row)
+    return { node: active, kind: "epic", key: row.dataset.group ?? "", column };
+  const card = active.closest(".card[data-key]");
+  if (!card)
+    return null;
+  const key = card.dataset.key ?? "";
+  return card === active ? { node: active, kind: "card", key, column } : {
+    node: active,
+    kind: "control",
+    key,
+    column,
+    label: active.getAttribute("aria-label") ?? active.textContent?.trim()
+  };
+};
+var shown = (node) => node?.checkVisibility() ? node : null;
+var reachable = (node) => node?.closest(".epic-children[hidden]")?.closest(".epic-group")?.querySelector(".epic-row") ?? node;
+var targetOf = (mark) => {
+  const one = (selector) => document.querySelector(selector);
+  const keyed = (key, scope = "#columns") => one(`${scope} [data-key="${CSS.escape(key)}"]`);
+  const card = ["card", "control", "menu"].includes(mark.kind) ? keyed(mark.key) : null;
+  const stop = columnStop(mark.column);
+  switch (mark.kind) {
+    case "tail":
+      return shown(one(".col-needs .tail")) ?? stop;
+    case "epic":
+      return one(`.epic-row[data-group="${CSS.escape(mark.key)}"]`) ?? stop;
+    case "pill": {
+      const open = keyed(mark.key, "#human");
+      return (mark.label ? open?.closest(".human-pill")?.querySelector(".human-go") : open) ?? stop;
+    }
+    case "control": {
+      const control = [...card?.querySelectorAll("button, a") ?? []].find((node) => (node.getAttribute("aria-label") ?? node.textContent?.trim()) === mark.label);
+      return control ?? reachable(card) ?? stop;
+    }
+    default:
+      return reachable(card) ?? stop;
+  }
+};
+var handed = null;
+var useRescue = (menu) => {
+  const mark = import_react12.useRef(null);
+  mark.current = markOf(document.activeElement, menu);
+  import_react12.useLayoutEffect(() => {
+    const lost = mark.current ?? handed;
+    handed = null;
+    if (!lost || lost.node.isConnected && lost.node.checkVisibility() || screen.cause() === "quiet")
+      return;
+    const now = document.activeElement;
+    if (now !== null && now !== document.body && now !== lost.node)
+      return;
+    if (lost.kind === "menu" && (screen.cause() !== "read" || document.querySelector(MENU)))
+      return;
+    targetOf(lost)?.focus({ preventScroll: true });
+  });
+  import_react12.useLayoutEffect(() => () => {
+    handed = markOf(document.activeElement, null);
+    queueMicrotask(() => {
+      handed = null;
+    });
+  }, []);
+};
+var UNMEASURED = { isMeasured: false, below: new Set, text: "", fade: false };
+var measureOf = (columns, isPipeline) => {
+  const body = columns.querySelector(".col-needs .col-body");
+  const wrap = body?.querySelector(".tail-wrap");
+  const below = new Set;
+  const counts = new Map;
+  if (body && wrap) {
+    const bottom = Math.min(body.getBoundingClientRect().bottom, columns.parentElement.getBoundingClientRect().bottom) - (wrap.hidden ? 0 : wrap.offsetHeight);
+    for (const node of body.querySelectorAll(".card[data-key]")) {
+      if (node.getBoundingClientRect().bottom <= bottom + 1)
+        continue;
+      below.add(node.dataset.key ?? "");
+      const group = node.closest(".group");
+      const name = group?.dataset.group ?? "";
+      counts.set(name, { short: group?.dataset.short ?? "", count: (counts.get(name)?.count ?? 0) + 1 });
+    }
+  }
+  return {
+    isMeasured: Boolean(body && wrap),
+    below,
+    text: counts.size ? tail([...counts.values()]) : "",
+    fade: isPipeline && columns.scrollLeft + columns.clientWidth < columns.scrollWidth - 2
+  };
+};
+var sameMeasure = (a, b) => a.isMeasured === b.isMeasured && a.text === b.text && a.fade === b.fade && a.below.size === b.below.size && [...a.below].every((key) => b.below.has(key));
+var useMeasure = (columns, isPipeline) => {
+  const [measure, setMeasure] = import_react12.useState(UNMEASURED);
+  const update = () => {
+    if (!columns.current)
+      return;
+    const next = measureOf(columns.current, isPipeline);
+    setMeasure((was) => sameMeasure(was, next) ? was : next);
+  };
+  const latest = import_react12.useRef(update);
+  latest.current = update;
+  const frame = import_react12.useRef(0);
+  const later = import_react12.useRef(() => {
+    cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => latest.current());
+  });
+  import_react12.useLayoutEffect(() => later.current());
+  import_react12.useEffect(() => {
+    const board = columns.current?.parentElement;
+    const measureLater = later.current;
+    board?.addEventListener("scroll", measureLater, true);
+    addEventListener("resize", measureLater);
+    return () => {
+      cancelAnimationFrame(frame.current);
+      board?.removeEventListener("scroll", measureLater, true);
+      removeEventListener("resize", measureLater);
+    };
+  }, [columns]);
+  return measure;
+};
+var HOLD_LABEL = "flex-none text-[0.6875rem] leading-none font-semibold tracking-[0.07em] text-muted-foreground uppercase";
+var GLYPH = { needs: "text-needs", running: "text-working", idle: "text-muted-foreground" };
+var COL = {
+  now: "flex min-h-0 min-w-0 flex-none flex-col",
+  pipeline: "flex min-h-0 min-w-0 flex-col rounded-3xl border border-border bg-panel phone:w-[min(300px,80vw)] phone:flex-none"
+};
+var HEAD = {
+  now: "-top-2.5 sticky z-4 -mx-2.5 flex min-h-10 flex-none items-center gap-2.5 bg-panel px-4",
+  pipeline: "flex min-h-[46px] flex-none items-center gap-2.5 pr-3.5 pl-4"
+};
+var BODY = {
+  now: "relative flex min-h-0 flex-none flex-col gap-2.5 overflow-visible px-0.5 pt-0.5 pb-3",
+  pipeline: "relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2.5 pt-1 pb-3 [mask-image:linear-gradient(to_bottom,#000_calc(100%-40px),transparent)]"
+};
+var COL_NAME = "min-w-0 flex-1 font-sans text-[0.84375rem] leading-[1.125rem] font-semibold tracking-[-0.01em] text-foreground";
+var GHOSTS = ["h-[116px]", "h-[92px]", "h-[76px] opacity-60"];
+var glyph = (key, hasWaits = false) => /* @__PURE__ */ jsx_runtime14.jsx("span", {
+  className: cn("grid size-[18px] flex-none place-items-center", GLYPH[key], hasWaits && "[&_.core]:origin-[8px_8px] [&_.core]:animate-[breathe_2.4s_cubic-bezier(0.45,0,0.55,1)_infinite]"),
+  children: /* @__PURE__ */ jsx_runtime14.jsx(Icon, {
+    name: `col-${key}`
+  })
+});
+function Skeleton({ isPipeline }) {
+  const at = isPipeline ? "pipeline" : "now";
+  return COLUMNS.map(({ key, name }) => /* @__PURE__ */ jsx_runtime14.jsxs("section", {
+    className: `col col-${key} ${COL[at]}`,
+    children: [
+      /* @__PURE__ */ jsx_runtime14.jsxs("header", {
+        className: HEAD[at],
+        children: [
+          glyph(key),
+          /* @__PURE__ */ jsx_runtime14.jsx("h2", {
+            className: COL_NAME,
+            children: name
+          })
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime14.jsx("div", {
+        className: BODY[at],
+        children: GHOSTS.map((size) => /* @__PURE__ */ jsx_runtime14.jsx("div", {
+          className: `card @container relative flex flex-none animate-[flow_1.4s_linear_infinite] cursor-default flex-col gap-2 rounded-xl border border-transparent px-3.5 py-3 transition-[border-color,background-color] duration-150 ease-[ease] [background:linear-gradient(100deg,var(--card)_40%,var(--card-hover)_50%,var(--card)_60%)_0_0/300%_100%] [box-shadow:none] ${size}`
+        }, size))
+      })
+    ]
+  }, key));
+}
+function HumanPill({
+  card,
+  cardKey,
+  isSelected,
+  registry
+}) {
+  const isTurn = isYourTurn(card, screen.seenTurn);
+  const [go] = actionsOf(card);
+  const isDialog = card.waitFor === "dialog";
+  const isAlert = isTurn || isDialog;
+  return /* @__PURE__ */ jsx_runtime14.jsxs("div", {
+    className: cn("human-pill inline-flex min-h-7 max-w-full min-w-0 items-center rounded-lg border shadow-raise phone:min-h-[46px]", isSelected ? "border-[color-mix(in_srgb,var(--focus)_70%,transparent)]" : isDialog ? "border-[color-mix(in_srgb,var(--needs-tint)_55%,transparent)]" : "border-border", isDialog ? "bg-[color-mix(in_srgb,var(--needs-tint)_8%,var(--card))]" : "bg-card [&:hover]:bg-card-hover"),
+    "data-state": card.state ?? "",
+    "data-wait": card.waitFor ?? "",
+    "data-your-turn": isTurn ? "" : undefined,
+    children: [
+      /* @__PURE__ */ jsx_runtime14.jsxs("button", {
+        type: "button",
+        className: cn("inline-flex min-w-0 items-center gap-2 self-stretch rounded-l-lg border-0 bg-transparent py-0 pr-2 pl-[7px] font-sans text-[0.78125rem] leading-none font-medium whitespace-nowrap text-muted-foreground", isSelected && "is-selected"),
+        "data-key": cardKey,
+        title: "Show the details and the screen of this session",
+        onClick: () => isSelected ? closeDetails(true) : openDetails(cardKey),
+        children: [
+          /* @__PURE__ */ jsx_runtime14.jsx(Mark, {
+            card,
+            registry
+          }),
+          /* @__PURE__ */ jsx_runtime14.jsx("span", {
+            className: cn("max-w-[14em] shrink-0 overflow-hidden leading-[1.3] text-ellipsis text-foreground phone:min-w-0 phone:shrink", isTurn && "font-semibold"),
+            children: card.title || "A session"
+          }),
+          /* @__PURE__ */ jsx_runtime14.jsx("i", {
+            className: cn("size-1.5 flex-none rounded-[50%]", isAlert ? "bg-needs" : card.state === "works" ? "bg-working" : "bg-muted-foreground")
+          }),
+          /* @__PURE__ */ jsx_runtime14.jsx("span", {
+            className: cn("min-w-0 flex-[0_100_auto] overflow-hidden text-ellipsis phone:flex-none", isAlert ? "text-needs" : card.state === "works" && "text-working"),
+            children: isTurn ? "your turn" : stateLabel(card)
+          })
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime14.jsx(Timed, {
+        iso: card.since,
+        isFine: LIVE.has(card.state),
+        className: "mr-1.5 flex-none font-mono text-[0.71875rem] leading-none font-normal text-muted-foreground normal-nums"
+      }),
+      go && /* @__PURE__ */ jsx_runtime14.jsx(IconButton, {
+        name: "go",
+        label: go.name,
+        press: () => go.run?.(),
+        className: "human-go mr-0.5 min-h-[26px] phone:min-h-11 phone:w-11"
+      })
+    ]
+  });
+}
+var cardAt = (target) => target instanceof Element ? target.closest(".card[data-key]") : null;
+var useColumnEvents = (columns) => import_react12.useEffect(() => {
+  const board = columns.current;
+  if (!board)
+    return;
+  const click = (event) => {
+    const key = cardAt(event.target)?.dataset.key;
+    if (key === undefined || event.target.closest("a, button"))
+      return;
+    if (shellStore.get().shell.details === key)
+      closeDetails(true);
+    else
+      openDetails(key);
+  };
+  const menu = (event) => {
+    const node = cardAt(event.target);
+    const key = node?.dataset.key;
+    if (key === undefined || !screen.index().byKey.has(key))
+      return;
+    event.preventDefault();
+    screen.openMenu(key, "actions", Boolean(node?.classList.contains("compact")));
+  };
+  const focus = (event) => {
+    const stop = event.target.closest(STOPS);
+    const col = stop?.closest(".col");
+    if (stop && col && isStop(stop))
+      screen.setColumnStop(columnId(col), stopKey(stop));
+    const key = cardAt(event.target)?.dataset.key ?? null;
+    if (key !== null && screen.isUnseen(key))
+      screen.markSeen(key);
+    showHints(key);
+  };
+  const blur = (event) => {
+    if (board.contains(event.relatedTarget))
+      return;
+    queueMicrotask(() => {
+      if (!board.contains(document.activeElement))
+        showHints(null);
+    });
+  };
+  const over = (event) => {
+    const key = event.target.closest(".card[data-key].is-unseen")?.dataset.key;
+    if (key !== undefined)
+      screen.markSeen(key);
+  };
+  board.addEventListener("click", click);
+  board.addEventListener("contextmenu", menu);
+  board.addEventListener("focusin", focus);
+  board.addEventListener("focusout", blur);
+  board.addEventListener("pointerover", over);
+  return () => {
+    board.removeEventListener("click", click);
+    board.removeEventListener("contextmenu", menu);
+    board.removeEventListener("focusin", focus);
+    board.removeEventListener("focusout", blur);
+    board.removeEventListener("pointerover", over);
+  };
+}, [columns]);
+var useEnv = (read) => {
+  const registry = read?.registry;
+  const flow = read?.flow ?? null;
+  const auto = read?.daemon.auto ?? "off";
+  const agents = read?.agents ?? null;
+  const noRun = read?.noRun ?? null;
+  const record = read?.queue?.record;
+  const next = read?.next ?? null;
+  const starts = read?.starts ?? null;
+  const tracker = read?.tracker ?? null;
+  return import_react12.useMemo(() => registry === undefined ? null : { registry, flow, auto, agents, noRun, record, next, starts, tracker }, [registry, flow, auto, agents, noRun, record, next, starts, tracker]);
+};
+function Board() {
+  const shell = useShellStore((state) => state.shell);
+  const read = useScreen((state) => state.read);
+  const launches = useScreen((state) => state.launches);
+  useScreen((state) => state.seen);
+  useScreen((state) => state.turns);
+  const openEpics = useScreen((state) => state.openEpics);
+  const asides = useScreen((state) => state.asides);
+  const stops = useScreen((state) => state.stops);
+  const refusals = useScreen((state) => state.refusals);
+  const startFailures = useScreen((state) => state.startFailures);
+  const menu = useScreen((state) => state.menu);
+  const columnStops = useScreen((state) => state.columnStops);
+  const columns = import_react12.useRef(null);
+  const isPipeline = shell.tab === "pipeline";
+  useRescue(menu);
+  useColumnEvents(columns);
+  const measure = useMeasure(columns, isPipeline);
+  const env = useEnv(read);
+  const live = read && screen.board();
+  const now = import_react12.useMemo(() => ({ read, board: live }), [read, live]);
+  const [shown, setShown] = import_react12.useState(now);
+  const isCalm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const isHeld = shown.read !== read && shown.board !== null && live !== null && !document.hidden && !isCalm && (menu === null || screen.index().byKey.has(menu.key)) && layoutOf(shown.board, view()) !== layoutOf(live, view());
+  import_react12.useEffect(() => {
+    if (shown === now)
+      return;
+    if (isHeld)
+      import_react12.startTransition(() => setShown(now));
+    else
+      setShown(now);
+  });
+  const board = isHeld ? shown.board : live;
+  const heldIndex = import_react12.useMemo(() => isHeld && board ? indexCards(board, view()) : null, [isHeld, board]);
+  useKeptScroll(() => {
+    const root = columns.current?.parentElement;
+    return root ? [root, ...root.querySelectorAll(".col-body")] : [];
+  }, board);
+  const boardCls = isPipeline ? "grid min-h-0 flex-1 grid-cols-[repeat(var(--stages),minmax(200px,1fr))] grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-x-auto px-2 [scroll-padding-inline:8px_56px] data-[fade]:[mask-image:linear-gradient(to_right,#000_calc(100%-56px),transparent)] phone:flex phone:gap-2.5" : "flex min-h-0 flex-none flex-col gap-1.5 overflow-visible";
+  const humanCls = "flex flex-none flex-wrap items-center gap-1.5 rounded-xl border border-border bg-panel py-1.5 pr-2 pl-3 phone:p-2";
+  if (!board || !env)
+    return /* @__PURE__ */ jsx_runtime14.jsxs(jsx_runtime14.Fragment, {
+      children: [
+        /* @__PURE__ */ jsx_runtime14.jsx("section", {
+          className: humanCls,
+          id: "human",
+          "aria-labelledby": "human-title",
+          hidden: true
+        }),
+        /* @__PURE__ */ jsx_runtime14.jsx("div", {
+          ref: columns,
+          className: boardCls,
+          id: "columns",
+          "aria-busy": "true",
+          children: /* @__PURE__ */ jsx_runtime14.jsx(Skeleton, {
+            isPipeline
+          })
+        })
+      ]
+    });
+  const { keyOf } = heldIndex ?? screen.index();
+  const keyFor = (card) => {
+    const key = keyOf.get(card);
+    if (key === undefined)
+      throw new Error(`board: card #${card.number ?? card.sessionId} has no key in the card index`);
+    return key;
+  };
+  const cardOf = (card, place, stop) => {
+    const key = keyFor(card);
+    const number = card.number;
+    const has = (pressed) => pressed.has(number);
+    return /* @__PURE__ */ jsx_runtime14.jsx(import_react12.ViewTransition, {
+      name: key,
+      default: isCalm ? "none" : "auto",
+      children: /* @__PURE__ */ jsx_runtime14.jsx(Card2, {
+        card,
+        cardKey: key,
+        ...place,
+        isSelected: key === shell.details,
+        isUnseen: screen.isUnseen(key),
+        isStop: key === stop,
+        isBelow: place.column === "needs" && !isPipeline && measure.isMeasured ? measure.below.has(key) : undefined,
+        isPipeline,
+        menu: menu?.key === key ? menu : null,
+        env,
+        isAside: has(asides),
+        isStopping: has(stops),
+        refusal: number === null ? undefined : refusals.get(number)?.line,
+        failure: card.sessionId === null && number !== null ? startFailures.get(number) : undefined,
+        launch: number === null ? undefined : launches.get(number)
+      })
+    }, key);
+  };
+  const stopOf = (column, items) => {
+    const keys = items.flatMap((item) => item.kind === "card" ? [keyFor(item.card)] : [`${item.scope}-${item.epic.number}`, ...openEpics.has(item.epic.number) ? item.cards.map(keyFor) : []]);
+    const kept = columnStops.get(column);
+    return kept !== undefined && keys.includes(kept) ? kept : keys[0];
+  };
+  const itemOf = (item, stop) => {
+    if (item.kind === "card")
+      return cardOf(item.card, item.place, stop);
+    const { epic, scope, cards } = item;
+    const id = `eg-${scope}-${epic.number}`;
+    const group = `${scope}-${epic.number}`;
+    const isOpen = openEpics.has(epic.number);
+    const hasHiddenUnseen = !isOpen && cards.some((card) => screen.isUnseen(keyFor(card)));
+    const EPIC_MONO = "flex-none font-mono text-[0.75rem] leading-[1.125rem] font-normal text-muted-foreground";
+    return /* @__PURE__ */ jsx_runtime14.jsxs("div", {
+      className: "epic-group flex flex-none flex-col gap-2",
+      "data-epic": epic.number,
+      children: [
+        /* @__PURE__ */ jsx_runtime14.jsxs("button", {
+          type: "button",
+          className: cn("epic-row flex min-h-10 phone:min-h-11 w-full cursor-pointer items-start gap-2 rounded-xl border border-border bg-secondary px-3 py-2.5 text-left font-sans text-[0.8125rem] leading-[1.125rem] font-medium text-foreground transition-[border-color,background-color] duration-150 ease-[ease] [&:hover]:border-border-strong [&:hover]:bg-accent [&_.icon]:mt-px [&_.icon]:flex-none [&_.icon]:text-card-foreground [&_.icon]:[transition:transform_0.15s]", isOpen && "[&_.icon]:[transform:rotate(90deg)]"),
+          tabIndex: group === stop ? 0 : -1,
+          id: `${id}-row`,
+          "data-epic": epic.number,
+          "data-group": group,
+          "aria-expanded": isOpen,
+          "aria-controls": id,
+          onClick: () => screen.setEpicOpen(epic.number, !isOpen),
+          children: [
+            /* @__PURE__ */ jsx_runtime14.jsx(Icon, {
+              name: "chevron"
+            }),
+            /* @__PURE__ */ jsx_runtime14.jsx("span", {
+              className: EPIC_MONO,
+              children: `#${epic.number}`
+            }),
+            /* @__PURE__ */ jsx_runtime14.jsx("span", {
+              className: "min-w-0 flex-1 [overflow-wrap:anywhere]",
+              children: epic.title
+            }),
+            /* @__PURE__ */ jsx_runtime14.jsxs("span", {
+              className: EPIC_MONO,
+              children: [
+                cards.length,
+                /* @__PURE__ */ jsx_runtime14.jsx("span", {
+                  className: "sr-only",
+                  children: cards.length === 1 ? " issue" : " issues"
+                })
+              ]
+            }),
+            /* @__PURE__ */ jsx_runtime14.jsx(UnseenDot, {
+              className: hasHiddenUnseen ? "mt-[5px]" : "mt-[5px] hidden"
+            })
+          ]
+        }),
+        /* @__PURE__ */ jsx_runtime14.jsx("div", {
+          className: "epic-children ml-1.5 flex flex-col gap-2 border-l border-l-border-strong pl-3",
+          id,
+          hidden: !isOpen,
+          role: "group",
+          "aria-labelledby": `${id}-row`,
+          children: cards.map((card) => cardOf(card, item.place, isOpen ? stop : undefined))
+        })
+      ]
+    }, id);
+  };
+  const { needs, running, idle, human } = board.columns;
+  const agents = () => COLUMNS.map(({ key, name, note, empty: [emptyTitle, emptyText] }) => {
+    const cards = board.columns[key];
+    const id = `col-${key}`;
+    const groups = key === "needs" ? groupNeeds(cards) : [];
+    const items = key === "needs" ? groups.flatMap((each) => each.cards.map((card) => ({
+      kind: "card",
+      card,
+      place: { column: key, isCompact: each.isCompact, level: "h4" }
+    }))) : key === "idle" ? groupEpics(cards, () => true).map((item) => item.kind === "group" ? {
+      kind: "epic",
+      epic: item.epic,
+      scope: "idle",
+      cards: item.cards,
+      place: { column: key, isCompact: true, level: "h3" }
+    } : { kind: "card", card: item.card, place: { column: key, isCompact: true, level: "h3" } }) : cards.map((card) => ({ kind: "card", card, place: { column: key, isCompact: false, level: "h3" } }));
+    const stop = stopOf(id, items);
+    return /* @__PURE__ */ jsx_runtime14.jsxs("section", {
+      className: `col col-${key} ${COL.now}`,
+      id,
+      "aria-labelledby": `h-${key}`,
+      children: [
+        /* @__PURE__ */ jsx_runtime14.jsxs("header", {
+          className: HEAD.now,
+          title: note,
+          children: [
+            glyph(key, key === "needs" && cards.some((card) => card.state === "waits")),
+            /* @__PURE__ */ jsx_runtime14.jsx("h2", {
+              className: COL_NAME,
+              id: `h-${key}`,
+              children: name
+            }),
+            /* @__PURE__ */ jsx_runtime14.jsx(Badge, {
+              variant: "column",
+              children: cards.length
+            })
+          ]
+        }),
+        /* @__PURE__ */ jsx_runtime14.jsx("div", {
+          className: `col-body ${BODY.now}`,
+          children: cards.length === 0 ? /* @__PURE__ */ jsx_runtime14.jsxs("div", {
+            className: cn("empty mt-1 flex flex-col items-center gap-1 rounded-xl border px-5 py-8 text-center", key === "needs" ? "border-solid border-[color-mix(in_srgb,var(--ready)_25%,transparent)] bg-[color-mix(in_srgb,var(--ready)_5%,transparent)] [&_.icon]:text-ready" : "border-dashed border-border-strong [&_.icon]:text-muted-foreground", "[&_.icon]:mb-1.5 [&_.icon]:size-[22px]"),
+            tabIndex: -1,
+            children: [
+              /* @__PURE__ */ jsx_runtime14.jsx(Icon, {
+                name: key === "needs" ? "clear" : `col-${key}`
+              }),
+              /* @__PURE__ */ jsx_runtime14.jsx("p", {
+                className: "m-0 font-sans text-[0.8125rem] leading-[1.4] font-semibold text-foreground",
+                children: emptyTitle
+              }),
+              /* @__PURE__ */ jsx_runtime14.jsx("p", {
+                className: "m-0 max-w-[32ch] text-[0.75rem] leading-normal text-balance text-muted-foreground",
+                children: emptyText
+              })
+            ]
+          }) : key === "needs" ? /* @__PURE__ */ jsx_runtime14.jsxs(jsx_runtime14.Fragment, {
+            children: [
+              groups.map((each, at) => /* @__PURE__ */ jsx_runtime14.jsxs("div", {
+                className: cn("group flex flex-col gap-2", at > 0 && "mt-0.5"),
+                "data-group": each.key,
+                "data-short": each.short,
+                role: "group",
+                "aria-labelledby": `g-${each.key}`,
+                children: [
+                  /* @__PURE__ */ jsx_runtime14.jsxs("h3", {
+                    className: cn("sticky top-[30px] z-3 -mx-3 flex items-center gap-[7px] bg-panel px-4 pt-2.5 pb-2 text-[0.6875rem] leading-none font-semibold tracking-[0.07em] uppercase", each.key === "answer" ? "text-needs" : "text-muted-foreground"),
+                    id: `g-${each.key}`,
+                    children: [
+                      /* @__PURE__ */ jsx_runtime14.jsx("span", {
+                        children: each.label
+                      }),
+                      /* @__PURE__ */ jsx_runtime14.jsx("span", {
+                        className: "font-medium tracking-[0] tabular-nums",
+                        children: each.cards.length
+                      })
+                    ]
+                  }),
+                  each.cards.map((card) => cardOf(card, { column: "needs", isCompact: each.isCompact, level: "h4" }, stop))
+                ]
+              }, each.key)),
+              /* @__PURE__ */ jsx_runtime14.jsx("div", {
+                className: "tail-wrap sticky bottom-0 z-3 -mx-3 bg-[linear-gradient(to_bottom,transparent,var(--panel)_35%)] px-3 pt-2.5 pb-3",
+                hidden: measure.text === "",
+                children: /* @__PURE__ */ jsx_runtime14.jsxs("button", {
+                  type: "button",
+                  className: "tail flex min-h-[34px] w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-card font-sans text-[0.78125rem] leading-none font-medium text-card-foreground shadow-raise [&:hover]:border-[color-mix(in_srgb,var(--fg3)_60%,transparent)] [&:hover]:text-foreground [&_.icon]:size-[13px] [&_.icon]:[transform:rotate(90deg)]",
+                  onClick: () => {
+                    const first = [...document.querySelectorAll(".col-needs .card[data-key]")].find((node) => measure.below.has(node.dataset.key ?? ""));
+                    first?.scrollIntoView({
+                      block: "center",
+                      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
+                    });
+                    first?.focus({ preventScroll: true });
+                  },
+                  children: [
+                    /* @__PURE__ */ jsx_runtime14.jsx(Icon, {
+                      name: "chevron"
+                    }),
+                    /* @__PURE__ */ jsx_runtime14.jsx("span", {
+                      children: measure.text
+                    })
+                  ]
+                })
+              })
+            ]
+          }) : items.map((item) => itemOf(item, stop))
+        })
+      ]
+    }, key);
+  });
+  const where = new Map([
+    ...needs.map((card) => [card, "needs"]),
+    ...running.map((card) => [card, "running"]),
+    ...idle.map((card) => [card, "idle"])
+  ]);
+  const placeOf = (card) => ({ column: where.get(card) ?? "idle", isCompact: true, level: "h3" });
+  const stages = () => {
+    const { stages: list, hold } = pipeline([...needs, ...running, ...idle], board.flow);
+    const holdItems = hold.map((card) => ({
+      kind: "card",
+      card,
+      place: { ...placeOf(card), isHold: true }
+    }));
+    const holdStop = stopOf("hold-title", holdItems);
+    return [
+      hold.length > 0 && /* @__PURE__ */ jsx_runtime14.jsxs("section", {
+        className: "col col-span-full flex min-h-0 min-w-0 flex-row items-center gap-3 rounded-3xl border border-border bg-panel py-2 pr-2.5 pl-4 phone:w-[min(300px,80vw)] phone:flex-none phone:flex-col phone:items-stretch",
+        "aria-labelledby": "hold-title",
+        children: [
+          /* @__PURE__ */ jsx_runtime14.jsx("h2", {
+            className: HOLD_LABEL,
+            id: "hold-title",
+            children: "Not in a step"
+          }),
+          /* @__PURE__ */ jsx_runtime14.jsx("div", {
+            className: "flex min-w-0 gap-2 overflow-x-auto p-0.5 phone:flex-col phone:overflow-x-hidden phone:overflow-y-auto",
+            children: holdItems.map((item) => itemOf(item, holdStop))
+          })
+        ]
+      }, "hold"),
+      ...list.map((stage) => {
+        const items = groupEpics(stage.cards, (card) => where.get(card) === "idle").map((item) => item.kind === "group" ? {
+          kind: "epic",
+          epic: item.epic,
+          scope: `s${stage.key}`,
+          cards: item.cards,
+          place: placeOf(item.cards[0])
+        } : { kind: "card", card: item.card, place: placeOf(item.card) });
+        const stop = stopOf(`s-${stage.key}`, items);
+        return /* @__PURE__ */ jsx_runtime14.jsxs("section", {
+          className: `col ${COL.pipeline}`,
+          "aria-labelledby": `s-${stage.key}`,
+          children: [
+            /* @__PURE__ */ jsx_runtime14.jsxs("header", {
+              className: HEAD.pipeline,
+              title: stage.steps.join(", "),
+              children: [
+                /* @__PURE__ */ jsx_runtime14.jsx("h2", {
+                  className: COL_NAME,
+                  id: `s-${stage.key}`,
+                  children: stage.name
+                }),
+                /* @__PURE__ */ jsx_runtime14.jsx(Badge, {
+                  variant: "column",
+                  children: stage.cards.length
+                })
+              ]
+            }),
+            /* @__PURE__ */ jsx_runtime14.jsx("div", {
+              className: `col-body ${BODY.pipeline}`,
+              children: stage.cards.length ? items.map((item) => itemOf(item, stop)) : /* @__PURE__ */ jsx_runtime14.jsx("p", {
+                className: "mx-0.5 my-1 rounded-xl border border-dashed border-border-strong p-3.5 text-center text-[0.75rem] text-muted-foreground",
+                children: "No issue at this step"
+              })
+            })
+          ]
+        }, stage.key);
+      })
+    ];
+  };
+  return /* @__PURE__ */ jsx_runtime14.jsxs(jsx_runtime14.Fragment, {
+    children: [
+      /* @__PURE__ */ jsx_runtime14.jsxs("section", {
+        className: humanCls,
+        id: "human",
+        "aria-labelledby": "human-title",
+        hidden: human.length === 0,
+        children: [
+          human.length > 0 && /* @__PURE__ */ jsx_runtime14.jsx("h2", {
+            className: `${HOLD_LABEL} mr-1.5 phone:my-0.5 phone:mr-0 phone:ml-1.5 phone:basis-full`,
+            id: "human-title",
+            children: "Human sessions"
+          }),
+          human.map((card) => {
+            const key = keyFor(card);
+            return /* @__PURE__ */ jsx_runtime14.jsx(HumanPill, {
+              card,
+              cardKey: key,
+              isSelected: key === shell.details,
+              registry: env.registry
+            }, key);
+          })
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime14.jsx("div", {
+        ref: columns,
+        className: boardCls,
+        id: "columns",
+        "data-view": isPipeline ? "pipeline" : "now",
+        "data-fade": measure.fade ? "" : undefined,
+        "aria-busy": "false",
+        style: { "--stages": String(Math.max(1, board.flow?.stages.length ?? 0)) },
+        children: isPipeline ? stages() : agents()
+      })
+    ]
+  });
+}
+
+// engine/board/page/operations/operations.tsx
+var jsx_runtime15 = __toESM(require_jsx_runtime());
+var NAMES = { agents: "Agents", pipeline: "Pipeline", queue: "Queue", history: "History" };
+var CONTROLS = { agents: "tp-board", pipeline: "tp-board", history: "history-pane" };
+function Operations() {
+  const { tab, pane, details } = useShellStore((state) => state.shell);
+  const isPhone = useShellStore((state) => state.isPhone);
+  const agents = useShellStore((state) => state.inputs.badges.agents);
+  const queueCount = useShellStore((state) => state.inputs.queueCount);
+  return /* @__PURE__ */ jsx_runtime15.jsxs("div", {
+    className: "group/ops grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_clamp(360px,30vw,452px)] grid-rows-[minmax(0,1fr)] gap-3.5 phone:grid-cols-[minmax(0,1fr)] min-[720px]:data-[tab=pipeline]:grid-cols-[minmax(0,1fr)] min-[720px]:data-[tab=pipeline]:data-[details]:grid-cols-[minmax(0,1fr)_clamp(360px,30vw,452px)]",
+    id: "area-operations",
+    "data-tab": tab,
+    "data-pane": pane,
+    "data-details": details === null ? undefined : "",
+    children: [
+      /* @__PURE__ */ jsx_runtime15.jsxs("div", {
+        className: "flex min-h-0 min-w-0 flex-col phone:group-data-[pane=agents]/ops:hidden min-[720px]:group-data-[tab=pipeline]/ops:contents min-[720px]:group-data-[tab=pipeline]/ops:[&>.coordinator]:hidden [&>.coordinator]:flex-1",
+        id: "center",
+        children: [
+          /* @__PURE__ */ jsx_runtime15.jsx(CoordinatorHost, {}),
+          /* @__PURE__ */ jsx_runtime15.jsx(Panel, {})
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime15.jsxs(Tabs, {
+        value: tab,
+        onValueChange: (value) => {
+          const next = TABS.find((each) => each === value);
+          if (next)
+            setTab(next);
+        },
+        render: /* @__PURE__ */ jsx_runtime15.jsx("section", {}),
+        className: "min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-border bg-panel phone:group-data-[pane=chat]/ops:hidden min-[720px]:group-data-[tab=pipeline]/ops:[grid-area:1/1]",
+        id: "pane",
+        "aria-label": "Work views",
+        tabIndex: -1,
+        children: [
+          /* @__PURE__ */ jsx_runtime15.jsxs("div", {
+            className: "flex min-h-12 flex-none items-center gap-2 border-b border-border px-2.5 py-2 phone:p-1.5",
+            children: [
+              /* @__PURE__ */ jsx_runtime15.jsx("div", {
+                className: "contents",
+                hidden: tab !== "pipeline" || isPhone,
+                children: /* @__PURE__ */ jsx_runtime15.jsx(PaneChatHost, {})
+              }),
+              /* @__PURE__ */ jsx_runtime15.jsx(TabsList2, {
+                activateOnFocus: true,
+                loopFocus: true,
+                id: "tabs",
+                "aria-label": "Work views",
+                children: TABS.map((each) => /* @__PURE__ */ jsx_runtime15.jsxs(TabsTrigger, {
+                  value: each,
+                  id: `tab-${each}`,
+                  "data-tab": each,
+                  tabIndex: each === tab ? 0 : -1,
+                  ...CONTROLS[each] ? { "aria-controls": CONTROLS[each] } : {},
+                  "aria-label": each === "agents" ? agents === 0 ? "Agents" : `Agents, ${agents} need you` : undefined,
+                  children: [
+                    /* @__PURE__ */ jsx_runtime15.jsx("span", {
+                      className: "label",
+                      children: each === "queue" && queueCount > 0 ? `Queue ${queueCount}` : NAMES[each]
+                    }),
+                    each === "agents" && /* @__PURE__ */ jsx_runtime15.jsx(Badge, {
+                      variant: "tab",
+                      id: "agents-badge",
+                      hidden: agents === 0,
+                      children: badgeText(agents)
+                    })
+                  ]
+                }, each))
+              })
+            ]
+          }),
+          (tab === "agents" || tab === "pipeline") && /* @__PURE__ */ jsx_runtime15.jsx("div", {
+            className: `flex min-h-0 flex-1 flex-col gap-2.5 px-2.5 pt-2.5 phone:scroll-pb-[calc(var(--dock)+8px)] ${tab === "pipeline" ? "overflow-hidden pb-2.5" : "overflow-y-auto pb-0"}`,
+            id: "tp-board",
+            role: "tabpanel",
+            "aria-labelledby": `tab-${tab}`,
+            children: /* @__PURE__ */ jsx_runtime15.jsx(Board, {})
+          }, tab),
+          /* @__PURE__ */ jsx_runtime15.jsx(TabsContent, {
+            value: "queue",
+            keepMounted: true,
+            tabIndex: undefined,
+            className: "flex min-h-0 flex-1 flex-col [&>.queue]:min-h-0 [&>.queue]:flex-1",
+            children: /* @__PURE__ */ jsx_runtime15.jsx(QueueHost, {})
+          }),
+          /* @__PURE__ */ jsx_runtime15.jsx(History, {})
+        ]
+      })
+    ]
+  });
+}
+
+// engine/board/page/app/shell.tsx
+init_query2();
+init_shell();
+init_store();
+
+// engine/board/page/ui/sidebar.tsx
+var jsx_runtime16 = __toESM(require_jsx_runtime());
+function Sidebar({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime16.jsx("nav", {
+    "data-slot": "sidebar",
+    className: cn("col-start-1 row-start-1 flex min-h-0 flex-col gap-1.5 overflow-y-auto border-r border-border bg-background px-2.5 pt-3 pb-2.5", "rail:px-2 rail:pt-2.5 rail:pb-2", "phone:min-h-14 phone:flex-row phone:items-center phone:gap-2 phone:overflow-visible phone:border-r-0 phone:border-b phone:px-4 phone:py-1.5", className),
+    ...props
+  });
+}
+function SidebarHeader({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime16.jsx("div", {
+    "data-slot": "sidebar-header",
+    className: cn("mb-1.5 flex min-h-9 min-w-0 items-center gap-2.5 px-1.5", "rail:min-h-0 rail:flex-col rail:gap-1.5 rail:px-0 rail:pt-0.5 rail:pb-1", "phone:m-0 phone:min-h-0 phone:flex-1 phone:p-0", className),
+    ...props
+  });
+}
+function SidebarFooter({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime16.jsx("div", {
+    "data-slot": "sidebar-footer",
+    className: cn("mt-auto flex flex-col items-stretch gap-0.5 border-t border-border px-0.5 pt-2.5 text-xs text-muted-foreground rail:hidden phone:hidden", className),
+    ...props
+  });
+}
+function SidebarMenu({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime16.jsx("ul", {
+    "data-slot": "sidebar-menu",
+    className: cn("m-0 mt-2 flex min-h-[calc(11px+2*34px+2px)] list-none flex-col gap-0.5 overflow-y-auto border-t border-border p-0 pt-2.5", "rail:min-h-[calc(11px+2*50px+2px)] phone:hidden", className),
+    ...props
+  });
+}
+function SidebarMenuItem({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime16.jsx("li", {
+    "data-slot": "sidebar-menu-item",
+    className: cn("relative", className),
+    ...props
+  });
+}
+function SidebarMenuButton({ className, render, ...props }) {
+  return useRender({
+    defaultTagName: "button",
+    props: mergeProps({
+      className: cn("relative flex h-[34px] w-full items-center gap-2.5 rounded-lg border border-transparent bg-transparent pr-2 pl-2.5 text-left text-[0.78125rem] leading-none font-medium text-card-foreground transition-[background-color,color] duration-150 hover:bg-secondary hover:text-foreground focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-[-2px] focus-visible:outline-ring aria-[current=page]:border-border aria-[current=page]:bg-accent aria-[current=page]:text-foreground [&_.icon]:shrink-0", "rail:h-[50px] rail:flex-col rail:justify-center rail:gap-[5px] rail:px-0.5 rail:py-1.5 rail:text-center rail:text-[0.6875rem] rail:leading-[1.1]", className)
+    }, props),
+    render,
+    state: { slot: "sidebar-menu-button" }
+  });
+}
+
+// engine/board/page/app/shell.tsx
+init_ui();
+
+// engine/board/page/app/control.tsx
+init_modern2();
+init_view();
+init_query2();
+init_store();
+init_choice();
+var import_react13 = __toESM(require_react());
 
 // engine/node_modules/@base-ui/react/toggle/Toggle.mjs
-var import_jsx_runtime4 = __toESM(require_jsx_runtime(), 1);
+var React99 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/toggle-group/ToggleGroupContext.mjs
+var React98 = __toESM(require_react(), 1);
 "use client";
-var Toggle = /* @__PURE__ */ React27.forwardRef(function Toggle(componentProps, forwardedRef) {
+var ToggleGroupContext = /* @__PURE__ */ React98.createContext(undefined);
+if (false)
+  ;
+function useToggleGroupContext() {
+  return React98.useContext(ToggleGroupContext);
+}
+
+// engine/node_modules/@base-ui/react/toggle/Toggle.mjs
+var import_jsx_runtime22 = __toESM(require_jsx_runtime(), 1);
+"use client";
+var Toggle = /* @__PURE__ */ React99.forwardRef(function Toggle(componentProps, forwardedRef) {
   const {
     className,
     defaultPressed = false,
@@ -23487,12 +36409,12 @@ var Toggle = /* @__PURE__ */ React27.forwardRef(function Toggle(componentProps, 
     ref: refs,
     props
   });
-  const itemMetadata = React27.useMemo(() => ({
+  const itemMetadata = React99.useMemo(() => ({
     disabled,
     focusableWhenDisabled: false
   }), [disabled]);
   if (groupContext) {
-    return /* @__PURE__ */ import_jsx_runtime4.jsx(CompositeItem, {
+    return /* @__PURE__ */ import_jsx_runtime22.jsx(CompositeItem, {
       tag: "button",
       render,
       className,
@@ -23508,7 +36430,7 @@ var Toggle = /* @__PURE__ */ React27.forwardRef(function Toggle(componentProps, 
 if (false)
   ;
 // engine/board/page/ui/toggle.tsx
-var jsx_runtime5 = __toESM(require_jsx_runtime());
+var jsx_runtime17 = __toESM(require_jsx_runtime());
 var toggleVariants = cva("group/toggle inline-flex shrink-0 select-none items-center justify-center py-0 text-[0.78125rem] leading-none font-medium whitespace-nowrap transition-[background-color,border-color,box-shadow,opacity,transform] duration-150 outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-[0.97] aria-busy:cursor-progress aria-busy:opacity-70 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0", {
   variants: {
     variant: {
@@ -23531,7 +36453,7 @@ function Toggle2({
   size = "default",
   ...props
 }) {
-  return /* @__PURE__ */ jsx_runtime5.jsx(Toggle, {
+  return /* @__PURE__ */ jsx_runtime17.jsx(Toggle, {
     "data-slot": "toggle",
     className: cn(toggleVariants({ variant, size, className })),
     ...props
@@ -23540,22 +36462,7 @@ function Toggle2({
 
 // engine/board/page/app/control.tsx
 init_ui();
-
-// engine/board/page/app/icon.tsx
-init_ui();
-var import_react4 = __toESM(require_react());
-var jsx_runtime6 = __toESM(require_jsx_runtime());
-function Icon({ name }) {
-  return /* @__PURE__ */ jsx_runtime6.jsx("svg", {
-    className: `icon i-${name}`,
-    viewBox: "0 0 16 16",
-    "aria-hidden": "true",
-    children: (ICONS[name] ?? []).map(([tag, { class: className, ...attributes }], at) => import_react4.createElement(tag, { key: at, className, ...attributes }))
-  });
-}
-
-// engine/board/page/app/control.tsx
-var jsx_runtime7 = __toESM(require_jsx_runtime());
+var jsx_runtime18 = __toESM(require_jsx_runtime());
 var AUTO = {
   on: { tone: "ok", title: "Auto mode starts each auto step.", words: "Auto mode is on." },
   off: { tone: "off", title: "Auto mode is off: auto steps wait.", words: "Auto mode is off." },
@@ -23563,27 +36470,27 @@ var AUTO = {
 };
 var SMALL = "h-6 gap-[7px] rounded-sm border-0 px-2 transition-all duration-0 text-xs font-normal phone:min-h-11 phone:min-w-11";
 function Code({ children }) {
-  return /* @__PURE__ */ jsx_runtime7.jsx("code", {
+  return /* @__PURE__ */ jsx_runtime18.jsx("code", {
     className: "font-mono text-xs leading-none",
     children
   });
 }
 function Row({ isFirst = false, children }) {
-  return /* @__PURE__ */ jsx_runtime7.jsx("div", {
+  return /* @__PURE__ */ jsx_runtime18.jsx("div", {
     className: cn("mt-3.5 flex flex-wrap items-center justify-end gap-x-4 gap-y-2.5 phone:justify-start", !isFirst && "border-t border-border pt-3.5"),
     children
   });
 }
 function RowText({ id, label, help }) {
-  return /* @__PURE__ */ jsx_runtime7.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime18.jsxs("div", {
     className: "min-w-0 flex-[1_1_280px] phone:basis-full",
     children: [
-      /* @__PURE__ */ jsx_runtime7.jsx("span", {
+      /* @__PURE__ */ jsx_runtime18.jsx("span", {
         className: "text-[0.8125rem] font-medium text-foreground",
         id: `${id}-label`,
         children: label
       }),
-      /* @__PURE__ */ jsx_runtime7.jsx("p", {
+      /* @__PURE__ */ jsx_runtime18.jsx("p", {
         className: "mt-0.5 mb-0 text-xs leading-[1.45] text-pretty text-muted-foreground",
         id: `${id}-help`,
         children: help
@@ -23591,11 +36498,11 @@ function RowText({ id, label, help }) {
     ]
   });
 }
-var AgentsHost = import_react5.memo(() => /* @__PURE__ */ jsx_runtime7.jsx("div", {
+var AgentsHost = import_react13.memo(() => /* @__PURE__ */ jsx_runtime18.jsx("div", {
   className: "agent-picker",
   id: "agent-picker"
 }), () => true);
-var UpdateHost = import_react5.memo(() => /* @__PURE__ */ jsx_runtime7.jsx("button", {
+var UpdateHost = import_react13.memo(() => /* @__PURE__ */ jsx_runtime18.jsx("button", {
   type: "button",
   className: "sb-btn update-open",
   id: "update-open",
@@ -23603,44 +36510,44 @@ var UpdateHost = import_react5.memo(() => /* @__PURE__ */ jsx_runtime7.jsx("butt
   "aria-expanded": "false",
   "aria-label": "Check for updates, Celetis",
   title: "Check for updates, Celetis",
-  children: /* @__PURE__ */ jsx_runtime7.jsx("span", {
+  children: /* @__PURE__ */ jsx_runtime18.jsx("span", {
     className: "label",
     children: "Check for updates"
   })
 }), () => true);
 function Automation({ daemon, isDown }) {
   const auto = isDown ? null : daemon?.auto ?? null;
-  return /* @__PURE__ */ jsx_runtime7.jsxs(Card, {
+  return /* @__PURE__ */ jsx_runtime18.jsxs(Card, {
     id: "ctl-auto",
     "aria-labelledby": "ctl-auto-title",
     children: [
-      /* @__PURE__ */ jsx_runtime7.jsx(CardTitle, {
+      /* @__PURE__ */ jsx_runtime18.jsx(CardTitle, {
         id: "ctl-auto-title",
         children: "Automation"
       }),
-      /* @__PURE__ */ jsx_runtime7.jsx(CardDescription, {
+      /* @__PURE__ */ jsx_runtime18.jsx(CardDescription, {
         children: "Auto mode of the daemon starts each auto step by itself. The board shows its state only."
       }),
-      /* @__PURE__ */ jsx_runtime7.jsx("p", {
+      /* @__PURE__ */ jsx_runtime18.jsx("p", {
         className: "mt-3 mb-0 text-[0.8125rem] text-card-foreground",
         id: "ctl-auto-state",
-        children: isDown ? /* @__PURE__ */ jsx_runtime7.jsxs(jsx_runtime7.Fragment, {
+        children: isDown ? /* @__PURE__ */ jsx_runtime18.jsxs(jsx_runtime18.Fragment, {
           children: [
             "No daemon answers. Start it in a terminal: ",
-            /* @__PURE__ */ jsx_runtime7.jsx(Code, {
+            /* @__PURE__ */ jsx_runtime18.jsx(Code, {
               children: "celetis daemon start"
             })
           ]
         }) : auto ? AUTO[auto].words : "The daemon state is not read yet."
       }),
-      /* @__PURE__ */ jsx_runtime7.jsx("p", {
+      /* @__PURE__ */ jsx_runtime18.jsx("p", {
         className: "mt-3 mb-0 text-[0.8125rem] text-card-foreground",
         id: "ctl-auto-command",
         hidden: auto === null,
-        children: auto && /* @__PURE__ */ jsx_runtime7.jsxs(jsx_runtime7.Fragment, {
+        children: auto && /* @__PURE__ */ jsx_runtime18.jsxs(jsx_runtime18.Fragment, {
           children: [
             "Change it in a terminal: ",
-            /* @__PURE__ */ jsx_runtime7.jsx(Code, {
+            /* @__PURE__ */ jsx_runtime18.jsx(Code, {
               children: `celetis daemon auto ${auto === "on" ? "off" : "on"}`
             })
           ]
@@ -23662,20 +36569,20 @@ function StatusRow({
   name,
   children
 }) {
-  return /* @__PURE__ */ jsx_runtime7.jsxs("span", {
+  return /* @__PURE__ */ jsx_runtime18.jsxs("span", {
     className: "mt-3 flex min-h-7 min-w-0 items-center gap-[7px] text-[0.8125rem] tabular-nums",
     id,
     "data-tone": tone,
     title: title || undefined,
     children: [
-      /* @__PURE__ */ jsx_runtime7.jsx("i", {
+      /* @__PURE__ */ jsx_runtime18.jsx("i", {
         className: cn("size-1.5 flex-none rounded-full", DOT[tone])
       }),
-      /* @__PURE__ */ jsx_runtime7.jsx("span", {
+      /* @__PURE__ */ jsx_runtime18.jsx("span", {
         className: "text-muted-foreground",
         children: name
       }),
-      /* @__PURE__ */ jsx_runtime7.jsx("span", {
+      /* @__PURE__ */ jsx_runtime18.jsx("span", {
         className: cn("min-w-0 font-medium wrap-anywhere", tone === "fail" ? "text-caution" : "text-card-foreground"),
         children
       })
@@ -23683,14 +36590,14 @@ function StatusRow({
   });
 }
 var useNow = () => {
-  const [now, setNow] = import_react5.useState(Date.now);
-  import_react5.useEffect(() => {
+  const [now, setNow] = import_react13.useState(Date.now);
+  import_react13.useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
   return now;
 };
-function Status({ data, isDown }) {
+function Status2({ data, isDown }) {
   const now = useNow();
   const control = useShellStore((state) => state.control);
   const source = data?.source ?? { readAt: null, error: null };
@@ -23706,27 +36613,27 @@ function Status({ data, isDown }) {
     tone: AUTO[daemon.auto].tone,
     title: `The daemon PID ${daemon.pid} runs. ${AUTO[daemon.auto].title}`
   } : { text: "checking", tone: "wait", title: "" };
-  return /* @__PURE__ */ jsx_runtime7.jsxs(Card, {
+  return /* @__PURE__ */ jsx_runtime18.jsxs(Card, {
     id: "ctl-status",
     "aria-labelledby": "ctl-status-title",
     children: [
-      /* @__PURE__ */ jsx_runtime7.jsx(CardTitle, {
+      /* @__PURE__ */ jsx_runtime18.jsx(CardTitle, {
         id: "ctl-status-title",
         children: "Board status"
       }),
-      /* @__PURE__ */ jsx_runtime7.jsx(CardDescription, {
+      /* @__PURE__ */ jsx_runtime18.jsx(CardDescription, {
         children: "What the board reads, and the parts that Run and Go use."
       }),
-      /* @__PURE__ */ jsx_runtime7.jsx(StatusRow, {
+      /* @__PURE__ */ jsx_runtime18.jsx(StatusRow, {
         id: "fresh",
         tone: freshTone,
         title: freshTitle,
         name,
-        children: isDown ? SERVER_DOWN : source.error ? `cannot read: ${source.error}` : source.readAt ? /* @__PURE__ */ jsx_runtime7.jsxs(jsx_runtime7.Fragment, {
+        children: isDown ? SERVER_DOWN : source.error ? `cannot read: ${source.error}` : source.readAt ? /* @__PURE__ */ jsx_runtime18.jsxs(jsx_runtime18.Fragment, {
           children: [
             "read",
             " ",
-            /* @__PURE__ */ jsx_runtime7.jsxs("time", {
+            /* @__PURE__ */ jsx_runtime18.jsxs("time", {
               className: "time",
               dateTime: source.readAt,
               title: clock(source.readAt, true),
@@ -23738,21 +36645,21 @@ function Status({ data, isDown }) {
           ]
         }) : "no data yet"
       }),
-      /* @__PURE__ */ jsx_runtime7.jsx(StatusRow, {
+      /* @__PURE__ */ jsx_runtime18.jsx(StatusRow, {
         id: "terminal",
         tone: terminalTone,
         title: terminal?.error ? `herdr: ${terminal.error}` : "Run and Go use herdr",
         name: "herdr",
         children: terminal?.ok === true ? "up" : terminal?.ok === false ? "down" : "checking"
       }),
-      /* @__PURE__ */ jsx_runtime7.jsx(StatusRow, {
+      /* @__PURE__ */ jsx_runtime18.jsx(StatusRow, {
         id: "daemon",
         tone: daemonItem.tone,
         title: daemonItem.title,
         name: "Daemon",
         children: daemonItem.text
       }),
-      /* @__PURE__ */ jsx_runtime7.jsxs(Button2, {
+      /* @__PURE__ */ jsx_runtime18.jsxs(Button2, {
         variant: "outline",
         id: "refresh",
         className: "mt-3 phone:min-h-11 phone:min-w-11 data-done:[&_.icon]:text-ready",
@@ -23761,10 +36668,10 @@ function Status({ data, isDown }) {
         title: control.refresh === "done" ? `${readAgain}: done` : `${readAgain} (r)`,
         onClick: () => void shellStore.refresh(),
         children: [
-          /* @__PURE__ */ jsx_runtime7.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime18.jsx(Icon, {
             name: "refresh"
           }),
-          /* @__PURE__ */ jsx_runtime7.jsx("span", {
+          /* @__PURE__ */ jsx_runtime18.jsx("span", {
             className: "label",
             children: "Refresh"
           })
@@ -23779,26 +36686,26 @@ function Preferences() {
   const isBlocked = "Notification" in window && Notification.permission === "denied";
   const isOn = notify && !isBlocked;
   const themeLabel = `Theme: ${THEME_WORDS[theme]}. Press to change`;
-  return /* @__PURE__ */ jsx_runtime7.jsxs(Card, {
+  return /* @__PURE__ */ jsx_runtime18.jsxs(Card, {
     id: "ctl-prefs",
     "aria-labelledby": "ctl-prefs-title",
     children: [
-      /* @__PURE__ */ jsx_runtime7.jsx(CardTitle, {
+      /* @__PURE__ */ jsx_runtime18.jsx(CardTitle, {
         id: "ctl-prefs-title",
         children: "Notifications, keys, and theme"
       }),
-      /* @__PURE__ */ jsx_runtime7.jsx(CardDescription, {
+      /* @__PURE__ */ jsx_runtime18.jsx(CardDescription, {
         children: "Settings of this browser. A change takes effect at once."
       }),
-      /* @__PURE__ */ jsx_runtime7.jsxs(Row, {
+      /* @__PURE__ */ jsx_runtime18.jsxs(Row, {
         isFirst: true,
         children: [
-          /* @__PURE__ */ jsx_runtime7.jsx(RowText, {
+          /* @__PURE__ */ jsx_runtime18.jsx(RowText, {
             id: "notify",
             label: "Notify",
             help: "A system notification shows when a card needs you and the board is not in front."
           }),
-          /* @__PURE__ */ jsx_runtime7.jsxs(Toggle2, {
+          /* @__PURE__ */ jsx_runtime18.jsxs(Toggle2, {
             variant: "default",
             size: "sm",
             id: "notify",
@@ -23808,14 +36715,14 @@ function Preferences() {
             title: isBlocked ? "The browser blocks notifications for this page" : isOn ? "A system notification shows when a card needs you" : "Show a system notification when a card needs you",
             onPressedChange: () => void shellStore.toggleNotify(),
             children: [
-              /* @__PURE__ */ jsx_runtime7.jsx(Icon, {
+              /* @__PURE__ */ jsx_runtime18.jsx(Icon, {
                 name: isOn ? "bell" : "bell-off"
               }),
-              /* @__PURE__ */ jsx_runtime7.jsx("span", {
+              /* @__PURE__ */ jsx_runtime18.jsx("span", {
                 className: "text-muted-foreground",
                 children: "Notify"
               }),
-              /* @__PURE__ */ jsx_runtime7.jsx("b", {
+              /* @__PURE__ */ jsx_runtime18.jsx("b", {
                 className: "font-medium text-card-foreground",
                 children: isBlocked ? "blocked" : isOn ? "on" : "off"
               })
@@ -23823,14 +36730,14 @@ function Preferences() {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime7.jsxs(Row, {
+      /* @__PURE__ */ jsx_runtime18.jsxs(Row, {
         children: [
-          /* @__PURE__ */ jsx_runtime7.jsx(RowText, {
+          /* @__PURE__ */ jsx_runtime18.jsx(RowText, {
             id: "keys",
             label: "Single-key shortcuts",
             help: "j k h l v d r / ?. The keys of a focused card always work."
           }),
-          /* @__PURE__ */ jsx_runtime7.jsx(Toggle2, {
+          /* @__PURE__ */ jsx_runtime18.jsx(Toggle2, {
             id: "keys-switch",
             className: "phone:min-h-11 phone:min-w-11",
             pressed: keys,
@@ -23839,43 +36746,43 @@ function Preferences() {
             onPressedChange: (next) => shellStore.setKeys(next),
             children: keys ? "On" : "Off"
           }),
-          /* @__PURE__ */ jsx_runtime7.jsxs(Button2, {
+          /* @__PURE__ */ jsx_runtime18.jsxs(Button2, {
             variant: "ghost",
             id: "keys-open",
             className: SMALL,
             title: "Keyboard shortcuts (?)",
             onClick: () => $("keys").showModal(),
             children: [
-              /* @__PURE__ */ jsx_runtime7.jsx(Icon, {
+              /* @__PURE__ */ jsx_runtime18.jsx(Icon, {
                 name: "keyboard"
               }),
-              /* @__PURE__ */ jsx_runtime7.jsx("span", {
+              /* @__PURE__ */ jsx_runtime18.jsx("span", {
                 children: "Keys"
               })
             ]
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime7.jsxs(Row, {
+      /* @__PURE__ */ jsx_runtime18.jsxs(Row, {
         children: [
-          /* @__PURE__ */ jsx_runtime7.jsx(RowText, {
+          /* @__PURE__ */ jsx_runtime18.jsx(RowText, {
             id: "theme",
             label: "Theme",
             help: "System follows the setting of the device."
           }),
-          /* @__PURE__ */ jsx_runtime7.jsx("span", {
+          /* @__PURE__ */ jsx_runtime18.jsx("span", {
             className: "text-[0.78125rem] text-card-foreground",
             id: "theme-words",
             children: THEME_WORDS[theme]
           }),
-          /* @__PURE__ */ jsx_runtime7.jsx(Button2, {
+          /* @__PURE__ */ jsx_runtime18.jsx(Button2, {
             variant: "ghost",
             id: "theme",
             className: "size-6 gap-0 rounded-sm p-0 transition-all duration-0 phone:size-11 [&_.icon]:size-3.5",
             "aria-label": themeLabel,
             title: themeLabel,
             onClick: () => shellStore.cycleTheme(),
-            children: /* @__PURE__ */ jsx_runtime7.jsx(Icon, {
+            children: /* @__PURE__ */ jsx_runtime18.jsx(Icon, {
               name: `theme-${theme}`
             })
           })
@@ -23886,57 +36793,57 @@ function Preferences() {
 }
 function Control() {
   const { data, isError } = useQuery(viewOptions);
-  return /* @__PURE__ */ jsx_runtime7.jsxs("section", {
+  return /* @__PURE__ */ jsx_runtime18.jsxs("section", {
     className: "area-screen content-start items-start justify-center justify-items-stretch gap-3.5 overflow-auto grid-cols-[minmax(0,min(100%,720px))] p-5 phone:scroll-pb-[calc(var(--dock)+8px)] phone:p-3",
     id: "area-control",
     "aria-labelledby": "area-control-title",
     children: [
-      /* @__PURE__ */ jsx_runtime7.jsx("h2", {
+      /* @__PURE__ */ jsx_runtime18.jsx("h2", {
         className: "text-sm leading-[1.38] font-semibold tracking-[-0.012em] text-foreground",
         id: "area-control-title",
         children: "Control"
       }),
-      /* @__PURE__ */ jsx_runtime7.jsxs(Card, {
+      /* @__PURE__ */ jsx_runtime18.jsxs(Card, {
         id: "ctl-agents",
         tabIndex: -1,
         "aria-labelledby": "ctl-agents-title",
         children: [
-          /* @__PURE__ */ jsx_runtime7.jsx(CardTitle, {
+          /* @__PURE__ */ jsx_runtime18.jsx(CardTitle, {
             id: "ctl-agents-title",
             children: "Agents"
           }),
-          /* @__PURE__ */ jsx_runtime7.jsx(CardDescription, {
+          /* @__PURE__ */ jsx_runtime18.jsx(CardDescription, {
             children: "New default work uses the first available agent. Drag a handle, or press it for the move actions."
           }),
-          /* @__PURE__ */ jsx_runtime7.jsx("div", {
+          /* @__PURE__ */ jsx_runtime18.jsx("div", {
             className: "mt-3",
-            children: /* @__PURE__ */ jsx_runtime7.jsx(AgentsHost, {})
+            children: /* @__PURE__ */ jsx_runtime18.jsx(AgentsHost, {})
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime7.jsx(Automation, {
+      /* @__PURE__ */ jsx_runtime18.jsx(Automation, {
         daemon: data?.daemon ?? null,
         isDown: isError
       }),
-      /* @__PURE__ */ jsx_runtime7.jsxs(Card, {
+      /* @__PURE__ */ jsx_runtime18.jsxs(Card, {
         id: "ctl-updates",
         "aria-labelledby": "ctl-updates-title",
         children: [
-          /* @__PURE__ */ jsx_runtime7.jsx(CardTitle, {
+          /* @__PURE__ */ jsx_runtime18.jsx(CardTitle, {
             id: "ctl-updates-title",
             children: "Updates"
           }),
-          /* @__PURE__ */ jsx_runtime7.jsx(CardDescription, {
+          /* @__PURE__ */ jsx_runtime18.jsx(CardDescription, {
             children: "The installed engine and plugins of Celetis. Update and restart needs your click, and the daemon restarts after it."
           }),
-          /* @__PURE__ */ jsx_runtime7.jsx("div", {
+          /* @__PURE__ */ jsx_runtime18.jsx("div", {
             className: "mt-3",
-            children: /* @__PURE__ */ jsx_runtime7.jsx(UpdateHost, {})
+            children: /* @__PURE__ */ jsx_runtime18.jsx(UpdateHost, {})
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime7.jsx(Preferences, {}),
-      /* @__PURE__ */ jsx_runtime7.jsx(Status, {
+      /* @__PURE__ */ jsx_runtime18.jsx(Preferences, {}),
+      /* @__PURE__ */ jsx_runtime18.jsx(Status2, {
         data,
         isDown: isError
       })
@@ -23946,7 +36853,7 @@ function Control() {
 
 // engine/board/page/app/home.tsx
 init_view();
-var import_react6 = __toESM(require_react());
+var import_react14 = __toESM(require_react());
 
 // engine/board/page/home.ts
 init_grammar();
@@ -24056,51 +36963,51 @@ var tileOf = (kind, board) => {
 
 // engine/board/page/app/home.tsx
 init_store();
-var jsx_runtime8 = __toESM(require_jsx_runtime());
+var jsx_runtime19 = __toESM(require_jsx_runtime());
 var KINDS = ["needs", "working", "landed", "median"];
 var PAD = "p-[12px_14px] [box-shadow:var(--raise)] phone:p-[12px_14px]";
 var LIST = "mt-2 mb-0 list-none p-0 [&>li+li]:border-t [&>li+li]:border-t-border";
-var EMPTY = "mt-2 mb-0 text-[0.78125rem] text-muted-foreground";
+var EMPTY3 = "mt-2 mb-0 text-[0.78125rem] text-muted-foreground";
 var TITLE = "m-0 text-[0.8125rem] leading-[1.4] text-foreground wrap-anywhere text-pretty";
 var META = "m-0 block font-mono text-[0.75rem] leading-[1.4] font-normal wrap-anywhere";
 var SMALL2 = "m-0 text-[0.75rem] leading-normal";
-var open = (card) => shellStore.handlers().open(keyOf(card));
+var open3 = (card) => shellStore.handlers().open(keyOf(card));
 var rowOf = (event) => {
   const node = event.target.closest("li");
   return node?.parentElement === event.currentTarget ? node : null;
 };
 function TileCard({ tile }) {
   const spark = tile.state.kind === "line" ? sparkPath(tile.state.points) : null;
-  return /* @__PURE__ */ jsx_runtime8.jsxs(Card, {
+  return /* @__PURE__ */ jsx_runtime19.jsxs(Card, {
     className: PAD,
     role: "group",
     "aria-label": tile.name,
     children: [
-      /* @__PURE__ */ jsx_runtime8.jsx(CardTitle, {
+      /* @__PURE__ */ jsx_runtime19.jsx(CardTitle, {
         children: tile.label
       }),
-      /* @__PURE__ */ jsx_runtime8.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime19.jsxs("div", {
         className: "mt-2 flex flex-wrap items-center gap-x-3 gap-y-1",
         children: [
-          /* @__PURE__ */ jsx_runtime8.jsx("p", {
+          /* @__PURE__ */ jsx_runtime19.jsx("p", {
             className: "my-0 mr-auto ml-0 font-mono text-[1.5rem] leading-8 font-semibold text-foreground",
             children: tile.value
           }),
-          tile.state.kind !== "line" && /* @__PURE__ */ jsx_runtime8.jsx("p", {
+          tile.state.kind !== "line" && /* @__PURE__ */ jsx_runtime19.jsx("p", {
             className: "m-0 text-[0.8125rem] leading-[1.4] text-muted-foreground",
             children: tile.state.text
           }),
-          spark && /* @__PURE__ */ jsx_runtime8.jsxs(jsx_runtime8.Fragment, {
+          spark && /* @__PURE__ */ jsx_runtime19.jsxs(jsx_runtime19.Fragment, {
             children: [
-              /* @__PURE__ */ jsx_runtime8.jsxs("svg", {
+              /* @__PURE__ */ jsx_runtime19.jsxs("svg", {
                 className: "h-8 w-24 flex-none fill-none stroke-card-foreground stroke-[1.5] [stroke-linecap:round] [stroke-linejoin:round]",
                 viewBox: "0 0 96 32",
                 "aria-hidden": "true",
                 children: [
-                  /* @__PURE__ */ jsx_runtime8.jsx("path", {
+                  /* @__PURE__ */ jsx_runtime19.jsx("path", {
                     d: spark.d
                   }),
-                  /* @__PURE__ */ jsx_runtime8.jsx("circle", {
+                  /* @__PURE__ */ jsx_runtime19.jsx("circle", {
                     className: "fill-foreground stroke-none",
                     cx: String(spark.dot.x),
                     cy: String(spark.dot.y),
@@ -24108,7 +37015,7 @@ function TileCard({ tile }) {
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime8.jsx("span", {
+              /* @__PURE__ */ jsx_runtime19.jsx("span", {
                 className: "font-mono text-[0.6875rem] leading-none font-normal text-card-foreground",
                 "aria-hidden": "true",
                 children: spark.last % 1 ? spark.last.toFixed(1) : String(spark.last)
@@ -24117,22 +37024,22 @@ function TileCard({ tile }) {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime8.jsx("p", {
+      /* @__PURE__ */ jsx_runtime19.jsx("p", {
         className: "mt-1 mb-0 text-[0.75rem] leading-normal text-card-foreground",
         children: tile.unit
       }),
-      tile.change && /* @__PURE__ */ jsx_runtime8.jsxs("p", {
+      tile.change && /* @__PURE__ */ jsx_runtime19.jsxs("p", {
         className: `${SMALL2} flex items-center gap-1 text-card-foreground`,
         children: [
-          tile.change.dir && /* @__PURE__ */ jsx_runtime8.jsx(Icon, {
+          tile.change.dir && /* @__PURE__ */ jsx_runtime19.jsx(Icon, {
             name: tile.change.dir === "up" ? "trend-up" : "trend-down"
           }),
-          /* @__PURE__ */ jsx_runtime8.jsx("span", {
+          /* @__PURE__ */ jsx_runtime19.jsx("span", {
             children: tile.change.text
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime8.jsx("p", {
+      /* @__PURE__ */ jsx_runtime19.jsx("p", {
         className: `${SMALL2} text-muted-foreground`,
         children: tile.window
       })
@@ -24141,27 +37048,27 @@ function TileCard({ tile }) {
 }
 function NeedsRow({ card }) {
   const meta = stateLabel(card) ?? card.reason ?? "";
-  return /* @__PURE__ */ jsx_runtime8.jsxs("li", {
+  return /* @__PURE__ */ jsx_runtime19.jsxs("li", {
     className: "flex min-h-11 items-center gap-3 py-2",
     "data-key": keyOf(card),
     children: [
-      /* @__PURE__ */ jsx_runtime8.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime19.jsxs("div", {
         className: "min-w-0 flex-1",
         children: [
-          /* @__PURE__ */ jsx_runtime8.jsx("p", {
+          /* @__PURE__ */ jsx_runtime19.jsx("p", {
             className: TITLE,
             children: card.title
           }),
-          /* @__PURE__ */ jsx_runtime8.jsx("p", {
+          /* @__PURE__ */ jsx_runtime19.jsx("p", {
             className: `${META} text-needs`,
             children: card.number === null ? meta : `#${card.number} · ${meta}`
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime8.jsx(Button2, {
+      /* @__PURE__ */ jsx_runtime19.jsx(Button2, {
         className: "min-h-7 hover:opacity-[0.88] [&:hover]:opacity-[0.88] phone:h-11 phone:min-h-11 phone:min-w-11",
         "aria-label": `Open #${card.number} ${card.title}`,
-        onClick: () => open(card),
+        onClick: () => open3(card),
         children: "Open"
       })
     ]
@@ -24169,18 +37076,18 @@ function NeedsRow({ card }) {
 }
 function AgentRow({ card, board }) {
   const meta = [card.step, agentOf(card, board.registry)?.name, stateLabel(card)].filter(Boolean).join(" · ");
-  return /* @__PURE__ */ jsx_runtime8.jsx("li", {
+  return /* @__PURE__ */ jsx_runtime19.jsx("li", {
     "data-key": keyOf(card),
-    children: /* @__PURE__ */ jsx_runtime8.jsxs("button", {
+    children: /* @__PURE__ */ jsx_runtime19.jsxs("button", {
       type: "button",
       className: "flex min-h-11 w-full flex-col items-start justify-center gap-0.5 [border:0] bg-transparent px-0 py-2 text-start",
-      onClick: () => open(card),
+      onClick: () => open3(card),
       children: [
-        /* @__PURE__ */ jsx_runtime8.jsx("span", {
+        /* @__PURE__ */ jsx_runtime19.jsx("span", {
           className: `${TITLE} [button:hover>&]:underline`,
           children: `#${card.number} ${card.title}`
         }),
-        /* @__PURE__ */ jsx_runtime8.jsx("span", {
+        /* @__PURE__ */ jsx_runtime19.jsx("span", {
           className: `${META} text-working`,
           children: meta
         })
@@ -24192,8 +37099,8 @@ function Home() {
   const board = useShellStore((state) => state.inputs.board);
   const needs = board?.columns.needs ?? [];
   const running = board?.columns.running ?? [];
-  const spot = import_react6.useRef(null);
-  const lists = { "home-needs": import_react6.useRef(null), "home-agents": import_react6.useRef(null) };
+  const spot = import_react14.useRef(null);
+  const lists = { "home-needs": import_react14.useRef(null), "home-agents": import_react14.useRef(null) };
   const rows = (list) => [...lists[list].current?.children ?? []];
   const focusIn = (list) => (event) => {
     const node = rowOf(event);
@@ -24207,7 +37114,7 @@ function Home() {
         spot.current = null;
     });
   };
-  import_react6.useLayoutEffect(() => {
+  import_react14.useLayoutEffect(() => {
     const was = spot.current;
     if (!was)
       return;
@@ -24222,106 +37129,106 @@ function Home() {
     const row = mine.find((each) => each.dataset.key === was.key) ?? mine[Math.min(was.index, mine.length - 1)] ?? rows(was.list === "home-needs" ? "home-agents" : "home-needs")[0];
     (row?.querySelector("button") ?? document.getElementById("work"))?.focus({ preventScroll: true });
   }, [board]);
-  return /* @__PURE__ */ jsx_runtime8.jsxs("section", {
+  return /* @__PURE__ */ jsx_runtime19.jsxs("section", {
     className: "area-screen flex flex-col place-items-stretch gap-3 overflow-auto p-5 phone:scroll-pb-[calc(var(--dock)+8px)] phone:p-3",
     id: "area-home",
     "aria-labelledby": "area-home-title",
     children: [
-      /* @__PURE__ */ jsx_runtime8.jsx("h2", {
+      /* @__PURE__ */ jsx_runtime19.jsx("h2", {
         className: "text-sm leading-[1.38] font-semibold tracking-[-0.012em] text-foreground",
         id: "area-home-title",
         children: "Home"
       }),
-      /* @__PURE__ */ jsx_runtime8.jsx("div", {
+      /* @__PURE__ */ jsx_runtime19.jsx("div", {
         className: "grid grid-cols-[minmax(0,1fr)] gap-3 empty:hidden min-[720px]:grid-cols-2 min-[1200px]:grid-cols-4 phone:order-2",
         id: "home-tiles",
-        children: board && KINDS.map((kind) => /* @__PURE__ */ jsx_runtime8.jsx(TileCard, {
+        children: board && KINDS.map((kind) => /* @__PURE__ */ jsx_runtime19.jsx(TileCard, {
           tile: tileOf(kind, board)
         }, kind))
       }),
-      /* @__PURE__ */ jsx_runtime8.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime19.jsxs("div", {
         className: "grid grid-cols-[minmax(0,1fr)] gap-3 [align-items:start] wide:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] phone:contents",
         children: [
-          /* @__PURE__ */ jsx_runtime8.jsxs(Card, {
+          /* @__PURE__ */ jsx_runtime19.jsxs(Card, {
             className: `${PAD} phone:order-1`,
             id: "home-needs",
             "aria-labelledby": "home-needs-title",
             children: [
-              /* @__PURE__ */ jsx_runtime8.jsx(CardTitle, {
+              /* @__PURE__ */ jsx_runtime19.jsx(CardTitle, {
                 id: "home-needs-title",
                 children: "Needs you"
               }),
-              /* @__PURE__ */ jsx_runtime8.jsx("ul", {
+              /* @__PURE__ */ jsx_runtime19.jsx("ul", {
                 className: LIST,
                 id: "home-needs-list",
                 hidden: board !== null && needs.length === 0,
                 ref: lists["home-needs"],
                 onFocus: focusIn("home-needs"),
                 onBlur: focusOut,
-                children: needs.map((card) => /* @__PURE__ */ jsx_runtime8.jsx(NeedsRow, {
+                children: needs.map((card) => /* @__PURE__ */ jsx_runtime19.jsx(NeedsRow, {
                   card
                 }, keyOf(card)))
               }),
-              /* @__PURE__ */ jsx_runtime8.jsx("p", {
-                className: EMPTY,
+              /* @__PURE__ */ jsx_runtime19.jsx("p", {
+                className: EMPTY3,
                 id: "home-needs-empty",
                 hidden: board === null || needs.length > 0,
                 children: "No issue needs you."
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime8.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime19.jsxs("div", {
             className: "grid min-w-0 gap-3 phone:order-3",
             children: [
-              /* @__PURE__ */ jsx_runtime8.jsxs(Card, {
+              /* @__PURE__ */ jsx_runtime19.jsxs(Card, {
                 className: PAD,
                 id: "home-agents",
                 "aria-labelledby": "home-agents-title",
                 children: [
-                  /* @__PURE__ */ jsx_runtime8.jsx(CardTitle, {
+                  /* @__PURE__ */ jsx_runtime19.jsx(CardTitle, {
                     id: "home-agents-title",
                     children: "Agents now"
                   }),
-                  /* @__PURE__ */ jsx_runtime8.jsx("ul", {
+                  /* @__PURE__ */ jsx_runtime19.jsx("ul", {
                     className: LIST,
                     id: "home-agents-list",
                     hidden: board !== null && running.length === 0,
                     ref: lists["home-agents"],
                     onFocus: focusIn("home-agents"),
                     onBlur: focusOut,
-                    children: board && running.map((card) => /* @__PURE__ */ jsx_runtime8.jsx(AgentRow, {
+                    children: board && running.map((card) => /* @__PURE__ */ jsx_runtime19.jsx(AgentRow, {
                       card,
                       board
                     }, keyOf(card)))
                   }),
-                  /* @__PURE__ */ jsx_runtime8.jsx("p", {
-                    className: EMPTY,
+                  /* @__PURE__ */ jsx_runtime19.jsx("p", {
+                    className: EMPTY3,
                     id: "home-agents-empty",
                     hidden: board === null || running.length > 0,
                     children: "No agent works now."
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime8.jsxs(Card, {
+              /* @__PURE__ */ jsx_runtime19.jsxs(Card, {
                 className: PAD,
                 id: "home-system",
                 "aria-labelledby": "home-system-title",
                 children: [
-                  /* @__PURE__ */ jsx_runtime8.jsx(CardTitle, {
+                  /* @__PURE__ */ jsx_runtime19.jsx(CardTitle, {
                     id: "home-system-title",
                     children: "System"
                   }),
-                  /* @__PURE__ */ jsx_runtime8.jsx("dl", {
+                  /* @__PURE__ */ jsx_runtime19.jsx("dl", {
                     className: "mt-2 mb-0",
                     id: "home-system-facts",
-                    children: board && facts(board).map(([name, value]) => /* @__PURE__ */ jsx_runtime8.jsxs("div", {
+                    children: board && facts(board).map(([name, value]) => /* @__PURE__ */ jsx_runtime19.jsxs("div", {
                       className: "flex min-h-7 items-center justify-between gap-3 text-[0.8125rem]",
                       children: [
-                        /* @__PURE__ */ jsx_runtime8.jsx("dt", {
+                        /* @__PURE__ */ jsx_runtime19.jsx("dt", {
                           className: "text-muted-foreground",
                           children: name
                         }),
-                        /* @__PURE__ */ jsx_runtime8.jsx("dd", {
+                        /* @__PURE__ */ jsx_runtime19.jsx("dd", {
                           className: "m-0 text-end text-foreground wrap-anywhere",
                           children: value
                         })
@@ -24339,7 +37246,7 @@ function Home() {
 }
 
 // engine/board/page/app/shell.tsx
-var jsx_runtime9 = __toESM(require_jsx_runtime());
+var jsx_runtime20 = __toESM(require_jsx_runtime());
 var SKIP = "absolute -top-[60px] left-2 z-[200] inline-flex min-h-8 items-center rounded-lg border border-border-strong bg-card px-3 text-[0.78125rem] leading-none font-medium text-foreground focus:top-2 focus:shadow-float phone:min-h-11";
 var BANNER = "banner m-0 flex items-center gap-2.5 rounded-xl border border-border-strong bg-secondary px-3.5 py-[9px] text-[0.78125rem] text-foreground [overflow-wrap:anywhere] before:size-[7px] before:flex-none before:rounded-full before:bg-muted-foreground before:content-['']";
 var WARN = "border-[color-mix(in_srgb,var(--amber)_30%,transparent)] bg-[color-mix(in_srgb,var(--amber)_9%,transparent)] before:bg-caution";
@@ -24367,10 +37274,10 @@ var useControlMark = () => {
 };
 function Intake({ inBar }) {
   const { reason, pending } = useShellStore((state) => state.inputs.intake);
-  return /* @__PURE__ */ jsx_runtime9.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime20.jsxs("div", {
     className: cn("flex flex-none gap-1.5", inBar ? "relative items-center justify-center" : "flex-col items-stretch"),
     children: [
-      /* @__PURE__ */ jsx_runtime9.jsxs(Button2, {
+      /* @__PURE__ */ jsx_runtime20.jsxs(Button2, {
         variant: "outline",
         id: "intake",
         "aria-describedby": "intake-reason",
@@ -24380,16 +37287,16 @@ function Intake({ inBar }) {
         onClick: () => shellStore.handlers().intake(),
         className: inBar ? "h-12 w-[calc(100%-8px)] flex-col rounded-xl gap-1 border-border-strong bg-accent p-0 text-[0.6875rem] leading-none text-foreground aria-disabled:border-border aria-disabled:bg-transparent aria-disabled:text-muted-foreground [&_.icon]:box-content [&_.icon]:size-[18px] [&_.icon]:rounded-[14px] [&_.icon]:px-[15px] [&_.icon]:py-[3px]" : "h-8 justify-start gap-2.5 px-2.5 rail:h-[50px] rail:flex-col rail:justify-center rail:gap-[5px] rail:px-0.5 rail:py-1.5 rail:text-center rail:text-[0.6875rem] rail:leading-[1.1]",
         children: [
-          /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
             name: "spark"
           }),
-          /* @__PURE__ */ jsx_runtime9.jsx("span", {
+          /* @__PURE__ */ jsx_runtime20.jsx("span", {
             className: "label",
             children: pending ? "Opening…" : "New intake"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime9.jsx("span", {
+      /* @__PURE__ */ jsx_runtime20.jsx("span", {
         id: "intake-reason",
         className: cn("text-xs text-card-foreground [overflow-wrap:anywhere]", inBar ? "pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 w-max max-w-[calc(100vw-32px)] -translate-x-1/2 rounded-sm border border-border bg-card px-2 py-1" : "px-2.5 rail:p-0 rail:text-center rail:text-[0.6875rem]"),
         hidden: pending || reason === null,
@@ -24403,23 +37310,23 @@ function SkipLinks() {
   const isPhone = useShellStore((state) => state.isPhone);
   const isOps = shell.area === "operations";
   const isDetails = isOps && shell.details !== null && (!isPhone || shell.pane === "chat");
-  return /* @__PURE__ */ jsx_runtime9.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime20.jsxs("div", {
     className: "contents",
     id: "skips",
     children: [
-      /* @__PURE__ */ jsx_runtime9.jsx("a", {
+      /* @__PURE__ */ jsx_runtime20.jsx("a", {
         className: SKIP,
         href: "#side",
         children: "Skip to the sidebar"
       }),
-      /* @__PURE__ */ jsx_runtime9.jsx("a", {
+      /* @__PURE__ */ jsx_runtime20.jsx("a", {
         className: SKIP,
         id: "skip-center",
         href: !isOps ? `#area-${shell.area}` : isDetails ? "#panel" : "#coordinator",
         hidden: isOps && !isChatShown(shell, isPhone) && !isDetails,
         children: !isOps ? "Skip to the work area" : isDetails ? "Skip to the details" : "Skip to the chat"
       }),
-      /* @__PURE__ */ jsx_runtime9.jsx("a", {
+      /* @__PURE__ */ jsx_runtime20.jsx("a", {
         className: SKIP,
         id: "skip-pane",
         href: "#pane",
@@ -24434,21 +37341,21 @@ function Destination({ area, mark }) {
   const badges = useShellStore((state) => state.inputs.badges);
   const badge = BADGES[area];
   const count = badge ? badges[badge.count] : 0;
-  return /* @__PURE__ */ jsx_runtime9.jsxs(SidebarMenuButton, {
+  return /* @__PURE__ */ jsx_runtime20.jsxs(SidebarMenuButton, {
     "data-area": area,
     "aria-current": current2(isCurrent),
     ...mark ?? { "aria-label": badge ? needLabel(AREA_NAMES[area], count) : undefined },
     className: cn(area === "control" && 'data-mark:after:absolute data-mark:after:top-1/2 data-mark:after:right-2.5 data-mark:after:-mt-1 data-mark:after:size-2 data-mark:after:rounded-full data-mark:after:bg-needs data-mark:after:content-[""] data-[mark=fail]:after:bg-caution rail:data-mark:after:top-1 rail:data-mark:after:right-auto rail:data-mark:after:left-[calc(50%+6px)] rail:data-mark:after:mt-0'),
     onClick: () => shellStore.handlers().go(area),
     children: [
-      /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
+      /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
         name: AREA_ICONS[area]
       }),
-      /* @__PURE__ */ jsx_runtime9.jsx("span", {
+      /* @__PURE__ */ jsx_runtime20.jsx("span", {
         className: "label min-w-0 flex-1 rail:flex-none",
         children: AREA_NAMES[area]
       }),
-      badge && /* @__PURE__ */ jsx_runtime9.jsx(Badge, {
+      badge && /* @__PURE__ */ jsx_runtime20.jsx(Badge, {
         variant: "count",
         id: badge.id,
         className: "rail:absolute rail:top-[3px] rail:left-[calc(50%+4px)]",
@@ -24459,7 +37366,7 @@ function Destination({ area, mark }) {
   });
 }
 function ControlDestination() {
-  return /* @__PURE__ */ jsx_runtime9.jsx(Destination, {
+  return /* @__PURE__ */ jsx_runtime20.jsx(Destination, {
     area: "control",
     mark: useControlMark()
   });
@@ -24468,24 +37375,24 @@ function Sidebar2() {
   const { data } = useQuery(viewOptions);
   const isPhone = useShellStore((state) => state.isPhone);
   const hints = useShellStore((state) => state.inputs.hints);
-  return /* @__PURE__ */ jsx_runtime9.jsxs(Sidebar, {
+  return /* @__PURE__ */ jsx_runtime20.jsxs(Sidebar, {
     id: "side",
     "aria-label": "Board",
     children: [
-      /* @__PURE__ */ jsx_runtime9.jsxs(SidebarHeader, {
+      /* @__PURE__ */ jsx_runtime20.jsxs(SidebarHeader, {
         children: [
-          /* @__PURE__ */ jsx_runtime9.jsx("span", {
+          /* @__PURE__ */ jsx_runtime20.jsx("span", {
             className: "grid size-[26px] flex-none place-items-center rounded-lg bg-foreground text-background [&_.icon]:size-3.5",
             id: "logo",
-            children: /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
+            children: /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
               name: "logo"
             })
           }),
-          /* @__PURE__ */ jsx_runtime9.jsx("h1", {
+          /* @__PURE__ */ jsx_runtime20.jsx("h1", {
             className: "sr-only",
             children: "Agent board"
           }),
-          /* @__PURE__ */ jsx_runtime9.jsx("span", {
+          /* @__PURE__ */ jsx_runtime20.jsx("span", {
             className: "min-w-0 truncate text-sm leading-none font-semibold tracking-[-0.012em] text-foreground rail:max-w-full rail:text-[0.6875rem] rail:font-medium rail:text-card-foreground",
             id: "repo",
             title: data?.repo,
@@ -24493,47 +37400,47 @@ function Sidebar2() {
           })
         ]
       }),
-      !isPhone && /* @__PURE__ */ jsx_runtime9.jsx(Intake, {
+      !isPhone && /* @__PURE__ */ jsx_runtime20.jsx(Intake, {
         inBar: false
       }),
-      /* @__PURE__ */ jsx_runtime9.jsxs(Button2, {
+      /* @__PURE__ */ jsx_runtime20.jsxs(Button2, {
         variant: "outline",
         id: "find",
         "aria-label": "Search or run a step: the cards, history, and commands",
         "aria-keyshortcuts": "Control+K Meta+K /",
         className: "h-8 w-full justify-start gap-2.5 py-0 pr-1.5 pl-2.5 text-left leading-normal font-normal text-muted-foreground hover:bg-secondary hover:text-card-foreground rail:h-[50px] rail:flex-col rail:justify-center rail:gap-[5px] rail:px-0.5 rail:py-1.5 rail:text-center rail:text-[0.6875rem] rail:leading-[1.1] rail:font-medium phone:size-11 phone:flex-none phone:justify-center phone:p-0 [&_.icon]:size-3.5",
         children: [
-          /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
             name: "search"
           }),
-          /* @__PURE__ */ jsx_runtime9.jsx("span", {
+          /* @__PURE__ */ jsx_runtime20.jsx("span", {
             className: "min-w-0 flex-1 truncate rail:flex-none rail:text-card-foreground phone:hidden",
             children: "Search"
           }),
-          /* @__PURE__ */ jsx_runtime9.jsx("kbd", {
+          /* @__PURE__ */ jsx_runtime20.jsx("kbd", {
             className: "rail:hidden phone:hidden",
             children: FIND_KEY
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime9.jsx(SidebarMenu, {
+      /* @__PURE__ */ jsx_runtime20.jsx(SidebarMenu, {
         id: "dests",
-        children: AREAS.map((area) => /* @__PURE__ */ jsx_runtime9.jsx(SidebarMenuItem, {
-          children: area === "control" ? /* @__PURE__ */ jsx_runtime9.jsx(ControlDestination, {}) : /* @__PURE__ */ jsx_runtime9.jsx(Destination, {
+        children: AREAS.map((area) => /* @__PURE__ */ jsx_runtime20.jsx(SidebarMenuItem, {
+          children: area === "control" ? /* @__PURE__ */ jsx_runtime20.jsx(ControlDestination, {}) : /* @__PURE__ */ jsx_runtime20.jsx(Destination, {
             area
           })
         }, area))
       }),
-      /* @__PURE__ */ jsx_runtime9.jsx(SidebarFooter, {
+      /* @__PURE__ */ jsx_runtime20.jsx(SidebarFooter, {
         id: "side-foot",
-        children: /* @__PURE__ */ jsx_runtime9.jsx("span", {
+        children: /* @__PURE__ */ jsx_runtime20.jsx("span", {
           className: "mb-1.5 flex flex-wrap gap-x-2.5 gap-y-1.5 border-b border-border px-2 pb-2",
           id: "hints",
           "aria-hidden": "true",
-          children: hints.map((pair) => /* @__PURE__ */ jsx_runtime9.jsxs("span", {
+          children: hints.map((pair) => /* @__PURE__ */ jsx_runtime20.jsxs("span", {
             className: "inline-flex items-center gap-1.5",
             children: [
-              pair.slice(0, -1).map((key) => /* @__PURE__ */ jsx_runtime9.jsx("kbd", {
+              pair.slice(0, -1).map((key) => /* @__PURE__ */ jsx_runtime20.jsx("kbd", {
                 className: "min-h-[18px] min-w-[18px] px-1 text-[0.6875rem]",
                 children: key
               }, key)),
@@ -24547,25 +37454,25 @@ function Sidebar2() {
 }
 function AreaBox({ area, children }) {
   const isShown = useShellStore((state) => state.shell.area === area);
-  return /* @__PURE__ */ jsx_runtime9.jsx("div", {
+  return /* @__PURE__ */ jsx_runtime20.jsx("div", {
     className: isShown ? "contents" : undefined,
     hidden: !isShown,
     children
   });
 }
 function Throughput() {
-  return /* @__PURE__ */ jsx_runtime9.jsx("section", {
+  return /* @__PURE__ */ jsx_runtime20.jsx("section", {
     className: "area-screen",
     id: "area-throughput",
     "aria-labelledby": "area-throughput-title",
-    children: /* @__PURE__ */ jsx_runtime9.jsxs("div", {
+    children: /* @__PURE__ */ jsx_runtime20.jsxs("div", {
       className: "area-empty",
       children: [
-        /* @__PURE__ */ jsx_runtime9.jsx("h2", {
+        /* @__PURE__ */ jsx_runtime20.jsx("h2", {
           id: "area-throughput-title",
           children: "Throughput is not built yet."
         }),
-        /* @__PURE__ */ jsx_runtime9.jsx("p", {
+        /* @__PURE__ */ jsx_runtime20.jsx("p", {
           children: "Throughput will show how fast the issues move from intent to the trunk."
         })
       ]
@@ -24575,24 +37482,24 @@ function Throughput() {
 function Work() {
   const { data, isError } = useQuery(viewOptions);
   const area = useShellStore((state) => state.shell.area);
-  return /* @__PURE__ */ jsx_runtime9.jsxs("main", {
+  return /* @__PURE__ */ jsx_runtime20.jsxs("main", {
     className: "work",
     id: "work",
     tabIndex: -1,
     "aria-label": "Work area",
     "data-area": area,
     children: [
-      /* @__PURE__ */ jsx_runtime9.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime20.jsxs("div", {
         className: "flex-none not-has-[.banner:not([hidden])]:hidden",
         children: [
-          /* @__PURE__ */ jsx_runtime9.jsx("p", {
+          /* @__PURE__ */ jsx_runtime20.jsx("p", {
             className: cn(BANNER, WARN),
             id: "dirty",
             role: "alert",
             hidden: !data?.noRun,
             children: data?.noRun
           }),
-          /* @__PURE__ */ jsx_runtime9.jsx("p", {
+          /* @__PURE__ */ jsx_runtime20.jsx("p", {
             className: BANNER,
             id: "stale",
             role: "alert",
@@ -24601,27 +37508,27 @@ function Work() {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime9.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime20.jsx(AreaBox, {
         area: "home",
-        children: /* @__PURE__ */ jsx_runtime9.jsx(Home, {})
+        children: /* @__PURE__ */ jsx_runtime20.jsx(Home, {})
       }),
-      /* @__PURE__ */ jsx_runtime9.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime20.jsx(AreaBox, {
         area: "control",
-        children: /* @__PURE__ */ jsx_runtime9.jsx(Control, {})
+        children: /* @__PURE__ */ jsx_runtime20.jsx(Control, {})
       }),
-      /* @__PURE__ */ jsx_runtime9.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime20.jsx(AreaBox, {
         area: "throughput",
-        children: /* @__PURE__ */ jsx_runtime9.jsx(Throughput, {})
+        children: /* @__PURE__ */ jsx_runtime20.jsx(Throughput, {})
       }),
-      /* @__PURE__ */ jsx_runtime9.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime20.jsx(AreaBox, {
         area: "operations",
-        children: /* @__PURE__ */ jsx_runtime9.jsx(OperationsHost, {})
+        children: /* @__PURE__ */ jsx_runtime20.jsx(Operations, {})
       })
     ]
   });
 }
 function DockItem({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime9.jsx(Button2, {
+  return /* @__PURE__ */ jsx_runtime20.jsx(Button2, {
     variant: "ghost",
     className: cn("relative h-14 flex-col gap-1 rounded-xl border-0 p-0 transition-all duration-0 hover:bg-transparent text-[0.6875rem] leading-none text-muted-foreground aria-[current=page]:text-foreground aria-expanded:text-foreground [&_.icon]:box-content [&_.icon]:size-[18px] [&_.icon]:rounded-[14px] [&_.icon]:px-[15px] [&_.icon]:py-[5px] aria-[current=page]:[&_.icon]:bg-accent aria-expanded:[&_.icon]:bg-accent", className),
     ...props
@@ -24635,26 +37542,26 @@ function BottomBar() {
   const moreOpen = useShellStore((state) => state.inputs.moreOpen);
   const mark = useControlMark();
   const isOps = shell.area === "operations";
-  return /* @__PURE__ */ jsx_runtime9.jsxs("nav", {
+  return /* @__PURE__ */ jsx_runtime20.jsxs("nav", {
     id: "bar",
     "aria-label": "Panes",
     className: "fixed inset-x-0 bottom-0 z-[7] hidden h-[var(--dock)] grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.25fr)_repeat(2,minmax(0,1fr))] items-center border-t border-border bg-background px-2 py-1.5 [anchor-name:--bar] phone:grid",
     children: [
-      /* @__PURE__ */ jsx_runtime9.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime20.jsxs(DockItem, {
         id: "pb-home",
         "aria-current": current2(isPhone && shell.area === "home"),
         onClick: () => shellStore.handlers().go("home"),
         children: [
-          /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
             name: "home"
           }),
-          /* @__PURE__ */ jsx_runtime9.jsx("span", {
+          /* @__PURE__ */ jsx_runtime20.jsx("span", {
             className: "label",
             children: "Home"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime9.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime20.jsxs(DockItem, {
         className: "co-open",
         id: "pb-chat",
         "data-state": chat.state || undefined,
@@ -24665,33 +37572,33 @@ function BottomBar() {
         "aria-current": current2(isPhone && isOps && shell.pane === "chat"),
         onClick: () => shellStore.handlers().showChat(),
         children: [
-          /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
             name: "message"
           }),
-          /* @__PURE__ */ jsx_runtime9.jsx("span", {
+          /* @__PURE__ */ jsx_runtime20.jsx("span", {
             className: "label",
             children: "Chat"
           }),
-          /* @__PURE__ */ jsx_runtime9.jsx("i", {
+          /* @__PURE__ */ jsx_runtime20.jsx("i", {
             className: "co-mark absolute top-1.5 left-[calc(50%+9px)]",
             "aria-hidden": "true"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime9.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime20.jsxs(DockItem, {
         id: "pb-agents",
         "aria-label": needLabel("Agents", agents),
         "aria-current": current2(isPhone && isOps && shell.pane === "agents"),
         onClick: () => shellStore.handlers().agents(),
         children: [
-          /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
             name: "board"
           }),
-          /* @__PURE__ */ jsx_runtime9.jsx("span", {
+          /* @__PURE__ */ jsx_runtime20.jsx("span", {
             className: "label",
             children: "Agents"
           }),
-          /* @__PURE__ */ jsx_runtime9.jsx(Badge, {
+          /* @__PURE__ */ jsx_runtime20.jsx(Badge, {
             variant: "count",
             className: "absolute top-0.5 left-[calc(50%+6px)]",
             id: "now-badge",
@@ -24700,26 +37607,26 @@ function BottomBar() {
           })
         ]
       }),
-      isPhone && /* @__PURE__ */ jsx_runtime9.jsx(Intake, {
+      isPhone && /* @__PURE__ */ jsx_runtime20.jsx(Intake, {
         inBar: true
       }),
-      /* @__PURE__ */ jsx_runtime9.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime20.jsxs(DockItem, {
         id: "pb-control",
         className: "data-mark:after:absolute data-mark:after:top-1.5 data-mark:after:left-[calc(50%+8px)] data-mark:after:size-2 data-mark:after:rounded-full data-mark:after:bg-needs data-mark:after:content-[''] data-[mark=fail]:after:bg-caution",
         "aria-current": current2(isPhone && shell.area === "control"),
         ...mark,
         onClick: () => shellStore.handlers().go("control"),
         children: [
-          /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
             name: "sliders"
           }),
-          /* @__PURE__ */ jsx_runtime9.jsx("span", {
+          /* @__PURE__ */ jsx_runtime20.jsx("span", {
             className: "label",
             children: "Control"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime9.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime20.jsxs(DockItem, {
         id: "board-more",
         "aria-label": "More board actions",
         "aria-haspopup": "menu",
@@ -24727,10 +37634,10 @@ function BottomBar() {
         "aria-current": current2(isPhone && shell.area === "throughput"),
         title: "More board actions",
         children: [
-          /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
             name: "dots"
           }),
-          /* @__PURE__ */ jsx_runtime9.jsx("span", {
+          /* @__PURE__ */ jsx_runtime20.jsx("span", {
             className: "label",
             children: "More"
           })
@@ -24740,33 +37647,34 @@ function BottomBar() {
   });
 }
 function Shell() {
-  return /* @__PURE__ */ jsx_runtime9.jsxs(jsx_runtime9.Fragment, {
+  return /* @__PURE__ */ jsx_runtime20.jsxs(jsx_runtime20.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime9.jsx(SkipLinks, {}),
-      /* @__PURE__ */ jsx_runtime9.jsx(Sidebar2, {}),
-      /* @__PURE__ */ jsx_runtime9.jsx(Work, {}),
-      /* @__PURE__ */ jsx_runtime9.jsx(BottomBar, {})
+      /* @__PURE__ */ jsx_runtime20.jsx(SkipLinks, {}),
+      /* @__PURE__ */ jsx_runtime20.jsx(Sidebar2, {}),
+      /* @__PURE__ */ jsx_runtime20.jsx(Work, {}),
+      /* @__PURE__ */ jsx_runtime20.jsx(BottomBar, {})
     ]
   });
 }
 
 // engine/board/page/app/app.tsx
-var jsx_runtime10 = __toESM(require_jsx_runtime());
+var jsx_runtime21 = __toESM(require_jsx_runtime());
 function App() {
-  return /* @__PURE__ */ jsx_runtime10.jsx(CSPProvider, {
+  return /* @__PURE__ */ jsx_runtime21.jsx(CSPProvider, {
     disableStyleElements: true,
-    children: /* @__PURE__ */ jsx_runtime10.jsxs(QueryClientProvider, {
+    children: /* @__PURE__ */ jsx_runtime21.jsxs(QueryClientProvider, {
       client: queryClient,
       children: [
-        /* @__PURE__ */ jsx_runtime10.jsx(Shell, {}),
-        /* @__PURE__ */ jsx_runtime10.jsx(Layers, {})
+        /* @__PURE__ */ jsx_runtime21.jsx(Shell, {}),
+        /* @__PURE__ */ jsx_runtime21.jsx(Layers, {}),
+        /* @__PURE__ */ jsx_runtime21.jsx(StopDialog, {})
       ]
     })
   });
 }
 
 // engine/board/page/main.tsx
-var jsx_runtime11 = __toESM(require_jsx_runtime());
+var jsx_runtime22 = __toESM(require_jsx_runtime());
 var root2 = import_client.createRoot(document.body);
-import_react_dom2.flushSync(() => root2.render(/* @__PURE__ */ jsx_runtime11.jsx(App, {})));
+import_react_dom5.flushSync(() => root2.render(/* @__PURE__ */ jsx_runtime22.jsx(App, {})));
 await Promise.resolve().then(() => (init_board(), {}));

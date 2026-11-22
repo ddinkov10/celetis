@@ -9,6 +9,7 @@ import { announce, capital, post, store, toast } from './ui.ts';
 export type Settings = Readonly<{ theme: Theme; notify: boolean; keys: boolean }>;
 export type Inputs = Readonly<{
   badges: { home: number; operations: number; agents: number };
+  queueCount: number;
   intake: { reason: string | null; pending: boolean };
   hints: readonly (readonly string[])[];
   chat: { state: string; stale: boolean; unseen: boolean; label: string; title: string };
@@ -23,6 +24,7 @@ export type Handlers = {
   showChat(): void;
   agents(): void;
   intake(): void;
+  agentOrder(): void;
   readAgain(): Promise<void>;
   isReconnecting(): boolean;
   open(key: string): void;
@@ -31,6 +33,7 @@ export type Handlers = {
 export const phone = matchMedia('(max-width: 719px)');
 const light = matchMedia('(prefers-color-scheme: light)');
 const listeners = new Set<() => void>();
+const committed = new Set<() => void>();
 
 let state: State = {
   shell: readShell({ area: store.get('area'), tab: store.get('tab') }),
@@ -38,6 +41,7 @@ let state: State = {
   settings: { theme: readTheme(), notify: store.get('notify') === 'on', keys: store.get('keys') !== 'off' },
   inputs: {
     badges: { home: 0, operations: 0, agents: 0 },
+    queueCount: 0,
     intake: { reason: null, pending: false },
     hints: [],
     chat: { state: '', stale: false, unseen: false, label: '', title: '' },
@@ -52,6 +56,7 @@ let handlers: Handlers = {
   showChat: () => {},
   agents: () => {},
   intake: () => {},
+  agentOrder: () => {},
   readAgain: () => Promise.resolve(),
   isReconnecting: () => false,
   open: () => {},
@@ -63,6 +68,7 @@ const emit = (next: State) => {
   flushSync(() => {
     for (const listener of listeners) listener();
   });
+  for (const listener of committed) listener();
 };
 const setSettings = (change: Partial<Settings>) => emit({ ...state, settings: { ...state.settings, ...change } });
 const setControl = (change: Partial<Control>) => emit({ ...state, control: { ...state.control, ...change } });
@@ -121,9 +127,10 @@ async function refresh(): Promise<void> {
 
 export const shellStore = {
   get: (): State => state,
+  // Old code reads the DOM, so it hears a change after React commits it.
   subscribe: (listener: () => void) => {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
+    committed.add(listener);
+    return () => committed.delete(listener);
   },
   setShell: (next: Shell) => {
     store.set('area', next.area);
@@ -154,8 +161,13 @@ export const shellStore = {
   },
 };
 
+const subscribeView = (listener: () => void) => {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+};
+
 export const useShellStore = <T>(select: (state: State) => T): T =>
-  useSyncExternalStore(shellStore.subscribe, () => select(state));
+  useSyncExternalStore(subscribeView, () => select(state));
 
 light.addEventListener('change', () => {
   if (state.settings.theme !== 'system') return;

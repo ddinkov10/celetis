@@ -15,6 +15,67 @@
 @custom-variant phone (@media (max-width: 719px));
 @custom-variant rail (@media (min-width: 720px) and (max-width: 1099px));
 @custom-variant wide (@media (min-width: 1100px));
+@custom-variant no-hover (@media (hover: none));
+@custom-variant cq-259 (@container (max-width: 259px));
+@custom-variant cq-300 (@container (max-width: 300px));
+@custom-variant cq-340 (@container (max-width: 340px));
+@custom-variant cq-360 (@container (max-width: 360px));
+@custom-variant open-317 {
+  @media (min-width: 720px) {
+    @container (max-width: 317px) {
+      @slot;
+    }
+  }
+}
+@custom-variant open-353 {
+  @media (min-width: 720px) {
+    @container (max-width: 353px) {
+      @slot;
+    }
+  }
+}
+@custom-variant open-288 {
+  @media (min-width: 720px) and (hover: none) {
+    @container (max-width: 288px) {
+      @slot;
+    }
+  }
+}
+@custom-variant open-324 {
+  @media (min-width: 720px) and (hover: none) {
+    @container (max-width: 324px) {
+      @slot;
+    }
+  }
+}
+@custom-variant open-333 {
+  @media (max-width: 719px) {
+    @container (max-width: 333px) {
+      @slot;
+    }
+  }
+}
+@custom-variant open-369 {
+  @media (max-width: 719px) {
+    @container (max-width: 369px) {
+      @slot;
+    }
+  }
+}
+@custom-variant open-304 {
+  @media (max-width: 719px) and (hover: none) {
+    @container (max-width: 304px) {
+      @slot;
+    }
+  }
+}
+@custom-variant open-340 {
+  @media (max-width: 719px) and (hover: none) {
+    @container (max-width: 340px) {
+      @slot;
+    }
+  }
+}
 
 @theme inline {
   --color-background: var(--bg);

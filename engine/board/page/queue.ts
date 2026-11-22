@@ -4,6 +4,7 @@ import type { IssueKey } from '../../lib/tracker/key.ts';
 import type { Step } from '../../lib/workflow/workflow.ts';
 import type { Board } from '../types.ts';
 import { knownAgent, stateLabel } from '../view.ts';
+import { shellStore } from './store.ts';
 import { $, announce, el, iconButton, toast } from './ui.ts';
 
 const recordedHost = (record: QueueRecord | null | undefined) =>
@@ -188,8 +189,7 @@ function draw(): void {
   const state = stateOf();
   section().dataset.state = state;
   section().setAttribute('aria-busy', String(busy));
-  ($('tab-queue').querySelector('.label') as HTMLElement).textContent =
-    `Queue${numbers.length ? ` ${numbers.length}` : ''}`;
+  shellStore.setInputs({ queueCount: numbers.length });
   const head = el('header', 'queue-head');
   const title = el('div', 'queue-heading');
   title.append(el('h2', '', 'Issue queue'), el('span', 'queue-count', `${numbers.length} remaining`));

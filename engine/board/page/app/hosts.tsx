@@ -1,124 +1,88 @@
 import { memo } from 'react';
 
 const never = () => true;
-const autofocus = (node: HTMLElement | null) => node?.setAttribute('autofocus', '');
 
-export const OperationsHost = memo(
+export const CoordinatorHost = memo(
   () => (
-    <div className="ops" id="area-operations" data-tab="agents" data-pane="chat">
-      <div className="center" id="center">
-        <section className="coordinator" id="coordinator" aria-labelledby="coordinator-title" data-state="none" hidden>
-          <header className="co-head">
-            <h2 className="co-title" id="coordinator-title">
-              Coordinator
-            </h2>
-            <span className="co-host" id="coordinator-host" />
-            <span className="pill co-pill" id="coordinator-head-state" />
-            <span className="co-head-end">
-              <button type="button" className="btn ghost" id="coordinator-interrupt" hidden>
-                <span className="label">Interrupt</span>
-              </button>
-              <button type="button" className="btn ghost" id="coordinator-end" hidden>
-                <span className="label">End session</span>
-              </button>
-              <button
-                type="button"
-                className="btn ghost"
-                id="coordinator-go"
-                title="Show the tab of the session in the Herdr app"
-                hidden
-              >
-                <span className="label">Go</span>
-              </button>
-            </span>
-          </header>
-          <p className="co-banner" id="coordinator-banner" role="status" hidden />
-          <div className="co-body">
-            <div
-              className="co-log co-chat"
-              id="coordinator-log"
-              role="log"
-              tabIndex={0}
-              aria-label="Conversation with the coordinator"
-            />
-            <button type="button" className="btn ghost co-to-end" id="coordinator-to-end" hidden>
-              <span className="label">Go to the end</span>
-            </button>
-          </div>
-          <div className="co-foot">
-            <form className="co-form" id="coordinator-form" hidden>
-              <textarea
-                className="co-field"
-                id="coordinator-field"
-                rows={1}
-                aria-label="Message to the coordinator"
-                aria-describedby="coordinator-hint"
-                placeholder="Write to the coordinator"
-              />
-              <div className="co-row">
-                <p className="co-hint" id="coordinator-hint" />
-                <button type="submit" className="btn primary" id="coordinator-send">
-                  <span className="label">Send</span>
-                </button>
-              </div>
-            </form>
-            <div className="co-start" id="coordinator-start-block" hidden>
-              <p className="co-start-text" id="coordinator-start-text" hidden />
-              <button type="button" className="btn primary" id="coordinator-start">
-                <span className="label">Start a new session</span>
-              </button>
-            </div>
-          </div>
-        </section>
-      </div>
-      <section className="pane" id="pane" aria-label="Work views" tabIndex={-1}>
-        <div className="pane-head">
-          <button type="button" className="btn ghost pane-chat co-open" id="pane-chat" hidden>
-            <span className="label">Chat</span>
-            <i className="co-mark" aria-hidden="true" />
-            <span className="co-open-state" />
+    <section className="coordinator" id="coordinator" aria-labelledby="coordinator-title" data-state="none" hidden>
+      <header className="co-head">
+        <h2 className="co-title" id="coordinator-title">
+          Coordinator
+        </h2>
+        <span className="co-host" id="coordinator-host" />
+        <span className="pill co-pill" id="coordinator-head-state" />
+        <span className="co-head-end">
+          <button type="button" className="btn ghost" id="coordinator-interrupt" hidden>
+            <span className="label">Interrupt</span>
           </button>
-          <div className="tabs" role="tablist" aria-label="Work views" id="tabs">
-            <button type="button" role="tab" className="tab" id="tab-agents" data-tab="agents" aria-controls="tp-board">
-              <span className="label">Agents</span>
-              <span className="tab-badge" id="agents-badge" hidden />
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className="tab"
-              id="tab-pipeline"
-              data-tab="pipeline"
-              aria-controls="tp-board"
-            >
-              <span className="label">Pipeline</span>
-            </button>
-            <button type="button" role="tab" className="tab" id="tab-queue" data-tab="queue" aria-controls="queue">
-              <span className="label">Queue</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className="tab"
-              id="tab-history"
-              data-tab="history"
-              aria-controls="history-pane"
-            >
-              <span className="label">History</span>
+          <button type="button" className="btn ghost" id="coordinator-end" hidden>
+            <span className="label">End session</span>
+          </button>
+          <button
+            type="button"
+            className="btn ghost"
+            id="coordinator-go"
+            title="Show the tab of the session in the Herdr app"
+            hidden
+          >
+            <span className="label">Go</span>
+          </button>
+        </span>
+      </header>
+      <p className="co-banner" id="coordinator-banner" role="status" hidden />
+      <div className="co-body">
+        <div
+          className="co-log co-chat"
+          id="coordinator-log"
+          role="log"
+          tabIndex={0}
+          aria-label="Conversation with the coordinator"
+        />
+        <button type="button" className="btn ghost co-to-end" id="coordinator-to-end" hidden>
+          <span className="label">Go to the end</span>
+        </button>
+      </div>
+      <div className="co-foot">
+        <form className="co-form" id="coordinator-form" hidden>
+          <textarea
+            className="co-field"
+            id="coordinator-field"
+            rows={1}
+            aria-label="Message to the coordinator"
+            aria-describedby="coordinator-hint"
+            placeholder="Write to the coordinator"
+          />
+          <div className="co-row">
+            <p className="co-hint" id="coordinator-hint" />
+            <button type="submit" className="btn primary" id="coordinator-send">
+              <span className="label">Send</span>
             </button>
           </div>
+        </form>
+        <div className="co-start" id="coordinator-start-block" hidden>
+          <p className="co-start-text" id="coordinator-start-text" hidden />
+          <button type="button" className="btn primary" id="coordinator-start">
+            <span className="label">Start a new session</span>
+          </button>
         </div>
-        <div className="tp-board" id="tp-board" role="tabpanel" aria-labelledby="tab-agents">
-          <section className="human" id="human" aria-labelledby="human-title" hidden />
-          <div className="board" id="columns" aria-busy="true" />
-        </div>
-        <section className="queue" id="queue" role="tabpanel" aria-labelledby="tab-queue" hidden />
-        <section className="history-pane" id="history-pane" role="tabpanel" aria-labelledby="tab-history" hidden />
-      </section>
-    </div>
+      </div>
+    </section>
   ),
   never,
 );
+
+export const PaneChatHost = memo(
+  () => (
+    <button type="button" className="btn ghost pane-chat co-open" id="pane-chat">
+      <span className="label">Chat</span>
+      <i className="co-mark" aria-hidden="true" />
+      <span className="co-open-state" />
+    </button>
+  ),
+  never,
+);
+
+export const QueueHost = memo(() => <section className="queue" id="queue" hidden />, never);
 
 export const Layers = memo(
   () => (
@@ -293,21 +257,6 @@ export const Layers = memo(
           </button>
           <button type="button" className="btn ghost" id="update-later">
             Later
-          </button>
-        </div>
-      </dialog>
-      <dialog className="stop-dialog" id="stop-dialog" aria-labelledby="stop-title" aria-describedby="stop-description">
-        <h2 id="stop-title" />
-        <p className="stop-description" id="stop-description">
-          The agent ends and its tab closes. The issue moves to Idle as set aside, and auto mode skips it. Resume opens
-          the saved session again.
-        </p>
-        <div className="stop-actions">
-          <button type="button" className="btn ghost" id="stop-cancel" ref={autofocus}>
-            Cancel
-          </button>
-          <button type="button" className="btn primary" id="stop-confirm">
-            Stop session
           </button>
         </div>
       </dialog>
