@@ -5,6 +5,7 @@ import {
   isInside,
   labelOf,
   laneOf,
+  mainNoRun,
   readAgentState,
   readDiff,
   readQueueState,
@@ -254,13 +255,15 @@ const ORDER: Record<Column, (a: Card, b: Card) => number> = {
 export const place = ({
   sessions,
   board,
+  noRun,
   launches,
   quota = new Map(),
   runs = [],
   landings = [],
 }: {
   sessions: Session[];
-  board: Pick<Document, 'flow' | 'noRun' | 'issues'> | null;
+  board: Pick<Document, 'flow' | 'issues'> | null;
+  noRun: string | null;
   launches: Record<string, LaunchFeedback>;
   quota?: ReadonlyMap<IssueKey, QuotaState>;
   runs?: readonly RunRow[];
@@ -268,7 +271,6 @@ export const place = ({
 }): Placement => {
   const columns: Columns = { needs: [], running: [], idle: [], human: [] };
   const issues = board?.issues ?? [];
-  const noRun = board?.noRun ?? null;
   const byNumber = new Map(issues.map((issue) => [issue.number, issue]));
   const busy = new Set(sessions.map((session) => session.issue));
   const placed = [
@@ -284,7 +286,7 @@ export const place = ({
         const launch = launches[issue.number];
         const feedback = launch && launchMatches(issue, launch.step) ? launch : null;
         const [column, card] = PLACERS[issue.state](issue, {
-          flow: (board as Pick<Document, 'flow' | 'noRun' | 'issues'>).flow,
+          flow: (board as Pick<Document, 'flow' | 'issues'>).flow,
           isOpen:
             noRun === null &&
             (!feedback || feedback.kind === 'failed' || (feedback.kind === 'timed' && feedback.expired)),
@@ -558,6 +560,7 @@ export const createPlacement = ({
     const placed = place({
       sessions,
       board: reads.document,
+      noRun: await mainNoRun(main),
       launches,
       quota: agentState?.quota,
       runs: daemon.runs,

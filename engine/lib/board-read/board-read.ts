@@ -35,6 +35,7 @@ import { appendCache, deliveryWindows, readCache } from './trends.ts';
 import type { CacheLine, DeliveryWindow, Diff, Document, Flow, History, LandedIssue, QuotaState } from './types.ts';
 
 export { commonDir } from '../process/git.ts';
+export { mainNoRun } from '../resolver/resolver.ts';
 export { readRefreshHints } from '../tracker/refresh-hints.ts';
 export { labelOf, tabLabel } from '../workflow/workflow.ts';
 export { appendSample, hourlySeries, pruneTrends, readSamples } from './trends.ts';
@@ -121,7 +122,6 @@ async function readDocument(
     tracker: 'GitHub',
     agents,
     flow,
-    noRun: data.noRun,
     issues,
     queue: view,
   };

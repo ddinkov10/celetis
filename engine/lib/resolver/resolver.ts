@@ -59,6 +59,20 @@ function branchPull(pr: CodeHostPull, details: PullDetails | undefined): BranchP
 
 const unreadable: Observed = { kind: 'observed', reason: 'unreadable' };
 
+async function isDirty(path: string, cwd: string, signal?: AbortSignal): Promise<boolean> {
+  if (!(await stat(path).catch(() => null))?.isDirectory()) return false;
+  signal?.throwIfAborted();
+  const result = await runProcess('git', ['-C', path, '--no-optional-locks', 'status', '--porcelain'], { cwd, signal });
+  signal?.throwIfAborted();
+  return result.stdout.length > 0;
+}
+
+export async function mainNoRun(checkout: string, signal?: AbortSignal): Promise<string | null> {
+  return (await isDirty(checkout, checkout, signal))
+    ? `The main checkout is dirty: ${checkout}. Commit or stash first.`
+    : null;
+}
+
 function reader(operation: Operation, signal?: AbortSignal) {
   const checkout = operation.checkout.main as string;
   const { tracker, codeHost } = services(checkout, signal);
@@ -69,13 +83,7 @@ function reader(operation: Operation, signal?: AbortSignal) {
     return issues.map((issue) => ({ issue, data: issueData(issue, histories.get(issue.key) ?? []) }));
   }
 
-  async function dirty(path: string): Promise<boolean> {
-    if (!(await stat(path).catch(() => null))?.isDirectory()) return false;
-    signal?.throwIfAborted();
-    const result = await runProcess('git', ['-C', path, 'status', '--porcelain'], { cwd: checkout, signal });
-    signal?.throwIfAborted();
-    return result.stdout.length > 0;
-  }
+  const dirty = (path: string) => isDirty(path, checkout, signal);
 
   async function landing(n: IssueKey): Promise<boolean> {
     return (await lockHolder(checkout, landLock(n))) !== '';
@@ -249,13 +257,9 @@ export async function nextBoard(
   operation: Operation,
   signal: AbortSignal,
   targets?: readonly IssueKey[],
-): Promise<{ data: { noRun: string | null; rows: readonly IssueRow[]; closed: boolean } | null; stderr: string }> {
+): Promise<{ data: { rows: readonly IssueRow[]; closed: boolean } | null; stderr: string }> {
   const read = reader(operation, signal);
-  const { value, stderr } = await read.settle<{
-    noRun: string | null;
-    rows: readonly Shown[];
-    closed: boolean;
-  } | null>(null, async () => {
+  const { value, stderr } = await read.settle<{ rows: readonly Shown[]; closed: boolean } | null>(null, async () => {
     try {
       const selected = targets === undefined ? null : new Set(targets);
       const open: Fetched[] = [];
@@ -297,10 +301,7 @@ export async function nextBoard(
         const row = shownRow(fetched, prs, dirtyLanes, epic, operation.mainConfig);
         if (row !== null) rows.push(row);
       }
-      const noRun = (await read.dirty(read.checkout))
-        ? `The main checkout is dirty: ${read.checkout}. Commit or stash first.`
-        : null;
-      return { noRun, rows, closed };
+      return { rows, closed };
     } catch {
       return null;
     }

@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { AgentOrderConflict } from '../lib/agent/order.ts';
-import { commonDir, isInside, readAgentState, tabLabel } from '../lib/board-read/board-read.ts';
+import { commonDir, isInside, mainNoRun, readAgentState, tabLabel } from '../lib/board-read/board-read.ts';
 import type { AgentChoice, AgentOrder, Host } from '../lib/config/core.ts';
 import type { CoordinatorAct } from '../lib/coordinator/types.ts';
 import type { DaemonStatus } from '../lib/daemon/types.ts';
@@ -272,7 +272,7 @@ export const createPresses = ({
         current = await placement();
       } while (reads.document !== observed);
       if (readError()) throw new Refusal(409, cleanCause(readError()));
-      if (reads.document?.noRun) throw new Refusal(409, cleanCause(reads.document.noRun));
+      if (current.noRun) throw new Refusal(409, cleanCause(current.noRun));
       const choice = await choose(null, `#${number} has no agent to run with`, 'session');
       if (!current.terminal.ok) throw new Refusal(502, current.terminal.error ?? 'hc gave no terminal list');
       const cards = Object.values(current.columns).flat();
@@ -323,8 +323,9 @@ export const createPresses = ({
     return press(number, refusal, async () => {
       await reads.pending;
       await refresh();
-      if (!reads.document || readError() || reads.document.noRun !== null)
-        throw new Refusal(409, readError() || reads.document?.noRun || refusal);
+      if (!reads.document || readError()) throw new Refusal(409, readError() || refusal);
+      const noRun = await mainNoRun(main);
+      if (noRun !== null) throw new Refusal(409, noRun);
       const card = await issueCardOf(number);
       if (!card?.run) throw new Refusal(409, refusal);
       const view = await queueView();

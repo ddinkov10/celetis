@@ -239,7 +239,7 @@ from it. The read then gets the typed rows of the resolver (`nextBoard` of
 `stuck` included, and reads for it the issue locks and the no-progress record of the daemon
 (`engine/lib/state/locks.ts`, which the daemon also uses), and the set-aside record
 (`engine/lib/queue/set-aside.ts`). It builds one typed document (`Document` of
-`engine/lib/board-read/types.ts`) with the rows as `issues` and `noRun` of the resolver, and it adds
+`engine/lib/board-read/types.ts`) with the rows as `issues`, and it adds
 `tracker`, `agents`, `flow`, `history`, and `queue`. Each `GET /api/board` also reads the local
 agent order, the usage records, and the usage-limit recovery records again (`readAgentState` of
 `engine/lib/board-read/board-read.ts`), and its reply adds `picker` (the order, the usage blocks, the hosts of
@@ -342,7 +342,7 @@ The board puts these values in the fields of its document (`Document` of
 | `flow.steps.<step>.gate` | The gate of each of the seven steps, by the rule of "Gates". |
 | `flow.steps.<step>.agent` | The preferred agent of the step (`agents.<step>` of `.celetis.yaml`), or `null`. |
 | `flow.steps.<step>.hint` | A hint that says the step lands the change when the build is done, for `implement`, `chore`, and `hotfix`. No other step has a hint. |
-| `noRun` | A text that names the dirty path and tells to commit or stash first, while the main checkout is dirty, else `null`. |
+| `noRun` | Read at each response, not in the refresh (`mainNoRun` of `engine/lib/resolver/resolver.ts`, `git status --porcelain` of the main checkout): a text that names the dirty path and tells to commit or stash first, while the main checkout is dirty, else `null`. |
 | `daemon` | Read at each response, not in the refresh: `{pid, auto}` of the status object of the daemon that serves the board, with `auto` `on`, `off`, or `stopping`. |
 | `agents` | One entry for each agent of the registry (`engine/lib/host/names.ts`). Each has `available: true` and `cause: null` when its executable is on the `PATH` of the board, else `available: false` and a `cause` that says the agent is not on `PATH`. This checks only executable presence: sign-in, trust, and plugin discovery need their own checks. |
 | `history` | The remote trunk name, history URL, captured full head SHA, and up to 20 distinct landed issues. Each entry holds the issue number/title/URL and commit SHA/URL/committer time. |

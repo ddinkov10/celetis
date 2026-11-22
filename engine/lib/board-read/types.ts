@@ -28,7 +28,6 @@ export type Document = {
   history: History;
   tracker: string;
   flow: Flow;
-  noRun: string | null;
   issues: IssueRow[];
   agents: Record<Host, { available: boolean; cause: string | null }>;
   queue: QueueView | null;
