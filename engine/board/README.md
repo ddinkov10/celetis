@@ -59,7 +59,8 @@ gives the reasons why its sessions come from herdr-core and its tabs from the He
   each button.
 - The Herdr app 0.1.15, with `herdr-app` on `PATH` and its window open, for New intake, Run,
   Resume, Assist, Make visual, Open shell, and Go.
-- `gh` on `PATH`, logged in, for the issue data. The board needs no GitHub credentials of its own.
+- `gh` on `PATH`, logged in, for the issue data of a GitHub project. The board needs no GitHub
+  credentials of its own. A project with the local tracker needs no `gh`.
   The read also needs `ps` on macOS and Linux.
 - The lane worktree of the issue `<n>` at `<main>/.claude/worktrees/<n>-<slug>`, where `<main>` is
   the main checkout. This layout has no setting: an agent in a worktree at another place has no
@@ -336,7 +337,8 @@ The board puts these values in the fields of its document (`Document` of
 
 | Field | Value |
 |---|---|
-| `tracker` | `GitHub` |
+| `tracker` | The name of the tracker of the project, `GitHub` for a GitHub project and `the local tracker` for a local project. |
+| `grammar` | The tracker kind of `.celetis.yaml`, `github` or `local`. The page parses the issue keys with its grammar. |
 | `flow.lanes` | The four lanes: `feature` (triage, specify, plan, implement), `bug` (triage, bug, plan, implement), `chore` (triage, chore), and `hotfix` (triage, hotfix). |
 | `flow.stages` | Triage, Define (specify, bug, chore, hotfix), Plan, and Implement. |
 | `flow.steps.<step>.gate` | The gate of each of the seven steps, by the rule of "Gates". |
@@ -453,6 +455,13 @@ result is 8 windows of 7 days that end
 now, oldest first. Each window holds the count of its landings and the median of their intent to
 landing time (landing commit time minus issue creation time) in days, or null with no landing.
 
+A project with the local tracker calls neither `readHistory` nor `readDelivery` (the full view is
+#336). Its History is `{trunk, url: '', head: '', entries: []}`, with the trunk from
+`refs/remotes/origin/HEAD` of the main checkout, else from the branch of the main checkout, else
+`trunk`. The read makes no network call.
+Its delivery read gives an empty list of windows. A card of an issue whose URL is not `http:` or
+`https:` has `url: null`, so the page shows its key with no link.
+
 `History` contains `trunk`, its history `url`, the captured full `head`, and `entries`. Each
 `LandedIssue` contains `number`, issue `title` and `url`, full commit `sha`, `commitUrl`, and
 `committedAt`. The snapshot's history is null until the first successful document. It shares the
@@ -464,7 +473,9 @@ credentials or control characters. Titles and branch names remain text.
 Rows expose issue and commit links, a short SHA with its full accessible identity, and commit
 time with its full accessible timestamp. The time is neither issue-close nor push time. Before
 the first result, History shows loading; an initial failure shows an error. Successful empty
-history shows `No landed issues found on <trunk>.` A failed refresh retains the rows and shows
+history shows `No landed issues found on <trunk>.` A local project lists no landings, so its
+History shows `The local tracker does not list landed issues.`, and it draws `View <trunk>` only
+when `history.url` is not empty. A failed refresh retains the rows and shows
 the read error; recovery clears it. History has no Run or Resume action.
 Each row has one icon control on its right side, 28 px wide (44 px below 720 px). Its accessible
 name and its `title` are one text. The issue number is Ink Faint in Geist Mono. A row with no page
@@ -1147,7 +1158,9 @@ process. Twelve rules hold for the server and the page:
 5. It accepts only a JSON string that the grammar of the tracker accepts (`isKey`) as the number of an issue, only the terminal
    id of a session of the repository ("The cards") or the terminal of the coordinator record of
    the daemon as the id of a session, and only `low`,
-   `medium`, `high`, `xhigh`, or `max` as the effort level of a Run.
+   `medium`, `high`, `xhigh`, or `max` as the effort level of a Run. The page takes the grammar
+   of the tracker from `grammar` of each board document (`useGrammar`) before it parses a key of
+   that document.
 6. The page sends an issue key, a session id, a selected Run agent, a selected Run effort level, a strict queue action, an
    agent order with the version that it read, a usage-limit wait ID, the issue key and the session ID of a Stop, or an opaque update offer
    ID, never a command, an installation path, or a usage observation. For the coordinator session
@@ -1158,7 +1171,7 @@ process. Twelve rules hold for the server and the page:
    when it has letters, digits, `_`, `:`, `.`, and `-`, and does not start with `-` (`isSafeId` of
    `engine/lib/terminal/terminal.ts`). An id that is absent goes into no command.
 8. The server starts `hc`, `herdr-app`, `git`, and the `codex` app-server of the coordinator read
-   with no shell. The issue read starts `gh`,
+   with no shell. The issue read starts `gh` (only for a GitHub project),
    `git`, and, on macOS and Linux, `ps`, and the status read of a placement starts `ps`, each with
    no shell.
 9. For issue and session data, it runs `git` only in the main checkout or in a lane worktree.

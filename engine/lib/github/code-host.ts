@@ -206,6 +206,7 @@ export function githubCodeHost(client: Client): CodeHost {
   }
 
   const adapter: CodeHost = {
+    name: 'GitHub',
     pullDetails,
     repository: () => get('', parseRepository),
     pulls: (filter: PullFilter) =>

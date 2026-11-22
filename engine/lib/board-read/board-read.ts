@@ -3,17 +3,19 @@ import { join, resolve, sep } from 'node:path';
 import { effectiveOrder, readAgentOrder } from '../agent/order.ts';
 import { activeBlock, readUsage, selectAgent } from '../agent/usage.ts';
 import { createOperation, locateCheckouts } from '../command/operation.ts';
-import type { AgentDecision, AgentOrder, Host, UsageBlock } from '../config/core.ts';
+import type { AgentDecision, AgentOrder, Config, Host, UsageBlock } from '../config/core.ts';
 import { type Client, type Connection, chunks, client, drain, graphqlQuery } from '../github/github.ts';
 import { hostAvailability } from '../host/host.ts';
 import { capableOrder } from '../host/hosts.ts';
 import { hosts } from '../host/names.ts';
 import { commonDir } from '../process/git.ts';
+import { run } from '../process/process.ts';
 import { queueOwner, queueView, readQueue, readQueueView } from '../queue/queue.ts';
 import type { QueueRecord, QueueView } from '../queue/types.ts';
 import { nextBoard } from '../resolver/resolver.ts';
 import { listRecoveries, recoveryOwner } from '../run/quota-recovery.ts';
 import { readStepEnd, type StepEndRecord } from '../run/step-end.ts';
+import { services } from '../services/services.ts';
 import { commit, isCommit } from '../state/fields.ts';
 import { laneFolder } from '../state/state.ts';
 import type { Exec } from '../terminal/terminal.ts';
@@ -74,12 +76,19 @@ async function readDocument(
 ): Promise<Document> {
   const operation = await createOperation(await locateCheckouts(main), {}, 'main');
   const { data, stderr } = await nextBoard(operation, signal, target?.numbers);
+  const config = operation.mainConfig as Config;
+  const { tracker } = services(config, main, signal);
   if (!data) {
     signal.throwIfAborted();
-    throw new Error(stderr.trim() || 'cannot read the issues from GitHub');
+    throw new Error(stderr.trim() || `cannot read the issues from ${tracker.name}`);
   }
   const common = operation.checkout.common as string;
-  const history = !target || data.closed ? await readHistory(client(main, signal), common) : target.previous.history;
+  const history =
+    target && !data.closed
+      ? target.previous.history
+      : config.tracker === 'local'
+        ? await localHistory(main, signal)
+        : await readHistory(client(main, signal), common);
   const flow: Flow = {
     lanes: Object.fromEntries(Object.entries(lanes).map(([lane, definition]) => [lane, [...definition.steps]])),
     stages: stages.map((stage) => ({ name: stage.name, steps: [...stage.steps] })),
@@ -119,7 +128,8 @@ async function readDocument(
   signal.throwIfAborted();
   return {
     history,
-    tracker: 'GitHub',
+    tracker: tracker.name,
+    grammar: config.tracker,
     agents,
     flow,
     issues,
@@ -422,12 +432,27 @@ export async function readHistory(gh: Pick<Client, 'graphql'>, common: string): 
   }
 }
 
+// The merge landing keeps the main checkout on the trunk, so its branch names the trunk with no network read.
+async function localHistory(main: string, signal: AbortSignal): Promise<History> {
+  const branch = async (ref: string) => {
+    const read = await run('git', ['--no-optional-locks', 'symbolic-ref', '--quiet', '--short', ref], {
+      cwd: main,
+      signal,
+    });
+    return read.code === 0 ? read.stdout.trim() : '';
+  };
+  const trunk =
+    (await branch('refs/remotes/origin/HEAD')).replace(/^origin\//, '') || (await branch('HEAD')) || 'trunk';
+  return { trunk, url: '', head: '', entries: [] };
+}
+
 export async function readDelivery(
   main: string,
   common: string,
   now: number,
   signal: AbortSignal,
 ): Promise<DeliveryWindow[]> {
+  if ((await createOperation(await locateCheckouts(main), {}, 'main')).mainConfig?.tracker === 'local') return [];
   const gh = client(main, signal);
   const from = now - walkDays * 86_400_000;
   const since = `, since: "${new Date(from).toISOString()}"`;

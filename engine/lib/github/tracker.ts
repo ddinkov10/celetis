@@ -1,5 +1,6 @@
-import { parseEpicAcceptance, parseEpicChildren, parseEpicRepository } from '../epic/acceptance.ts';
+import { githubForms, parseEpicAcceptance, parseEpicChildren } from '../epic/acceptance.ts';
 import { run } from '../process/process.ts';
+import { github } from '../tracker/grammar.ts';
 import { type IssueKey, parseKey } from '../tracker/key.ts';
 import { writeRefreshHint } from '../tracker/refresh-hints.ts';
 import {
@@ -113,8 +114,7 @@ export function parseTimeline(entries: readonly unknown[]): Entry[] {
     if (!event || /[\s\0]/.test(event)) throw malformed();
     switch (event) {
       case 'commented':
-        if (typeof entry.id !== 'number') throw malformed();
-        return [{ kind: 'comment', id: entry.id, at: text(entry.created_at), body: text(entry.body) }];
+        return [{ kind: 'comment', id: String(integer(entry.id)), at: text(entry.created_at), body: text(entry.body) }];
       case 'labeled':
       case 'unlabeled':
         return [
@@ -138,7 +138,7 @@ function timelineEntry(raw: unknown): Entry {
   const node = record(raw);
   switch (node.__typename) {
     case 'IssueComment':
-      return { kind: 'comment', id: integer(node.databaseId), at: text(node.createdAt), body: text(node.body) };
+      return { kind: 'comment', id: String(integer(node.databaseId)), at: text(node.createdAt), body: text(node.body) };
     case 'LabeledEvent':
     case 'UnlabeledEvent':
       return {
@@ -204,7 +204,20 @@ export function githubTracker(client: Client): Tracker {
     return parsed(endpoint, () => parse(entries));
   }
 
+  async function project(): Promise<string> {
+    const raw = await get('', record);
+    return parsed('', () => {
+      const url = githubForms.repository(raw.html_url);
+      if (!Number.isSafeInteger(raw.id) || Number(raw.id) <= 0 || raw.full_name !== new URL(url).pathname.slice(1))
+        throw malformed();
+      return url;
+    });
+  }
+
   const adapter: Tracker = {
+    name: github.tracker,
+    forms: githubForms,
+    project,
     timelines,
     async read(n: IssueKey) {
       const issue = await get(`issues/${n}`, parseIssue);
@@ -212,24 +225,14 @@ export function githubTracker(client: Client): Tracker {
     },
     async epic(n: IssueKey) {
       const target = `issues/${n}`;
-      const rawRepository = await get('', record);
-      const repository = parsed('', () => {
-        const url = parseEpicRepository(rawRepository.html_url);
-        if (
-          !Number.isSafeInteger(rawRepository.id) ||
-          Number(rawRepository.id) <= 0 ||
-          rawRepository.full_name !== new URL(url).pathname.slice(1)
-        )
-          throw malformed();
-        return url;
-      });
+      const repository = await project();
       const rawParent = await get(target, record);
       const issue = parsed(target, () => {
         const parent = parseIssue(rawParent);
         if (
           Object.hasOwn(rawParent, 'pull_request') ||
           parent.key !== n ||
-          parent.url !== `${repository}/issues/${n}` ||
+          parent.url !== githubForms.issueUrl(repository, n) ||
           !Number.isSafeInteger(parent.comments) ||
           parent.comments < 0
         )
@@ -240,10 +243,10 @@ export function githubTracker(client: Client): Tracker {
       const rawEntries = await pages(timeline);
       const entries = parsed(timeline, () => {
         const result = parseTimeline(rawEntries);
-        const ids = new Set<number>();
+        const ids = new Set<string>();
         for (const entry of result) {
           if (entry.kind !== 'comment') continue;
-          if (!Number.isSafeInteger(entry.id) || entry.id <= 0 || ids.has(entry.id)) throw malformed();
+          if (!/^[1-9]\d*$/.test(entry.id) || ids.has(entry.id)) throw malformed();
           ids.add(entry.id);
         }
         return result;
@@ -257,9 +260,11 @@ export function githubTracker(client: Client): Tracker {
             if (Object.hasOwn(child, 'pull_request')) throw malformed();
             const number = issueKey(child.number);
             if (number === null) throw new Error(`children[${index}].number: need a positive safe integer`);
+            if (!Number.isSafeInteger(child.id) || Number(child.id) <= 0)
+              throw new Error(`children[${index}].id: need a positive safe integer`);
             return {
               url: child.html_url,
-              id: child.id,
+              id: String(child.id),
               number,
               state: child.state,
               stateReason: child.state_reason,
@@ -267,12 +272,13 @@ export function githubTracker(client: Client): Tracker {
             };
           }),
         ),
+        githubForms,
       );
       return {
         repository,
         parent: issue.key,
         data: issueData(issue, entries),
-        declaration: parseEpicAcceptance(issue.body),
+        declaration: parseEpicAcceptance(issue.body, githubForms),
         children,
       };
     },
@@ -331,7 +337,10 @@ export function githubTracker(client: Client): Tracker {
     async edit(n: IssueKey, fields: Edit) {
       await send('PATCH', `issues/${n}`, { fields });
     },
+    pull: async () => {},
+    synced: (_command, work) => work(),
+    sync: async () => false,
     stderr: client.stderr,
   };
-  return converting(adapter, trackerError);
+  return { ...converting(adapter, trackerError), synced: adapter.synced };
 }

@@ -1,6 +1,6 @@
 import { HostError } from '../command/errors.ts';
 import { exits } from '../contract/contract.ts';
-import { services } from '../services/services.ts';
+import { type Choice, services } from '../services/services.ts';
 import { repositoryLayout, withLock } from '../state/state.ts';
 import type { IssueKey } from '../tracker/key.ts';
 import { writeRefreshHint } from '../tracker/refresh-hints.ts';
@@ -13,7 +13,7 @@ import {
   type EpicSubmission,
   laneOf,
 } from '../workflow/workflow.ts';
-import { completionIdentity, parseAcceptedEpic, parseEpicAcceptance } from './acceptance.ts';
+import { completionIdentity, type EpicForms, parseAcceptedEpic, parseEpicAcceptance } from './acceptance.ts';
 
 export type EpicCompletionResult =
   | Readonly<{ kind: 'closed' }>
@@ -32,8 +32,8 @@ async function snapshot(gh: Tracker, n: IssueKey): Promise<EpicSnapshot> {
   }
 }
 
-export async function readEpic(main: string, n: IssueKey): Promise<EpicSnapshot> {
-  return snapshot(services(main).tracker, n);
+export async function readEpic(choice: Choice, main: string, n: IssueKey): Promise<EpicSnapshot> {
+  return snapshot(services(choice, main).tracker, n);
 }
 
 export async function withEpicLock<T>(
@@ -68,11 +68,17 @@ export async function withEpicLock<T>(
   }
 }
 
-export async function writeEpicDefinition(main: string, common: string, n: IssueKey, body: string): Promise<void> {
-  const declaration = parseEpicAcceptance(body);
+export async function writeEpicDefinition(
+  choice: Choice,
+  main: string,
+  common: string,
+  n: IssueKey,
+  body: string,
+): Promise<void> {
+  const declaration = parseEpicAcceptance(body, services(choice, main).tracker.forms);
   if (declaration.kind === 'unresolved') throw new HostError(`epic: ${declaration.reason}`, exits.usage);
   await withEpicLock(common, n, undefined, async (signal) => {
-    const gh = services(main, signal).tracker;
+    const gh = services(choice, main, signal).tracker;
     const current = await snapshot(gh, n);
     const { data, children } = current;
     const lane = laneOf(data.labels);
@@ -137,7 +143,7 @@ function accepted(snapshot: EpicSnapshot, submission: EpicSubmission | null): Ac
   };
 }
 
-function recorded(snapshot: EpicSnapshot, id: string): boolean {
+function recorded(snapshot: EpicSnapshot, id: string, forms: EpicForms): boolean {
   return snapshot.data.history.some((entry) => {
     if (entry.kind !== 'comment') return false;
     const match = /^## Epic accepted\r?\n([\s\S]*?)\r?\n```json\r?\n([\s\S]*?)\r?\n```[ \t]*(?:\r?\n\s*)?$/.exec(
@@ -147,7 +153,7 @@ function recorded(snapshot: EpicSnapshot, id: string): boolean {
     const text = match?.[2];
     if (summary === undefined || text === undefined || /^ {0,3}(?:`{3,}|~{3,})/m.test(summary)) return false;
     try {
-      return parseAcceptedEpic(text).completionId === id;
+      return parseAcceptedEpic(text, forms).completionId === id;
     } catch {
       return false;
     }
@@ -168,6 +174,7 @@ function inputs(snapshot: EpicSnapshot, submission: EpicSubmission | null): stri
 }
 
 export async function completeEpic(
+  choice: Choice,
   main: string,
   common: string,
   n: IssueKey,
@@ -176,7 +183,7 @@ export async function completeEpic(
 ): Promise<EpicCompletionResult> {
   const evidence = submission === undefined ? null : structuredClone(submission);
   return withEpicLock(common, n, signal, async (locked) => {
-    const gh = services(main, locked).tracker;
+    const gh = services(choice, main, locked).tracker;
     const initial = await snapshot(gh, n);
     const decision = decideEpicCompletion({ snapshot: initial, submission: evidence });
     if (decision.kind === 'closed') return decision;
@@ -196,7 +203,7 @@ export async function completeEpic(
     const before = fresh(current);
     if (before.kind === 'closed') return before;
     if (before.kind === 'refused') return pending(before.reason);
-    let published = recorded(current, completionId);
+    let published = recorded(current, completionId, gh.forms);
     let phase = 'completion record publication';
     try {
       if (!published) {
@@ -215,7 +222,8 @@ export async function completeEpic(
       const beforeClose = fresh(latest);
       if (beforeClose.kind === 'closed') return beforeClose;
       if (beforeClose.kind === 'refused') throw new Error(beforeClose.reason);
-      if (!recorded(latest, completionId)) throw new Error('the accepted completion record is missing or changed');
+      if (!recorded(latest, completionId, gh.forms))
+        throw new Error('the accepted completion record is missing or changed');
       phase = 'parent close';
       await gh.edit(n, { state: 'closed', state_reason: 'completed' });
       return { kind: 'completed', completionId };

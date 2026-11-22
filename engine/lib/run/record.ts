@@ -17,7 +17,7 @@ import type { RecoveryAttempt, RecoveryAuthority } from './quota-recovery.ts';
 import { convertSession, type SessionRecord, validateSession } from './session.ts';
 
 export type RunRecord = {
-  schema: 4;
+  schema: 5;
   id: string;
   daemon: Identity;
   input: RunInput;
@@ -63,7 +63,7 @@ export type RunRecord = {
   changedMs: number;
   stop?: { terminal: string; at: number };
 };
-type Schema = 2 | 3 | 4;
+type Schema = 2 | 3 | 5;
 export type ReadRecord = { path: string; record: RunRecord } | { path: string; error: string };
 
 const file = /^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\.json$/;
@@ -122,7 +122,7 @@ function selection(value: unknown): boolean {
 }
 
 const keyOf = (value: unknown, schema: Schema): IssueKey | null =>
-  schema === 4 ? (isKey(value) ? value : null) : positive(value) ? parseKey(String(value)) : null;
+  schema === 5 ? (isKey(value) ? value : null) : positive(value) ? parseKey(String(value)) : null;
 
 function input(value: unknown, schema: Schema): value is Record<string, unknown> {
   if (!object(value) || !selection(value.selection)) return false;
@@ -151,7 +151,7 @@ function authority(value: unknown): value is RecoveryAuthority {
     keys(value, 'plan,spec,step') &&
     step(value.step) &&
     (value.spec === null || typeof value.spec === 'string') &&
-    (value.plan === null || positive(value.plan))
+    (value.plan === null || filled(value.plan))
   );
 }
 
@@ -247,7 +247,7 @@ function session(value: unknown, issue: IssueKey | null, resume: boolean, schema
   try {
     const record = value.record;
     const checkout = object(record) ? String(record.checkout) : '';
-    if (schema === 4) validateSession(record, checkout, issue, 'run record');
+    if (schema === 5) validateSession(record, checkout, issue, 'run record');
     else if (!object(record) || record.schema !== 2) return false;
     else convertSession(record, checkout, issue, 'run record');
   } catch {
@@ -300,7 +300,7 @@ function validFields(value: unknown, schema: Schema): boolean {
 }
 
 export function validRunRecord(value: unknown): value is RunRecord {
-  return validFields(value, 4);
+  return validFields(value, 5);
 }
 
 export async function writeRunRecord(folder: string, record: RunRecord): Promise<void> {
@@ -331,7 +331,7 @@ function keyed(value: Record<string, unknown>, schema: 2 | 3): unknown {
           ...old.session,
           record: convertSession(old.session.record, String(old.session.record.checkout), issue, 'run record'),
         };
-  return { ...old, schema: 4, input, issue, session };
+  return { ...old, schema: 5, input, issue, session };
 }
 
 async function convert(path: string, name: string, folder: string): Promise<ReadRecord> {
@@ -376,7 +376,7 @@ export async function readRunRecords(folder: string): Promise<ReadRecord[]> {
       if (object(value) && object(value.wait) && object(value.wait.seen) && !keys(value.wait.seen, seenKeys))
         return { path, error: 'the record keeps the quota wait of an older engine; start the run again' };
       if (object(value) && (value.schema === 2 || value.schema === 3)) return convert(path, name, folder);
-      if (!object(value) || value.schema !== 4) return { path, error: 'the record has another schema' };
+      if (!object(value) || value.schema !== 5) return { path, error: 'the record has another schema' };
       if (!validRunRecord(value)) return { path, error: 'the record is not a valid run record' };
       if (`${value.id}.json` !== name) return { path, error: 'the record ID differs from its file name' };
       return { path, record: value };

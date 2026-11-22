@@ -151,7 +151,7 @@ message.
 
 After an exit 6 of an `issue <n> <act>`, apply "The two modes" for a partial write.
 
-When GitHub does not answer, or the issue is closed, show the message in this session and stop. A
+When the tracker does not answer, or the issue is closed, show the message in this session and stop. A
 command that the host sandbox keeps from the network is no such case: first follow the approval
 procedure for a sandbox block of the host part of `<plugin>/references/procedures/entry.md`, "The
 contract".

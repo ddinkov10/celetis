@@ -141,7 +141,6 @@ export const Layers = memo(
             aria-autocomplete="list"
             autoComplete="off"
             spellCheck="false"
-            placeholder="Search an issue, a step, or a command; #n jumps to an issue"
           />
         </div>
         <div className="pal-list" id="pal-list" role="listbox" aria-label="Results" />

@@ -1,5 +1,6 @@
 import { QueryObserver, type QueryObserverResult } from '@tanstack/react-query';
 import type { AgentOrder, Host } from '../../lib/config/core.ts';
+import { grammar, useGrammar } from '../../lib/tracker/grammar.ts';
 import { compareKeys, type IssueKey, parseKey } from '../../lib/tracker/key.ts';
 import type { Level, RowSource, StartPair } from '../../lib/workflow/effort.ts';
 import type {
@@ -1151,8 +1152,12 @@ const drawHistory = () => {
       row.append(issue, title, meta, visualControl(entry));
       list.append(row);
     }
-    body.append(history.entries.length ? list : el('p', 'history-note', `No landed issues found on ${history.trunk}.`));
-    body.append(link('history-more', `View ${history.trunk}`, history.url));
+    const none =
+      grammar().kind === 'local'
+        ? 'The local tracker does not list landed issues.'
+        : `No landed issues found on ${history.trunk}.`;
+    body.append(history.entries.length ? list : el('p', 'history-note', none));
+    if (history.url) body.append(link('history-more', `View ${history.trunk}`, history.url));
   }
   panel.replaceChildren(head, body);
   body.scrollTop = scroll;
@@ -1702,6 +1707,7 @@ const render = (canMove = true) => {
     next.starts,
     next.flow,
     next.tracker,
+    next.grammar,
     next.columns,
     next.history,
     next.source.error,
@@ -1855,6 +1861,10 @@ document.addEventListener('board-connected', () => {
 });
 
 const accept = (next: Board) => {
+  if (next.grammar !== grammar().kind) {
+    useGrammar(next.grammar);
+    openEpics = parseOpenEpics(store.get('open-epics') ?? '');
+  }
   for (const [number, launch] of launches) if (launch.phase !== 'pending') launches.delete(number);
   for (const pressed of [asides, stops])
     for (const [number, phase] of pressed) if (phase === 'done') pressed.delete(number);

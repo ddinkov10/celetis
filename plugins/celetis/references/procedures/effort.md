@@ -70,7 +70,7 @@ The newest decision for a step replaces each earlier one.
   arguments or the file, and run the command again.
 - **Exit 3** (`prerequisite`): the issue is not open, so no next step starts. Decide nothing, and go on
   with the skill.
-- **Exit 6** (`blocked`): a GitHub read or write failed, and nothing changed. Report the
+- **Exit 6** (`blocked`): a tracker read or write failed, and nothing changed. Report the
   `issue: blocked:` line to the user, and go on with the skill: the act that moves the line still
   follows, and the next step starts with no new decision.
 

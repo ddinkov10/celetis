@@ -2,7 +2,7 @@ import { lstat, readFile, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
 import { z } from 'zod';
 import { HostError } from './lib/command/errors.ts';
-import { commandInput, locateCheckouts } from './lib/command/operation.ts';
+import { commandInput, locateCheckouts, useProjectGrammar } from './lib/command/operation.ts';
 import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
 import {
   askDaemon,
@@ -30,6 +30,7 @@ import {
   privateFolderProblem,
   sessionJobName,
 } from './lib/process/windows.ts';
+import { projectNeedsGh } from './lib/services/services.ts';
 import { installRecorder, passOn } from './lib/state/events.ts';
 import { issueLock, type LockOwner } from './lib/state/locks.ts';
 import { daemonSockets, ensureFolder, repositoryLayout, startFiles, writeAtomic } from './lib/state/state.ts';
@@ -62,10 +63,11 @@ async function report(common: string): Promise<DaemonStatus> {
   }
 }
 
-async function requireStart(): Promise<void> {
+async function requireStart(main: string): Promise<void> {
+  const gh = projectNeedsGh(main);
   try {
     requireBun();
-    if (!Bun.which('gh', { PATH: childEnv().PATH })) throw new HostError('gh is not on PATH', exits.prerequisite);
+    if (gh && !Bun.which('gh', { PATH: childEnv().PATH })) throw new HostError('gh is not on PATH', exits.prerequisite);
     await requireTerminals();
   } catch (error) {
     if (error instanceof TerminalError || error instanceof HostError)
@@ -82,7 +84,7 @@ async function start(common: string, main: string): Promise<ExitCode> {
     if ((await revisionRefusal(found.identity, 'daemon')) === null) console.log(boardLine(await report(common)));
     return exits.done;
   }
-  await requireStart();
+  await requireStart(main);
   const paths = await daemonPaths(common);
   ensureFolder(paths.layout.root);
   ensureFolder(paths.layout.daemon);
@@ -332,6 +334,7 @@ async function waitingSession(args: string[]): Promise<ExitCode> {
 }
 
 if (import.meta.main) {
+  useProjectGrammar();
   const form = process.argv[2];
   if (form === '--daemon')
     process.exit(await (await import('./lib/daemon/server.ts')).runDaemon(process.argv.slice(3)));

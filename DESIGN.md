@@ -506,7 +506,8 @@ The tile of Home. It is a card with no action: no hover change, no tooltip, no f
 - **Change:** an arrow icon (16px) for a larger or smaller value, and no arrow for no change. No
   signal color marks a good or a bad change; the words say `faster`, `slower`, `more`, or `fewer`.
 - **States:** a state text in Ink Faint replaces the line: `Too few samples yet`,
-  `Too few landings yet`, `Reading the history`, or `The history read failed`. After a failed
+  `Too few landings yet` (`No landings listed` for a local project, which lists no landings),
+  `Reading the history`, or `The history read failed`. After a failed
   read with a good line, the line stays and the window says `last read <time>`.
 
 ### Inputs / Fields

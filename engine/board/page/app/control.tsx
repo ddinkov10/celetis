@@ -9,7 +9,7 @@ import { THEME_WORDS } from '../theme/choice.ts';
 import { Button } from '../ui/button.tsx';
 import { Card, CardDescription, CardTitle } from '../ui/card.tsx';
 import { Toggle } from '../ui/toggle.tsx';
-import { $, SERVER_DOWN } from '../ui.ts';
+import { $, capital, SERVER_DOWN } from '../ui.ts';
 import { Icon } from './icon.tsx';
 
 type Tone = 'ok' | 'fail' | 'wait' | 'off';
@@ -156,7 +156,7 @@ function Status({ data, isDown }: { data: Board | undefined; isDown: boolean }) 
   const now = useNow();
   const control = useShellStore((state) => state.control);
   const source = data?.source ?? { readAt: null, error: null };
-  const name = data?.tracker ?? 'Issues';
+  const name = capital(data?.tracker ?? 'Issues');
   const readAgain = data?.tracker ? `Read ${data.tracker} again` : 'Read the issues again';
   const terminal = data?.terminal;
   const daemon = data?.daemon ?? null;

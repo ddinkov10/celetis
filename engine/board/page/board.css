@@ -1987,6 +1987,9 @@ a.chip2:hover {
   text-transform: uppercase;
   color: var(--fg3);
 }
+.pal-key {
+  text-transform: none;
+}
 .pal-row {
   display: grid;
   grid-template-columns: 18px auto minmax(0, 1fr) auto;

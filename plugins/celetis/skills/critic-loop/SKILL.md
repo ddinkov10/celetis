@@ -14,7 +14,7 @@ A standalone, score-driven quality loop over the current result. It does not tou
 
 Read the invocation input:
 
-- empty → auto-detect: on the trunk or detached HEAD → **working** diff; any other branch → **branch** diff vs `git merge-base <trunk> HEAD`. The trunk is the default branch of the repository: `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`.
+- empty → auto-detect: on the trunk or detached HEAD → **working** diff; any other branch → **branch** diff vs `git merge-base <trunk> HEAD`. The trunk is the default branch of the repository: the branch that the `ref: refs/heads/<branch>` line of `git ls-remote --symref origin HEAD` names.
 - a ref or sha → **branch** diff, base = the argument (`git diff <arg>...HEAD`).
 - `working` / `--working` → **working** diff (staged + unstaged).
 

@@ -32,13 +32,6 @@ function string(value: unknown, path: string): string {
   return value;
 }
 
-function integer(value: unknown, path: string): number {
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
-    throw new Error(`${path}: need a positive safe integer`);
-  }
-  return value;
-}
-
 function key(value: unknown, path: string): IssueKey {
   const parsed = typeof value === 'string' ? parseKey(value) : null;
   if (parsed === null) throw new Error(`${path}: need an issue key`);
@@ -96,7 +89,13 @@ function digest(value: unknown, path: string): string {
   return text;
 }
 
-export function parseEpicRepository(value: unknown): string {
+export type EpicForms = Readonly<{
+  repository(value: unknown): string;
+  issueUrl(repository: string, key: IssueKey): string;
+  issueKey(url: string): Readonly<{ repository: string; key: IssueKey }> | null;
+}>;
+
+function githubRepository(value: unknown): string {
   const text = string(value, 'repository');
   const url = new URL(text);
   if (
@@ -113,20 +112,29 @@ export function parseEpicRepository(value: unknown): string {
   return text;
 }
 
-function issueUrl(value: unknown, path: string): { url: string; number: IssueKey } {
+export const githubForms: EpicForms = {
+  repository: githubRepository,
+  issueUrl: (repository, key) => `${repository}/issues/${key}`,
+  issueKey(url) {
+    const match = new RegExp(`^(.*)/issues/(${keySource()})$`).exec(url);
+    const key = match && parseKey(match[2] as string);
+    if (!match || key === null) return null;
+    return { repository: githubRepository(match[1]), key };
+  },
+};
+
+function issueUrl(value: unknown, path: string, forms: EpicForms): { url: string; number: IssueKey } {
   const url = string(value, path);
-  const match = new RegExp(`^(.*)/issues/(${keySource()})$`).exec(url);
-  const number = match && parseKey(match[2] as string);
-  if (!match || number === null) throw new Error(`${path}: need a canonical issue URL`);
-  parseEpicRepository(match[1]);
-  return { url, number };
+  const found = forms.issueKey(url);
+  if (found === null) throw new Error(`${path}: need a canonical issue URL`);
+  return { url, number: found.key };
 }
 
-export function parseEpicChildren(value: unknown): EpicChild[] {
+export function parseEpicChildren(value: unknown, forms: EpicForms): EpicChild[] {
   const children = array(value, 'children').map((raw, index): EpicChild => {
     const path = `children[${index}]`;
     const child = object(raw, ['url', 'id', 'number', 'state', 'stateReason', 'closedAt'], path);
-    const { url, number } = issueUrl(child.url, `${path}.url`);
+    const { url, number } = issueUrl(child.url, `${path}.url`, forms);
     if (key(child.number, `${path}.number`) !== number) throw new Error(`${path}: URL and number differ`);
     if (child.state !== 'open' && child.state !== 'closed') throw new Error(`${path}.state: need open or closed`);
     const reason = child.stateReason;
@@ -141,7 +149,7 @@ export function parseEpicChildren(value: unknown): EpicChild[] {
     }
     const closedAt = child.closedAt === null ? null : timestamp(child.closedAt, `${path}.closedAt`);
     if ((child.state === 'closed') !== (closedAt !== null)) throw new Error(`${path}: state and closedAt differ`);
-    return { url, id: integer(child.id, `${path}.id`), number, state: child.state, stateReason: reason, closedAt };
+    return { url, id: string(child.id, `${path}.id`), number, state: child.state, stateReason: reason, closedAt };
   });
   unique(children, (child) => child.url, 'children');
   unique(children, (child) => child.id, 'children');
@@ -162,7 +170,7 @@ const scenarioFields = [
   'oracle',
 ] as const;
 
-function acceptance(value: unknown): EpicAcceptance {
+function acceptance(value: unknown, forms: EpicForms): EpicAcceptance {
   const mode = value !== null && typeof value === 'object' && 'mode' in value ? value.mode : undefined;
   if (mode === 'independent') {
     const data = object(value, ['mode', 'rationale'], 'acceptance');
@@ -174,7 +182,7 @@ function acceptance(value: unknown): EpicAcceptance {
     const path = `scenarios[${index}]`;
     const scenario = object(raw, scenarioFields, path);
     const children = nonempty(array(scenario.children, `${path}.children`), `${path}.children`).map(
-      (child) => issueUrl(child, `${path}.children`).url,
+      (child) => issueUrl(child, `${path}.children`, forms).url,
     );
     unique(children, (child) => child, `${path}.children`);
     return {
@@ -228,7 +236,7 @@ function sectionOf(body: string): string {
   return section;
 }
 
-export function parseEpicAcceptance(body: string | null): EpicDeclaration {
+export function parseEpicAcceptance(body: string | null, forms: EpicForms): EpicDeclaration {
   try {
     const section = sectionOf((body ?? '').replaceAll('\r\n', '\n'));
     const content = section.slice(section.indexOf('\n') + 1);
@@ -236,7 +244,7 @@ export function parseEpicAcceptance(body: string | null): EpicDeclaration {
     if (fenced === undefined) throw new Error('acceptance: need one bounded json fence and no other content');
     return {
       kind: 'valid',
-      acceptance: acceptance(json(fenced)),
+      acceptance: acceptance(json(fenced), forms),
       definitionHash: new Bun.CryptoHasher('sha256').update(section).digest('hex'),
     };
   } catch (error) {
@@ -279,7 +287,7 @@ function result(value: unknown, index: number): EpicResult {
       scenario: string(data.scenario, `${path}.scenario`),
       result: status,
       rationale: string(data.rationale, `${path}.rationale`),
-      decision: integer(data.decision, `${path}.decision`),
+      decision: string(data.decision, `${path}.decision`),
     };
   }
   if (status !== 'PASS' && status !== 'FAIL' && status !== 'BLOCKED' && status !== 'unrun' && status !== 'UNVERIFIED') {
@@ -293,7 +301,7 @@ function result(value: unknown, index: number): EpicResult {
     path,
   );
   const reports = nonempty(array(data.reports, `${path}.reports`), `${path}.reports`).map((id) =>
-    integer(id, `${path}.reports`),
+    string(id, `${path}.reports`),
   );
   unique(reports, (id) => id, `${path}.reports`);
   const scenario = string(data.scenario, `${path}.scenario`);
@@ -311,28 +319,28 @@ function result(value: unknown, index: number): EpicResult {
 
 const submissionFields = ['repository', 'parent', 'definitionHash', 'children', 'review', 'targets', 'results'];
 
-function submission(data: Record<string, unknown>): EpicSubmission {
+function submission(data: Record<string, unknown>, forms: EpicForms): EpicSubmission {
   const review = object(data.review, ['session', 'at'], 'review');
   const targets = array(data.targets, 'targets').map(target);
   unique(targets, (target) => target.name, 'targets');
   return {
-    repository: parseEpicRepository(data.repository),
+    repository: forms.repository(data.repository),
     parent: key(data.parent, 'parent'),
     definitionHash: digest(data.definitionHash, 'definitionHash'),
-    children: parseEpicChildren(data.children),
+    children: parseEpicChildren(data.children, forms),
     review: { session: string(review.session, 'review.session'), at: timestamp(review.at, 'review.at') },
     targets,
     results: array(data.results, 'results').map(result),
   };
 }
 
-export function parseEpicSubmission(text: string): EpicSubmission {
-  return submission(object(json(text), submissionFields, 'submission'));
+export function parseEpicSubmission(text: string, forms: EpicForms): EpicSubmission {
+  return submission(object(json(text), submissionFields, 'submission'), forms);
 }
 
-export function parseAcceptedEpic(text: string): AcceptedEpic & { completionId: string } {
+export function parseAcceptedEpic(text: string, forms: EpicForms): AcceptedEpic & { completionId: string } {
   const data = object(json(text), [...submissionFields, 'mode', 'completionId'], 'accepted');
-  const evidence = submission(data);
+  const evidence = submission(data, forms);
   let accepted: AcceptedEpic;
   if (data.mode === 'independent') {
     if (evidence.targets.length || evidence.results.length)
@@ -395,7 +403,7 @@ export function completionIdentity(record: AcceptedEpic): string {
               target: result.target,
               observation: result.observation,
               oracle: result.oracle,
-              reports: [...result.reports].sort((a, b) => a - b),
+              reports: [...result.reports].sort(compare),
             }
           : {
               scenario: result.scenario,

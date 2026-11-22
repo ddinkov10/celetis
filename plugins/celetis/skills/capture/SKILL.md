@@ -56,8 +56,9 @@ change. Input: `#<n>`, or the request in free text.
    - Free text: do the intake job. Fill `<plugin>/references/procedures/intent.md` from the request in
      the person's words, save it as `docs/superpowers/intents/YYYY-MM-DD-<slug>-intent.md`, and
      create the issue with `celetis --agent <host> issue create <intent>`. Tell the person the
-     key in the URL that it prints at once: a retry after an interruption uses that `#<n>` and
-     creates no second issue.
+     key at the end of the URL that it prints at once
+     (`<plugin>/references/procedures/entry.md`, "The contract", **Tracker.**): a retry after an
+     interruption uses that `#<n>` and creates no second issue.
    - `#<n>` on the `run /celetis:triage` row with no intent (no `## Intent` comment, and a body
      that does not start with `# Intent:`): fill the intent as above, and post it first with
      `celetis --agent <host> issue <n> comment <intent>`, with `## Intent` as its first line.

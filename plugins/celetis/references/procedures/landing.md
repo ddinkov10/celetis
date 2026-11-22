@@ -191,7 +191,7 @@ carries that path.
 The third refusal in one session, or a cause outside the change (status 1 of `land <n> '<subject>'`, a status 6 that
 step 3 does not retry, a status 5 that the diff did not cause, a second exit 2, 3, 6, or 7 with the
 same line, a failed `recover`, or a second exit 128+n): a check that fails on an advisory for a dependency that the
-change did not touch, no check that ran, checks that did not finish, GitHub that does not answer,
+change did not touch, no check that ran, checks that did not finish, a tracker or a code host that does not answer,
 a main checkout on the trunk that is dirty or has commits that the trunk does not have.
 
 Before the stop, apply `<plugin>/references/procedures/stop.md`, "The check before a stop". At the third

@@ -1,3 +1,4 @@
+import { grammar } from '../tracker/grammar.ts';
 import type { IssueKey } from '../tracker/key.ts';
 import { command, type Decision, type Stop } from '../workflow/workflow.ts';
 
@@ -22,7 +23,7 @@ function describeObserved(n: IssueKey, next: Observed): Described {
         row: null,
       };
     case 'unreadable':
-      return { line: `stop cannot read #${n} from GitHub`, row: null };
+      return { line: `stop cannot read #${n} from ${grammar().tracker}`, row: null };
   }
 }
 

@@ -58,7 +58,9 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
     if (output) process.stderr.write(result.stdout + result.stderr);
     return result.stdout.trimEnd();
   };
-  const { tracker, codeHost } = services(cwd);
+  const { tracker, codeHost } = services(operation.mainConfig as Config, cwd);
+  await tracker.pull('worktree');
+  process.stderr.write(tracker.stderr());
   await git(['worktree', 'prune']);
   let branch = await git(['branch', '--list', '--format=%(refname:lstrip=2)', ...branchGlobs(n)]);
   if (branch.includes('\n'))
@@ -66,7 +68,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
   let fromPr = false;
   if (!branch) {
     if (remove) return exits.done;
-    const pulls = await fromGitHub(codeHost.pulls({ state: 'open' }), 'cannot list the open PRs on GitHub');
+    const pulls = await fromGitHub(codeHost.pulls({ state: 'open' }), `cannot list the open PRs on ${codeHost.name}`);
     branch = pulls
       .map((pull) => pull.head.ref)
       .filter((ref) => branchPattern(n).test(ref))
@@ -75,7 +77,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
       throw new HostError(`several open PRs match #${n}: ${branch.replaceAll('\n', ' ')}`, exits.prerequisite);
     fromPr = branch !== '';
     if (!branch) {
-      const issue = await fromGitHub(tracker.issue(n), `cannot read #${n} on GitHub`);
+      const issue = await fromGitHub(tracker.issue(n), `cannot read #${n} on ${tracker.name}`);
       const found = laneOf(issue.labels);
       if (found.kind === 'epic')
         throw new HostError(`#${n} is an epic: an epic has no branch; run each child's own lane`, exits.prerequisite);
@@ -101,7 +103,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
   if (remove) {
     const pulls = await fromGitHub(
       codeHost.pulls({ head: branch, state: 'all' }),
-      `cannot list the PRs of ${branch} on GitHub`,
+      `cannot list the PRs of ${branch} on ${codeHost.name}`,
     );
     const tip = await git(['rev-parse', `refs/heads/${branch}`]);
     if (pulls.some((pull) => !pull.mergedAt && pull.state === 'open'))
@@ -114,7 +116,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
           exits.prerequisite,
         );
     } else {
-      const issue = await fromGitHub(tracker.issue(n), `cannot read #${n} on GitHub`);
+      const issue = await fromGitHub(tracker.issue(n), `cannot read #${n} on ${tracker.name}`);
       if (issue.state !== 'closed' && laneOf(issue.labels).kind !== 'epic')
         throw new HostError(
           `#${n} is open and ${branch} has no merged PR; remove its worktree after the merge, or after the issue closes`,
@@ -141,7 +143,8 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
     await removeLane(n, branch, current, cwd);
     return exits.done;
   }
-  const trunk = (await fromGitHub(codeHost.repository(), 'cannot read the default branch from GitHub')).defaultBranch;
+  const trunk = (await fromGitHub(codeHost.repository(), `cannot read the default branch from ${codeHost.name}`))
+    .defaultBranch;
   await git(['fetch', '-q', 'origin', trunk], true);
   if (current) path = current;
   else if (hasBranch) await git(['worktree', 'add', path, branch], true);

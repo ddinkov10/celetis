@@ -6,8 +6,9 @@ workflow from a terminal to the master daemon of the repository
 at once. The daemon asks the resolver for the next step of an issue and starts that step in a new
 Claude, Codex, or OpenCode session (OpenCode runs only the step triage). Each session starts in a
 new tab of the Herdr app, in an hc terminal of herdr-core of its own, and the daemon steers that
-tab from outside: it ends the session when the step is done, and starts the next step when its gate is `auto`. The GitHub issue
-stays the state store (`docs/issue-tracker.md`): every result of a step goes to the issue. The
+tab from outside: it ends the session when the step is done, and starts the next step when its gate is `auto`. The issue of the
+tracker, on GitHub or in the local tracker, stays the state store (`docs/issue-tracker.md`): every
+result of a step goes to the issue. The
 master daemon also serves the board, a local web page that shows each agent session and the next
 step of each issue. Its Run button gives the request for one issue to the daemon. The board is
 `engine/board/` of the engine: a product project, a repository that uses the plugin `celetis`,
@@ -238,7 +239,7 @@ The daemon removes the record when the foreground exits or the run stops. A miss
 record never authorizes `/exit`. The foreground stays open and keeps its issue lock until it exits.
 
 In each other case the session stays open: a decision with the same result, the stop of the dirty
-tree, the stop of a landing that runs, the stop of a read that cannot reach GitHub, and a resolver
+tree, the stop of a landing that runs, the stop of a read that cannot reach the tracker, and a resolver
 read that fails. So a session whose agent waits for an answer, waits for a background task, or
 left an uncommitted file stays open, and a session that you start by hand never ends by itself. The
 exit of the start barrier after the host exits is the only sign that the session ended: the script
@@ -426,7 +427,7 @@ The exit status and the first word of the `land` line give the result:
 | 3 | `prerequisite` | the issue is not ready to land | the landing prerequisites of `docs/issue-tracker.md`, "Branches, PRs, merge"; another live holder of `land-<n>`; a daemon at another revision (the line tells you to restart it with `celetis daemon stop`, then `celetis daemon start`) |
 | 4 | `repair` | the lane needs a repair | a conflict with the trunk; a lane branch that does not contain the head of the trunk; a trunk head, a lane branch, a lane checkout, or a PR that changed during the landing; a missing lane worktree with the landing `merge`; lane lessons that do not validate |
 | 5 | `checks` | a check is not green | a failed CI check, also after its re-run; a workflow run of the PR head that failed to start, or that ended not green with no check run; a failed `suite` with the landing `merge` (`docs/configuration.md`) |
-| 6 | `blocked` | an external block | GitHub does not answer or refuses an act; a fetch or a push fails; the checks did not finish; no check ran; the main checkout is on the trunk and is dirty or has commits that the trunk does not have; the landing mechanism or the default branch changed; two branches or two PRs match; an incomplete lesson transaction (`lesson-store recover`); a lesson lock that stays busy for 10 seconds; a daemon that cannot be read (the line tells you to read `celetis daemon status`); a request during a stop of the daemon (the 503 line); a landing that waits in the line when the daemon stops; a stream with no status (above) |
+| 6 | `blocked` | an external block | the tracker or the code host does not answer or refuses an act; a fetch or a push fails; the checks did not finish; no check ran; the main checkout is on the trunk and is dirty or has commits that the trunk does not have; the landing mechanism or the default branch changed; two branches or two PRs match; an incomplete lesson transaction (`lesson-store recover`); a lesson lock that stays busy for 10 seconds; a daemon that cannot be read (the line tells you to read `celetis daemon status`); a request during a stop of the daemon (the 503 line); a landing that waits in the line when the daemon stops; a stream with no status (above) |
 | 7 | `cleanup` | landed, the cleanup stopped | the change is on the trunk, and the removal, the pull of the main checkout, or the close of the issue stopped, also by an abort: run `land` again |
 | 128+n | none | a signal | a signal to `land` stopped it, and the landing aborted, in the daemon or in the direct landing (after the change is on the trunk, a new `land` completes the cleanup); 143 also for a stop of the daemon before the change is on the trunk |
 
@@ -444,6 +445,7 @@ or Run press. With `specify` as `auto`, the daemon starts a design session and w
 answer.
 
 ```yaml
+tracker: github
 landing: pr
 gates:
   implement: auto
@@ -462,6 +464,7 @@ each lane. An edit of the list applies at the next read of auto mode and before 
 its run, with no restart of the daemon.
 
 ```yaml
+tracker: github
 landing: pr
 gates:
   triage: auto
@@ -500,7 +503,7 @@ gives the start, the port rules, the cards, the keys, and the errors.
 | The issue is finished, or closed as `wontfix` | none | — |
 | The working tree is dirty | commit or stash | as the first row |
 | A landing of the issue runs | none: a session lands the issue | start the script again when the landing ended |
-| The script cannot read the issue from GitHub | check `gh auth status`, the network, and the REST rate limit (`gh api rate_limit`) | auto mode tries again by itself; press Refresh on the board |
+| The script cannot read the issue from the tracker | with the tracker `github`, check `gh auth status`, the network, and the REST rate limit (`gh api rate_limit`); with the tracker `local`, read the line of `celetis --agent <host> issue <n> view` | auto mode tries again by itself; press Refresh on the board |
 | The next step has a `manual` gate | a Run press on the card, or `celetis --agent <host> run <n>` | — |
 | A run of auto mode ends before a step whose lane `autoLanes` does not name (`autoLanes does not name <name>`, where `triage` is the name of an issue with no lane) | a Run press on the card, or `celetis --agent <host> run <n>`, starts the step; to let auto mode take the lane, add its name to `autoLanes` ("Gates") | — |
 | The session ended with no spec on the issue | open the session again, or read the comment of a spike | a Run press, or `celetis --agent <host> run <n>` |

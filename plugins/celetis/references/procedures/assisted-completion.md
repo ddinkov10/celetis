@@ -48,7 +48,7 @@ With evidence for the full scope of the report and both removals:
    only its report needs no restoration. Preserve the existing general completion rule.
 3. Run `celetis --agent <host> issue <n> assisted <file>` only when every current request affected
    by that report and the removals is satisfied. The engine checks shape and state; the helper
-   checks evidence truth and scope. Shared GitHub authentication provides no independent
+   checks evidence truth and scope. A shared tracker identity provides no independent
    attestation of the report writer.
 4. After success or failure, re-read the issue, state, and next step. Preserve exit 6 of
    `issue <n> assisted <file>` and the required human repair after a partial write: run no part of its printed repair command and

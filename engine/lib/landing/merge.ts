@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { HostError } from '../command/errors.ts';
+import type { Config } from '../config/core.ts';
 import { exits } from '../contract/contract.ts';
 import { streamBun } from '../process/process.ts';
 import { services } from '../services/services.ts';
@@ -7,11 +8,12 @@ import type { IssueKey } from '../tracker/key.ts';
 import { keyedSubject } from '../workflow/workflow.ts';
 import type { LandingContext, Mechanism } from './landing.ts';
 
-export function mergeMechanism(context: LandingContext, suite: string): Mechanism {
+export function mergeMechanism(context: LandingContext, config: Extract<Config, { landing: 'merge' }>): Mechanism {
+  const { suite } = config;
   const { n, subject, main, trunk, branch, tip, base, checkout, stale, signal } = context;
   const { git, gitRaw, tracked, die, interrupted, preflight, setCleanup } = context;
   const closeIssue = async (issue: IssueKey, body: string) => {
-    const gh = services(main, signal).tracker;
+    const gh = services(config, main, signal).tracker;
     await gh.comment(issue, body);
     await gh.edit(issue, { state: 'closed', state_reason: 'completed' });
     process.stderr.write(gh.stderr());

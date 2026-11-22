@@ -324,12 +324,16 @@ capture of a Verify scenario of `plan`, use it too: one capture at the failing s
 no variants. The diagnosis of "The whole app" uses it too: one capture of each key of its
 inventory at each size, with no variants.
 
-**The tools check.** Run it before the build, and before the first capture of a repro:
+**The tools check.** Run it before the build, and before the first capture of a repro. Get the
+`tracker` of the project from the reader CLI of the entry contract
+(`<plugin>/references/procedures/entry.md`, "The contract"). The two `gh` lines hold only for the
+tracker `github`. With the tracker `local`, the check is only the capture tool, because the engine
+stores a capture as a blob: the check runs no `gh` and does not stop for a missing `gh`.
 
-- `gh --version` prints 2.99.0 or later. The `--attach` flag came in 2.99.0.
-- `gh repo view --json url --jq .url` prints a URL that starts with `https://github.com/`. GitHub
-  Enterprise Server does not support `--attach`.
-- The capture tool of the row is there: on the web the background browser
+- With the tracker `github`: `gh --version` prints 2.99.0 or later. The `--attach` flag came in 2.99.0.
+- With the tracker `github`: `gh repo view --json url --jq .url` prints a URL that starts with
+  `https://github.com/`. GitHub Enterprise Server does not support `--attach`.
+- With each tracker, the capture tool of the row is there: on the web the background browser
   (`<plugin>/references/procedures/browser.md`, "The two browsers" and "The role of a server"),
   else the simulator or the emulator, the app, or VHS.
 

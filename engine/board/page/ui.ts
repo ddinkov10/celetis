@@ -330,6 +330,8 @@ export const toast = (title: string, { detail = '', isError = false } = {}) => {
   if (!isError) toastTimer = setTimeout(hideToast, 6000);
 };
 
+export const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
 export const SERVER_DOWN = 'The board server does not answer';
 const RESTART = 'Start the daemon again in a terminal: celetis daemon start.';
 

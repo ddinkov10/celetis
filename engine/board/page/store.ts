@@ -4,7 +4,7 @@ import type { Board } from '../types.ts';
 import { boardKey, queryClient } from './query.ts';
 import { type Area, readShell, type Shell } from './shell.ts';
 import { applyTheme, readTheme, THEME_KEY, THEMES, type Theme, writeTheme } from './theme/choice.ts';
-import { announce, post, store, toast } from './ui.ts';
+import { announce, capital, post, store, toast } from './ui.ts';
 
 export type Settings = Readonly<{ theme: Theme; notify: boolean; keys: boolean }>;
 export type Inputs = Readonly<{
@@ -114,7 +114,7 @@ async function refresh(): Promise<void> {
   const tracker = queryClient.getQueryData<Board>(boardKey)?.tracker;
   if (!isOk) return setControl({ refresh: 'rest' });
   setControl({ refresh: 'done' });
-  announce(tracker ? `${tracker} read again` : 'Issues read again');
+  announce(tracker ? `${capital(tracker)} read again` : 'Issues read again');
   clearTimeout(refreshDone);
   refreshDone = setTimeout(() => setControl({ refresh: 'rest' }), 2000);
 }

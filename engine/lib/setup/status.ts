@@ -7,7 +7,7 @@ import { type Config, ConfigError, type Host } from '../config/core.ts';
 import { type ExitCode, exits, labels, setupStatusClosing } from '../contract/contract.ts';
 import { loggedIn } from '../github/github.ts';
 import { run } from '../process/process.ts';
-import { services } from '../services/services.ts';
+import { type Choice, services } from '../services/services.ts';
 import { parseSetupRecord, type WiringRecord } from './record.ts';
 import {
   ambiguousJSON,
@@ -32,6 +32,8 @@ import {
   trackingProblem,
   wiring,
 } from './wiring.ts';
+
+export const freshChoice: Choice = { tracker: 'github', landing: 'pr' };
 
 const localSettings = '.claude/settings.local.json';
 const marketEntry = ['extraKnownMarketplaces', 'celetis'];
@@ -105,16 +107,23 @@ class Status {
     return value;
   }
 
-  async origin(): Promise<Origin | null> {
+  async origin(local: boolean): Promise<Origin | null> {
     const result = await run('git', ['remote', 'get-url', 'origin'], { cwd: this.root });
     if (result.code === 2) {
-      this.add('missing', 'origin', 'no remote origin; add the GitHub repository of the project as origin');
+      this.add(
+        'missing',
+        'origin',
+        local
+          ? 'no remote origin; add the remote of the project as origin'
+          : 'no remote origin; add the GitHub repository of the project as origin',
+      );
       return null;
     }
     if (result.code !== 0) {
       this.add('blocked', 'origin', `cannot read the remote origin: git exited ${result.code}`);
       return null;
     }
+    if (local) return null;
     const origin = originRepository(result.stdout.trim());
     if (origin === null) {
       this.add(
@@ -148,7 +157,7 @@ class Status {
     } catch (error) {
       if (!(error instanceof ConfigError)) throw error;
       if (error.ioCode === 'ENOENT')
-        this.add('missing', configFile, 'no file; setup writes landing, and suite with merge');
+        this.add('missing', configFile, 'no file; setup writes tracker, landing, and suite with merge');
       else if (error.ioCode) this.add('blocked', configFile, `${error.field}: ${error.message}`);
       else this.add('invalid', configFile, `${error.field}: ${error.message}; repair it by hand`);
       return null;
@@ -312,7 +321,7 @@ class Status {
     for (const line of required) if (!hasLine(text, line)) this.add('missing', path, `no line ${line}; setup adds it`);
   }
 
-  async record(): Promise<void> {
+  async record(config: Config | null): Promise<void> {
     const source = await this.read(wiring);
     if (source === undefined) return;
     if (source === null) {
@@ -328,18 +337,33 @@ class Status {
     }
     this.saved = value;
     const answers = value.answers;
-    if (answers?.tracker !== 'github') this.add('missing', wiring, 'answers.tracker is missing; run setup with GitHub');
+    if (answers?.tracker === undefined)
+      this.add('missing', wiring, 'answers.tracker is missing; run setup with the tracker of the project');
+    else if (config && config.tracker !== answers.tracker)
+      this.add(
+        'different',
+        wiring,
+        `answers.tracker is ${answers.tracker}, but ${configFile} has tracker ${config.tracker}; run setup with the tracker of the project`,
+      );
     if (!answers?.hosts) this.add('missing', wiring, 'answers.hosts is missing; run setup with the selected hosts');
     else if (!answers.hosts.includes(this.host))
       this.add('missing', wiring, `answers.hosts lacks ${this.host}; run setup with ${this.host}`);
   }
 
-  async tracker({ host, repository: name }: Origin): Promise<void> {
-    const { tracker, codeHost } = services(this.root, undefined, { ...process.env, GH_HOST: host, GH_REPO: name });
+  async tracker({ host, repository: name }: Origin, choice: Choice): Promise<void> {
+    const { tracker, codeHost } = services(choice, this.root, undefined, {
+      ...process.env,
+      GH_HOST: host,
+      GH_REPO: name,
+    });
     try {
       await codeHost.repository();
     } catch {
-      this.add('blocked', name, 'cannot read the GitHub repository of origin with gh');
+      this.add(
+        'blocked',
+        name,
+        `cannot read the ${codeHost.name} repository of origin${choice.landing === 'pr' ? ' with gh' : ''}`,
+      );
       return;
     }
     let found: readonly string[];
@@ -371,17 +395,19 @@ export async function setupStatus(operation: Operation): Promise<ExitCode> {
   out(`setup: checkout ${checkout.active}`);
   out(`setup: host ${host}`);
   const status = new Status(checkout.active, host);
-  const origin = await status.origin();
   const config = await status.config();
+  const configFindings = status.findings.splice(0);
+  const origin = await status.origin(config?.tracker === 'local');
+  status.findings.push(...configFindings);
   if (config?.landing === 'merge') await status.configured('suite', config.suite);
   if (config?.worktreeSetup) await status.configured('worktreeSetup', config.worktreeSetup);
-  await status.record();
+  await status.record(config);
   await status.instructions();
   if (host === 'claude') await status.claude();
   else await status.codex();
   await status.requiredLines('.gitignore', ignores);
   await status.requiredLines('.gitattributes', [attribute]);
-  if (origin !== null) await status.tracker(origin);
+  if (origin !== null) await status.tracker(origin, config ?? freshChoice);
   for (const { kind, subject, cause } of status.findings) out(`setup: ${kind}: ${subject}: ${cause}`);
   if (!status.findings.length) {
     out('setup: the required wiring is complete');

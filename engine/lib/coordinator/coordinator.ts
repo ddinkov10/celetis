@@ -341,7 +341,7 @@ export function createCoordinator(
     const skill = join(plugin, 'skills/coordinate/SKILL.md');
     if (!(await stat(skill).catch(() => null))?.isFile())
       throw new HostError(`coordinator: cannot read the coordinator skill: ${skill}`, exits.prerequisite);
-    await requireSetup(false);
+    await requireSetup(false, main);
     stopped();
     const token = randomUUID();
     const folder = await mkdtemp(state.startPrefix);

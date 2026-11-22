@@ -38,44 +38,50 @@ export function childEnv(source: NodeJS.ProcessEnv = process.env): NodeJS.Proces
   return env;
 }
 
-function limitOutput(text: string, bytes: number): string {
-  return new TextDecoder('utf-8', { ignoreBOM: true }).decode(Buffer.from(text).subarray(0, bytes), {
-    stream: true,
-  });
+// latin1 keeps each byte of a binary output as one character.
+function decode(output: Buffer, bytes: number, latin1: boolean): string {
+  const kept = output.subarray(0, bytes);
+  return latin1
+    ? kept.toString('latin1')
+    : new TextDecoder('utf-8', { ignoreBOM: true }).decode(kept, { stream: true });
 }
 
 export function run(
   file: string,
   args: string[],
-  options: ExecFileOptions & { inheritedFd?: number; input?: string; stderr?: 'inherit' } = {},
+  options: ExecFileOptions & {
+    inheritedFd?: number;
+    input?: string | Uint8Array;
+    bytes?: boolean;
+    stderr?: 'inherit';
+  } = {},
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   const maxBuffer = options.maxBuffer ?? 64 * 1024 * 1024;
   options = { ...options, inheritedFd: options.inheritedFd ?? updateDescriptor() };
   const env = childEnv(options.env);
+  const latin1 = options.bytes === true;
   if (options.inheritedFd !== undefined) {
     return new Promise((resolve) => {
       const child = spawn(file, args, {
         cwd: options.cwd,
         env,
-        stdio: ['ignore', 'pipe', options.stderr ?? 'pipe', options.inheritedFd],
+        stdio: [options.input === undefined ? 'ignore' : 'pipe', 'pipe', options.stderr ?? 'pipe', options.inheritedFd],
       });
-      let stdout = '';
-      let stderr = '';
+      const output = { stdout: [] as Buffer[], stderr: [] as Buffer[] };
+      const sizes = { stdout: 0, stderr: 0 };
       let failure: Error | undefined;
       const full = new Set<string>();
       for (const [name, stream] of [
         ['stdout', child.stdout],
         ['stderr', child.stderr],
       ] as const) {
-        stream?.setEncoding('utf8');
-        stream?.on('data', (data: string) => {
+        stream?.on('data', (data: Buffer) => {
           if (full.has(name)) return;
-          const captured = name === 'stdout' ? stdout : stderr;
-          const remaining = maxBuffer - Buffer.byteLength(captured);
-          const overflow = Buffer.from(data).length > remaining;
-          const chunk = overflow ? limitOutput(data, remaining) : data;
-          if (name === 'stdout') stdout += chunk;
-          else stderr += chunk;
+          const remaining = maxBuffer - sizes[name];
+          const overflow = data.length > remaining;
+          const chunk = overflow ? data.subarray(0, remaining) : data;
+          output[name].push(chunk);
+          sizes[name] += chunk.length;
           if (overflow) {
             full.add(name);
             if (!failure) {
@@ -85,14 +91,15 @@ export function run(
           }
         });
       }
+      child.stdin?.end(options.input);
       child.once('error', (error) => {
         failure ??= error;
       });
       child.once('close', (code, signal) =>
         resolve({
           code: failure ? 1 : (code ?? (signal ? 128 + constants.signals[signal] : 1)),
-          stdout,
-          stderr: stderr || failure?.message || '',
+          stdout: decode(Buffer.concat(output.stdout), maxBuffer, latin1),
+          stderr: decode(Buffer.concat(output.stderr), maxBuffer, false) || failure?.message || '',
         }),
       );
       child.once('exit', (code, signal) => {
@@ -107,12 +114,10 @@ export function run(
     const child = execFile(
       file,
       args,
-      { ...options, env, encoding: 'utf8', maxBuffer, shell: false },
-      (error, stdout, stderr) => {
-        if (error?.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
-          stdout = limitOutput(stdout, maxBuffer);
-          stderr = limitOutput(stderr, maxBuffer);
-        }
+      { ...options, env, encoding: 'buffer', maxBuffer, shell: false },
+      (error, out, err) => {
+        const stdout = decode(out, maxBuffer, latin1);
+        const stderr = decode(err, maxBuffer, false);
         const code =
           typeof error?.code === 'number' ? error.code : error?.signal ? 128 + constants.signals[error.signal] : 1;
         resolve({

@@ -51,7 +51,9 @@ start a parent run or replace explicit acceptance.
 ## The children
 
 Make each child from a one-line intent file whose first line is `# Intent: <title>`. `<child>`
-is the number of the URL that `issue create` prints. The route sets the lane label of the child:
+is the key at the end of the URL that `issue create` prints
+(`<plugin>/references/procedures/entry.md`, "The contract", **Tracker.**). The route sets the lane
+label of the child:
 
 ```bash
 celetis --agent <host> issue create <child intent>
@@ -77,5 +79,5 @@ Follow this section when `celetis --agent <host> issue <n> epic <file>` or
 - Repair the specific access or write failure, retain valid evidence, and re-enter explicit
   acceptance for fresh checks.
 - Never bypass the guard with a direct close, blindly repeat an uncertain comment, or claim that
-  an unacknowledged write failed to reach GitHub.
+  an unacknowledged write failed to reach the tracker.
 - Existing human-repair requirements remain binding.

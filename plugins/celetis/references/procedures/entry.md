@@ -71,19 +71,23 @@ completion criterion of a skill.
   The installed engine `celetis` runs the command; `<plugin>` locates only the documents that the
   skills cite. When `celetis` is not on `PATH`, stop before the workflow command, and tell the
   person to install the engine (`<plugin>/README.md`, "First install") and to start a fresh session.
-- **GitHub.** Run each issue write in the repository of the checkout through an act of the
-  command `issue`: `celetis --agent <host> issue <n> <act>`,
-  `celetis --agent <host> issue create <file>` for a new issue, and
-  `celetis --agent <host> issue <n> comment <file>` for each other comment. `issue create` prints
-  the URL of the new issue first. With a URL on stdout, the issue exists, also on a nonzero exit:
-  continue with its key, and never create it again. With no URL on stdout, the exit line says
+- **Tracker.** The `tracker` of the project is `github` or `local`
+  (`<plugin>/docs/issue-tracker.md`, "The local tracker"). With either tracker, run each issue
+  write in the repository of the checkout through an act of the command `issue`:
+  `celetis --agent <host> issue <n> <act>`, `celetis --agent <host> issue create <file>` for a new
+  issue, and `celetis --agent <host> issue <n> comment <file>` for each other comment. `issue create`
+  prints the URL of the new issue first: `https://github.com/<owner>/<repo>/issues/<n>` for
+  `github`, `local:<key>` for `local`. The key of the issue is the part of the URL after the last
+  `/`, or after `local:`, and it is the `<n>` of an act. With a URL on stdout, the issue exists,
+  also on a nonzero exit: continue with its key, and never create it again. With no URL on stdout, the exit line says
   whether the issue can exist: when it can, list the open issues with
   `celetis --agent <host> issue list` before a new create. Read an issue with
   `celetis --agent <host> issue <n> view`, or the newest comment with a given first line with
   `celetis --agent <host> issue <n> view --latest '<heading>'`, and link a child to its epic with
   `celetis --agent <host> issue <epic> link <child>`. On exit 6 of a read, report the
-  `issue: blocked:` line and stop. Use `gh` only for the code host and for another repository
-  (`<plugin>/docs/issue-tracker.md`, "Conventions", lists the acts).
+  `issue: blocked:` line and stop. Use `gh` only for the code host of the project, where a step
+  names it, and for another repository (`<plugin>/docs/issue-tracker.md`, "Conventions", lists the
+  acts).
 - **Skills.** Invoke a skill as the part of the host says. Each invocation is a new entry, with its
   own checkout and its own custom text: a same-session handoff and an invocation in a child agent
   too. Keep the invocation input across a handoff. A missing required Superpowers skill stops the
@@ -154,8 +158,9 @@ completion criterion of a skill.
   `Use the celetis:<name> skill for <input>. Complete its Celetis entry before any response, including commentary.`
 - **The approval procedure for a sandbox block.** Request one approved retry with the same
   command, arguments, and cwd before you report a setup stop. Use the escalation of the tool for
-  later calls with the same access needs. A denied file read keeps the stop of the entry. `issue`,
-  `worktree`, and `land` need network. In a sandbox with no network, `issue <n> <act>` exits 6 with
+  later calls with the same access needs. A denied file read keeps the stop of the entry. `worktree`
+  and `land` need network, and `issue` too with the tracker `github`. In a sandbox with no network,
+  `issue <n> <act>` with the tracker `github` exits 6 with
   `issue: blocked: cannot read #<n> from GitHub`: that is a sandbox block, not a GitHub that does
   not answer, so request the approved retry first. The approved retry is the path for `issue`.
 - **Session recovery.** Give the person `codex resume --no-daemon <session-id>` from the main

@@ -5,8 +5,9 @@ import type { Host } from '../config/core.ts';
 import { exits } from '../contract/contract.ts';
 import { releaseParts } from '../release/release.ts';
 import { laneIgnore } from '../state/state.ts';
+import type { TrackerKind } from '../tracker/grammar.ts';
 
-export type SetupAnswers = { tracker?: 'github'; hosts?: readonly Host[] };
+export type SetupAnswers = { tracker?: TrackerKind; hosts?: readonly Host[] };
 export type SetupEntry =
   | string
   | { path: string[]; item?: string }
@@ -29,7 +30,7 @@ type Scope = {
 const scopes: Record<string, Scope> = {
   '.claude/celetis/wiring.json': { file: true },
   '.codex/rules/celetis.rules': { file: true },
-  '.celetis.yaml': { keys: [['landing'], ['suite'], ['host']] },
+  '.celetis.yaml': { keys: [['tracker'], ['landing'], ['suite'], ['host']] },
   '.claude/settings.json': {
     keys: [
       ['extraKnownMarketplaces', 'celetis'],
@@ -120,7 +121,8 @@ export function parseSetupRecord(source: string, path: string): WiringRecord {
     if (!object(answers) || !keysAre(answers, ['tracker', 'hosts'])) return invalid('invalid answers');
     result.answers = {};
     if (Object.hasOwn(answers, 'tracker')) {
-      if (answers.tracker !== 'github') return invalid('answers.tracker: only GitHub is supported now');
+      if (answers.tracker !== 'github' && answers.tracker !== 'local')
+        return invalid('answers.tracker: need github or local');
       result.answers.tracker = answers.tracker;
     }
     if (Object.hasOwn(answers, 'hosts')) {

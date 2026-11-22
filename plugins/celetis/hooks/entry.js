@@ -72,19 +72,23 @@ completion criterion of a skill.
   The installed engine \`celetis\` runs the command; \`<plugin>\` locates only the documents that the
   skills cite. When \`celetis\` is not on \`PATH\`, stop before the workflow command, and tell the
   person to install the engine (\`<plugin>/README.md\`, "First install") and to start a fresh session.
-- **GitHub.** Run each issue write in the repository of the checkout through an act of the
-  command \`issue\`: \`celetis --agent <host> issue <n> <act>\`,
-  \`celetis --agent <host> issue create <file>\` for a new issue, and
-  \`celetis --agent <host> issue <n> comment <file>\` for each other comment. \`issue create\` prints
-  the URL of the new issue first. With a URL on stdout, the issue exists, also on a nonzero exit:
-  continue with its key, and never create it again. With no URL on stdout, the exit line says
+- **Tracker.** The \`tracker\` of the project is \`github\` or \`local\`
+  (\`<plugin>/docs/issue-tracker.md\`, "The local tracker"). With either tracker, run each issue
+  write in the repository of the checkout through an act of the command \`issue\`:
+  \`celetis --agent <host> issue <n> <act>\`, \`celetis --agent <host> issue create <file>\` for a new
+  issue, and \`celetis --agent <host> issue <n> comment <file>\` for each other comment. \`issue create\`
+  prints the URL of the new issue first: \`https://github.com/<owner>/<repo>/issues/<n>\` for
+  \`github\`, \`local:<key>\` for \`local\`. The key of the issue is the part of the URL after the last
+  \`/\`, or after \`local:\`, and it is the \`<n>\` of an act. With a URL on stdout, the issue exists,
+  also on a nonzero exit: continue with its key, and never create it again. With no URL on stdout, the exit line says
   whether the issue can exist: when it can, list the open issues with
   \`celetis --agent <host> issue list\` before a new create. Read an issue with
   \`celetis --agent <host> issue <n> view\`, or the newest comment with a given first line with
   \`celetis --agent <host> issue <n> view --latest '<heading>'\`, and link a child to its epic with
   \`celetis --agent <host> issue <epic> link <child>\`. On exit 6 of a read, report the
-  \`issue: blocked:\` line and stop. Use \`gh\` only for the code host and for another repository
-  (\`<plugin>/docs/issue-tracker.md\`, "Conventions", lists the acts).
+  \`issue: blocked:\` line and stop. Use \`gh\` only for the code host of the project, where a step
+  names it, and for another repository (\`<plugin>/docs/issue-tracker.md\`, "Conventions", lists the
+  acts).
 - **Skills.** Invoke a skill as the part of the host says. Each invocation is a new entry, with its
   own checkout and its own custom text: a same-session handoff and an invocation in a child agent
   too. Keep the invocation input across a handoff. A missing required Superpowers skill stops the
@@ -155,8 +159,9 @@ completion criterion of a skill.
   \`Use the celetis:<name> skill for <input>. Complete its Celetis entry before any response, including commentary.\`
 - **The approval procedure for a sandbox block.** Request one approved retry with the same
   command, arguments, and cwd before you report a setup stop. Use the escalation of the tool for
-  later calls with the same access needs. A denied file read keeps the stop of the entry. \`issue\`,
-  \`worktree\`, and \`land\` need network. In a sandbox with no network, \`issue <n> <act>\` exits 6 with
+  later calls with the same access needs. A denied file read keeps the stop of the entry. \`worktree\`
+  and \`land\` need network, and \`issue\` too with the tracker \`github\`. In a sandbox with no network,
+  \`issue <n> <act>\` with the tracker \`github\` exits 6 with
   \`issue: blocked: cannot read #<n> from GitHub\`: that is a sandbox block, not a GitHub that does
   not answer, so request the approved retry first. The approved retry is the path for \`issue\`.
 - **Session recovery.** Give the person \`codex resume --no-daemon <session-id>\` from the main
@@ -6342,6 +6347,7 @@ var digitNames = {
 };
 var profileFlags = [optional("--profile", "FILE"), optional("--runtime-models", "FILE")];
 var setupOptions = [
+  required("--tracker", "github|local"),
   required("--hosts", "claude|codex|claude,codex|codex,claude"),
   required("--landing", "pr|merge"),
   optional("--suite", "<file>"),
@@ -6400,6 +6406,15 @@ var issueActs = {
     numbered: false,
     prerequisite: "none; it takes no issue key",
     writes: "nothing; the JSON list of the issues in the state (`open` when no `--state`), not pull requests, with `--label` only those with that label"
+  },
+  sync: {
+    words: ["sync"],
+    flags: [],
+    read: false,
+    argument: "none",
+    numbered: false,
+    prerequisite: "the local tracker",
+    writes: "the local issues: it pulls them from origin, merges them, and pushes them"
   },
   link: {
     words: ["link", "<child>"],
@@ -6639,7 +6654,7 @@ var commands = [
       ...changes,
       names: { "on|off": "state" }
     })
-  ], `Starts, reads, and stops the master daemon of the repository of the current folder (\`engine/README.md\`, "The master daemon"); \`auto on|off\` turns auto mode of the daemon on or off and prints \`daemon: auto mode <state>\`. For \`start\`, \`status\`, and \`stop\` the optional \`--agent\` selects nothing; for \`auto\` it selects the host of the auto steps. \`start\` spawns the daemon detached, which serves the board (\`engine/board/README.md\`), and exits ${exits.done} when it answers, or when a daemon already runs; it then prints \`daemon: board http://127.0.0.1:<port>\`, except for a daemon of another revision. It exits ${exits.prerequisite} when \`gh\`, \`hc\`, or the Herdr app is missing, and ${exits.blocked} when the hc server or the Herdr app does not answer, or when the daemon ends or stays silent for 30 seconds, for example when its board port cannot open. \`status\` prints the daemon, the board URL, its auto mode, and one line per run; it exits ${exits.prerequisite} when no daemon runs or the daemon runs another revision of the engine. \`stop\` exits ${exits.done} when the process ended or no daemon runs. \`auto\` exits ${exits.done} with the state, ${exits.prerequisite} when no daemon runs or the daemon runs another revision of the engine, the code of a refusal, or ${exits.blocked} when the outcome is unknown. Each form exits ${exits.blocked} when a daemon is known but its process or socket does not answer; \`stop\` exits ${exits.blocked} too when the process stays for 60 seconds. On Windows, \`start\` gives the socket folder an access list for only the current user, SYSTEM, and the administrators, before it spawns the daemon; it exits ${exits.prerequisite} when another user owns the folder, the folder denies the current user access, the folder is a reparse point, or another user can still reach it, and ${exits.blocked} when Windows refuses the change. Each form exits ${exits.prerequisite} when a daemon runs and another user can reach that folder, and ${exits.blocked} when its access list cannot be read. Any other form exits ${exits.usage}`),
+  ], `Starts, reads, and stops the master daemon of the repository of the current folder (\`engine/README.md\`, "The master daemon"); \`auto on|off\` turns auto mode of the daemon on or off and prints \`daemon: auto mode <state>\`. For \`start\`, \`status\`, and \`stop\` the optional \`--agent\` selects nothing; for \`auto\` it selects the host of the auto steps. \`start\` spawns the daemon detached, which serves the board (\`engine/board/README.md\`), and exits ${exits.done} when it answers, or when a daemon already runs; it then prints \`daemon: board http://127.0.0.1:<port>\`, except for a daemon of another revision. It exits ${exits.prerequisite} when \`hc\` or the Herdr app is missing, or when \`gh\` is missing in a project with the GitHub tracker, the \`pr\` landing, or no valid \`.celetis.yaml\`, and ${exits.blocked} when the hc server or the Herdr app does not answer, or when the daemon ends or stays silent for 30 seconds, for example when its board port cannot open. \`status\` prints the daemon, the board URL, its auto mode, and one line per run; it exits ${exits.prerequisite} when no daemon runs or the daemon runs another revision of the engine. \`stop\` exits ${exits.done} when the process ended or no daemon runs. \`auto\` exits ${exits.done} with the state, ${exits.prerequisite} when no daemon runs or the daemon runs another revision of the engine, the code of a refusal, or ${exits.blocked} when the outcome is unknown. Each form exits ${exits.blocked} when a daemon is known but its process or socket does not answer; \`stop\` exits ${exits.blocked} too when the process stays for 60 seconds. On Windows, \`start\` gives the socket folder an access list for only the current user, SYSTEM, and the administrators, before it spawns the daemon; it exits ${exits.prerequisite} when another user owns the folder, the folder denies the current user access, the folder is a reparse point, or another user can still reach it, and ${exits.blocked} when Windows refuses the change. Each form exits ${exits.prerequisite} when a daemon runs and another user can reach that folder, and ${exits.blocked} when its access list cannot be read. Any other form exits ${exits.usage}`),
   entry("coordinator", true, [
     form("coordinator", [], {
       ...helped(19, "Opens the coordinator session of the daemon in a tab, or brings its tab to the front."),
@@ -6673,7 +6688,7 @@ var commands = [
   entry("issue", true, Object.values(issueActs).map((act) => form("numbered" in act ? ["issue", ...act.words] : ["issue", "<n>", ...act.words], act.flags, {
     read: act.read,
     ..."names" in act ? { names: act.names } : {}
-  })), `Makes each issue write of a session in the repository of the checkout: ${issueActList}. Its acts \`view\` and \`list\` read and write nothing: \`view\` prints the JSON of an issue, with its parent, its children, and its history, and \`view --latest\` prints the body of the newest comment whose first line is the heading; \`list\` prints the open issues as JSON, and \`list --state closed\` prints the closed issues; \`--label\` keeps only the issues with that label. \`link\` makes the child a sub-issue of the epic under the epic lock, and writes nothing when the link exists. The acts other than the reads, \`create\`, \`comment\`, and \`link\` are the workflow writes that the engine reads. \`create\` prints the URL of the new issue before any other write: a URL on stdout means that the issue exists, also on a nonzero exit. \`comment\` refuses a file whose first line is a lifecycle heading or the effort marker, and names the act for that write. The assistance act records an attributed \`## Human steps done\` report before removing present blocking labels; it adds no label and preserves build state. Lifecycle acts write the comment heading before label changes. Each act refuses unmet prerequisites. \`state\` writes nothing and prints lifecycle facts. \`epic-state\` writes nothing and prints the current declaration, child snapshot, history, and holds. Epic definition writes preserve the complete parent body; guarded completion publishes its accepted record before closing and leaves readiness labels unchanged. \`docs/issue-tracker.md\`, "Conventions", gives each act`),
+  })), `Makes each issue write of a session in the repository of the checkout: ${issueActList}. Its acts \`view\` and \`list\` read and write nothing: \`view\` prints the JSON of an issue, with its parent, its children, and its history, and \`view --latest\` prints the body of the newest comment whose first line is the heading; \`list\` prints the open issues as JSON, and \`list --state closed\` prints the closed issues; \`--label\` keeps only the issues with that label. \`link\` makes the child a sub-issue of the epic under the epic lock, and writes nothing when the link exists. The acts other than the reads, \`create\`, \`comment\`, \`link\`, and \`sync\` are the workflow writes that the engine reads. With the local tracker, each write act pulls the local issues from origin before it writes and pushes them after it writes; when origin cannot be reached, the write stays local, the act prints a warning, and it keeps its exit code. \`sync\` pulls and pushes the local issues on request: it exits ${exits.blocked} when origin cannot be reached, and ${exits.prerequisite} with the GitHub tracker. \`create\` prints the URL of the new issue before any other write: a URL on stdout means that the issue exists, also on a nonzero exit. \`comment\` refuses a file whose first line is a lifecycle heading or the effort marker, and names the act for that write. The assistance act records an attributed \`## Human steps done\` report before removing present blocking labels; it adds no label and preserves build state. Lifecycle acts write the comment heading before label changes. Each act refuses unmet prerequisites. \`state\` writes nothing and prints lifecycle facts. \`epic-state\` writes nothing and prints the current declaration, child snapshot, history, and holds. Epic definition writes preserve the complete parent body; guarded completion publishes its accepted record before closing and leaves readiness labels unchanged. \`docs/issue-tracker.md\`, "Conventions", gives each act`),
   entry("next-step", true, [form("next-step <n>", [], reads), form("next-step", [required("--open")], reads)], "The resolver: the next step of one issue, or of each open issue"),
   entry("events", true, [form("events", [optional("--after", "<id>")], reads)], `Prints each kept entry of the event record of the user as one JSON line, oldest first; \`--after <id>\` prints only the entries after that entry. \`engine/README.md\`, "The event record", gives the record. It exits ${exits.usage} for a relative \`CELETIS_HOME\`, ${exits.prerequisite} when the record lock is busy, and ${exits.blocked} for an unsafe folder or lock file`),
   entry("config", true, [form("config <checkout> <plugin>", [], { ...reads, names: { "<checkout>": "project" } })], `The reader of \`.celetis.yaml\` for the agent. It first checks that \`<plugin>\` is a Celetis plugin: a folder whose \`.claude-plugin/plugin.json\` has \`"name": "celetis"\`. It then validates the whole file of \`<checkout>\`, and checks each \`custom\` key against \`<plugin>/skills/<key>/SKILL.md\`, a regular file with no symbolic link. It prints the configuration as one compact JSON line. \`--agent\` selects nothing. It exits ${exits.usage} for another form, a folder that is not a Celetis plugin, or a missing or invalid file; the line names the field or the plugin folder`),
@@ -7015,6 +7030,7 @@ function profile(value, path) {
 function checkSchema(value) {
   const config = object(value, []);
   keysOnly(config, [
+    "tracker",
     "landing",
     "gates",
     "agents",
@@ -7026,8 +7042,12 @@ function checkSchema(value) {
     "custom",
     "codexProfiles"
   ], []);
+  required2(config, "tracker", []);
+  oneOf(config.tracker, ["github", "local"], ["tracker"]);
   required2(config, "landing", []);
   oneOf(config.landing, ["pr", "merge"], ["landing"]);
+  if (config.tracker === "local" && config.landing === "pr")
+    throw new ConfigError(["tracker"], "the tracker local needs the landing merge");
   if (Object.hasOwn(config, "gates")) {
     const gates = object(config.gates, ["gates"]);
     keysOnly(gates, steps, ["gates"]);

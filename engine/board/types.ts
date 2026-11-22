@@ -14,6 +14,7 @@ import type { PluginHost, Registry } from '../lib/host/names.ts';
 import type { QueueAction, QueueView } from '../lib/queue/types.ts';
 import type { IssueRow, ParentEpic, Pull } from '../lib/resolver/types.ts';
 import type { DialogKind, TerminalStatus } from '../lib/terminal/types.ts';
+import type { TrackerKind } from '../lib/tracker/grammar.ts';
 import type { IssueKey } from '../lib/tracker/key.ts';
 import type { UpdateStage } from '../lib/update/types.ts';
 import type { Level, RowSource, StartPair } from '../lib/workflow/effort.ts';
@@ -192,6 +193,7 @@ export type Board = Placement & {
   history: BoardHistory | null;
   flow: Flow | null;
   tracker: string | null;
+  grammar: TrackerKind;
   daemon: DaemonView;
   agents: Document['agents'] | null;
   registry: Registry;

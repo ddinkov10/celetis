@@ -11,12 +11,27 @@ does and what a session sees, and [the board document](board/README.md) holds th
 tools, and their versions. The engine adds these rules:
 
 - `celetis daemon start` checks `hc`, its server, `herdr-app`, and the window of the Herdr app
-  before it spawns the daemon; the row of `daemon` in
+  before it spawns the daemon. It also checks `gh` on `PATH`, except in a project with the local
+  tracker and the `merge` landing; a project with no valid `.celetis.yaml` counts as GitHub; the row of `daemon` in
   [The commands](../plugins/celetis/README.md#the-commands) gives its exit codes. The daemon checks them again before each run reads its issue (a
-  number, auto mode, a queue wake, and `run resume`). A failed check there is the refusal of the
+  number, auto mode, a queue wake, and `run resume`), with `gh` by the same rule. A failed check there is the refusal of the
   request, with the same code and a line that names the missing part and how to start it; for a
   queue wake, the line becomes the queue error.
 - Complete the normal folder trust of the host before a run. The daemon never answers that prompt.
+
+## The tracker of a process
+
+The entry `engine/celetis` reads `tracker` of the `.celetis.yaml` of the main checkout of its
+folder and gives it to the command as `CELETIS_TRACKER` (`github` with no checkout or no valid
+file; the command then reports the config itself). `commandInput` sets the key grammar of the
+process from it (`useGrammar` of `engine/lib/tracker/grammar.ts`) before any key parses, so a lane
+worktree cannot change the grammar. The daemon inherits the value from `daemon start`, and the
+entry `engine/daemon.ts` sets the grammar from it (`useProjectGrammar`) before its forms `--daemon`,
+`--session-start`, and `--prepare-state`, which skip `commandInput`. Its
+runs and its board read keys with it. The board page in the browser takes the grammar from
+`grammar` of each board document (`useGrammar`) before it parses a key of that document.
+Each command takes its tracker and its code host from `services` of
+`engine/lib/services/services.ts`, with the `tracker` and the `landing` of the main config.
 
 ## The start of a step
 
@@ -630,11 +645,13 @@ after the start barrier reports and before its release, after each session end, 
 and its wake, at the claim of a queue wake, and after each drain of a queue issue. A run that ends
 removes its record. A detached run
 keeps it, except a run whose answer was 503. The `go` file of the start folder, not the record,
-tells whether the barrier was released. The record has `schema: 4`, with its paths under
+tells whether the barrier was released. The record has `schema: 5`, with its paths under
 `<git common dir>/celetis/`. Its `issue` and the `number` of its input are issue keys, each a JSON
 string (`"12"`), and its `session.record` is a saved session of schema 3. A schema-2 or schema-3
-record converts to schema 4 when the daemon reads it at its start, after it holds `daemon` and
-before it serves. A schema-2 record first gets `model: null` in a `number` input, as it did to
+record converts to schema 5 when the daemon reads it at its start, after it holds `daemon` and
+before it serves, only when each `plan` of the record is `null`: a record with a numeric `plan` is refused with
+`the record is not a valid run record`. A schema-4 record is refused with `the record has another schema`: its plan comment ID is a number
+([ADR-0126](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0126-a-local-tracker-in-the-git-bug-format.md)). A schema-2 record first gets `model: null` in a `number` input, as it did to
 schema 3. The conversion writes each issue number as its key, converts the embedded session record
 by the rule of the saved session, and keeps each other field. A number that the grammar of the
 tracker refuses refuses the record intact. A `number`, `auto`, or `queue` input with `quiet` is not
@@ -695,8 +712,8 @@ names the next issue with no session, so a stop between two issues continues the
 start. A session whose start folder has no `go` file ends the issue as the table says, and the
 queue state becomes `error` with that line.
 
-**A quota recovery.** The recovery record has `schema: 3` with the key `daemon`. A valid schema-2
-record converts to schema 3 when it is read ([Usage-limit recovery](#usage-limit-recovery)). A
+**A quota recovery.** The recovery record has `schema: 4` with the key `daemon`. A valid schema-2
+record with `plan: null` converts to schema 4 when it is read ([Usage-limit recovery](#usage-limit-recovery)). A
 record of another schema, or with an invalid field, is refused with its path and `invalid or obsolete recovery record;
 inspect it, then remove it`, and it is never read as empty. When the recovery record of the
 issue names a daemon that is gone (a definite read), the daemon writes itself as the owner of the record in one
@@ -1422,9 +1439,9 @@ Only a daemon-owned step with the default choice continues on another
 agent. A confirmed refusal of an explicit host is recorded; that session stays open, and no other
 agent starts. After a confirmed refusal of the default host, the daemon:
 
-1. Saves the block, writes `<git common dir>/celetis/recovery/<n>.json` (schema 3, with the key `daemon`; its `issue`
+1. Saves the block, writes `<git common dir>/celetis/recovery/<n>.json` (schema 4, with the key `daemon`; its `issue`
    is the issue key as a JSON string) with the state `recovering`, and stops the job of the step end.
-   A read of a schema-2 record converts it to schema 3 under the recovery lock, with the issue
+   A read of a schema-2 record with `plan: null` converts it to schema 4 under the recovery lock, with the issue
    number written as its key and each other field kept, and keeps the exact original bytes in an
    immutable sibling archive. A number that the grammar of the tracker refuses refuses the record
    intact, before the lock.
@@ -1725,7 +1742,7 @@ The workflow and board entries, by `name`:
 | `exit-request` | The daemon cannot ask a session to exit. `issue` is set |
 | `exit-signal` | The daemon sends SIGTERM to a Claude host that does not exit within 10 seconds of its exit request; on Windows, it ends the host process. `issue` is set |
 | `exit-timeout` | A session does not exit within 10 seconds of its exit request and gets no signal, or within 10 seconds of the SIGTERM (on Windows, of the end of the host process). `issue` is set |
-| `issues-read` | Auto mode cannot read the open issues from GitHub |
+| `issues-read` | Auto mode cannot read the open issues from the tracker of the project |
 | `queue-error` | The queue of the daemon saves the state `error`, or ends with an error |
 | `run-exit` | A run of the master daemon ends with a nonzero code. `issue` and `code` are set |
 | `run-defect` | A run or auto mode of the master daemon ends with an unexpected error. A defect with its stack |

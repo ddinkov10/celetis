@@ -15,7 +15,7 @@ import {
   SidebarMenuItem,
   Sidebar as SidebarRoot,
 } from '../ui/sidebar.tsx';
-import { SERVER_DOWN } from '../ui.ts';
+import { capital, SERVER_DOWN } from '../ui.ts';
 import { Control } from './control.tsx';
 import { Home } from './home.tsx';
 import { OperationsHost } from './hosts.tsx';
@@ -38,7 +38,7 @@ const needLabel = (name: string, count: number) => (count === 0 ? name : `${name
 const current = (isCurrent: boolean) => (isCurrent ? ('page' as const) : undefined);
 
 const failedItems = (data: Board | undefined, isDown: boolean): string[] => {
-  const name = data?.tracker ?? 'Issues';
+  const name = capital(data?.tracker ?? 'Issues');
   const fresh = isDown ? SERVER_DOWN : data?.source.error ? `cannot read: ${data.source.error}` : null;
   return [...(fresh ? [`${name}: ${fresh}`] : []), ...(data?.terminal.ok === false ? ['herdr: down'] : [])];
 };

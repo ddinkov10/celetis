@@ -1,3 +1,4 @@
+import { grammar } from '../../lib/tracker/grammar.ts';
 import type { Board } from '../types.ts';
 import { clock } from '../view.ts';
 
@@ -75,7 +76,14 @@ export const tileOf = (kind: Kind, board: Board): Tile => {
       ? { kind: 'failed', text: 'The history read failed' }
       : { kind: 'reading', text: 'Reading the history' }
     : series.filter((point) => point !== null).length < 2
-      ? { kind: 'few', text: isLive ? 'Too few samples yet' : 'Too few landings yet' }
+      ? {
+          kind: 'few',
+          text: isLive
+            ? 'Too few samples yet'
+            : grammar().kind === 'local'
+              ? 'No landings listed'
+              : 'Too few landings yet',
+        }
       : { kind: 'line', points: series };
   const now = windows?.[7];
   const before = windows?.[6];

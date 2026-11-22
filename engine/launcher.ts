@@ -1,13 +1,26 @@
 import { dirname, join } from 'node:path';
 import { HostError } from './lib/command/errors.ts';
-import { commandInput } from './lib/command/operation.ts';
+import { commandInput, locateCheckouts } from './lib/command/operation.ts';
+import { readConfig } from './lib/config/config.ts';
+import { ConfigError } from './lib/config/core.ts';
 import { commands, type ExitCode, exits, helpText, launcherForms, updateHint } from './lib/contract/contract.ts';
 import { requireBun } from './lib/host/host.ts';
 import { engineRevision } from './lib/process/git.ts';
 import { bunArgs, childEnv } from './lib/process/process.ts';
 import { manifestVersion } from './lib/release/release.ts';
 import { installRecorder, passOn } from './lib/state/events.ts';
+import type { TrackerKind } from './lib/tracker/grammar.ts';
 import { execConsumer } from './lib/update/lock.ts';
+
+async function projectTracker(): Promise<TrackerKind> {
+  try {
+    const { main } = await locateCheckouts(process.cwd());
+    return main === null ? 'github' : readConfig(main).tracker;
+  } catch (error) {
+    if (error instanceof HostError || error instanceof ConfigError) return 'github';
+    throw error;
+  }
+}
 
 const helpWords = launcherForms.flatMap(({ words: [word] }) => (word && word !== '--version' ? [word] : []));
 
@@ -39,7 +52,8 @@ export async function main(argv: string[]): Promise<ExitCode> {
     if (!commands.some(({ command }) => command === name)) throw missing;
     const entry = join(import.meta.dir, `${name}.ts`);
     const forwarded = explicit === undefined ? args : ['--agent', explicit, ...args];
-    return passOn(await execConsumer(process.execPath, [process.execPath, ...bunArgs(entry, forwarded)], childEnv()));
+    const env = { ...childEnv(), CELETIS_TRACKER: await projectTracker() };
+    return passOn(await execConsumer(process.execPath, [process.execPath, ...bunArgs(entry, forwarded)], env));
   } catch (error) {
     if (!(error instanceof HostError)) throw error;
     if (error.message) console.error(error.message);

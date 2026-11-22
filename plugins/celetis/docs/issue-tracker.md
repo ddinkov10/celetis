@@ -1,6 +1,6 @@
-# Issue tracker: GitHub
+# Issue tracker
 
-Issues are the state store for every lane. The issue key `<n>` is the handle (`#<n>`) that carries work between commands and sessions; state lives in the issue and the repo, never in chat history. The tracker defines the issue key: for GitHub it is the number of the issue, and each command, file, and JSON value carries it as a string. `<n>` in this document stands for the key. The `gh` CLI infers the repo from the clone, and `{owner}/{repo}` in an API path fills itself in.
+Issues are the state store for every lane. The issue key `<n>` is the handle (`#<n>`) that carries work between commands and sessions; state lives in the issue and the repo, never in chat history. The `tracker` field of `.celetis.yaml` names the tracker: `github` (GitHub issues) or `local` ("The local tracker"). The tracker defines the issue key: for GitHub it is the number of the issue, for the local tracker the first 7 characters of the ID of the issue, and each command, file, and JSON value carries it as a string. `<n>` in this document stands for the key. The `gh` CLI infers the repo from the clone, and `{owner}/{repo}` in an API path fills itself in.
 
 The state, headings, paths, and branches are shared by both hosts. `/celetis:<skill>` names the
 shared skill. Skills run each `celetis` command with the explicit `--agent claude` or `--agent
@@ -17,14 +17,14 @@ The skills use these forms:
 - **Create an issue**: `celetis --agent <host> issue create <file>`. The first line of the file
   is `# Intent: <title>`; the act takes the title from it, posts the whole file as the body, and
   sets `needs-triage`.
-- **Read an issue**: `celetis --agent <host> issue <n> view` prints the JSON of the issue: `key`, `title`, `url`, `state`, `labels`, `body`, `parent`, `children`, and `history` (the ordered timeline; each comment has its `author`, `null` when GitHub gives no user). `view --latest '<heading>'` prints the body of the newest comment whose first line is the heading, and exits 3 when none matches. A pull request exits 3, and a read failure exits 6.
+- **Read an issue**: `celetis --agent <host> issue <n> view` prints the JSON of the issue: `key`, `title`, `url`, `state`, `labels`, `body`, `parent`, `children`, and `history` (the ordered timeline; each comment has its `author`, `null` when the tracker gives no user). `view --latest '<heading>'` prints the body of the newest comment whose first line is the heading, and exits 3 when none matches. A pull request exits 3, and a read failure exits 6.
 - **List issues**: `celetis --agent <host> issue list` prints the open issues with no pull request as a JSON array of `{ key, title, url, labels }`. `--state closed` lists the closed issues in place of the open issues, and `--label <label>` lists only the issues with that one label.
 - **Link a sub-issue**: `celetis --agent <host> issue <epic> link <child>` makes the child a sub-issue of the epic; it writes nothing when the link exists.
 - **Comment**: `celetis --agent <host> issue <n> comment <file>`, with one
   `--attach '<file>#<alt text>'` for each image or video.
 
 Each issue write in the repository of the checkout goes through an act
-([the entry](../references/procedures/entry.md#the-contract), **GitHub.**), so each write leaves
+([the entry](../references/procedures/entry.md#the-contract), **Tracker.**), so each write leaves
 the refresh hint that a running board reads. The acts `view`, `list`, and `link` serve the reads
 and the sub-issue link; `gh` serves the code host and the writes to another repository. In this document, `issue <n> <act>` stands for
 `celetis --agent <host> issue <n> <act>`, and `issue create <file>` for
@@ -41,6 +41,7 @@ also use the protected current-state reads in "Epic completion and repair":
 | `comment <file> [--attach <file>#<alt>]` | an issue, open or closed; not a pull request | the file as a comment, with each `--attach` file uploaded (the flag repeats, at most 50 times); it refuses a first line that is a lifecycle heading or the effort marker |
 | `view [--latest <heading>]` | an issue, open or closed; not a pull request | nothing; the JSON of the issue, or with `--latest` the body of the newest comment whose first line is the heading |
 | `list [--state open\|closed] [--label <label>]` | none; it takes no issue key | nothing; the JSON list of the issues in the state (`open` when no `--state`), not pull requests, with `--label` only those with that label |
+| `sync` | the local tracker | the local issues: it pulls them from origin, merges them, and pushes them |
 | `link <child>` | two open issues, not pull requests; the child has no other parent | the sub-issue link, then the refresh hint of each issue; no write when the link exists |
 | `epic <file>` | open feature or epic; valid declaration and current child references | the complete parent body, then adds `epic` and removes `enhancement` as needed; clears no hold |
 | `epic-state` | readable parent and complete children | nothing; the JSON snapshot of "Epic acceptance submission" |
@@ -74,7 +75,7 @@ also use the protected current-state reads in "Epic completion and repair":
   a call of its own, and last changes the body or closes the issue. It never replaces the whole set
   of labels, so a label that a person adds or removes at the same time stays as the person set it.
   A label that is already on, or already off, is no change, and a write with no change is not
-  sent. The removal of a label that is already off on GitHub is no failure. Epic definition and
+  sent. The removal of a label that is already off on the tracker is no failure. Epic definition and
   completion writes follow their separate order in "Epic completion and repair".
 - A successful `stopped`, `ready-for-human`, or `before-landing` act leaves only `ready-for-human`
   from the readiness pair. A partial failure can leave both labels; exit 6 names the repair and
@@ -87,12 +88,102 @@ also use the protected current-state reads in "Epic completion and repair":
   evidence of each open human step, or `none`), and `refusal:` (`current` or `none`).
 - Exit status: 0 done, 1 internal error, 2 usage (bad arguments, or a file that the command
   refuses), 3 prerequisite (a line that names the refused act, and the resolver line),
-  6 blocked (GitHub does not answer, or a write failed). When a write after the first failed, the
+  6 blocked (the tracker does not answer, or a write failed). When a write after the first failed, the
   line gives the `gh` command that completes each write that is not done, except epic acts, which
   require current-state reconciliation and re-entry through acceptance. Until then, the
   resolver stops a `## Before landing` comment with no `ready-for-human` as an open human step, and
   a failed plan-label addition leaves an unfinished plan. Readiness writes do not record build
   completion ("Resolving an issue's state").
+
+## The local tracker
+
+With `tracker: local`, each issue is a git-bug entity in the main checkout: the ref
+`refs/bugs/<ID>`, with bug format version 4. Each author is an identity under
+`refs/identities/<ID>`, with identity format version 2. The engine reads and writes these refs with
+git plumbing, so the project needs no git-bug program.
+
+- **The key.** The key of a local issue is the first 7 characters of its 64-character ID. A new
+  issue gets an ID whose first 7 characters no other local issue has. A key that matches two or
+  more local issues, for example after issues come from another machine, is refused:
+  `#<key> matches several local issues: <full IDs>`.
+- **The URLs.** The URL of an issue is `local:<key>`. The URL of a comment is
+  `local:<key>#<operation ID>`; `comment` prints it. In an epic snapshot and its acceptance record,
+  the repository is `local`, a child URL is `local:<key>`, and the `id` of a child is its full ID.
+- **The author.** The author of each write is the identity that the git config entry
+  `git-bug.identity` of the main checkout names. With no entry, it is the local identity whose
+  email is `git config user.email`. With no such identity, the engine makes one from `user.name` and
+  `user.email`, and sets `git-bug.identity`.
+
+The engine reads each concept of an issue from the git-bug data:
+
+| Concept | git-bug data |
+|---|---|
+| title | create `title`, then the last set-title operation |
+| body | create `message`, then the last edit-comment operation that targets the create |
+| state | open; then the last set-status operation (1 open, 2 closed) |
+| labels | the set of the label-change operations |
+| comment | an add-comment operation; its `id` in `history` is the operation ID |
+| label event | each name of `added` or `removed` of a label-change operation, in order |
+| `at` | the `timestamp` of the operation, as an ISO time |
+| author | the `name` of the identity of the pack, else its `email` |
+| parent | the metadata key `celetis-parent` on the create operation, set by a set-metadata operation; the first write wins |
+| children | each local issue whose `celetis-parent` is the ID of the epic, in creation-clock order |
+| close as not planned | the set-status operation with the inline metadata key `celetis-state-reason: not_planned`; a close with no key is completed |
+| `updatedAt`, `closedAt` | the `timestamp` of the last operation, and of the last close |
+| pull request | never |
+
+The order of `history` is the replay order of the format: packs by edit clock, ties by pack ID,
+and operations in pack order.
+
+- **Writes.** Each write adds one commit on the tip of the issue and moves its ref once with
+  `git update-ref <ref> <new> <old>`. When the ref moved in between, the write makes its commit again
+  on the new tip, at most 5 times. `create` writes two commits, the create operation and then the
+  label change of `needs-triage`, and moves the new ref once, so a failed create writes no ref.
+  A new clock follows the highest clock of the local issues up to 2^52; a higher clock, which only
+  a forged entity can hold, is not followed, so it cannot stop the writes of the other issues.
+  A label that is already on or already off, an equal body, a close of a closed issue, and a link
+  that exists write nothing. The format has no label registry: the labels of the tracker are the
+  labels of the contract, and a label create writes nothing. Each `--attach <file>#<alt>` file is a
+  blob in the `extra/` tree of the pack and in `files` of the operation, and the comment gets the
+  line `![<alt>](<blob hash>)`. `git cat-file blob <blob hash>` prints the file.
+- **Refusals.** The refs can come from other machines, so the engine checks each entity before it
+  uses it: the version, one root, the clocks, the ID of the ref, unique operation IDs, the field
+  types, and a known author identity with no public key. A read of one issue whose entity fails a
+  check is refused with `refs/bugs/<ID>: <rule>`. A list skips the entity and prints
+  `issue: warning: refs/bugs/<ID> is not a valid local issue: <rule>; it is skipped`. An epic
+  snapshot is refused when an entity fails a check, because that entity can be a child. No write
+  goes on an entity that fails a check. When `refs/config/config` exists, or `git config user.email`
+  is not set, each write is refused before it writes, with a line that names the fix.
+- **A failed write.** A failed ref move says `nothing was written` only when the ref is still at
+  its old value. When the engine cannot read the ref after the failure, the line says that the ref
+  can hold the write: read the issue before you write again.
+- **Sync.** The local issues travel with `origin`. A pull fetches
+  `+refs/bugs/*:refs/remotes/origin/bugs/*` and `+refs/identities/*:refs/remotes/origin/identities/*`,
+  moves each fetched identity forward when the local one is behind it, and merges each fetched issue:
+  a missing or older local ref moves to the fetched tip, and two diverged histories get a merge
+  commit with two parents and an empty `ops` pack. A fetched entity that fails a check, a fetched
+  history that git cannot read (the rule `the history cannot be read`), an identity
+  that diverged, and an issue with another root are not merged, with the line
+  `<command>: warning: <ref> of origin is not merged: <rule>`. One git read of the store holds at
+  most 2147483647 bytes of output, the string bound of Bun: a fetched history above it is not merged,
+  and when the local histories together pass it, each read and write of the local tracker fails.
+  The recovery removes the forged issue everywhere, because a pull merges the remote-tracking ref
+  again and a clone that still holds the ref pushes it back: run
+  `git update-ref -d refs/bugs/<ID>` in `origin`, and in each clone, before its next sync, run
+  `git update-ref -d refs/bugs/<ID>` and `git update-ref -d refs/remotes/origin/bugs/<ID>`.
+  Each issue that a pull changes gets its refresh hint. A push sends `refs/bugs/*:refs/bugs/*` and `refs/identities/*:refs/identities/*`,
+  with no `+`, no `--force`, no `--prune`, and no `--mirror`; when `origin` refuses a ref, the push
+  pulls once and pushes once more.
+  - Each write act of `issue` (also `create`, `comment`, `link`, `epic`, and `complete-epic`) and
+    the whole landing of `land` pull once at their start and push once at their end, when a local
+    ref changed. When `origin` cannot be reached, the write stays in the local refs, the command
+    keeps its exit code, and it prints one line:
+    `<command>: the local issues are not in sync with origin: <git line>; run celetis --agent <host> issue sync later`.
+  - `worktree` pulls at its start, and the auto loop of the daemon pulls before a pass of the
+    resolver, at most once in each 60 seconds. The read acts (`view`, `list`, `state`, and
+    `epic-state`) do not sync.
+  - `issue sync` pulls, then pushes. It exits 6 when `origin` cannot be reached, with the git line.
+    With the GitHub tracker it writes nothing and exits 3.
 
 ## Labels
 
@@ -153,10 +244,10 @@ Local `docs/superpowers/` files are scratch; a fresh session re-fetches from the
 
 The main checkout's `.celetis.yaml` owns repository setup (ADR-0015).
 
-Trunk-based. Every issue is its own work item: one lane branch off the trunk, landed by `celetis --agent <host> land` with the `landing` field of the main checkout's `.celetis.yaml`: `pr` is one PR back to the trunk; `merge` is one squash commit on the trunk, with no PR. The trunk is the default branch of the repository on GitHub.
+Trunk-based. Every issue is its own work item: one lane branch off the trunk, landed by `celetis --agent <host> land` with the `landing` field of the main checkout's `.celetis.yaml`: `pr` is one PR back to the trunk; `merge` is one squash commit on the trunk, with no PR. The trunk is the default branch of `origin`, read from the code host of the landing (GitHub with `pr`, `git ls-remote --symref origin HEAD` with `merge`).
 
 - Branch: `feat/<n>-<slug>` (feature), `bugfix/<n>-<slug>` (bug), `hotfix/<n>-<slug>`, `chore/<n>-<slug>`.
-- Worktree: every command that works on the issue's branch (the four lanes, `specify`, `plan`, `implement`) runs `celetis --agent <host> worktree <n>` (`<n>` or `#<n>`) and binds the exact path it prints, by the host part of [the lane worktree](../references/procedures/worktree.md). The script re-enters the issue's local branch; else it checks out the head branch of the issue's open PR (`feat|bugfix|hotfix|chore/<n>-…`), tracking `origin`; else it creates `<prefix>/<n>-<slug>` off the freshly fetched trunk of `origin`, the prefix from the lane label and the slug from the title (lowercased, each run of other characters than `a-z0-9` turned into one `-`, trimmed of `-` at both ends, at most 30 characters cut at a `-` or hard-cut at 30 when the first word alone is longer, `issue` when empty). On each entry, it reads the name of the trunk from GitHub and fetches the trunk from `origin`; a read or a fetch that fails refuses the entry. Before the setup, it brings an existing branch up to that trunk: a fast-forward when the branch has no commit of its own, else a merge of the trunk with the subject `Merge origin/<trunk> into <branch> (#<n>)`. A branch that contains the trunk does not change. When the branch needs an update and its worktree has uncommitted changes, the script refuses and leaves the branch at its tip: commit the changes first. When the merge stops on a conflict, the script aborts the merge, keeps the lane checkout (also one that this run created), prints its path, and exits 4, with the branch at its tip, a clean tree, and no merge in progress ([A conflict with the trunk](../references/procedures/worktree.md#a-conflict-with-the-trunk)). When the merge fails for another cause, the script refuses with exit 6 and removes a checkout and a branch that this run created: merge the trunk into the branch by hand, then run the step again. It checks the branch out in `.claude/worktrees/<n>-<slug>` and runs the worktree setup of the project (`docs/configuration.md`, "Setup file and instruction text"). It refuses an epic, an issue with no lane label (run `/celetis:triage #<n>`), an issue with more than one lane label, and an issue that two branches or two open PRs match. Every later step runs there, so the main checkout never changes branch and flows run side by side. `celetis --agent <host> land` removes the worktree, the lane branch, and the prototype branches after the landing. `celetis --agent <host> worktree --remove <n>` removes them in the two cases with no landing by the script. After a merge by hand: a PR of the branch is merged and the local tip is that PR's head. Without a merge: no PR of the branch is open or merged, the issue is closed or carries `epic`, and every local commit is on an `origin` remote-tracking branch other than the issue's prototype branches (push the branch when the script names it); `specify` runs it after it rejects a design or makes the issue an epic. The script refuses an open issue without `epic` whose branch has no merged PR. Only `celetis --agent <host> land` and `celetis --agent <host> worktree --remove` remove a lane worktree.
+- Worktree: every command that works on the issue's branch (the four lanes, `specify`, `plan`, `implement`) runs `celetis --agent <host> worktree <n>` (`<n>` or `#<n>`) and binds the exact path it prints, by the host part of [the lane worktree](../references/procedures/worktree.md). The script re-enters the issue's local branch; else it checks out the head branch of the issue's open PR (`feat|bugfix|hotfix|chore/<n>-…`), tracking `origin`; else it creates `<prefix>/<n>-<slug>` off the freshly fetched trunk of `origin`, the prefix from the lane label and the slug from the title (lowercased, each run of other characters than `a-z0-9` turned into one `-`, trimmed of `-` at both ends, at most 30 characters cut at a `-` or hard-cut at 30 when the first word alone is longer, `issue` when empty). On each entry, it reads the name of the trunk from the code host of the landing (GitHub with `pr`, `git ls-remote --symref origin HEAD` with `merge`) and fetches the trunk from `origin`; a read or a fetch that fails refuses the entry. Before the setup, it brings an existing branch up to that trunk: a fast-forward when the branch has no commit of its own, else a merge of the trunk with the subject `Merge origin/<trunk> into <branch> (#<n>)`. A branch that contains the trunk does not change. When the branch needs an update and its worktree has uncommitted changes, the script refuses and leaves the branch at its tip: commit the changes first. When the merge stops on a conflict, the script aborts the merge, keeps the lane checkout (also one that this run created), prints its path, and exits 4, with the branch at its tip, a clean tree, and no merge in progress ([A conflict with the trunk](../references/procedures/worktree.md#a-conflict-with-the-trunk)). When the merge fails for another cause, the script refuses with exit 6 and removes a checkout and a branch that this run created: merge the trunk into the branch by hand, then run the step again. It checks the branch out in `.claude/worktrees/<n>-<slug>` and runs the worktree setup of the project (`docs/configuration.md`, "Setup file and instruction text"). It refuses an epic, an issue with no lane label (run `/celetis:triage #<n>`), an issue with more than one lane label, and an issue that two branches or two open PRs match. Every later step runs there, so the main checkout never changes branch and flows run side by side. `celetis --agent <host> land` removes the worktree, the lane branch, and the prototype branches after the landing. `celetis --agent <host> worktree --remove <n>` removes them in the two cases with no landing by the script. After a merge by hand: a PR of the branch is merged and the local tip is that PR's head. Without a merge: no PR of the branch is open or merged, the issue is closed or carries `epic`, and every local commit is on an `origin` remote-tracking branch other than the issue's prototype branches (push the branch when the script names it); `specify` runs it after it rejects a design or makes the issue an epic. The script refuses an open issue without `epic` whose branch has no merged PR. Only `celetis --agent <host> land` and `celetis --agent <host> worktree --remove` remove a lane worktree.
 - Prototype: a look decision's prototype lives on `prototype/<n>-<slug>`, never on the lane branch. It is not a lane branch: `celetis --agent <host> worktree` does not take it, it is never merged, and it never gets a PR. Its checkout and variants: [ui.md](../references/procedures/ui.md), "Where the variants live". The captures stay in `docs/superpowers/captures/` of that checkout, which Git ignores, so the branch holds no capture ([ui.md](../references/procedures/ui.md), "Captures"). The branch stays until the lane is removed: `celetis --agent <host> land`, or `celetis --agent <host> worktree --remove <n>` (`specify` after a rejection or an epic), deletes it with any leftover checkout, locally and on `origin`.
 - Landing prerequisites: before each push, PR, re-run of a check, and merge, `celetis --agent <host> land` resolves the issue by "Resolving an issue's state" and refuses it unless the result is a `chore` or `hotfix` step, a **built** change, or **land by hand**. So it refuses a closed issue, an epic, no lane label or two, `needs-info` or `ready-for-human` on the issue, an open human step, and a `feature` or `bug` change that is not built. A change that is already on the trunk skips this check, so a second run completes its cleanup. The exit status names the result, and so does the first word of the `land` line after its prefix: 0 landed (also with a warning), 1 an internal error, 2 `usage`, 3 `prerequisite`, 4 `repair`, 5 `checks`, 6 `blocked`, 7 `cleanup`, 128+n a signal. `docs/workflow.md`, "A landing", gives the examples of each class.
 - The PR body carries `Closes #<n>`. Merges are squash-only (`gh pr merge --squash`). The PR title is the squash subject of a PR with two or more commits, so it is a Conventional Commit `<type>(<area>): <what> (#<n>)`: `celetis --agent <host> land` refuses a subject that is no Conventional Commit subject, and it gives the subject, with `(#<n>)` after it, to the commit on the trunk (`merge`) and to the title of the PR that it opens (`pr`). A product project with the landing `pr` keeps the repository setting `squash_merge_commit_title` at `COMMIT_OR_PR_TITLE`: with that value, for a PR with one commit, GitHub takes the subject of that commit and adds the PR number, so that commit carries the Conventional Commit subject of the change. `gh api 'repos/{owner}/{repo}' --jq .squash_merge_commit_title` prints the value. The build step (`/celetis:implement`, `/celetis:chore`) lands a change with `celetis --agent <host> land <n> '<subject>'`. With `pr` it pushes the branch, opens the PR when none is open (title `<subject> (#<n>)`, body `Closes #<n>`), and squash-merges it at the commit that the checks ran on, only when every check passed or was skipped and at least one check passed (ADR-0001, ADR-0008). Each invocation waits for workflow completion before it accepts green checks, including when a dependent job has no check row yet. When each red check is a check of GitHub Actions that failed or timed out, it first re-runs the failed jobs of their workflow runs, once for each commit, and waits up to 15 more minutes (ADR-0023). A workflow run of the PR head that failed to start, or that ended not green with no check run, is a red check with no re-run: the landing refuses the PR (ADR-0093). The README, "Personal landing permission", gives the allow rules of the landing forms, and `docs/setup.md`, "Claude permissions: `.claude/settings.json`" and "Codex permissions: `.codex/rules/celetis.rules`", give the direct-merge restriction. Their scope does not replace the script checks; the maintainer can still merge by hand.
@@ -241,7 +332,7 @@ unresolved; there is no compatibility interpretation or automatic independent de
 The hash is SHA-256 of the exact normalized acceptance section. A changed hash requires coverage
 review. Incomplete or malformed tracker data fails the read rather than returning a partial set.
 
-Each sorted child has `url`, a positive safe-integer `id`, `number` (the issue key, as a JSON string),
+Each sorted child has `url`, `id` (the child ID of the tracker, as a JSON string), `number` (the issue key, as a JSON string),
 `state` (`open` or `closed`),
 `stateReason` (`completed`, `not_planned`, `duplicate`, `reopened`, or null), and `closedAt` (ISO
 timestamp or null). Duplicate identities are refused. Reopening and closing a child changes its
@@ -257,7 +348,7 @@ one strict JSON file with exactly these fields:
   "definitionHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "children": [{
     "url": "https://github.com/owner/project/issues/11",
-    "id": 211,
+    "id": "211",
     "number": "11",
     "state": "closed",
     "stateReason": "completed",
@@ -277,7 +368,7 @@ one strict JSON file with exactly these fields:
     "target": "service",
     "observation": "Search returned sample record 42.",
     "oracle": "Independent store read found the same record ID and content.",
-    "reports": [900]
+    "reports": ["900"]
   }]
 }
 ```
@@ -290,8 +381,8 @@ and the two loading fields reference durable evidence.
 
 Results cover every declared scenario exactly once, with no extras. A PASS has exactly
 `scenario`, `result`, `target`, `observation`, `oracle`, and nonempty `reports` (parent comment
-IDs). Its target must exist. An approved inapplicable result instead has exactly `scenario`,
-`result: "inapplicable"`, `rationale`, and `decision` (the maintainer-decision parent comment ID).
+IDs, as JSON strings). Its target must exist. An approved inapplicable result instead has exactly `scenario`,
+`result: "inapplicable"`, `rationale`, and `decision` (the maintainer-decision parent comment ID, as a JSON string).
 Diagnostic results have exactly `scenario`, `result` (`FAIL`, `BLOCKED`, `unrun`, or `UNVERIFIED`),
 `reason`, and nonempty `reports`. None permits completion. Unknown fields and duplicate keys
 are refused throughout. Referenced comments must exist in current parent history.

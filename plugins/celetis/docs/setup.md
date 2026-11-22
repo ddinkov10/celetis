@@ -18,20 +18,30 @@ stay with their owner.
 selected host only, and writes nothing. It reports each missing, invalid, different, or blocked
 part with its path or label name. A line for content that setup preserves names the owner
 repair; a new run of setup does not repair it. A permission failure is a blocked observation,
-never a missing part. The tracker reads go to the repository of `origin` only: its host must be
+never a missing part. Status reads `.celetis.yaml` first. With the tracker `github`, or with no
+valid config, the tracker reads go to the repository of `origin` only: its host must be
 `github.com` or a GitHub host that `gh` is logged in to, and an SSH host alias resolves by
-`ssh -G`. Unlike `setup check`, status needs no main checkout on the trunk, fetches
-nothing, and runs no product file. A pass proves only the file contents and the label names. It
-does not prove that a host loads the policy, that the worktree setup works, or that the wiring is
-on the remote trunk.
+`ssh -G`. With the tracker `local`, status reads no GitHub host, no `gh` login, and no label. It
+needs a remote `origin` with any URL, also a bare path on disk, and reports `no remote origin; add
+the remote of the project as origin` when there is none. A `different` finding reports a
+`tracker` of `.celetis.yaml` that differs from `answers.tracker` of the record. Unlike
+`setup check`, status needs no main checkout on the trunk, fetches nothing, and runs no product
+file. A pass proves only the file contents and, with GitHub, the label names. It does not prove
+that a host loads the policy, that the worktree setup works, or that the wiring is on the remote
+trunk.
 
 ## `setup check`
 
 The session runs `setup check` first and reuses its validated saved tracker and ordered hosts.
 It uses landing and, with `merge`, suite from the current valid `.celetis.yaml`. It asks only
 for an absent answer or a change explicitly requested in the invocation. An invalid present
-answer refuses; it is not treated as absent. Only GitHub is supported. Both `try` and `write`
-receive the same resolved selection and configuration options.
+answer refuses; it is not treated as absent. The saved tracker is `github` or `local`, and `check`
+prints it in the `answers` object. The tracker `local` takes the landing `merge`: `write` and `try`
+refuse `--tracker local --landing pr` as bad usage. A project with no saved answer and no valid
+config reads its trunk from GitHub with `gh` first. When that read fails, `check` reads the trunk
+from `origin` with `git ls-remote --symref origin HEAD`, so a first-time local setup needs no
+`gh`; when both reads fail, `check` prints the GitHub line and exits 6. Both `try` and `write` receive the same
+resolved selection and configuration options, `--tracker` included.
 
 ## `setup try`
 
@@ -82,16 +92,16 @@ each missing tool and each hook that skips its checks in the test lane (ADR-0018
   files retain content outside owned scopes. Differing unowned settings and rules stay unchanged
   with exact path warnings and no new claim. Unrecorded old wiring needs
   [owner review](#review-old-wiring).
-- In `.celetis.yaml`, setup owns required `landing` and `suite` (with `merge` only). With no file,
-  it makes one with `landing` and, with `merge`, `suite`. In a valid file, it adds missing
-  entries, refreshes recorded owned values, and removes an obsolete owned suite for `pr`, while
-  preserving unrelated bytes and values. A differing unowned value stays with an exact warning;
-  change that field by hand when the answer is the intended value. An unowned suite that blocks
-  `pr` refuses before writes. Invalid current configuration still needs owner repair; setup reads
-  no old configuration format. Each other field stays by hand.
+- In `.celetis.yaml`, setup owns required `tracker` (`github` or `local`), `landing`, and `suite` (with `merge`
+  only). With no file, it makes one with `tracker`, `landing`, and, with `merge`, `suite`. In a
+  valid file, it adds missing entries, refreshes recorded owned values, and removes an obsolete
+  owned suite for `pr`, while preserving unrelated bytes and values. A differing unowned value
+  stays with an exact warning; change that field by hand when the answer is the intended value.
+  An unowned suite that blocks `pr` refuses before writes. Invalid current configuration still
+  needs owner repair; setup reads no old configuration format. Each other field stays by hand.
 - After your yes, setup adds a missing `worktreeSetup` as a quoted file reference at the end of
-  the file, for example `worktreeSetup: "scripts/worktree-setup.ts"`; a new file holds `landing`,
-  `suite` with `merge`, and then the reference. `worktreeSetup`, also exactly `""`, stays
+  the file, for example `worktreeSetup: "scripts/worktree-setup.ts"`; a new file holds `tracker`,
+  `landing`, `suite` with `merge`, and then the reference. `worktreeSetup`, also exactly `""`, stays
   product-owned: an existing different value stays unchanged with a warning, so change that field
   by hand when the approved reference is intended. The value must read back exactly, and each
   other value must stay the same outside the planned owned edits. If that validation fails, setup
@@ -240,7 +250,8 @@ store. A file that git does not ignore makes a tree dirty too:
 
 ## The labels
 
-The flow uses the ten labels of `docs/issue-tracker.md`, "Labels". Setup makes each label that the
+The flow uses the ten labels of `docs/issue-tracker.md`, "Labels". With the tracker `local`, setup
+makes no label and `write` needs no `gh`. With GitHub, setup makes each label that the
 repository does not have, with the description and the color of `labelStyles` in
 [`engine/setup.ts`](https://github.com/ddinkov10/celetis/blob/main/engine/setup.ts).
 

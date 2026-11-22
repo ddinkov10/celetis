@@ -9,6 +9,7 @@ nothing after a `---` marker on its line.
 
 | Field | Accepted value | Default when omitted |
 | --- | --- | --- |
+| `tracker` | Required: `github` or `local`: the issue tracker of the project. `local` keeps the issues in the repository and needs `landing: merge`; with `landing: pr`, the config is refused. The key form of each command follows it: a number for `github`, the 7 hexadecimal characters of a local issue for `local` | None: the config is refused |
 | `landing` | Required: `pr` or `merge`. `pr` squash-merges a PR when each check is green. `merge` creates one squash commit on the trunk, with no PR; a project with no PR check uses `merge` (`docs/issue-tracker.md`, "Branches, PRs, merge") | None: the config is refused |
 | `gates` | Mapping from a step name to `manual` or `auto` (`docs/workflow.md`, "Gates") | `manual` for each omitted step |
 | `agents` | Mapping from a step name to `claude`, `codex`, or `opencode`: the preferred agent of that step ([Agent selection and model setup](#agent-selection-and-model-setup)) | Each step uses the local order |
@@ -20,10 +21,10 @@ nothing after a `---` marker on its line.
 | `custom` | Mapping from a skill name of the plugin to an instruction string: an addition to the procedure of that skill | No addition for an omitted skill |
 | `codexProfiles` | Mapping from a runtime identity to its profile: four ordered model slots and the reviewer minimum for that dispatch surface | Each Codex child keeps the parent's model |
 
-The engine reads `landing`, `suite`, `gates`, `agents`, `sessions`, `autoLanes`, `board`, and `codexProfiles`
-from the main checkout, also when a command starts in a lane or a subfolder. The worktree command
-reads `worktreeSetup` from the lane checkout. At a skill entry, the active checkout supplies only
-the selected `custom.<skill>`
+The engine reads `tracker`, `landing`, `suite`, `gates`, `agents`, `sessions`, `autoLanes`, `board`,
+and `codexProfiles` from the main checkout, also when a command starts in a lane or a subfolder.
+The worktree command reads `worktreeSetup` from the lane checkout. At a skill entry, the active
+checkout supplies only the selected `custom.<skill>`
 ([ADR-0032](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0032-shared-configuration-operation-snapshots.md)).
 Commands that need repository setup require a valid file: a missing or invalid required config
 stops before a Git prune, branch or worktree changes, locks, runtime state, host sessions, or
@@ -99,6 +100,7 @@ YAML string. Folded blocks (`>`) and arrays are not accepted for instructions. Q
 backslashes, Unicode, blank lines, and parsed trailing newlines stay intact.
 
 ```yaml
+tracker: github
 landing: pr
 worktreeSetup: "scripts/worktree-setup.ts"
 custom:
@@ -213,10 +215,11 @@ and full validation.
 
 Source reads require safe file access, strict UTF-8, one mapping document, string keys, unique keys,
 supported tags, finite scalars, and no aliases or merge keys. Full validation checks allowed fields,
-the form of each `custom` key, required `landing`, instruction literal styles, setup reference
-syntax, and field-specific integer forms and ranges. There is no YAML host projection. Host
-selection reads the local preference only for default mode. A command that needs full configuration
-still validates it before protected work, including when a host is explicit.
+the form of each `custom` key, required `tracker` and `landing`, `landing: merge` with
+`tracker: local`, instruction literal styles, setup reference syntax, and field-specific integer
+forms and ranges. There is no YAML host projection. Host selection reads the local preference only
+for default mode. A command that needs full configuration still validates it before protected
+work, including when a host is explicit.
 
 The reader CLI is the engine command `config` (`engine/config.ts`):
 

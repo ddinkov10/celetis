@@ -261,7 +261,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
     if (!self?.start) self = { pid: process.pid, start: await processStart(process.pid) };
     const { stop: _stop, ...next }: RunRecord = {
       ...(fact ?? {
-        schema: 4,
+        schema: 5,
         id,
         daemon: self,
         input,
@@ -883,7 +883,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
       recovery = await updateRecovery(main, issue, (current) =>
         change(
           current ?? {
-            schema: 3,
+            schema: 4,
             id: randomUUID(),
             revision: 1,
             issue,

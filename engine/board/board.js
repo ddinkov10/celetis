@@ -14974,17 +14974,31 @@ var init_choice = __esm(() => {
 });
 
 // engine/lib/tracker/grammar.ts
-function grammar() {
-  return github;
+function useGrammar(kind) {
+  current = kind === "local" ? local : github;
 }
-var github;
+function grammar() {
+  return current;
+}
+var github, local, current;
 var init_grammar = __esm(() => {
   github = {
+    kind: "github",
+    tracker: "GitHub",
     pattern: "[1-9][0-9]*",
     query: "[0-9]+",
     accepts: (text) => Number.isSafeInteger(Number(text)),
     compare: (a, b) => Number(a) - Number(b)
   };
+  local = {
+    kind: "local",
+    tracker: "the local tracker",
+    pattern: "[0-9a-f]{7}",
+    query: "[0-9a-f]{1,7}",
+    accepts: () => true,
+    compare: (a, b) => a < b ? -1 : a > b ? 1 : 0
+  };
+  current = github;
 });
 
 // engine/lib/tracker/key.ts
@@ -15333,7 +15347,7 @@ var CODEX_ICON = "data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjFlbSIgc3R5bGU9ImZs
   clearTimeout(toastTimer);
   if (!isError)
     toastTimer = setTimeout(hideToast, 6000);
-}, SERVER_DOWN = "The board server does not answer", RESTART = "Start the daemon again in a terminal: celetis daemon start.", copy = async (text, what) => {
+}, capital = (text) => text.charAt(0).toUpperCase() + text.slice(1), SERVER_DOWN = "The board server does not answer", RESTART = "Start the daemon again in a terminal: celetis daemon start.", copy = async (text, what) => {
   try {
     await navigator.clipboard.writeText(text);
     toast(`Copied the ${what}`);
@@ -15686,7 +15700,7 @@ async function refresh() {
   if (!isOk)
     return setControl({ refresh: "rest" });
   setControl({ refresh: "done" });
-  announce(tracker ? `${tracker} read again` : "Issues read again");
+  announce(tracker ? `${capital(tracker)} read again` : "Issues read again");
   clearTimeout(refreshDone);
   refreshDone = setTimeout(() => setControl({ refresh: "rest" }), 2000);
 }
@@ -15813,10 +15827,13 @@ var items, shown, active = 0, exactNumber = () => new RegExp(`^#?(${grammar().qu
   let section = null;
   const exact = exactNumber();
   shown.forEach((item, index) => {
-    const label = exact && !item.isGoTo && item.number === exact ? `Actions for #${exact}` : item.group;
+    const keyed = exact && !item.isGoTo && item.number === exact;
+    const label = keyed ? `Actions for #${exact}` : item.group;
     if (section === null || label !== group) {
       group = label;
-      const heading = el("div", "pal-group", group);
+      const heading = el("div", "pal-group", keyed ? "Actions for " : group);
+      if (keyed)
+        heading.append(el("span", "pal-key", `#${exact}`));
       heading.id = `pal-g-${rows.length}`;
       section = el("div");
       section.setAttribute("role", "group");
@@ -15853,6 +15870,7 @@ var items, shown, active = 0, exactNumber = () => new RegExp(`^#?(${grammar().qu
 }, openPalette = (next) => {
   items = next;
   $("pal-input").value = "";
+  $("pal-input").placeholder = `Search an issue, a step, or a command; ${grammar().kind === "local" ? "a key" : "#n"} jumps to an issue`;
   filter();
   $("palette").showModal();
   $("pal-input").focus();
@@ -18934,8 +18952,10 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
       row.append(issue, title, meta, visualControl(entry));
       list.append(row);
     }
-    body.append(history.entries.length ? list : el("p", "history-note", `No landed issues found on ${history.trunk}.`));
-    body.append(link("history-more", `View ${history.trunk}`, history.url));
+    const none = grammar().kind === "local" ? "The local tracker does not list landed issues." : `No landed issues found on ${history.trunk}.`;
+    body.append(history.entries.length ? list : el("p", "history-note", none));
+    if (history.url)
+      body.append(link("history-more", `View ${history.trunk}`, history.url));
   }
   panel.replaceChildren(head, body);
   body.scrollTop = scroll;
@@ -19370,6 +19390,7 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
     next.starts,
     next.flow,
     next.tracker,
+    next.grammar,
     next.columns,
     next.history,
     next.source.error,
@@ -19476,6 +19497,10 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
   queryClient.cancelQueries({ queryKey: boardKey }).then(() => queryClient.invalidateQueries({ queryKey: boardKey }));
   return next;
 }, accept2 = (next) => {
+  if (next.grammar !== grammar().kind) {
+    useGrammar(next.grammar);
+    openEpics = parseOpenEpics(store.get("open-epics") ?? "");
+  }
   for (const [number, launch] of launches)
     if (launch.phase !== "pending")
       launches.delete(number);
@@ -19771,6 +19796,7 @@ var panelNode, COPY, STOPPING = "The daemon ends the session. The card moves to 
 }, picker;
 var init_board = __esm(() => {
   init_modern2();
+  init_grammar();
   init_key();
   init_view();
   init_agent_picker();
@@ -20441,8 +20467,7 @@ var Layers = import_react.memo(() => /* @__PURE__ */ jsx_runtime.jsxs(jsx_runtim
             "aria-controls": "pal-list",
             "aria-autocomplete": "list",
             autoComplete: "off",
-            spellCheck: "false",
-            placeholder: "Search an issue, a step, or a command; #n jumps to an issue"
+            spellCheck: "false"
           })
         }),
         /* @__PURE__ */ jsx_runtime.jsx("div", {
@@ -23663,7 +23688,7 @@ function Status({ data, isDown }) {
   const now = useNow();
   const control = useShellStore((state) => state.control);
   const source = data?.source ?? { readAt: null, error: null };
-  const name = data?.tracker ?? "Issues";
+  const name = capital(data?.tracker ?? "Issues");
   const readAgain = data?.tracker ? `Read ${data.tracker} again` : "Read the issues again";
   const terminal = data?.terminal;
   const daemon = data?.daemon ?? null;
@@ -23918,6 +23943,7 @@ init_view();
 var import_react6 = __toESM(require_react());
 
 // engine/board/page/home.ts
+init_grammar();
 init_view();
 var queueText = (board) => {
   const count = board.queue?.record?.numbers.length ?? 0;
@@ -23963,7 +23989,10 @@ var tileOf = (kind, board) => {
   const span = isLive ? "last 24 hours" : "last 8 weeks";
   const source = isLive ? "local samples" : kind === "landed" ? "the trunk history" : "the issues and the trunk history";
   const stale = series && read.error && read.readAt ? clock(read.readAt) : null;
-  const state = !series ? read.error ? { kind: "failed", text: "The history read failed" } : { kind: "reading", text: "Reading the history" } : series.filter((point) => point !== null).length < 2 ? { kind: "few", text: isLive ? "Too few samples yet" : "Too few landings yet" } : { kind: "line", points: series };
+  const state = !series ? read.error ? { kind: "failed", text: "The history read failed" } : { kind: "reading", text: "Reading the history" } : series.filter((point) => point !== null).length < 2 ? {
+    kind: "few",
+    text: isLive ? "Too few samples yet" : grammar().kind === "local" ? "No landings listed" : "Too few landings yet"
+  } : { kind: "line", points: series };
   const now = windows?.[7];
   const before = windows?.[6];
   let label = "Needs you";
@@ -24313,9 +24342,9 @@ var BADGES = {
   operations: { id: "ops-badge", count: "operations" }
 };
 var needLabel = (name, count) => count === 0 ? name : `${name}, ${count} need you`;
-var current = (isCurrent) => isCurrent ? "page" : undefined;
+var current2 = (isCurrent) => isCurrent ? "page" : undefined;
 var failedItems = (data, isDown) => {
-  const name = data?.tracker ?? "Issues";
+  const name = capital(data?.tracker ?? "Issues");
   const fresh = isDown ? SERVER_DOWN : data?.source.error ? `cannot read: ${data.source.error}` : null;
   return [...fresh ? [`${name}: ${fresh}`] : [], ...data?.terminal.ok === false ? ["herdr: down"] : []];
 };
@@ -24401,7 +24430,7 @@ function Destination({ area, mark }) {
   const count = badge ? badges[badge.count] : 0;
   return /* @__PURE__ */ jsx_runtime9.jsxs(SidebarMenuButton, {
     "data-area": area,
-    "aria-current": current(isCurrent),
+    "aria-current": current2(isCurrent),
     ...mark ?? { "aria-label": badge ? needLabel(AREA_NAMES[area], count) : undefined },
     className: cn(area === "control" && 'data-mark:after:absolute data-mark:after:top-1/2 data-mark:after:right-2.5 data-mark:after:-mt-1 data-mark:after:size-2 data-mark:after:rounded-full data-mark:after:bg-needs data-mark:after:content-[""] data-[mark=fail]:after:bg-caution rail:data-mark:after:top-1 rail:data-mark:after:right-auto rail:data-mark:after:left-[calc(50%+6px)] rail:data-mark:after:mt-0'),
     onClick: () => shellStore.handlers().go(area),
@@ -24607,7 +24636,7 @@ function BottomBar() {
     children: [
       /* @__PURE__ */ jsx_runtime9.jsxs(DockItem, {
         id: "pb-home",
-        "aria-current": current(isPhone && shell.area === "home"),
+        "aria-current": current2(isPhone && shell.area === "home"),
         onClick: () => shellStore.handlers().go("home"),
         children: [
           /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
@@ -24627,7 +24656,7 @@ function BottomBar() {
         "data-new": chat.unseen ? "" : undefined,
         "aria-label": chat.label || undefined,
         title: chat.title || undefined,
-        "aria-current": current(isPhone && isOps && shell.pane === "chat"),
+        "aria-current": current2(isPhone && isOps && shell.pane === "chat"),
         onClick: () => shellStore.handlers().showChat(),
         children: [
           /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
@@ -24646,7 +24675,7 @@ function BottomBar() {
       /* @__PURE__ */ jsx_runtime9.jsxs(DockItem, {
         id: "pb-agents",
         "aria-label": needLabel("Agents", agents),
-        "aria-current": current(isPhone && isOps && shell.pane === "agents"),
+        "aria-current": current2(isPhone && isOps && shell.pane === "agents"),
         onClick: () => shellStore.handlers().agents(),
         children: [
           /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
@@ -24671,7 +24700,7 @@ function BottomBar() {
       /* @__PURE__ */ jsx_runtime9.jsxs(DockItem, {
         id: "pb-control",
         className: "data-mark:after:absolute data-mark:after:top-1.5 data-mark:after:left-[calc(50%+8px)] data-mark:after:size-2 data-mark:after:rounded-full data-mark:after:bg-needs data-mark:after:content-[''] data-[mark=fail]:after:bg-caution",
-        "aria-current": current(isPhone && shell.area === "control"),
+        "aria-current": current2(isPhone && shell.area === "control"),
         ...mark,
         onClick: () => shellStore.handlers().go("control"),
         children: [
@@ -24689,7 +24718,7 @@ function BottomBar() {
         "aria-label": "More board actions",
         "aria-haspopup": "menu",
         "aria-expanded": moreOpen,
-        "aria-current": current(isPhone && shell.area === "throughput"),
+        "aria-current": current2(isPhone && shell.area === "throughput"),
         title: "More board actions",
         children: [
           /* @__PURE__ */ jsx_runtime9.jsx(Icon, {

@@ -14,6 +14,7 @@ import { selectHost } from '../host/host.ts';
 import { hostChoices } from '../host/names.ts';
 import { commonDir, mainCheckout } from '../process/git.ts';
 import { run } from '../process/process.ts';
+import { useGrammar } from '../tracker/grammar.ts';
 import { HostError } from './errors.ts';
 
 export type CheckoutIdentity = Readonly<{
@@ -37,7 +38,12 @@ export type Operation = Readonly<{
 }>;
 type RequiredConfig = 'host' | 'main' | 'active';
 
+export function useProjectGrammar(): void {
+  useGrammar(process.env.CELETIS_TRACKER === 'local' ? 'local' : 'github');
+}
+
 export function commandInput(argv: string[]): { args: string[]; explicit?: string } {
+  useProjectGrammar();
   const args = [...argv];
   if (args[0] !== '--agent') return { args };
   if (args[1] === undefined) throw new HostError(`celetis: --agent needs ${hostChoices}`, exits.usage);

@@ -45,10 +45,12 @@ const draw = () => {
   let section: HTMLElement | null = null;
   const exact = exactNumber();
   shown.forEach((item, index) => {
-    const label = exact && !item.isGoTo && item.number === exact ? `Actions for #${exact}` : item.group;
+    const keyed = exact && !item.isGoTo && item.number === exact;
+    const label = keyed ? `Actions for #${exact}` : item.group;
     if (section === null || label !== group) {
       group = label;
-      const heading = el('div', 'pal-group', group);
+      const heading = el('div', 'pal-group', keyed ? 'Actions for ' : group);
+      if (keyed) heading.append(el('span', 'pal-key', `#${exact}`));
       heading.id = `pal-g-${rows.length}`;
       section = el('div');
       section.setAttribute('role', 'group');
@@ -93,6 +95,8 @@ const filter = () => {
 export const openPalette = (next: PaletteItem[]) => {
   items = next;
   $('pal-input').value = '';
+  $('pal-input').placeholder =
+    `Search an issue, a step, or a command; ${grammar().kind === 'local' ? 'a key' : '#n'} jumps to an issue`;
   filter();
   $('palette').showModal();
   $('pal-input').focus();

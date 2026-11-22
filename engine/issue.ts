@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { HostError } from './lib/command/errors.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/command/operation.ts';
-import type { Host } from './lib/config/core.ts';
+import type { Config, Host } from './lib/config/core.ts';
 import {
   type ExitClass,
   type ExitCode,
@@ -54,7 +54,7 @@ type Writes = Readonly<{ comment?: string; add?: readonly Label[]; remove?: read
 type Write = Readonly<{ send(): Promise<void>; flags: readonly string[]; close?: boolean }>;
 type EngineAct = Exclude<
   IssueAct,
-  'epic' | 'epic-state' | 'complete-epic' | 'create' | 'comment' | 'view' | 'list' | 'link'
+  'epic' | 'epic-state' | 'complete-epic' | 'create' | 'comment' | 'view' | 'list' | 'link' | 'sync'
 >;
 type Act = Readonly<{
   ready(context: Context): boolean;
@@ -167,6 +167,19 @@ function today(): string {
   return [now.getFullYear(), now.getMonth() + 1, now.getDate()].map((part) => String(part).padStart(2, '0')).join('-');
 }
 
+async function synced<T>(gh: Tracker, work: () => Promise<T>): Promise<T> {
+  let started = false;
+  try {
+    return await gh.synced('issue', () => {
+      started = true;
+      return work();
+    });
+  } catch (error) {
+    if (!started && error instanceof HostError) die('prerequisite', error.message);
+    throw error;
+  }
+}
+
 async function readText(file: string): Promise<string> {
   return readFile(file, 'utf8').catch((error: Error) => die('usage', `cannot read ${file}: ${error.message}`));
 }
@@ -175,11 +188,12 @@ async function enter(explicit: string | undefined) {
   const operation = await createOperation(
     await locateCheckouts(process.cwd()),
     { explicit, environment: process.env.CELETIS_AGENT },
-    'host',
+    'main',
   );
-  const main = operation.checkout.main ?? die('usage', 'run the command inside a Git checkout');
+  const main = operation.checkout.main as string;
+  const config = operation.mainConfig as Config;
   await hostAdapter(operation.host).checkHome();
-  return { operation, main };
+  return { operation, main, config };
 }
 
 async function createIssue(argv: string[], explicit: string | undefined): Promise<ExitCode> {
@@ -195,28 +209,30 @@ async function createIssue(argv: string[], explicit: string | undefined): Promis
   const intent = /^# Intent: (.*)$/.exec(first)?.[1]?.trim();
   if (!intent) die('usage', `${file}: the first line must be # Intent: <title>, with a title`);
   const title = `Intent: ${intent}`;
-  const { main } = await enter(explicit);
-  const gh = services(main).tracker;
-  const issue = await gh.createIssue({ title, body, labels: ['needs-triage'] }).catch((error: unknown) => {
-    const details = [gh.stderr(), error instanceof Error ? error.message : String(error)];
-    if (error instanceof TrackerError && error.refused)
-      die('blocked', 'GitHub refused the create; no issue was written', ...details);
-    die(
-      'blocked',
-      'the create has no readable answer; the issue can exist, so read the open issues before you create it again',
-      ...details,
-    );
+  const { main, config } = await enter(explicit);
+  const gh = services(config, main).tracker;
+  return synced(gh, async () => {
+    const issue = await gh.createIssue({ title, body, labels: ['needs-triage'] }).catch((error: unknown) => {
+      const details = [gh.stderr(), error instanceof Error ? error.message : String(error)];
+      if (error instanceof TrackerError && error.refused)
+        die('blocked', `${gh.name} refused the create; no issue was written`, ...details);
+      die(
+        'blocked',
+        'the create has no readable answer; the issue can exist, so read the open issues before you create it again',
+        ...details,
+      );
+    });
+    console.log(issue.url);
+    await writeRefreshHint(main, issue.key);
+    if (!issue.labels.includes('needs-triage'))
+      die(
+        'blocked',
+        `${issue.url} exists, but ${gh.name} did not set needs-triage; add the label with an account that has push access, and do not create the issue again`,
+        gh.stderr(),
+      );
+    process.stderr.write(gh.stderr());
+    return exits.done;
   });
-  console.log(issue.url);
-  await writeRefreshHint(main, issue.key);
-  if (!issue.labels.includes('needs-triage'))
-    die(
-      'blocked',
-      `${issue.url} exists, but GitHub did not set needs-triage; add the label with an account that has push access, and do not create the issue again`,
-      gh.stderr(),
-    );
-  process.stderr.write(gh.stderr());
-  return exits.done;
 }
 
 async function commentIssue(argv: string[], explicit: string | undefined): Promise<ExitCode> {
@@ -238,27 +254,45 @@ async function commentIssue(argv: string[], explicit: string | undefined): Promi
       'usage',
       `${file} starts with ${owner[0]}; write that record with celetis --agent <host> issue <n> ${owner[1]}`,
     );
-  await enter(explicit);
-  const gh = services(process.cwd()).tracker;
-  const issue = await gh.issue(n).catch(() => null);
-  if (!issue) die('blocked', `cannot read #${n} from GitHub`, gh.stderr());
-  if (issue.pull) die('prerequisite', `#${n} is a pull request; comment takes an issue`);
-  const url = await gh
-    .commentIssue(n, file, attachments)
-    .catch((error: unknown) =>
-      die(
-        'blocked',
-        `#${n}: the comment write failed`,
-        gh.stderr(),
-        error instanceof Error ? error.message : String(error),
-      ),
-    );
-  process.stdout.write(url);
+  const { main, config } = await enter(explicit);
+  const gh = services(config, main).tracker;
+  return synced(gh, async () => {
+    const issue = await gh.issue(n).catch(() => null);
+    if (!issue) die('blocked', `cannot read #${n} from ${gh.name}`, gh.stderr());
+    if (issue.pull) die('prerequisite', `#${n} is a pull request; comment takes an issue`);
+    const url = await gh
+      .commentIssue(n, file, attachments)
+      .catch((error: unknown) =>
+        die(
+          'blocked',
+          `#${n}: the comment write failed`,
+          gh.stderr(),
+          error instanceof Error ? error.message : String(error),
+        ),
+      );
+    process.stdout.write(url);
+    process.stderr.write(gh.stderr());
+    return exits.done;
+  });
+}
+
+async function syncIssues(argv: string[], explicit: string | undefined): Promise<ExitCode> {
+  if (argv.length !== 1) die('usage', usageText('issue'));
+  const { main, config } = await enter(explicit);
+  const gh = services(config, main).tracker;
+  const synced = await gh.sync().catch((error: unknown) => {
+    if (error instanceof HostError) die('prerequisite', error.message);
+    if (error instanceof TrackerError)
+      die('blocked', `the local issues are not in sync with origin: ${error.text}`, gh.stderr());
+    throw error;
+  });
+  if (!synced) die('prerequisite', `the tracker of the project is ${gh.name}; it has no local issues to sync`);
   process.stderr.write(gh.stderr());
   return exits.done;
 }
 
-const unreadable = (gh: Tracker, what: string) => () => die('blocked', `cannot read ${what} from GitHub`, gh.stderr());
+const unreadable = (gh: Tracker, what: string) => () =>
+  die('blocked', `cannot read ${what} from ${gh.name}`, gh.stderr());
 
 function listFilter(argv: string[]): { state: 'open' | 'closed'; label?: string } {
   const options = new Map<string, string>();
@@ -281,8 +315,8 @@ function listFilter(argv: string[]): { state: 'open' | 'closed'; label?: string 
 
 async function listIssues(argv: string[], explicit: string | undefined): Promise<ExitCode> {
   const { state, label } = listFilter(argv);
-  const { main } = await enter(explicit);
-  const gh = services(main).tracker;
+  const { main, config } = await enter(explicit);
+  const gh = services(config, main).tracker;
   const issues = await gh.issues(state, label).catch(unreadable(gh, `the ${state} issues`));
   const listed = issues
     .filter((issue) => !issue.pull)
@@ -298,8 +332,8 @@ async function viewIssue(argv: string[], explicit: string | undefined): Promise<
   const latest = argv.length === 4;
   if (n === null || !(argv.length === 2 || (latest && flag === '--latest' && heading.startsWith('## '))))
     die('usage', usageText('issue'));
-  const { main } = await enter(explicit);
-  const gh = services(main).tracker;
+  const { main, config } = await enter(explicit);
+  const gh = services(config, main).tracker;
   const issue = await gh.issue(n).catch(unreadable(gh, `#${n}`));
   if (issue.pull) die('prerequisite', `#${n} is a pull request; view takes an issue`);
   const history = await gh.history(n).catch(unreadable(gh, `#${n}`));
@@ -329,38 +363,41 @@ async function linkIssue(argv: string[], explicit: string | undefined): Promise<
   const child = parseHandle(handle);
   if (epic === null || child === null || argv.length !== 3) die('usage', usageText('issue'));
   if (epic === child) die('prerequisite', `#${epic} cannot be a sub-issue of itself`);
-  const { operation, main } = await enter(explicit);
+  const { operation, main, config } = await enter(explicit);
   const common = operation.checkout.common ?? die('usage', 'run the command inside a Git checkout');
-  await withEpicLock(common, epic, undefined, async (signal) => {
-    const gh = services(main, signal).tracker;
-    const parent = await gh.issue(epic).catch(unreadable(gh, `#${epic}`));
-    const sub = await gh.issue(child).catch(unreadable(gh, `#${child}`));
-    for (const issue of [parent, sub]) {
-      if (issue.pull) die('prerequisite', `#${issue.key} is a pull request; link takes an issue`);
-      if (issue.state !== 'open') die('prerequisite', `#${issue.key} is closed; link takes open issues`);
-    }
-    if (sub.parent === epic) {
+  await synced(services(config, main).tracker, () =>
+    withEpicLock(common, epic, undefined, async (signal) => {
+      const gh = services(config, main, signal).tracker;
+      const parent = await gh.issue(epic).catch(unreadable(gh, `#${epic}`));
+      const sub = await gh.issue(child).catch(unreadable(gh, `#${child}`));
+      for (const issue of [parent, sub]) {
+        if (issue.pull) die('prerequisite', `#${issue.key} is a pull request; link takes an issue`);
+        if (issue.state !== 'open') die('prerequisite', `#${issue.key} is closed; link takes open issues`);
+      }
+      if (sub.parent === epic) {
+        process.stderr.write(gh.stderr());
+        return;
+      }
+      if (sub.parent !== null) die('prerequisite', `#${child} is a sub-issue of #${sub.parent}`);
+      await gh.link(epic, child).catch((error: unknown) => {
+        const details = [gh.stderr(), error instanceof Error ? error.message : String(error)];
+        if (error instanceof TrackerError && error.refused)
+          die('blocked', `${gh.name} refused the link; nothing changed`, ...details);
+        die(
+          'blocked',
+          `the link of #${child} to #${epic} has no readable answer; the link can exist, so run issue ${epic} link ${child} again (it writes nothing when the link exists) or read issue ${child} view before another write`,
+          ...details,
+        );
+      });
       process.stderr.write(gh.stderr());
-      return;
-    }
-    if (sub.parent !== null) die('prerequisite', `#${child} is a sub-issue of #${sub.parent}`);
-    await gh.link(epic, child).catch((error: unknown) => {
-      const details = [gh.stderr(), error instanceof Error ? error.message : String(error)];
-      if (error instanceof TrackerError && error.refused)
-        die('blocked', 'GitHub refused the link; nothing changed', ...details);
-      die(
-        'blocked',
-        `the link of #${child} to #${epic} has no readable answer; the link can exist, so run issue ${epic} link ${child} again (it writes nothing when the link exists) or read issue ${child} view before another write`,
-        ...details,
-      );
-    });
-    process.stderr.write(gh.stderr());
-  });
+    }),
+  );
   return exits.done;
 }
 
 async function execute(argv: string[], explicit: string | undefined): Promise<ExitCode> {
   if (argv[0] === 'create') return createIssue(argv, explicit);
+  if (argv[0] === 'sync') return syncIssues(argv, explicit);
   if (argv[0] === 'list') return listIssues(argv, explicit);
   if (argv[1] === 'comment') return commentIssue(argv, explicit);
   if (argv[1] === 'view') return viewIssue(argv, explicit);
@@ -397,96 +434,105 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
       die('usage', `${file} starts with Spec:; give the spec with no Spec: line`);
     if (name === 'effort' && !text.trim()) die('usage', `${file} is empty; give the reason of the model and the level`);
   }
-  let submission: EpicSubmission | undefined;
-  if (name === 'complete-epic' && argv.length === 3) {
-    try {
-      submission = parseEpicSubmission(text);
-    } catch (error) {
-      die('usage', error instanceof Error ? error.message : String(error));
-    }
-  }
-  if (name === 'epic') {
-    const declaration = parseEpicAcceptance(text);
-    if (declaration.kind === 'unresolved') die('usage', declaration.reason);
-  }
-  const { operation, main } = await enter(explicit);
+  const { operation, main, config } = await enter(explicit);
   if (epic) {
+    const tracker = services(config, main).tracker;
+    const { forms } = tracker;
+    let submission: EpicSubmission | undefined;
+    if (name === 'complete-epic' && argv.length === 3) {
+      try {
+        submission = parseEpicSubmission(text, forms);
+      } catch (error) {
+        die('usage', error instanceof Error ? error.message : String(error));
+      }
+    }
+    if (name === 'epic') {
+      const declaration = parseEpicAcceptance(text, forms);
+      if (declaration.kind === 'unresolved') die('usage', declaration.reason);
+    }
     const common = operation.checkout.common ?? die('usage', 'run the command inside a Git checkout');
     if (name === 'epic-state') {
-      const snapshot = await readEpic(main, n);
+      const snapshot = await readEpic(config, main, n);
       console.log(JSON.stringify({ ...snapshot, open: factsOf(snapshot.data, null).open }, null, 2));
     } else if (name === 'epic') {
-      await writeEpicDefinition(main, common, n, text);
+      await synced(tracker, () => writeEpicDefinition(config, main, common, n, text));
     } else {
-      const result = await completeEpic(main, common, n, submission);
-      if (result.kind === 'pending') die('prerequisite', `#${n}: ${result.reason}; next: ${result.nextAction}`);
-      console.log(
-        result.kind === 'closed'
-          ? `epic: #${n} is already closed`
-          : `epic: #${n} completed; record ${result.completionId}`,
-      );
+      await synced(tracker, async () => {
+        const result = await completeEpic(config, main, common, n, submission);
+        if (result.kind === 'pending') die('prerequisite', `#${n}: ${result.reason}; next: ${result.nextAction}`);
+        console.log(
+          result.kind === 'closed'
+            ? `epic: #${n} is already closed`
+            : `epic: #${n} completed; record ${result.completionId}`,
+        );
+      });
     }
     return exits.done;
   }
   if (!act) die('usage', usageText('issue'));
-  const gh = services(main).tracker;
-  const read = await gh.read(n).catch(() => null);
-  if (!read) die('blocked', `cannot read #${n} from GitHub`, gh.stderr());
-  const { data } = read;
-  const found = laneOf(data.labels);
-  const decision = decide(data);
-  if (name === 'state') {
-    const facts = factsOf(data, found.kind === 'lane' ? found.lane : null);
-    const steps = facts.open.map((step) => `${step.kind} ${step.comment} ${step.missing}`);
-    const values: Record<IssueStateKey, readonly string[]> = {
-      lane: [found.kind === 'lane' ? found.lane : found.kind],
-      line: [lineOf(n, decision)],
-      build: [facts.build],
-      plan: [String(facts.plan ?? 'none')],
-      open: steps.length ? steps : ['none'],
-      refusal: [facts.refusal ? 'current' : 'none'],
-    };
-    console.log(issueStateKeys.flatMap((key) => values[key].map((value) => `${key}: ${value}`)).join('\n'));
+  const gh = services(config, main).tracker;
+  const work = async (): Promise<ExitCode> => {
+    const read = await gh.read(n).catch(() => null);
+    if (!read) die('blocked', `cannot read #${n} from ${gh.name}`, gh.stderr());
+    const { data } = read;
+    const found = laneOf(data.labels);
+    const decision = decide(data);
+    if (name === 'state') {
+      const facts = factsOf(data, found.kind === 'lane' ? found.lane : null);
+      const steps = facts.open.map((step) => `${step.kind} ${step.comment} ${step.missing}`);
+      const values: Record<IssueStateKey, readonly string[]> = {
+        lane: [found.kind === 'lane' ? found.lane : found.kind],
+        line: [lineOf(n, decision)],
+        build: [facts.build],
+        plan: [String(facts.plan ?? 'none')],
+        open: steps.length ? steps : ['none'],
+        refusal: [facts.refusal ? 'current' : 'none'],
+      };
+      console.log(issueStateKeys.flatMap((key) => values[key].map((value) => `${key}: ${value}`)).join('\n'));
+      process.stderr.write(gh.stderr());
+      return exits.done;
+    }
+    const context: Context = { host: operation.host, data, found, decision, argument, text, during, effort };
+    if (!act.ready(context)) die('prerequisite', `#${n} cannot ${name}: ${lineOf(n, decision)}`);
+    const { comment, add = [], remove = [], body, ...close } = act.writes(context);
+    const adding = add.filter((label) => !data.labels.includes(label));
+    const removing = remove.filter((label) => data.labels.includes(label));
+    const edit: Edit = { ...(body === undefined || body === data.body ? {} : { body }), ...close };
+    const writes: Write[] = [
+      ...(comment === undefined ? [] : [{ send: () => gh.comment(n, comment), flags: [] }]),
+      ...(adding.length
+        ? [{ send: () => gh.addLabels(n, adding), flags: adding.map((label) => `--add-label ${label}`) }]
+        : []),
+      ...removing.map((label) => ({ send: () => gh.removeLabel(n, label), flags: [`--remove-label ${label}`] })),
+      ...(Object.keys(edit).length
+        ? [{ send: () => gh.edit(n, edit), flags: [], close: edit.state === 'closed' }]
+        : []),
+    ];
+    let done = 0;
+    try {
+      for (const write of writes) {
+        await write.send();
+        done++;
+      }
+    } catch (error) {
+      const details = [gh.stderr(), error instanceof Error ? error.message : String(error)];
+      if (done === 0) die('blocked', `#${n}: the write failed; nothing changed`, ...details);
+      const left = writes.slice(done);
+      const flags = left.flatMap((write) => write.flags);
+      const byHand = [
+        ...(flags.length ? [`gh issue edit ${n} ${flags.join(' ')}`] : []),
+        ...(left.some((write) => write.close) ? [`gh issue close ${n} --reason 'not planned'`] : []),
+      ].join(' && ');
+      const what =
+        comment === undefined
+          ? 'the label change failed partway'
+          : 'the comment is on the issue, but the label change failed';
+      die('blocked', `#${n}: ${what}; complete it by hand: ${byHand}`, ...details);
+    }
     process.stderr.write(gh.stderr());
     return exits.done;
-  }
-  const context: Context = { host: operation.host, data, found, decision, argument, text, during, effort };
-  if (!act.ready(context)) die('prerequisite', `#${n} cannot ${name}: ${lineOf(n, decision)}`);
-  const { comment, add = [], remove = [], body, ...close } = act.writes(context);
-  const adding = add.filter((label) => !data.labels.includes(label));
-  const removing = remove.filter((label) => data.labels.includes(label));
-  const edit: Edit = { ...(body === undefined || body === data.body ? {} : { body }), ...close };
-  const writes: Write[] = [
-    ...(comment === undefined ? [] : [{ send: () => gh.comment(n, comment), flags: [] }]),
-    ...(adding.length
-      ? [{ send: () => gh.addLabels(n, adding), flags: adding.map((label) => `--add-label ${label}`) }]
-      : []),
-    ...removing.map((label) => ({ send: () => gh.removeLabel(n, label), flags: [`--remove-label ${label}`] })),
-    ...(Object.keys(edit).length ? [{ send: () => gh.edit(n, edit), flags: [], close: edit.state === 'closed' }] : []),
-  ];
-  let done = 0;
-  try {
-    for (const write of writes) {
-      await write.send();
-      done++;
-    }
-  } catch (error) {
-    const details = [gh.stderr(), error instanceof Error ? error.message : String(error)];
-    if (done === 0) die('blocked', `#${n}: the write failed; nothing changed`, ...details);
-    const left = writes.slice(done);
-    const flags = left.flatMap((write) => write.flags);
-    const byHand = [
-      ...(flags.length ? [`gh issue edit ${n} ${flags.join(' ')}`] : []),
-      ...(left.some((write) => write.close) ? [`gh issue close ${n} --reason 'not planned'`] : []),
-    ].join(' && ');
-    const what =
-      comment === undefined
-        ? 'the label change failed partway'
-        : 'the comment is on the issue, but the label change failed';
-    die('blocked', `#${n}: ${what}; complete it by hand: ${byHand}`, ...details);
-  }
-  process.stderr.write(gh.stderr());
-  return exits.done;
+  };
+  return name === 'state' ? work() : synced(gh, work);
 }
 
 export async function main(argv: string[]): Promise<ExitCode> {

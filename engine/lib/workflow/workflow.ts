@@ -129,7 +129,7 @@ export function laneOf(names: readonly string[]): LaneOf {
 }
 
 export type Entry = Readonly<
-  | { kind: 'comment'; id: number; at: string; body: string }
+  | { kind: 'comment'; id: string; at: string; body: string }
   | { kind: 'label'; change: 'added' | 'removed'; name: string; at: string }
 >;
 
@@ -164,7 +164,7 @@ export type EpicDeclaration =
 
 export type EpicChild = Readonly<{
   url: string;
-  id: number;
+  id: string;
   number: IssueKey;
   state: 'open' | 'closed';
   stateReason: 'completed' | 'not_planned' | 'duplicate' | 'reopened' | null;
@@ -189,9 +189,9 @@ export type AcceptedEpicResult =
       target: string;
       observation: string;
       oracle: string;
-      reports: readonly number[];
+      reports: readonly string[];
     }>
-  | Readonly<{ scenario: string; result: 'inapplicable'; rationale: string; decision: number }>;
+  | Readonly<{ scenario: string; result: 'inapplicable'; rationale: string; decision: string }>;
 
 export type EpicResult =
   | AcceptedEpicResult
@@ -199,7 +199,7 @@ export type EpicResult =
       scenario: string;
       result: 'FAIL' | 'BLOCKED' | 'unrun' | 'UNVERIFIED';
       reason: string;
-      reports: readonly number[];
+      reports: readonly string[];
     }>;
 
 export type EpicReview = Readonly<{ session: string; at: string }>;
@@ -239,12 +239,12 @@ export type EpicCompletionDecision =
 export type Build = 'none' | 'planned' | 'built';
 
 export type HumanStep = Readonly<{
-  comment: number;
+  comment: string;
   kind: Kind | 'unmarked';
   missing: 'evidence' | 'report' | 'removal';
 }>;
 
-export type Facts = Readonly<{ plan: number | null; build: Build; open: readonly HumanStep[]; refusal: boolean }>;
+export type Facts = Readonly<{ plan: string | null; build: Build; open: readonly HumanStep[]; refusal: boolean }>;
 
 const kinds: readonly Kind[] = ['general', 'during-the-build'];
 

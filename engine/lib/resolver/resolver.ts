@@ -75,7 +75,7 @@ export async function mainNoRun(checkout: string, signal?: AbortSignal): Promise
 
 function reader(operation: Operation, signal?: AbortSignal) {
   const checkout = operation.checkout.main as string;
-  const { tracker, codeHost } = services(checkout, signal);
+  const { tracker, codeHost } = services(operation.mainConfig as Config, checkout, signal);
 
   async function openIssues(): Promise<Fetched[]> {
     const issues = (await tracker.issues('open')).filter((issue) => !issue.pull);

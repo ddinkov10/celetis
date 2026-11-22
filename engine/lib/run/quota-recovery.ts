@@ -30,12 +30,12 @@ import { folderPrefix, type Step, steps } from '../workflow/workflow.ts';
 import { readSession, serializeSession } from './session.ts';
 
 export type LaneBinding = Readonly<{ path: string; branch: string; tip: string; dirtySnapshotDigest: string }> | null;
-export type RecoveryAuthority = Readonly<{ step: Step; spec: string | null; plan: number | null }>;
+export type RecoveryAuthority = Readonly<{ step: Step; spec: string | null; plan: string | null }>;
 export type NativeIdentity = Readonly<{ attemptId: string; host: Host; sessionId: string | null }>;
 export type RecoveryAttempt = Readonly<{ id: string; host: Host; startedAt: number; sessionId: string | null }>;
 export type QuotaBlock = Readonly<{ host: Host; reason: string; resetAt: number | null }>;
 export type QuotaRecovery = Readonly<{
-  schema: 3;
+  schema: 4;
   id: string;
   revision: number;
   issue: IssueKey;
@@ -109,7 +109,7 @@ function validAttempt(value: unknown): value is RecoveryAttempt {
   );
 }
 
-function validRecord(value: unknown, issue: IssueKey, schema: 2 | 3 = 3): value is QuotaRecovery {
+function validRecord(value: unknown, issue: IssueKey, schema: 2 | 4 = 4): value is QuotaRecovery {
   if (
     !object(value) ||
     !keys(value, fields) ||
@@ -117,7 +117,7 @@ function validRecord(value: unknown, issue: IssueKey, schema: 2 | 3 = 3): value 
     typeof value.id !== 'string' ||
     !uuid.test(value.id) ||
     !positive(value.revision) ||
-    !(schema === 3
+    !(schema === 4
       ? isKey(value.issue) && value.issue === issue
       : positive(value.issue) && String(value.issue) === issue) ||
     !text(value.main) ||
@@ -138,7 +138,7 @@ function validRecord(value: unknown, issue: IssueKey, schema: 2 | 3 = 3): value 
     typeof authority.step === 'string' &&
     steps.includes(authority.step as Step) &&
     (authority.spec === null || (typeof authority.spec === 'string' && /^[0-9a-f]{64}$/.test(authority.spec))) &&
-    (authority.plan === null || positive(authority.plan)) &&
+    (authority.plan === null || text(authority.plan)) &&
     object(owner) &&
     keys(owner, 'pid,start') &&
     positive(owner.pid) &&
@@ -220,7 +220,7 @@ function parse(path: string, source: string, issue: IssueKey): { record: QuotaRe
   } catch {}
   if (validRecord(value, issue)) return { record: value, old: false };
   if (validRecord(value, issue, 2)) {
-    const record = { ...value, schema: 3, issue };
+    const record = { ...value, schema: 4, issue };
     if (validRecord(record, issue)) return { record, old: true };
   }
   throw refused(path);

@@ -168,7 +168,7 @@ clearly named local location outside disposable cleanup state; use
 `docs/superpowers/verification/<run-id>/report.md` when the project permits that scratch location.
 Record the chosen absolute path before execution. Preserve the report and its evidence through
 cleanup, confirm they remain readable, and link the report in the final reply. No issue or
-GitHub access is required. An explicit issue-bound request uses the issue branch below.
+tracker access is required. An explicit issue-bound request uses the issue branch below.
 
 For lane work and explicit issue-bound requests, publish the report on the issue, or link an
 existing durable report,

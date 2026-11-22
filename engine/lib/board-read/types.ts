@@ -1,6 +1,7 @@
 import type { Host } from '../host/names.ts';
 import type { QueueView } from '../queue/types.ts';
 import type { IssueRow } from '../resolver/types.ts';
+import type { TrackerKind } from '../tracker/grammar.ts';
 import type { IssueKey } from '../tracker/key.ts';
 import type { Level } from '../workflow/effort.ts';
 
@@ -27,6 +28,7 @@ export type History = {
 export type Document = {
   history: History;
   tracker: string;
+  grammar: TrackerKind;
   flow: Flow;
   issues: IssueRow[];
   agents: Record<Host, { available: boolean; cause: string | null }>;

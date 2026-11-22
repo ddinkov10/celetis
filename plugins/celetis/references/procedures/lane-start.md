@@ -41,7 +41,8 @@ comes first; after an entry stop, this check does not run.
 Create the issue first, and continue with its key: fill the template of
 `<plugin>/references/procedures/intent.md` into a file, then run
 `celetis --agent <host> issue create <intent>`. Then continue as "Any other issue" with the
-key in the URL that it prints.
+key at the end of the URL that it prints (`<plugin>/references/procedures/entry.md`, "The contract",
+**Tracker.**).
 
 ### An epic
 

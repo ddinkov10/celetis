@@ -1,5 +1,6 @@
 import { type Document, isAlias, isMap, isScalar, isSeq, parseAllDocuments } from 'yaml';
 import { type Host, hosts } from '../host/names.ts';
+import type { TrackerKind } from '../tracker/grammar.ts';
 import { levels, models, type Pin, type ReviewerLevel, reviewerLevels } from '../workflow/effort.ts';
 import { type AutoLane, autoLaneNames, type Step, steps } from '../workflow/workflow.ts';
 
@@ -71,7 +72,10 @@ export type Config = Readonly<{
     >
   >;
 }> &
-  (Readonly<{ landing: 'pr' }> | Readonly<{ landing: 'merge'; suite: string }>);
+  (
+    | Readonly<{ tracker: 'github'; landing: 'pr' }>
+    | Readonly<{ tracker: TrackerKind; landing: 'merge'; suite: string }>
+  );
 
 function field(path: Path): string {
   return path.join('.') || '<document>';
@@ -308,6 +312,7 @@ function checkSchema(value: unknown): asserts value is Config {
   keysOnly(
     config,
     [
+      'tracker',
       'landing',
       'gates',
       'agents',
@@ -321,8 +326,12 @@ function checkSchema(value: unknown): asserts value is Config {
     ],
     [],
   );
+  required(config, 'tracker', []);
+  oneOf(config.tracker, ['github', 'local'], ['tracker']);
   required(config, 'landing', []);
   oneOf(config.landing, ['pr', 'merge'], ['landing']);
+  if (config.tracker === 'local' && config.landing === 'pr')
+    throw new ConfigError(['tracker'], 'the tracker local needs the landing merge');
   if (Object.hasOwn(config, 'gates')) {
     const gates = object(config.gates, ['gates']);
     keysOnly(gates, steps, ['gates']);

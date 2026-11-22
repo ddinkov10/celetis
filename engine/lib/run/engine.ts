@@ -5,6 +5,7 @@ import { type ExitCode, exits } from '../contract/contract.ts';
 import { versionFolderGone } from '../install/version-folder.ts';
 import { childEnv } from '../process/process.ts';
 import { readSetAside } from '../queue/set-aside.ts';
+import { projectNeedsGh, services } from '../services/services.ts';
 import { recordEvent } from '../state/events.ts';
 import { createLockOwner, type Identity, isRecorded, issueLock, type LockOwner, lockHolder } from '../state/locks.ts';
 import type { RepositoryLayout } from '../state/state.ts';
@@ -60,8 +61,9 @@ export interface RunHandle {
 
 export { barrierOf, removed } from './activities.ts';
 
-export async function requireSetup(gh: boolean): Promise<void> {
-  if (gh && !Bun.which('gh', { PATH: childEnv().PATH })) die('gh is not on PATH', exits.prerequisite);
+export async function requireSetup(gh: boolean, main: string): Promise<void> {
+  if (gh && projectNeedsGh(main) && !Bun.which('gh', { PATH: childEnv().PATH }))
+    die('gh is not on PATH', exits.prerequisite);
   try {
     await requireTerminals();
   } catch (error) {
@@ -196,6 +198,7 @@ export function autoLoop(
       const checkout = await locateCheckouts(process.cwd());
       const fresh = () => createOperation(checkout, input.selection, 'main');
       let initial: Operation | undefined = await fresh();
+      let pulled: number | undefined;
       await hooks.ready?.();
       const holder = await locks.take('auto');
       if (holder !== null) die(`auto mode of another daemon or its session has PID ${holder}`, exits.prerequisite);
@@ -218,6 +221,12 @@ export function autoLoop(
           await (await import('../plugin/policy.ts')).requireUpdatePolicy(current.host, main);
         const { nextOpen } = await import('../resolver/resolver.ts');
         const { lineOf } = await import('../resolver/lines.ts');
+        if (pulled === undefined || performance.now() - pulled >= 60_000) {
+          pulled = performance.now();
+          const { tracker } = services(config, main, signal);
+          await tracker.pull('daemon');
+          process.stderr.write(tracker.stderr());
+        }
         const { rows, stderr } = await nextOpen(current, signal);
         process.stderr.write(stderr);
         if (signal.aborted) break;
@@ -262,8 +271,10 @@ export function autoLoop(
             if (result.end.code !== exits.done) return result.end.code;
             started = result.started;
           } else say('no auto step can start; auto mode asks again each 60 seconds');
-        } else if (say('stop cannot read the open issues from GitHub'))
-          recordEvent({ name: 'issues-read', message: 'daemon: stop cannot read the open issues from GitHub' });
+        } else {
+          const line = `stop cannot read the open issues from ${services(config, main).tracker.name}`;
+          if (say(line)) recordEvent({ name: 'issues-read', message: `daemon: ${line}` });
+        }
         if (!started) {
           const until = performance.now() + 60_000;
           while (running() && performance.now() < until) await Bun.sleep(50);

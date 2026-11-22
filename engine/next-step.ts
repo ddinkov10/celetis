@@ -1,9 +1,11 @@
 import { HostError } from './lib/command/errors.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/command/operation.ts';
+import type { Config } from './lib/config/core.ts';
 import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
 import { hostAdapter } from './lib/host/hosts.ts';
 import { lineOf } from './lib/resolver/lines.ts';
 import { nextIssue, nextOpen } from './lib/resolver/resolver.ts';
+import { services } from './lib/services/services.ts';
 import { installRecorder } from './lib/state/events.ts';
 import { type IssueKey, parseHandle } from './lib/tracker/key.ts';
 
@@ -49,7 +51,10 @@ async function resolveNext(
 ): Promise<{ code: ExitCode; stdout: string; stderr: string }> {
   if (input.kind === 'open') {
     const { rows, stderr } = await nextOpen(operation);
-    if (!rows) return { code: exits.blocked, stdout: 'stop cannot read the open issues from GitHub\n', stderr };
+    if (!rows) {
+      const { name } = services(operation.mainConfig as Config, operation.checkout.main as string).tracker;
+      return { code: exits.blocked, stdout: `stop cannot read the open issues from ${name}\n`, stderr };
+    }
     const stdout = rows.map((row) => `${row.number}\t${lineOf(row.number, row.next)}\n`).join('');
     return { code: exits.done, stdout, stderr };
   }

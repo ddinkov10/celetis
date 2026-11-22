@@ -11,8 +11,8 @@ Raw-idea entry point that sits before `/celetis:triage`. Two jobs: write the int
 "proceed?" and hand to `/celetis:triage`.
 
 **Where it writes:** the issue. Draft the template in `docs/superpowers/intents/YYYY-MM-DD-<slug>-intent.md` (gitignored scratch), then post it:
-free text → `celetis --agent <host> issue create <intent>`, then continue with the issue key in the
-URL that it prints;
+free text → `celetis --agent <host> issue create <intent>`, then continue with the key at the end of
+the URL that it prints (`<plugin>/references/procedures/entry.md`, "The contract", **Tracker.**);
 an existing `#<n>` → `celetis --agent <host> issue <n> comment <intent>` with `## Intent` as its
 first line — never rewrite the reporter's body.
 

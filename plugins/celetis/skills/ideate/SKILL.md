@@ -193,7 +193,7 @@ For each picked idea, in the order of the pick:
    - **Done when:** one observable outcome of the idea.
    - **Not now:** what the idea leaves out, or the other survivors of the run.
    - **Source:** `celetis:ideate run of <date> at <commit>, idea <rank>, picked by the maintainer`.
-2. Run `celetis --agent <host> issue create <file>` once, and follow the GitHub rule of the entry
+2. Run `celetis --agent <host> issue create <file>` once, and follow the tracker rule of the entry
    contract for the URL and for a failure.
 3. After each URL, add the line `- <rank>. <title> → <URL>` to `## Filed` of the ideation file.
    An idea with no URL stays out of `## Filed`.

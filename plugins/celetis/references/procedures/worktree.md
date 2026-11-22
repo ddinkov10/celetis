@@ -74,6 +74,6 @@ a removal, use `ExitWorktree` with keep, then verify the main checkout.
 ## Codex
 
 Bind the command cwd and each file path to the exact printed checkout. A Codex app worktree does
-not replace the lane. `worktree` needs network on each entry: it reads the trunk from GitHub and
-fetches it from `origin`. In a sandbox with no network, request one approved retry with the same
+not replace the lane. `worktree` needs network on each entry: it reads the trunk from the code host
+and fetches it from `origin`. In a sandbox with no network, request one approved retry with the same
 command, arguments, and cwd before reporting a setup stop.

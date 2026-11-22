@@ -16,10 +16,10 @@ import { hostAdapter, type Need, requireCan } from './lib/host/hosts.ts';
 import { checkClaudePolicy } from './lib/plugin/policy.ts';
 import { childEnv, run } from './lib/process/process.ts';
 import { engineRelease } from './lib/release/release.ts';
-import { services } from './lib/services/services.ts';
+import { type Choice, services } from './lib/services/services.ts';
 import { editJSON, jsonStyle, layoutJSON } from './lib/setup/json-layout.ts';
 import { parseSetupRecord, type SetupEntry, type WiringRecord } from './lib/setup/record.ts';
-import { setupStatus } from './lib/setup/status.ts';
+import { freshChoice, setupStatus } from './lib/setup/status.ts';
 import {
   ambiguousJSON,
   attribute,
@@ -42,6 +42,7 @@ import {
 } from './lib/setup/wiring.ts';
 import { installRecorder, markDefect, passOn } from './lib/state/events.ts';
 import { laneFolder, laneFolderName } from './lib/state/state.ts';
+import type { TrackerKind } from './lib/tracker/grammar.ts';
 import { TrackerError } from './lib/tracker/tracker.ts';
 import { markerOf, removeCheckout, runSetup, setupFile, worktrees } from './lib/workflow/worktree.ts';
 
@@ -71,7 +72,8 @@ const labelStyles = {
 } as const satisfies Record<Label, readonly [string, string]>;
 type Options = {
   hosts: readonly Host[];
-  landing: string;
+  tracker: TrackerKind;
+  landing: 'pr' | 'merge';
   suite: string;
   setup: string;
   baseline: string;
@@ -179,7 +181,7 @@ function checkJSONKeys(path: string, source: string): void {
 function options(argv: string[]): Options {
   const values: Record<string, string> = {};
   const ignores: string[] = [];
-  const flags = ['--hosts', '--landing', '--suite', '--setup-file', '--ignore', '--baseline-file'];
+  const flags = ['--hosts', '--tracker', '--landing', '--suite', '--setup-file', '--ignore', '--baseline-file'];
   for (let i = 0; i < argv.length; i += 2) {
     const flag = argv[i] as string;
     const value = argv[i + 1];
@@ -193,9 +195,12 @@ function options(argv: string[]): Options {
     else values[flag] = value;
   }
   const hosts = values['--hosts'];
+  const tracker = values['--tracker'];
   const landing = values['--landing'];
   if (!hosts || !['claude', 'codex', 'claude,codex', 'codex,claude'].includes(hosts)) return badUsage();
+  if (tracker !== 'github' && tracker !== 'local') return badUsage();
   if (landing !== 'pr' && landing !== 'merge') return badUsage();
+  if (tracker === 'local' && landing === 'pr') return badUsage();
   const suite = values['--suite'] ?? '';
   if ((landing === 'merge') !== !!suite) return badUsage();
   const setup = values['--setup-file'] ?? '';
@@ -207,6 +212,7 @@ function options(argv: string[]): Options {
   const absolute = (value = '') => (!value || isAbsolute(value) || win32.isAbsolute(value) ? value : resolve(value));
   return {
     hosts: validateAgentOrder(hosts.split(',')),
+    tracker,
     landing,
     suite,
     setup,
@@ -298,6 +304,7 @@ class Setup {
 
   cwd: string;
   config: Config | null;
+  answers: Choice | null = null;
   top = '';
   testLane = '';
   trunk = '';
@@ -307,6 +314,18 @@ class Setup {
   previous: WiringRecord = { schema: 1, files: [], entries: {} };
   owned: { files: string[]; entries: Record<string, SetupEntry[]> } = { files: [], entries: {} };
   affected = new Set(setupPaths);
+
+  async choice(): Promise<Choice> {
+    const known = this.answers ?? this.config;
+    if (known !== null) return known;
+    if (await hasConfig(this.cwd))
+      try {
+        return readConfig(this.cwd);
+      } catch (error) {
+        if (!(error instanceof ConfigError)) throw error;
+      }
+    return freshChoice;
+  }
 
   output(text: string): void {
     (this.diagnostic ? process.stderr : process.stdout).write(text);
@@ -361,10 +380,23 @@ class Setup {
   }
   async checkTrunk(): Promise<void> {
     await this.checkMain();
-    const repo = await fromGitHub(
-      services(this.cwd).codeHost.repository(),
-      'origin is not a GitHub repository that gh can read',
-    );
+    const choice = await this.choice();
+    const { codeHost } = services(choice, this.cwd);
+    const message =
+      choice.landing === 'pr'
+        ? `origin is not a ${codeHost.name} repository that gh can read`
+        : `cannot read the default branch from ${codeHost.name}`;
+    let repo: Awaited<ReturnType<typeof codeHost.repository>>;
+    if (choice !== freshChoice) repo = await fromGitHub(codeHost.repository(), message);
+    else
+      try {
+        repo = await codeHost.repository();
+      } catch (first) {
+        if (!(first instanceof TrackerError || first instanceof CodeHostError)) throw first;
+        repo = await services({ ...freshChoice, landing: 'merge' }, this.cwd)
+          .codeHost.repository()
+          .catch(() => fromGitHub(Promise.reject(first), message));
+      }
     this.trunk = repo.defaultBranch;
     const branch = await this.git(['branch', '--show-current']);
     if (branch !== this.trunk)
@@ -659,7 +691,10 @@ class Setup {
     }
     const desired = { ...original };
     const updates = new Map<string, string | undefined>();
-    const wanted: (readonly ['landing' | 'suite', string])[] = [['landing', opts.landing]];
+    const wanted: (readonly ['tracker' | 'landing' | 'suite', string])[] = [
+      ['tracker', opts.tracker],
+      ['landing', opts.landing],
+    ];
     const landing =
       this.claimed(configFile, { path: ['landing'] }) || original.landing === undefined
         ? opts.landing
@@ -876,7 +911,7 @@ class Setup {
     );
     const record = {
       schema: 1,
-      answers: { hosts: opts.hosts, tracker: 'github' },
+      answers: { hosts: opts.hosts, tracker: opts.tracker },
       release: await engineRelease(resolve(import.meta.dir, '..')),
       files: [...new Set(this.owned.files)].sort(),
       entries,
@@ -919,7 +954,7 @@ class Setup {
     return readFile(join(this.cwd, path));
   }
   async makeLabels(): Promise<void> {
-    const { tracker } = services(this.cwd);
+    const { tracker } = services(await this.choice(), this.cwd);
     const names = await fromGitHub(tracker.labels(), 'cannot list the labels');
     for (const name of labels) {
       const [description, color] = labelStyles[name];
@@ -1053,6 +1088,7 @@ class Setup {
       return exits.done;
     }
     const opts = input.options;
+    this.answers = { tracker: opts.tracker, landing: opts.landing };
     this.diagnostic = command === 'try';
     await this.check(opts.setup);
     const scratch = await mkdtemp(join(tmpdir(), 'celetis-plan.'));

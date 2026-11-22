@@ -27,6 +27,7 @@ import type { QueueView } from '../lib/queue/types.ts';
 import { stateOutcome } from '../lib/state/state.ts';
 import { type Exec, LINK, listTerminals, readScreen, terminalState } from '../lib/terminal/terminal.ts';
 import type { Terminal, TerminalStatus } from '../lib/terminal/types.ts';
+import { grammar } from '../lib/tracker/grammar.ts';
 import { compareKeys, type IssueKey, keySource, parseKey } from '../lib/tracker/key.ts';
 import { visualLink } from '../lib/workflow/visual.ts';
 import type { CoordinatorReads } from './coordinator.ts';
@@ -116,11 +117,14 @@ export const launchMatches = (issue: IssueRow | undefined, step: string | null) 
     issue.state === 'aside' ||
     (issue.state === 'blocked' && step === null));
 
+const webUrl = (url: string | undefined) =>
+  url !== undefined && ['http:', 'https:'].includes(URL.parse(url)?.protocol ?? '') ? url : null;
+
 const issueCard = (issue: IssueRow, extra: Partial<Card>): Card => ({
   sessionId: null,
   number: issue.number,
   title: issue.title,
-  url: issue.url,
+  url: webUrl(issue.url),
   type: issue.type,
   agent: null,
   step: null,
@@ -212,7 +216,7 @@ const placeSession = (
       sessionId: session.sessionId,
       number: session.issue,
       title: issue?.title ?? session.label,
-      url: issue?.url ?? null,
+      url: webUrl(issue?.url),
       type: issue?.type ?? null,
       agent: session.agent,
       step: session.step,
@@ -588,6 +592,7 @@ export const createPlacement = ({
       history,
       flow: reads.document?.flow ?? null,
       tracker: reads.document?.tracker ?? null,
+      grammar: reads.document?.grammar ?? grammar().kind,
       daemon: daemonView(daemon),
       agents: reads.document?.agents ?? null,
       registry,

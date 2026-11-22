@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { HostError } from '../command/errors.ts';
 import type { Operation } from '../command/operation.ts';
+import type { Config } from '../config/core.ts';
 import { type ExitCode, exits } from '../contract/contract.ts';
 import { hostAvailability } from '../host/host.ts';
 import type { Next } from '../resolver/lines.ts';
 import { lineOf } from '../resolver/lines.ts';
 import { nextIssue } from '../resolver/resolver.ts';
+import { services } from '../services/services.ts';
 import { issueLock, lockHolder } from '../state/locks.ts';
 import type { IssueKey } from '../tracker/key.ts';
 import {
@@ -204,7 +206,9 @@ export async function reconcileQueue(operation: Operation, signal?: AbortSignal)
     record,
     owner,
     observations.get(record.numbers[0] as IssueKey) ?? null,
-    unreadable ? `queue: cannot read #${unreadable} from GitHub; the issue remains queued` : null,
+    unreadable
+      ? `queue: cannot read #${unreadable} from ${services(operation.mainConfig as Config, main).tracker.name}; the issue remains queued`
+      : null,
   );
   if (unreadable) view.actions = { add: false, edit: false, continue: false, retry: false };
   return { view, wake };

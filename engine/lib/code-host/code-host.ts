@@ -35,6 +35,7 @@ export type PullFilter = Readonly<{ state: 'open' }> | Readonly<{ head: string; 
 export type NewPull = Readonly<{ base: string; head: string; title: string; body: string }>;
 
 export type CodeHost = Readonly<{
+  name: string;
   repository(): Promise<Repository>;
   pulls(filter: PullFilter): Promise<readonly Pull[]>;
   pull(n: number): Promise<Pull>;

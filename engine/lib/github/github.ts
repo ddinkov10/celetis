@@ -259,15 +259,17 @@ export function client(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
 
 export function converting<T extends object>(adapter: T, convert: (error: GitHubError) => Error): T {
   return Object.fromEntries(
-    Object.entries(adapter).map(([name, method]) => [
+    Object.entries(adapter).map(([name, member]) => [
       name,
-      (...args: unknown[]) => {
-        const result: unknown = method(...args);
-        if (!(result instanceof Promise)) return result;
-        return result.catch((error: unknown) => {
-          throw error instanceof GitHubError ? convert(error) : error;
-        });
-      },
+      typeof member === 'function'
+        ? (...args: unknown[]) => {
+            const result: unknown = member(...args);
+            if (!(result instanceof Promise)) return result;
+            return result.catch((error: unknown) => {
+              throw error instanceof GitHubError ? convert(error) : error;
+            });
+          }
+        : member,
     ]),
   ) as T;
 }

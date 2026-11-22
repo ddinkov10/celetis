@@ -373,7 +373,7 @@ async function serve(
   };
   const fatal = () => stop(exits.blocked);
   const removed = () => stop(exits.prerequisite, removedLine);
-  const hooksOf = (gh: boolean): RunHooks => ({ ready: () => requireSetup(gh), removed, fatal });
+  const hooksOf = (gh: boolean): RunHooks => ({ ready: () => requireSetup(gh, main), removed, fatal });
 
   const ended = (entry: Entry, end: RunEnd) => {
     if (end.kind === 'detached') return;
@@ -434,7 +434,7 @@ async function serve(
       place,
       { selection },
       {
-        hooks: { ready: () => requireSetup(true), removed, fatal },
+        hooks: { ready: () => requireSetup(true, main), removed, fatal },
         active: () => control.active,
         signal: abort.signal,
         launch,
