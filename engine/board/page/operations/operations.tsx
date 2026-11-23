@@ -1,6 +1,6 @@
-import { QueueHost } from '../app/hosts.tsx';
 import { ChatButton } from '../coordinator/button.tsx';
 import { CoordinatorPanel } from '../coordinator/panel.tsx';
+import { Queue } from '../queue/queue.tsx';
 import { badgeText, TABS, type Tab } from '../shell.ts';
 import { useShellStore } from '../store.ts';
 import { Badge } from '../ui/badge.tsx';
@@ -84,13 +84,8 @@ export function Operations() {
             <Board />
           </div>
         )}
-        <TabsContent
-          value="queue"
-          keepMounted
-          tabIndex={undefined}
-          className="flex min-h-0 flex-1 flex-col [&>.queue]:min-h-0 [&>.queue]:flex-1"
-        >
-          <QueueHost />
+        <TabsContent value="queue" tabIndex={undefined} className="flex min-h-0 flex-1 flex-col">
+          <Queue />
         </TabsContent>
         <History />
       </Tabs>

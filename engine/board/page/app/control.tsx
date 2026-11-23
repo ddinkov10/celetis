@@ -3,6 +3,7 @@ import { cn } from 'cn';
 import { memo, type ReactNode, useEffect, useState } from 'react';
 import type { Board, DaemonView } from '../../types.ts';
 import { age, clock } from '../../view.ts';
+import { AgentOrder } from '../agents/agents.tsx';
 import { viewOptions } from '../query.ts';
 import { shellStore, useShellStore } from '../store.ts';
 import { THEME_WORDS } from '../theme/choice.ts';
@@ -52,11 +53,6 @@ function RowText({ id, label, help }: { id: string; label: string; help: string 
     </div>
   );
 }
-
-const AgentsHost = memo(
-  () => <div className="agent-picker" id="agent-picker" />,
-  () => true,
-);
 
 const UpdateHost = memo(
   () => (
@@ -325,7 +321,7 @@ export function Control() {
           New default work uses the first available agent. Drag a handle, or press it for the move actions.
         </CardDescription>
         <div className="mt-3">
-          <AgentsHost />
+          <AgentOrder />
         </div>
       </Card>
       <Automation daemon={data?.daemon ?? null} isDown={isError} />

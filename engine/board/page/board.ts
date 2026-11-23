@@ -1,20 +1,8 @@
 import { QueryObserver, type QueryObserverResult } from '@tanstack/react-query';
-import type { AgentOrder, Host } from '../../lib/config/core.ts';
 import type { IssueKey } from '../../lib/tracker/key.ts';
-import type {
-  Action,
-  AgentReplaceConflict,
-  AgentReplaceRequest,
-  Board,
-  Card,
-  Column,
-  Columns,
-  MenuEntry,
-  PaletteItem,
-  RunRequest,
-} from '../types.ts';
+import type { Action, Board, Card, Column, Columns, MenuEntry, PaletteItem } from '../types.ts';
 import { favicon, isCard, isYourTurn, keyOf, needsYou, notice, pageTitle, runTitle, tone, turnLine } from '../view.ts';
-import { createAgentPicker, OrderConflict } from './agent-picker.ts';
+import { agentStore } from './agents/state.ts';
 import { coordinator } from './coordinator/coordinator.ts';
 import { actionsOf, agentDisplay, defaultReason, launch, onTracker } from './operations/actions.ts';
 import { handleKey, showHints, toggleHistory, toggleView } from './operations/keys.ts';
@@ -28,13 +16,13 @@ import {
   setTab,
   showChat,
 } from './operations/state.ts';
-import { closeMenu, openMenu, openPalette, setupMenu, setupPalette } from './palette.ts';
+import { openMenu, openPalette, setupMenu, setupPalette } from './palette.ts';
 import { boardKey, pollOptions, queryClient } from './query.ts';
-import { drawQueue, setQueueOpen, setupQueue } from './queue.ts';
+import { queueStore } from './queue/state.ts';
 import { AREA_ICONS, AREA_NAMES, AREAS, type Area, type Shell } from './shell.ts';
 import { shellStore } from './store.ts';
 import { THEME_WORDS } from './theme/choice.ts';
-import { $, announce, icon, openUrl, post, SERVER_DOWN, setupToast, toast } from './ui.ts';
+import { $, announce, icon, openUrl, post, setupToast, toast } from './ui.ts';
 import { isReconnecting, setupUpdates } from './update-dialog.ts';
 
 const shell = (): Shell => shellStore.get().shell;
@@ -93,7 +81,7 @@ async function openIntake(): Promise<void> {
 
 const agentOrder = () => {
   setArea('control');
-  if (!picker.focus()) $('ctl-agents').focus();
+  if (!agentStore.focusFirst()) $('ctl-agents').focus();
 };
 const agentOrderEntry = {
   icon: 'person',
@@ -173,7 +161,7 @@ const startNotices = (columns: Columns) => {
 
 const drawStatus = (isDown: boolean) => {
   const data = screen.read();
-  if (data?.picker) picker.update(data.picker, data.registry);
+  if (data?.picker) agentStore.update(data.picker, data.registry);
   document.body.toggleAttribute('data-stale', isDown);
   coordinator.down(isDown);
 };
@@ -183,7 +171,7 @@ const drawNow = (all: number, work: number, home: number): void => {
 };
 
 const drawRead = (next: Board) => {
-  drawQueue(next);
+  queueStore.update(next);
   const waiting = needsYou(next, seenTurn);
   document.title = pageTitle(next.repo, waiting.length);
   drawFavicon();
@@ -238,7 +226,7 @@ const render = () => {
       .map(([number, entry]) => [number, entry.step]),
   ]);
   if (cards === last) {
-    drawQueue(next);
+    queueStore.update(next);
     return;
   }
   drawRead(next);
@@ -266,7 +254,7 @@ document.addEventListener('board-reconnect', () => {
   settle();
   screen.fail();
   const board = screen.board();
-  if (board) drawQueue(board);
+  if (board) queueStore.update(board);
 });
 document.addEventListener('board-connected', () => {
   drawIntake();
@@ -284,7 +272,7 @@ const fail = () => {
   screen.fail();
   drawStatus(true);
   const board = screen.board();
-  if (board) drawQueue(board);
+  if (board) queueStore.update(board);
 };
 let dataAt = 0;
 let errorAt = 0;
@@ -530,8 +518,14 @@ shellStore.subscribe(() => {
 
 const KEYS: Record<string, () => void> = {
   r: () => void shellStore.refresh(),
-  '?': () => $('keys').showModal(),
-  '/': () => openPalette(paletteItems()),
+  '?': () => {
+    agentStore.closeMenu();
+    $('keys').showModal();
+  },
+  '/': () => {
+    agentStore.closeMenu();
+    openPalette(paletteItems());
+  },
 };
 const updates = setupUpdates();
 coordinator.handle({
@@ -547,6 +541,7 @@ document.addEventListener('keydown', (event) => {
   if (event.defaultPrevented || updates.contains(event.target)) return;
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault();
+    agentStore.closeMenu();
     if (!$('palette').open) openPalette(paletteItems());
     return;
   }
@@ -576,11 +571,10 @@ document.addEventListener('keydown', (event) => {
 let drawnShell = shellStore.get();
 const followShell = () => {
   drawnShell = shellStore.get();
-  const { area, tab } = shell();
-  setQueueOpen(tab === 'queue');
+  const { area } = shell();
   if (area !== 'control') {
     updates.dismiss();
-    if ($('agent-picker').querySelector('.ap-handle[aria-expanded="true"]')) closeMenu();
+    agentStore.closeMenu();
   }
 };
 shellStore.subscribe(() => {
@@ -630,42 +624,6 @@ $('keys-on').checked = settings().keys;
 $('keys-on').addEventListener('change', () => shellStore.setKeys($('keys-on').checked));
 $('toast-close').append(icon('close'));
 setupToast();
-setupQueue({
-  refresh: readAgain,
-});
-const replaceOrder = async (order: readonly Host[], expectedVersion: string): Promise<AgentOrder> => {
-  if (isReconnecting()) throw new Error('the board is reconnecting');
-  void readAgain();
-  try {
-    let response: Response;
-    try {
-      response = await fetch('/api/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order, expectedVersion } satisfies AgentReplaceRequest),
-        signal: AbortSignal.timeout(30_000),
-      });
-    } catch {
-      throw new Error(`${SERVER_DOWN}. Refresh before another change.`);
-    }
-    const body = (await response.json().catch(() => null)) as
-      | { order: AgentOrder }
-      | AgentReplaceConflict
-      | { error: string }
-      | null;
-    if (response.ok && body && 'order' in body) return body.order;
-    if (response.status === 409 && body && 'latest' in body) throw new OrderConflict(body.latest, body.error);
-    throw new Error(body && 'error' in body ? body.error : `the server answered ${response.status}`);
-  } finally {
-    void readAgain();
-  }
-};
-const retryWait = async (number: IssueKey, waitId: string) => {
-  const outcome = await post('/api/run', { number, waitId } satisfies RunRequest, 'Retry failed', { timeout: 150_000 });
-  void readAgain();
-  if (outcome.status !== 'accepted') throw new Error(outcome.error ?? SERVER_DOWN);
-};
-const picker = createAgentPicker($('agent-picker'), { replace: replaceOrder, retry: retryWait });
 setupPalette();
 setupMenu();
 showHints(null);

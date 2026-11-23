@@ -114,7 +114,7 @@ export const handleKey = (event: KeyboardEvent): boolean => {
   const target = event.target as Element;
   if (
     screen.get().stopFor !== null ||
-    target.closest?.('[data-slot="dropdown-menu-content"], [data-slot="alert-dialog-content"]')
+    target.closest?.('[data-slot="dropdown-menu-content"]:not([data-agent-menu]), [data-slot="alert-dialog-content"]')
   )
     return false;
   const press = pressOf(event);

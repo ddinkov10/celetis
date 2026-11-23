@@ -215,17 +215,26 @@ phone.addEventListener('change', () =>
   setShell(shell(), document.activeElement === document.body ? hiddenFocus : document.activeElement),
 );
 
+export const areaStop = () => {
+  const tabNode = $(`tab-${shell().tab}`);
+  return shell().area === 'operations' && tabNode.checkVisibility() ? tabNode : $('work');
+};
+
 export const setShell = (next: Shell, active: Element | null = document.activeElement) => {
   const wasInPanel = active instanceof HTMLElement && $('panel').contains(active);
   const wasInBoard = active instanceof HTMLElement && Boolean(document.getElementById('tp-board')?.contains(active));
+  const leavesQueue =
+    next.tab !== 'queue' &&
+    active instanceof HTMLElement &&
+    Boolean(document.getElementById('queue')?.contains(active));
   const activeId = active?.id;
   shellStore.setShell(next);
   const now = document.activeElement;
   const isHidden = wasInPanel || (wasInBoard && document.getElementById('tp-board') === null);
-  const isLost = active instanceof HTMLElement && (active.isConnected ? !active.checkVisibility() : isHidden);
+  const isLost =
+    active instanceof HTMLElement && (leavesQueue || (active.isConnected ? !active.checkVisibility() : isHidden));
   if (isLost && (now === active || now === document.body)) {
-    const tabNode = $(`tab-${shell().tab}`);
-    (shell().area === 'operations' && tabNode.checkVisibility() ? tabNode : $('work')).focus({ preventScroll: true });
+    areaStop().focus({ preventScroll: true });
   } else if (now === document.body && active instanceof HTMLElement && active.isConnected)
     active.focus({ preventScroll: true });
   else if (now === document.body && activeId) {

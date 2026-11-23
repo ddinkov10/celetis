@@ -2,8 +2,6 @@ import { memo } from 'react';
 
 const never = () => true;
 
-export const QueueHost = memo(() => <section className="queue" id="queue" hidden />, never);
-
 export const Layers = memo(
   () => (
     <>

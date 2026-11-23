@@ -10,6 +10,8 @@
 @source not inline("resize");
 @source not inline("running");
 @source not inline("sr-only");
+/* This class component holds no class name, and its keyword `static` would generate the utility. */
+@source not "./ui/view-boundary.tsx";
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 @custom-variant phone (@media (max-width: 719px));
