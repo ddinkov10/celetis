@@ -13,21 +13,9 @@ import type {
   PaletteItem,
   RunRequest,
 } from '../types.ts';
-import {
-  age,
-  favicon,
-  isCard,
-  isYourTurn,
-  keyOf,
-  needsYou,
-  notice,
-  pageTitle,
-  runTitle,
-  tone,
-  turnLine,
-} from '../view.ts';
+import { favicon, isCard, isYourTurn, keyOf, needsYou, notice, pageTitle, runTitle, tone, turnLine } from '../view.ts';
 import { createAgentPicker, OrderConflict } from './agent-picker.ts';
-import { setupCoordinator } from './coordinator.ts';
+import { coordinator } from './coordinator/coordinator.ts';
 import { actionsOf, agentDisplay, defaultReason, launch, onTracker } from './operations/actions.ts';
 import { handleKey, showHints, toggleHistory, toggleView } from './operations/keys.ts';
 import {
@@ -43,8 +31,8 @@ import {
 import { closeMenu, openMenu, openPalette, setupMenu, setupPalette } from './palette.ts';
 import { boardKey, pollOptions, queryClient } from './query.ts';
 import { drawQueue, setQueueOpen, setupQueue } from './queue.ts';
-import { AREA_ICONS, AREA_NAMES, AREAS, type Area, isChatShown, type Shell } from './shell.ts';
-import { phone, shellStore } from './store.ts';
+import { AREA_ICONS, AREA_NAMES, AREAS, type Area, type Shell } from './shell.ts';
+import { shellStore } from './store.ts';
 import { THEME_WORDS } from './theme/choice.ts';
 import { $, announce, icon, openUrl, post, SERVER_DOWN, setupToast, toast } from './ui.ts';
 import { isReconnecting, setupUpdates } from './update-dialog.ts';
@@ -217,11 +205,6 @@ const drawRead = (next: Board) => {
 };
 const tick = () => {
   drawIntake();
-  const now = Date.now();
-  for (const node of document.querySelectorAll<HTMLElement>('[data-since]')) {
-    const text = `${age(node.dataset.since as string, now, 'fine' in node.dataset)}${node.dataset.suffix ?? ''}`;
-    if (node.textContent !== text) node.textContent = text;
-  }
 };
 
 let last = '';
@@ -551,7 +534,7 @@ const KEYS: Record<string, () => void> = {
   '/': () => openPalette(paletteItems()),
 };
 const updates = setupUpdates();
-const coordinator = setupCoordinator({
+coordinator.handle({
   reveal: showChat,
   changed: (next) => {
     if (!screen.read()) return;
@@ -595,8 +578,6 @@ const followShell = () => {
   drawnShell = shellStore.get();
   const { area, tab } = shell();
   setQueueOpen(tab === 'queue');
-  if (isChatShown(shell(), phone.matches)) coordinator.show();
-  else coordinator.hide();
   if (area !== 'control') {
     updates.dismiss();
     if ($('agent-picker').querySelector('.ap-handle[aria-expanded="true"]')) closeMenu();
@@ -634,7 +615,6 @@ shellStore.handle({
   open: openDetails,
 });
 screen.handle({ openChat: coordinator.open, render });
-$('pane-chat').addEventListener('click', coordinator.open);
 drawIntake();
 $('board-more').addEventListener('click', () =>
   openMenu($('board-more'), phoneMenu(), {

@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { cn } from 'cn';
 import type { ComponentProps, ReactNode } from 'react';
 import type { Board } from '../../types.ts';
+import { ChatMark } from '../coordinator/button.tsx';
+import { useCoordinator } from '../coordinator/coordinator.ts';
 import { Operations } from '../operations/operations.tsx';
 import { viewOptions } from '../query.ts';
 import { AREA_ICONS, AREA_NAMES, AREAS, type Area, badgeText, FIND_KEY, isChatShown } from '../shell.ts';
@@ -287,7 +289,7 @@ function DockItem({ className, ...props }: ComponentProps<typeof Button>) {
 function BottomBar() {
   const shell = useShellStore((state) => state.shell);
   const isPhone = useShellStore((state) => state.isPhone);
-  const chat = useShellStore((state) => state.inputs.chat);
+  const chat = useCoordinator((state) => state.mirror);
   const agents = useShellStore((state) => state.inputs.badges.agents);
   const moreOpen = useShellStore((state) => state.inputs.moreOpen);
   const mark = useControlMark();
@@ -307,19 +309,19 @@ function BottomBar() {
         <span className="label">Home</span>
       </DockItem>
       <DockItem
-        className="co-open"
+        className="min-h-11"
         id="pb-chat"
-        data-state={chat.state || undefined}
+        data-state={chat.state}
         data-stale={chat.stale ? '' : undefined}
         data-new={chat.unseen ? '' : undefined}
-        aria-label={chat.label || undefined}
-        title={chat.title || undefined}
+        aria-label={chat.label}
+        title={chat.title}
         aria-current={current(isPhone && isOps && shell.pane === 'chat')}
         onClick={() => shellStore.handlers().showChat()}
       >
         <Icon name="message" />
         <span className="label">Chat</span>
-        <i className="co-mark absolute top-1.5 left-[calc(50%+9px)]" aria-hidden="true" />
+        <ChatMark state={chat.state} stale={chat.stale} className="absolute top-1.5 left-[calc(50%+9px)]" />
       </DockItem>
       <DockItem
         id="pb-agents"

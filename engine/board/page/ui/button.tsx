@@ -18,6 +18,7 @@ const variants = cva(
         link: `${FADE} bg-transparent text-primary underline-offset-4 hover:underline`,
         primary: `${TAP} select-auto [transition:background-color_.15s,border-color_.15s,opacity_.15s,transform_.1s] bg-primary text-primary-foreground [&:hover:not([aria-disabled=true])]:opacity-[0.88]`,
         secondary: `${TAP} select-auto [transition:background-color_.15s,border-color_.15s,opacity_.15s,transform_.1s] border-border bg-secondary text-foreground [&:hover]:border-border-strong [&:hover]:bg-accent`,
+        quiet: `${TAP} select-auto [transition:background-color_.15s,border-color_.15s,opacity_.15s,transform_.1s] bg-transparent text-card-foreground [&:hover]:bg-accent [&:hover]:text-foreground`,
         icon: `${TAP} grid select-auto justify-normal place-items-center border-0 bg-transparent text-muted-foreground active:scale-100 [&:hover]:bg-accent [&:hover]:text-foreground`,
       },
       size: {

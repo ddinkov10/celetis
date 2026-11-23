@@ -1,4 +1,6 @@
-import { CoordinatorHost, PaneChatHost, QueueHost } from '../app/hosts.tsx';
+import { QueueHost } from '../app/hosts.tsx';
+import { ChatButton } from '../coordinator/button.tsx';
+import { CoordinatorPanel } from '../coordinator/panel.tsx';
 import { badgeText, TABS, type Tab } from '../shell.ts';
 import { useShellStore } from '../store.ts';
 import { Badge } from '../ui/badge.tsx';
@@ -28,7 +30,7 @@ export function Operations() {
         className="flex min-h-0 min-w-0 flex-col phone:group-data-[pane=agents]/ops:hidden min-[720px]:group-data-[tab=pipeline]/ops:contents min-[720px]:group-data-[tab=pipeline]/ops:[&>.coordinator]:hidden [&>.coordinator]:flex-1"
         id="center"
       >
-        <CoordinatorHost />
+        <CoordinatorPanel />
         <Panel />
       </div>
       <Tabs
@@ -45,7 +47,7 @@ export function Operations() {
       >
         <div className="flex min-h-12 flex-none items-center gap-2 border-b border-border px-2.5 py-2 phone:p-1.5">
           <div className="contents" hidden={tab !== 'pipeline' || isPhone}>
-            <PaneChatHost />
+            <ChatButton />
           </div>
           <TabsList activateOnFocus loopFocus id="tabs" aria-label="Work views">
             {TABS.map((each) => (

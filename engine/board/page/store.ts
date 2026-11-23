@@ -12,7 +12,6 @@ export type Inputs = Readonly<{
   queueCount: number;
   intake: { reason: string | null; pending: boolean };
   hints: readonly (readonly string[])[];
-  chat: { state: string; stale: boolean; unseen: boolean; label: string; title: string };
   updateAccent: boolean;
   moreOpen: boolean;
   board: Board | null;
@@ -44,7 +43,6 @@ let state: State = {
     queueCount: 0,
     intake: { reason: null, pending: false },
     hints: [],
-    chat: { state: '', stale: false, unseen: false, label: '', title: '' },
     updateAccent: false,
     moreOpen: false,
     board: null,

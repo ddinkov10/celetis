@@ -1498,17 +1498,27 @@ loads nothing from the network.
   `Error:` and the result, with `(<n> characters left out)` when the read cut it. A run that runs
   or waits is open, and a finished run is closed, until the person presses it; then the choice of
   the person stays for that run and that call. Each of these buttons has `aria-expanded`, Enter and
-  Space press it, and the scroll position stays when it opens or closes. `The coordinator works`
-  with a spinning mark ends the chat in `works`. With no entry the chat shows `The session starts`
+  Space press it. The scroll position stays when it opens or closes. An opened run that leaves the view
+  in the end zone keeps the follow, so the next new entry moves the view to the end. An opened run
+  that leaves the view above that zone stops the follow, and `Go to the end` shows.
+  `The coordinator works` with a spinning mark ends the chat in `works`. With no entry the chat shows `The session starts`
   and `The conversation shows here when the session writes its first message.` while the session
   starts, or `No coordinator session` and `Start a session to steer the runs from here.` with no
   session. Under reduced motion the chevrons and the spinning marks do not move. The chat writes
   each text of the record as text, never as markup. A read replaces only the entries that changed;
   an open run or call that a read replaces keeps its focus. The log starts at the end and follows
   new entries while the view is at the end. An upward scroll stops the follow, and a scroll back to
-  the end or `Go to the end`, which shows only away from the end, starts it again. A change of the
-  size of the log keeps the follow. While the person holds a text selection in the log, the chat
-  shows each change, and the follow waits until the selection ends. The selection stays while its
+  the end or `Go to the end`, which shows only above the end, starts it again. The end is the last 70 px
+  of the log. A new session replaces the log. After its first read the log is at its end, and it follows, when
+  the log followed its end before the new session: at the end, after an opened run, or at the start of a hold at
+  the end. When the person had scrolled up, with or without a held selection, the view is at the top of the log,
+  `Go to the end` shows, and the log does not follow. Each new session in a row gives the same result.
+  A change of the size of the log keeps the follow. While the person holds a text selection in the log,
+  the chat shows each change, and the view does not move. A scroll up during a held selection stops the
+  follow, and it stays stopped after the hold ends, until the view returns to the end. When the selection
+  ends, the view moves to the end only when the log followed its end at the start of the hold, or the
+  view came back to the end during the hold, and no upward scroll came after that. A downward scroll
+  into the last 70 px counts as a return to the end. The selection stays while its
   entries do not change. While the chat shows and the page is in view, the page reads
   `GET /api/coordinator?since=<revision>` each 2 seconds, and at no other time; the page draws a
   new list only when the answer has entries.
@@ -1864,8 +1874,8 @@ board read of `page/query.ts`. The host components of `page/app/hosts.tsx` rende
 that has not moved to React once and never again, and the older page modules fill and change that markup.
 
 The Operations screen renders through React from `page/operations/`: the tabs, the issues of Agents and
-Pipeline, the details, the card menus, and the Stop dialog. The coordinator section, the Chat button, and the
-queue section stay host markup of `page/app/hosts.tsx` until #359 and #360.
+Pipeline, the details, the card menus, and the Stop dialog. The coordinator panel and the Chat button render through React from
+`page/coordinator/`. The queue section stays host markup of `page/app/hosts.tsx` until #360.
 
 ## Limits
 
