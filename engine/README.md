@@ -1718,6 +1718,53 @@ failure already reported it. The pending warning writes no terminal error marker
 not suppress that final error. These failures write no false no-progress row. A record with a
 null ID cannot be used for exact run resume.
 
+## The attempt record
+
+The daemon writes one record for each session attempt of an issue, so a later session or a person
+can read the history of the attempts. The record is local. It has no network part.
+
+The record of an attempt is the file `<git common dir>/celetis/attempts/<n>/<attempt id>.json`.
+The folders `attempts` and `attempts/<n>` have mode 0700, and each file has mode 0600. The
+daemon writes each file atomically. It writes the file when the attempt starts, and it writes the
+same file again when the attempt ends. The daemon is the only writer.
+
+A file is one JSON object with these fields:
+
+| Field | Value |
+| --- | --- |
+| `schema` | `1` |
+| `id` | The attempt ID, a UUID |
+| `issue` | The issue key as a string |
+| `work` | The kind of work of the session |
+| `start` | `new` or `resume` |
+| `host` | The host of the session |
+| `model` | The model that the daemon chose for a Claude session, else the model that the daemon kept, or `null` |
+| `effort` | The effort level, or `null` |
+| `startedAt` | ISO 8601 UTC time of the start |
+| `end` | `null` while the attempt is open, else `at`, `outcome`, `code`, and `reason` |
+
+`end.at` is the time when the daemon recorded the end, not the time when the session ended. The
+`outcome` is `exited`, `no-saved-turn`, `usage-limit`, `stopped`, `unverified`, or
+`not-started`. `code` is the exit code of the session, or `null`. `reason` is a text of 512
+characters at most, or `null`. The outcome `not-started` means that a takeover proved that the
+start barrier was never released. A state with no such proof stays `open`. An `open` attempt
+means that the daemon recorded no end. It does not prove that the session still runs or that it
+crashed.
+
+A failed write does not stop the run. It records one `workflow` entry named `attempt-record` in
+the event record.
+
+`celetis --agent <host> attempts <n>` prints the table of one issue, oldest first. The columns are
+`started ended work start host model effort outcome code`. A `null` prints `-`, and an open
+attempt prints `open` as its outcome. A reason prints on the next line. A file that is not a valid
+entry gives one line on stderr, and the read continues. With no entry, it prints
+`#<n>: no attempts recorded`. The command reads only local files and writes nothing. It exits 2 for
+a bad key, another form, or a folder with no Git checkout, and 6 for an unsafe or unreadable
+folder.
+
+The limits: the record is in one clone, so another clone has none of it. No rule removes an old
+file. A removed clone loses its record.
+
 ## The event record
 
 Each Celetis process that detects a failure appends one entry to the event record of the user. A

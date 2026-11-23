@@ -112,6 +112,8 @@ export function repositoryLayout(common: string) {
   const daemon = owned(join(root.path, 'daemon'));
   const runs = owned(join(daemon.path, 'runs'));
   const sessionArchive = (issue: IssueKey) => owned(join(sessions.path, issue));
+  const attempts = owned(join(root.path, 'attempts'));
+  const attemptFolder = (issue: IssueKey) => owned(join(attempts.path, issue));
   return Object.freeze({
     root,
     queue: join(root.path, 'queue.json'),
@@ -125,6 +127,9 @@ export function repositoryLayout(common: string) {
     session: (issue: IssueKey) => join(sessions.path, `${issue}.json`),
     sessionArchive,
     archivedSession: (issue: IssueKey, attemptId: string) => join(sessionArchive(issue).path, `${attemptId}.json`),
+    attempts,
+    attemptFolder,
+    attemptEntry: (issue: IssueKey, id: string) => join(attemptFolder(issue).path, `${id}.json`),
     stepEnds,
     stepEnd: (issue: IssueKey) => join(stepEnds.path, `${issue}.json`),
     recovery,

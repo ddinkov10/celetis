@@ -1,5 +1,6 @@
 import { effectiveOrder } from '../agent/order.ts';
 import { selectAgent, type UsageState, type UsageTicket } from '../agent/usage.ts';
+import type { AttemptFinish, AttemptOpen } from '../attempt/attempt.ts';
 import { HostError } from '../command/errors.ts';
 import type { Operation } from '../command/operation.ts';
 import type { AgentChoice, Config, Host } from '../config/core.ts';
@@ -93,6 +94,7 @@ export type StepStart = Readonly<{
   args: string[];
   facts: StepFacts;
   attempt: UsageAttempt;
+  entry: AttemptOpen;
   session: SessionInput;
 }>;
 export type UnwatchedStart = Readonly<{
@@ -103,6 +105,7 @@ export type UnwatchedStart = Readonly<{
   record: SessionRecord | null;
   sessionId: string | null;
   attempt: string;
+  entry: AttemptOpen;
   session: SessionInput;
 }>;
 export type Start = StepStart | UnwatchedStart;
@@ -168,12 +171,13 @@ export type Failure = Flags & Readonly<{ error: unknown }>;
 export type Seen = Readonly<
   | { kind: 'queue-changed' }
   | { kind: 'no-session' }
-  | { kind: 'not-started'; session: Facts }
+  | { kind: 'not-started'; session: Facts; neverReleased: boolean }
   | { kind: 'live'; session: Facts }
   | { kind: 'ended'; session: Facts }
 >;
 export type SessionEnd = Readonly<
-  { scope: 'issue'; session: Steered; saved: boolean; reported: boolean } | { scope: 'unwatched'; passed: ExitCode }
+  | { scope: 'issue'; session: Steered; saved: boolean; reported: boolean }
+  | { scope: 'unwatched'; passed: ExitCode; attempt: string | null }
 >;
 
 export type Event =
@@ -214,7 +218,7 @@ export type Event =
       resume: string;
       ended: Readonly<{ code: number | null }> | null;
     }>
-  | Readonly<{ kind: 'halted'; ownership: AttemptEnd; host: Host; tab: string; resume: string }>
+  | Readonly<{ kind: 'halted'; ownership: AttemptEnd; host: Host; tab: string; resume: string; attempt: string | null }>
   | Readonly<{ kind: 'closed'; flags: Flags }>
   | Readonly<{ kind: 'advanced'; next: Readonly<{ issue: IssueKey; basis: Basis }> | null }>
   | Readonly<{ kind: 'reported'; issue: IssueKey | null }>
@@ -245,6 +249,7 @@ export type Effect =
       authority: RecoveryAuthority;
       choice: AgentChoice;
     }>
+  | Readonly<{ kind: 'attempt-end'; issue: IssueKey; attempt: string; finish: AttemptFinish }>
   | Readonly<{ kind: 'save-queue'; change: Partial<QueueRecord> }>
   | Readonly<{ kind: 'startup-error'; issue: IssueKey; host: Host; terminal: string; tab: string }>
   | Readonly<{ kind: 'finish-tab'; terminal: string }>
@@ -317,6 +322,10 @@ const logged = (name: string, message: string, issue: IssueKey | null, error: un
 const endRecovery = (issue: IssueKey): Effect => ({ kind: 'end-recovery', issue });
 const finishTab = (terminal: string): Effect => ({ kind: 'finish-tab', terminal });
 const noteLoop = (loop: Loop, change: Partial<RunRecord>): Effect => ({ kind: 'note-loop', loop, change });
+const attemptEnd = (issue: IssueKey, attempt: string | null, finish: AttemptFinish): Effect[] =>
+  attempt === null ? [] : [{ kind: 'attempt-end', issue, attempt, finish }];
+const provedOr = (ownership: AttemptEnd, proved: AttemptFinish): AttemptFinish =>
+  ownership.kind === 'unverified' ? { outcome: 'unverified', code: proved.code, reason: ownership.reason } : proved;
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const emptyQueue = 'queue: empty; Add starts the next issue';
 
@@ -544,16 +553,29 @@ function sessionDone(
   const { session } = end;
   const issue = played(state.issue, fresh, session, code);
   const { number } = issue;
+  const finished = attemptEnd(number, session.owned.id, {
+    outcome: end.saved ? 'exited' : 'no-saved-turn',
+    code,
+    reason: null,
+  });
   if (!end.saved)
-    return fail(
-      number,
-      new HostError('', exits.blocked),
-      end.reported
+    return fail(number, new HostError('', exits.blocked), [
+      ...finished,
+      ...(end.reported
         ? []
-        : [{ kind: 'startup-error', issue: number, host: session.host, terminal: state.terminal, tab: state.tab }],
-    );
+        : [
+            {
+              kind: 'startup-error',
+              issue: number,
+              host: session.host,
+              terminal: state.terminal,
+              tab: state.tab,
+            } as const,
+          ]),
+    ]);
   const loop = cleared(issue.loop);
   return proceed({ ...issue, loop }, state.wait, [
+    ...finished,
     ...(code === exits.done ? [finishTab(state.terminal)] : []),
     noteLoop(issue.loop, { session: null }),
     { kind: 'remove-start' },
@@ -602,9 +624,15 @@ function settle(
   const { number } = issue;
   const signalled = signalledSay(number, ownership);
   if (event.detached) return fail(number, new HostError('', exits.prerequisite), signalled);
+  const finished = attemptEnd(
+    number,
+    session.owned.id,
+    provedOr(ownership, { outcome: 'usage-limit', code: event.ended?.code ?? null, reason }),
+  );
   if (ownership.kind === 'unverified') {
     const line = `${unproved(number, reason, session.host, ownership)} The session stays in the tab ${state.tab}; its native resume from the main checkout: ${resume}`;
     return close(issue, 'stopped', line, unprovedAct, [
+      ...finished,
       ...signalled,
       say(line),
       logged('quota-unverified', `daemon: ${line}`, number),
@@ -617,6 +645,7 @@ function settle(
     retrying: true,
   };
   return proceed({ ...issue, loop }, state.wait, [
+    ...finished,
     ...signalled,
     {
       kind: 'archive',
@@ -640,9 +669,15 @@ function halt(state: IssueSession | UnwatchedSession, event: EventOf<'halted'>):
   const { ownership, host, resume } = event;
   const number = state.scope === 'issue' ? state.issue.number : state.number;
   const signalled = signalledSay(number, ownership);
+  const finished = attemptEnd(
+    number,
+    event.attempt,
+    provedOr(ownership, { outcome: 'stopped', code: null, reason: null }),
+  );
   if (ownership.kind === 'unverified') {
     const line = `${unproved(number, 'stopped by the maintainer.', host, ownership)} Its native resume from the main checkout: ${resume}. ${unprovedStopAct}`;
     const effects: Effect[] = [
+      ...finished,
       ...signalled,
       { kind: 'keep-lock' },
       say(line),
@@ -653,13 +688,24 @@ function halt(state: IssueSession | UnwatchedSession, event: EventOf<'halted'>):
       : stopped(exits.done, line, effects);
   }
   const reason = stoppedLine(number);
-  const effects: Effect[] = [...signalled, { kind: 'set-aside', issue: number }, say(reason)];
+  const effects: Effect[] = [...finished, ...signalled, { kind: 'set-aside', issue: number }, say(reason)];
   if (state.scope === 'unwatched') return stopped(exits.done, reason, effects);
   return close(state.issue, 'stopped', reason, null, [
     ...effects,
     noteLoop(state.issue.loop, { session: null }),
     { kind: 'remove-start' },
     endRecovery(number),
+  ]);
+}
+
+function unwatchedDone(
+  state: UnwatchedSession,
+  code: number | null,
+  end: Extract<SessionEnd, { scope: 'unwatched' }>,
+): Step<'ending'> {
+  return stopped(end.passed, '', [
+    ...attemptEnd(state.number, end.attempt, { outcome: 'exited', code, reason: null }),
+    ...(code === exits.done ? [finishTab(state.terminal)] : []),
   ]);
 }
 
@@ -670,6 +716,10 @@ function observe(record: RunRecord, event: EventOf<'observed'>, run: RunFacts): 
     return stopped(exits.done, 'queue: the queue changed while no daemon ran; this run ends', [
       say('queue: the queue changed while no daemon ran; this run ends'),
     ]);
+  const neverReleased =
+    seen.kind === 'not-started' && seen.neverReleased
+      ? attemptEnd(number, seen.session.owned?.id ?? null, { outcome: 'not-started', code: null, reason: null })
+      : [];
   if (record.stop && (seen.kind === 'no-session' || seen.kind === 'not-started')) {
     const reason = stoppedLine(number);
     const outcome: Outcome = {
@@ -682,6 +732,7 @@ function observe(record: RunRecord, event: EventOf<'observed'>, run: RunFacts): 
       act: null,
     };
     return endIssue(outcome, number, run, [
+      ...neverReleased,
       ...(seen.kind === 'not-started' ? [{ kind: 'close-tab', terminal: seen.session.terminal ?? '' } as const] : []),
       { kind: 'set-aside', issue: number },
       say(reason),
@@ -699,7 +750,11 @@ function observe(record: RunRecord, event: EventOf<'observed'>, run: RunFacts): 
       reason,
       act: 'Fix the cause, then use Try again for the displayed step.',
     };
-    return endIssue(outcome, number, run, [{ kind: 'close-tab', terminal: session.terminal ?? '' }, say(reason)]);
+    return endIssue(outcome, number, run, [
+      ...neverReleased,
+      { kind: 'close-tab', terminal: session.terminal ?? '' },
+      say(reason),
+    ]);
   }
   const session = seen.kind === 'no-session' ? null : seen.session;
   const { input } = record;
@@ -937,9 +992,7 @@ export const on: Table = {
     'session-ended': (state, event) => {
       const { end } = event;
       if (state.scope === 'unwatched')
-        return end.scope === 'unwatched'
-          ? stopped(end.passed, '', event.code === exits.done ? [finishTab(state.terminal)] : [])
-          : astray(state, event.kind);
+        return end.scope === 'unwatched' ? unwatchedDone(state, event.code, end) : astray(state, event.kind);
       if (end.scope === 'unwatched') return astray(state, event.kind);
       return sessionDone(state, state.fresh, event.code, end);
     },
@@ -1010,9 +1063,7 @@ export const on: Table = {
     'session-ended': (state, event) => {
       const { end } = event;
       if (state.scope === 'unwatched')
-        return end.scope === 'unwatched'
-          ? stopped(end.passed, '', event.code === exits.done ? [finishTab(state.terminal)] : [])
-          : astray(state, event.kind);
+        return end.scope === 'unwatched' ? unwatchedDone(state, event.code, end) : astray(state, event.kind);
       if (end.scope === 'unwatched') return astray(state, event.kind);
       return sessionDone(state, false, event.code, end);
     },

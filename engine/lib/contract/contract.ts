@@ -98,6 +98,7 @@ export const marker = (kind: Kind) => `<!-- celetis-before-landing ${kind} -->`;
 export type CommandName =
   | 'agents'
   | 'assist'
+  | 'attempts'
   | 'capscore'
   | 'config'
   | 'coordinator'
@@ -751,6 +752,17 @@ export const commands: readonly Entry[] = [
     `Prints each kept entry of the event record of the user as one JSON line, oldest first; \`--after <id>\` prints only the entries after that entry. \`engine/README.md\`, "The event record", gives the record. It exits ${exits.usage} for a relative \`CELETIS_HOME\`, ${exits.prerequisite} when the record lock is busy, and ${exits.blocked} for an unsafe folder or lock file`,
   ),
   entry(
+    'attempts',
+    true,
+    [
+      form('attempts <n>', [], {
+        ...reads,
+        purpose: 'Reads the attempt record of one issue and prints a table, oldest first.',
+      }),
+    ],
+    `Prints each recorded session attempt of one issue as a table row, oldest first, with its start, end, work, host, model, effort, outcome, and code; an attempt with no end shows \`open\`. It reads only local files of the repository. \`engine/README.md\`, "The attempt record", gives the record. It exits ${exits.usage} for another form, a bad key, or a folder with no Git checkout, and ${exits.blocked} for an unsafe or unreadable folder`,
+  ),
+  entry(
     'config',
     true,
     [
@@ -955,6 +967,7 @@ const hinted: ReadonlySet<CommandName> = new Set([
   'assist',
   'capscore',
   'coordinator',
+  'attempts',
   'events',
   'install',
   'intake',

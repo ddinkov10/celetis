@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { readAgentOrder } from '../agent/order.ts';
 import { beginUsageAttempt, readUsage, recordUsage, type UsageTicket } from '../agent/usage.ts';
+import { attemptModel, recordAttemptEnd, recordAttemptStart } from '../attempt/attempt.ts';
 import { HostError } from '../command/errors.ts';
 import { type CheckoutIdentity, createOperation, type HostSelection, type Operation } from '../command/operation.ts';
 import type { AgentChoice, Config, Host } from '../config/core.ts';
@@ -1192,10 +1193,10 @@ const basisOf = (queue: QueueRecord | null): Basis => ({
   lastHost: explicitHost(queue?.choice) ?? 'claude',
   last: queue?.last ?? null,
 });
-const unwatchedEnded = (code: number | null): EventOf<'session-ended'> => ({
+const unwatchedEnded = (code: number | null, attempt: string | null): EventOf<'session-ended'> => ({
   kind: 'session-ended',
   code,
-  end: { scope: 'unwatched', passed: code === null ? exits.blocked : passOn(code) },
+  end: { scope: 'unwatched', passed: code === null ? exits.blocked : passOn(code), attempt },
 });
 
 async function daemonOf(): Promise<Identity> {
@@ -1235,7 +1236,7 @@ function resumeOf(s: Steered): string {
 
 async function halting(io: Io, s: Steered, barrier: Identity, tab: string): Promise<EventOf<'halted'>> {
   const ownership = await endOwnedAttempt(s.ticket.attempt, io.ownedOf(barrier), io.takeEvidence());
-  return { kind: 'halted', ownership, host: s.host, tab, resume: resumeOf(s) };
+  return { kind: 'halted', ownership, host: s.host, tab, resume: resumeOf(s), attempt: s.owned.id };
 }
 
 async function haltingUnwatched(io: Io, barrier: Identity, n: IssueKey): Promise<EventOf<'halted'>> {
@@ -1250,7 +1251,7 @@ async function haltingUnwatched(io: Io, barrier: Identity, n: IssueKey): Promise
   const ownership: AttemptEnd = owned
     ? await endOwnedAttempt({ ...owned, main: io.place.main }, io.ownedOf(barrier), io.takeEvidence())
     : { kind: 'unverified', reason: 'the session has no attempt marker', running: [], signalled: [] };
-  return { kind: 'halted', ownership, host, tab, resume };
+  return { kind: 'halted', ownership, host, tab, resume, attempt: owned?.id ?? null };
 }
 
 async function starting(_at: StateOf<'starting'>, io: Io): Promise<EventOf<Own['starting']>> {
@@ -1438,6 +1439,7 @@ async function prepareResume(
     plugin,
     stepText: async () => stepText({ issue: n, step: saved.step, host, main, pluginRoot: await plugin(), landing }),
   };
+  const attempt = randomUUID();
   return {
     kind: 'prepared',
     start: {
@@ -1447,7 +1449,17 @@ async function prepareResume(
       args,
       record: saved,
       sessionId: saved.session_id,
-      attempt: randomUUID(),
+      attempt,
+      entry: {
+        id: attempt,
+        issue: n,
+        work: saved.step,
+        start: 'resume',
+        host,
+        model: null,
+        effort: saved.effort,
+        startedAt: Date.now(),
+      },
       session,
     },
   };
@@ -1499,6 +1511,16 @@ async function prepareAssist(
       record: null,
       sessionId,
       attempt,
+      entry: {
+        id: attempt,
+        issue: n,
+        work: 'assist',
+        start: 'new',
+        host,
+        model: null,
+        effort: null,
+        startedAt: Date.now(),
+      },
       session: { plugin: async () => plugin, stepText: null },
     },
   };
@@ -1574,7 +1596,17 @@ async function preparing(at: StateOf<'preparing'>, io: Io): Promise<EventOf<Own[
     capture,
     owned,
   };
-  return { kind: 'prepared', start: { scope: 'issue', args: sessionArgs, facts, attempt, session } };
+  const entry = {
+    id: attempt.id,
+    issue,
+    work: step,
+    start: 'new',
+    host: stepHost,
+    model: attemptModel(stepHost, pair.model, model),
+    effort: applied,
+    startedAt: attempt.startedAt,
+  } as const;
+  return { kind: 'prepared', start: { scope: 'issue', args: sessionArgs, facts, attempt, entry, session } };
 }
 
 async function openUnwatched(
@@ -1583,7 +1615,7 @@ async function openUnwatched(
 ): Promise<EventOf<'barrier-reported'>> {
   const { startSession } = io;
   const n = at.number;
-  const { work, host, args, record, sessionId, attempt, session } = at.start;
+  const { work, host, args, record, sessionId, attempt, entry, session } = at.start;
   const { ended, barrier } = await startSession(
     n,
     work,
@@ -1599,11 +1631,12 @@ async function openUnwatched(
       announced: '',
       ticket: null,
       capture: null,
-      owned: { id: attempt, host, startedAt: Date.now(), sessionId },
+      owned: { id: attempt, host, startedAt: entry.startedAt, sessionId },
     },
     session,
     attempt,
   );
+  await recordAttemptStart(io.place.common, entry);
   return { kind: 'barrier-reported', terminal: io.terminal, tab: io.tab, barrier, exit: ended, ticket: null };
 }
 
@@ -1636,6 +1669,7 @@ async function opening(at: StateOf<'opening'>, io: Io): Promise<EventOf<Own['ope
     throw error;
   }
   if (ticket === undefined) throw new Error('usage: a session started with no usage attempt');
+  await recordAttemptStart(common, at.start.entry);
   return {
     kind: 'barrier-reported',
     terminal: io.terminal,
@@ -1678,7 +1712,9 @@ async function unwatchedEnd(
   io.openStop();
   try {
     const code = await io.sessionEnd(ended);
-    return io.claimStop() ? await haltingUnwatched(io, barrier, n) : unwatchedEnded(code);
+    return io.claimStop()
+      ? await haltingUnwatched(io, barrier, n)
+      : unwatchedEnded(code, io.recorded?.session?.owned?.id ?? null);
   } finally {
     io.claimStop();
   }
@@ -1787,7 +1823,9 @@ async function ended(at: StateOf<'ended'>, io: Io): Promise<EventOf<Own['ended']
   const stop = io.claimStop();
   if (at.scope === 'unwatched') {
     const code = await io.sessionExit(at.session.folder, at.session.barrier);
-    return stop ? haltingUnwatched(io, at.session.barrier, at.number) : unwatchedEnded(code);
+    return stop
+      ? haltingUnwatched(io, at.session.barrier, at.number)
+      : unwatchedEnded(code, at.session.owned?.id ?? null);
   }
   const { sessionExit, observeUsage, usageWarning, locks } = io;
   const { main, common } = io.place;
@@ -1957,8 +1995,16 @@ async function observing(at: StateOf<'observing'>, io: Io): Promise<EventOf<Own[
       terminal: read === 'live' && io.terminal ? io.terminal : null,
     };
     if (read !== 'live') ledger.watchDir = session.folder;
-    if (read === 'missing')
-      return { kind: 'observed', seen: { kind: 'not-started', session }, basis: basisOf(io.queue) };
+    if (read === 'missing') {
+      // A recorded barrier read pid, and ending removes pid first, so pid with no go proves no release.
+      const neverReleased =
+        session.barrier === null ||
+        (await stat(startFiles(session.folder).pid).then(
+          (found) => found.isFile(),
+          () => false,
+        ));
+      return { kind: 'observed', seen: { kind: 'not-started', session, neverReleased }, basis: basisOf(io.queue) };
+    }
     seen = { kind: read, session };
   }
   if (!unwatched(record.input.kind)) {
@@ -1979,8 +2025,10 @@ async function ending(_at: StateOf<'ending'>, io: Io): Promise<EventOf<Own['endi
   if (shared && !detach.signal.aborted) await closeUnreleased();
   else await closeTabs();
   // A released session that still runs reads its step text from the start folder at each turn.
-  if (ledger.watchDir && !(await releasedLive(ledger.watchDir)))
+  if (ledger.watchDir && !(await releasedLive(ledger.watchDir))) {
+    await rm(startFiles(ledger.watchDir).pid, { force: true });
     await rm(ledger.watchDir, { recursive: true, force: true });
+  }
   await clearStepEnd();
   if (io.keepsLock) await locks.release('queue', handOff());
   else await locks.releaseAll(handOff());
@@ -2081,6 +2129,9 @@ export async function perform(effect: Effect, io: Io): Promise<void> {
       return;
     case 'archive':
       await archive(io, effect);
+      return;
+    case 'attempt-end':
+      await recordAttemptEnd(io.place.common, effect.issue, effect.attempt, effect.finish);
       return;
     case 'save-queue':
       await io.saveQueue(effect.change);
