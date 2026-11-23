@@ -8,5 +8,6 @@ gates:
   bug: auto
   chore: auto
   hotfix: auto
+autoLanes: [triage, bug]
 board:
   port: 4404
