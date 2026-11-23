@@ -25,7 +25,7 @@ versions that it serves; a step session starts when the engine serves that versi
 
 There are two kinds of repository:
 
-- The **plugin repository** is this one, `ddinkov10/celetis`. It is private, and it is also the
+- The **plugin repository** is this one, `ddinkov10/celetis`. It is public, and it is also the
   marketplace `celetis` with one plugin, so the id of the plugin is `celetis@celetis`.
 - A **product project** is any repository that uses the plugin. This repository also runs its
   own lanes on its own installed plugin and engine.
@@ -87,7 +87,7 @@ The documents:
   ("First install") on `PATH`. No jq or Perl runtime is needed. On macOS and Linux, the engine starts Bun through `env -S`. The
   `env` of macOS and of GNU coreutils 8.30 or later has `-S`; the `env` of busybox does not.
 - Git credentials for GitHub that need no prompt for an https URL: a credential helper, or a
-  `url.<ssh>.insteadOf` rule and an ssh key. The plugin repository is private, and the first
+  `url.<ssh>.insteadOf` rule and an ssh key. The plugin repository is public, and the first
   install and `celetis update` read it through its https URL.
 - Access to the npm registry, or to the registry of your Bun configuration, when the Bun cache does
   not hold the locked packages of the engine. The first install and `celetis update` install them
@@ -303,7 +303,7 @@ or the board's update control ("Updates").
 
 ### Each machine: Codex only
 
-Use a signed-in Codex CLI and Git credentials that can read this private repository without a
+Use a signed-in Codex CLI and Git access that can read this public repository without a
 prompt. Claude is not required. Add the Git source, then install the plugin:
 
 ```bash

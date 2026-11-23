@@ -2,15 +2,38 @@
 {
   "schema": 1,
   "name": "search-every-record-for-the-clause-that-a-new-record-replaces",
-  "description": "A new ADR missed a record whose Decision held a clause that the change replaced: from the plan alone (ADR-0083 in #283, ADR-0060 in #339), and behind a partial supersede of the same paragraph (ADR-0022 in #353)",
+  "description": "A new ADR missed a record whose Decision held a clause that the change replaced: from the plan alone (ADR-0083 in #283, ADR-0060 in #339), behind a partial supersede of the same paragraph (ADR-0022 in #353), and from a search of literal words only (ADR-0012 and ADR-0029 in #385)",
   "tags": [
     "process",
     "recurring"
   ],
-  "date": "2026-11-10",
+  "date": "2026-11-23",
   "status": "active",
-  "source": "The implement session of #353 on Claude Code, final whole-branch review, 2026-11-20\n\nThe implement session of #339 on Claude Code, final whole-branch review, 2026-11-18\n\nFinal review of ddinkov10/celetis#283 (commit dce0477)",
+  "source": "The implement session of #385 on Claude Code, final whole-branch review, 2026-11-23\n\nThe implement session of #353 on Claude Code, final whole-branch review, 2026-11-20\n\nThe implement session of #339 on Claude Code, final whole-branch review, 2026-11-18\n\nFinal review of ddinkov10/celetis#283 (commit dce0477)",
   "incidents": [
+    {
+      "id": "ae9c7a08-73be-4a28-a423-7a966ffbc69e",
+      "date": "2026-11-23",
+      "action": "Commit 25a81b8 wrote the Supersedes section of ADR-0135 from searches for test.yml, CI runs, Pages → Source, and is private.",
+      "expected": "The active rule requires that no decision clause which the change makes false stays unnamed by the new record.",
+      "observed": "The final review found ADR-0012:332 \"It lives in the private repository\" and ADR-0029:239 \"The workflow runs on the push to `main`\", which the searches did not match and the record did not name.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "ADR-0135 misses two clauses that this change makes false: 0012:332 and 0029:238",
+        "reference": "https://github.com/ddinkov10/celetis/issues/385"
+      },
+      "inference": "Inferred: the search followed the literal words of the removed lines, and the same fact can have other wording in older records. The session can also have stopped its search early; the evidence does not separate these causes.",
+      "diagnosis": [
+        "wrong-or-incomplete-rule"
+      ],
+      "revision": "25a81b8",
+      "brief": "The Task 2 brief of the #385 plan carried this rule with its digest.",
+      "lesson": {
+        "name": "search-every-record-for-the-clause-that-a-new-record-replaces",
+        "revision": "15d7692",
+        "digest": "736772ceba747df6603a47e72464800d17ae9839297335ca1095e87bb5dfc794"
+      }
+    },
     {
       "id": "2fb3e8fd-8807-43c9-b525-b155c93cddad",
       "date": "2026-11-20",
@@ -76,7 +99,7 @@
       "revision": "dce0477"
     }
   ],
-  "recurrences": 2,
+  "recurrences": 3,
   "reviews": [
     {
       "id": "3f0c6a2e-8b14-4d7a-9e51-6c2d7b9a1f03",
@@ -121,6 +144,21 @@
         "state": "not-needed",
         "detail": "No new structural follow-up: which sentence of a clause states a decision needs a reading. The proposed follow-up of review fba09d47-8372-4706-9a40-dd27c5b0060a stays as it is."
       }
+    },
+    {
+      "id": "441d15d0-0a4c-4ef3-a83b-21a72f976578",
+      "requestDigest": "7e08630a7667477e3fddc931d710976b4777eb86448ac9f20dcaf2304f7c7ded",
+      "date": "2026-11-23",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #385; claude child opus/high\n\nMerge: the active lesson search-every-record-for-the-clause-that-a-new-record-replaces states the same rule, and the incident names it as examined and incomplete. The survivor keeps the incident and adds the search of each other wording of the replaced fact.",
+      "related": [
+        "search-each-wording-of-a-fact-that-a-record-replaces",
+        "search-every-record-for-the-clause-that-a-new-record-replaces"
+      ],
+      "followUp": {
+        "state": "not-needed",
+        "detail": "The rule stays text, because which wordings state one fact is a judgment."
+      }
     }
   ]
 }
@@ -135,6 +173,8 @@ In #339 (2026-11-18), Task 2 wrote ADR-0111. Plan step 3 named three literals to
 
 In #353 (2026-11-20), Task 3 wrote ADR-0119, which moves the gate tools into `engine/bun.lock`. A search of `docs/adr/` for "pins in one file" matched ADR-0022 line 140. ADR-0029 already has a Supersedes item for "The pins in one file", and the session left ADR-0022 out of `## Supersedes` (commit 39e35e6). That item of ADR-0029 names only the `tests/lib/tools.txt` and "CI installs" sentences. The final whole-branch review found that the sentences "A missing tool fails the gate with one line that names its package. A version that differs from its pin prints a warning and does not fail." stayed active, and the change makes them false: commit e8829dc removed the pin warning of `scripts/verify.ts` for Biome, TypeScript, and the Bun types, and only `actionlint` keeps a warning. Fix commit a83072a added ADR-0022 to `## Supersedes`, and the index then listed ADR-0119 in the row of ADR-0022.
 
+In #385 (2026-11-23), commit 25a81b8 wrote ADR-0135, which replaces the facts that the repository is private and that a workflow runs the gate on each push. The session searched the records for `test.yml`, `CI runs`, `Pages → Source`, and `is private`. The final whole-branch review found two more decision clauses that the change made false: ADR-0012 line 332, "It lives in the private repository", and ADR-0029 line 239, "The workflow runs on the push to `main`". Fix commit dce764c named both in `## Supersedes`.
+
 ## Root cause
 
 Inferred for #283: the record was written from the list of the plan, with no search of the record store for the literal of each replaced clause. The plan said "at least ADR-0085", which can read as a complete list. The evidence does not show which cause dominated.
@@ -143,13 +183,15 @@ Inferred for #339: the task brief carried this rule, and the session took its li
 
 Inferred for #353: the session took the earlier Supersedes item of ADR-0029 on the same paragraph as coverage of every sentence of it, and did not compare the sentences. Also inferred: the rule took its literals only from removed lines of agent text and documents, and the replaced behavior was a removed code line (the pin warning of `scripts/verify.ts`), so no document literal pointed at the warning sentence. Alternative: the session did not apply the rule to a match that it had found. The evidence does not separate the causes.
 
+Inferred for #385: the search took its terms from the wording of the removed lines, and an older record can state the same fact in other words. The session can also have ended its search early. The evidence does not separate the two causes.
+
 ## Fix
 
-Proposed: before the record is committed, derive the literals that the decision replaces from each line that the diff of the change removes or changes in agent text, in a document, or in code that carries a recorded behavior (a printed line, a refusal, a warning), add the literals that the plan names, search each record file for each literal, and classify each match as replaced in part, context, or unchanged. For a match in a clause that a later record already supersedes in part, read the sentences that the later Supersedes item names, and classify each other sentence of the clause on its own. A structural check is not proposed: which words of a changed line are a decision literal, whether a match is a clause or only evidence, and which sentence of a clause states a decision need a reading. A possible check that prints, for a new record, the records whose decision text holds a sentence that the diff of the same branch removed from an agent file, is a separate follow-up and is not authorized here.
+Proposed: before the record is committed, derive the literals that the decision replaces from each line that the diff of the change removes or changes in agent text, in a document, or in code that carries a recorded behavior (a printed line, a refusal, a warning), add the literals that the plan names, search each record file for each literal, and classify each match as replaced in part, context, or unchanged. For a match in a clause that a later record already supersedes in part, read the sentences that the later Supersedes item names, and classify each other sentence of the clause on its own. Write the replaced fact as a statement first, and list its likely wordings (the adjective and the noun form, the subject and the verb), because an older record can state the same fact in other words. A structural check is not proposed: which words of a changed line are a decision literal, whether a match is a clause or only evidence, and which sentence of a clause states a decision need a reading. A possible check that prints, for a new record, the records whose decision text holds a sentence that the diff of the same branch removed from an agent file, is a separate follow-up and is not authorized here.
 
 ## Rule
 
-Applies when a new decision record replaces part of earlier decisions (a path, a name, a value, a behavior, or a rule). Action: list each literal that the decision replaces, from each removed or changed line of the diff of the change (agent text, documents, and code lines that carry a recorded behavior, for example a printed warning or a refusal) and from the plan or brief, not from the plan or brief alone; search every record file for each one, and add each record whose decision clause holds a match to `## Supersedes`; a match in evidence or context stays out, with its reason. When another record already supersedes the matched clause in part, that earlier item covers only the sentences that it names: compare each other sentence of the clause with the new decision. Check: for each line that the diff removes or changes, the search of its decision literals over the record store finds no decision clause that the new record neither supersedes nor names as unchanged, and each sentence of each matched clause is named by an earlier Supersedes item, named by the new record, or true after the change.
+Applies when a new decision record replaces part of earlier decisions (a path, a name, a value, a behavior, or a rule). Action: list each literal that the decision replaces, from each removed or changed line of the diff of the change (agent text, documents, and code lines that carry a recorded behavior, for example a printed warning or a refusal) and from the plan or brief, not from the plan or brief alone; add each other wording of the same fact, for example both `is private` and `private repository`, and both the name of a workflow and the phrase `workflow runs`; search every record file for each one, and add each record whose decision clause holds a match to `## Supersedes`; a match in evidence or context stays out, with its reason. When another record already supersedes the matched clause in part, that earlier item covers only the sentences that it names: compare each other sentence of the clause with the new decision. Check: the report lists the wordings that were searched; for each line that the diff removes or changes, the search of its decision literals and their other wordings over the record store finds no decision clause that the new record neither supersedes nor names as unchanged, and each sentence of each matched clause is named by an earlier Supersedes item, named by the new record, or true after the change.
 
 ## Related lessons
 

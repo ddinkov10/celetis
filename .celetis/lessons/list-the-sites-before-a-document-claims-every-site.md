@@ -2,7 +2,7 @@
 {
   "schema": 1,
   "name": "list-the-sites-before-a-document-claims-every-site",
-  "description": "Universal claims went past their evidence: ADR-0081 claimed one exception where the code has two, a #263 ruling scoped a two-file diff claim wider than its command, an ADR-0091 summary line dropped an exception of its own Decision, and a #304 controller brief gave four presses a timeout that only one has",
+  "description": "Universal claims went past their evidence: ADR-0081 claimed one exception where the code has two, a #263 ruling scoped a two-file diff claim wider than its command, an ADR-0091 summary line dropped an exception of its own Decision, a #304 controller brief gave four presses a timeout that only one has, and #385 recorded an exception in one document and kept the absolute claim in two others",
   "tags": [
     "process",
     "refix",
@@ -10,10 +10,33 @@
     "false-negative",
     "recurring"
   ],
-  "date": "2026-11-11",
+  "date": "2026-11-23",
   "status": "active",
-  "source": "The implement session of ddinkov10/celetis#304 on Claude Code, task review of Task 3 (the decision record ADR-0099), 2026-11-11\n\nTask 4 review of ddinkov10/celetis#283 (commit 45fa8c9)\n\nTask 6 review of ddinkov10/celetis#263\n\nFinal review of ddinkov10/celetis#256 and its scoped re-review",
+  "source": "The implement session of #385 on Claude Code, final whole-branch review, 2026-11-23\n\nThe implement session of ddinkov10/celetis#304 on Claude Code, task review of Task 3 (the decision record ADR-0099), 2026-11-11\n\nTask 4 review of ddinkov10/celetis#283 (commit 45fa8c9)\n\nTask 6 review of ddinkov10/celetis#263\n\nFinal review of ddinkov10/celetis#256 and its scoped re-review",
   "incidents": [
+    {
+      "id": "a21ae5e6-b989-46b4-9b10-ad1c92b2156f",
+      "date": "2026-11-23",
+      "action": "Commit 25a81b8 stated that GitHub Actions runs only the documentation deploy, in AGENTS.md, PRODUCT.md, and ADR-0135, after the session had listed five other active workflows.",
+      "expected": "The active rule requires a claim that holds for each listed site, or that names each exception.",
+      "observed": "ADR-0135 said that the five workflows cannot start, and the final review showed the re-run, new-file, and fork-pull-request paths. AGENTS.md and PRODUCT.md kept the absolute claim.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "The claim that GitHub Actions runs only the documentation deploy is false as an absolute.",
+        "reference": "https://github.com/ddinkov10/celetis/issues/385"
+      },
+      "inference": "Inferred: the session added the exception as a new bullet and did not return to the sentences that the exception limits. It also tested only the current refs. Other causes are possible.",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "25a81b8",
+      "brief": "The Task 2 brief of the #385 plan carried this rule with its digest.",
+      "lesson": {
+        "name": "list-the-sites-before-a-document-claims-every-site",
+        "revision": "15d7692",
+        "digest": "41e4df60b14b672fac0b7f3064083a4b34bec395f0c69c63609255e6e55a8b5d"
+      }
+    },
     {
       "id": "e539afe9-57b2-4486-a0b2-948bac15003e",
       "date": "2026-11-11",
@@ -101,7 +124,7 @@
       "revision": "d4c8ad1138dd47a82254de94f728647ce9de3cc5"
     }
   ],
-  "recurrences": 3,
+  "recurrences": 4,
   "reviews": [
     {
       "id": "2a530405-b476-4943-bcc6-863be4f41ee1",
@@ -161,6 +184,21 @@
         "state": "not-needed",
         "detail": "The rule stays text: which sites have a property needs a read of the code, which a gate cannot express for prose."
       }
+    },
+    {
+      "id": "30266821-3309-4128-90ae-96b927f92213",
+      "requestDigest": "3ca8f657d0c26976b185e3a77fd51d19093dcd43dfad6c939429998f90a5f542",
+      "date": "2026-11-23",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #385; claude child opus/high\n\nMerge: the active lesson list-the-sites-before-a-document-claims-every-site states the same rule, and the incident names it as examined and not followed. The survivor keeps the incident, and adds the correction of each sentence after a found exception and the list of paths before a claim that something cannot happen.",
+      "related": [
+        "correct-each-claim-when-a-check-finds-an-exception",
+        "list-the-sites-before-a-document-claims-every-site"
+      ],
+      "followUp": {
+        "state": "not-needed",
+        "detail": "The rule stays text, because whether an exception limits a sentence is a judgment."
+      }
     }
   ]
 }
@@ -177,6 +215,8 @@ In #283, the first Consequences bullet of ADR-0091 said "the whole engine is in 
 
 In the implement session of #304, the task review of Task 1 recorded a risk: with a slow Herdr app, a New intake press with no space can pass the 10-second page timeout. The controller carried that risk into the brief of Task 3 for four presses (New intake, Assist, Make visual, Open shell), and the implementer wrote the four presses into ADR-0099. The task review of Task 3 confirmed the timeout only for New intake. The code sets a timeout only at `engine/board/page/board.ts:153`; Assist, Open shell, and Make visual call `post` with no options, and `post` sets a timer only with options (`engine/board/page/ui.ts`). The fix round corrected the record.
 
+In #385, commit 25a81b8 wrote in `AGENTS.md`, `PRODUCT.md`, and ADR-0135 that GitHub Actions runs only the documentation deploy. The same commit listed five other active workflows in ADR-0135 and said that they cannot start. `AGENTS.md` and `PRODUCT.md` kept the absolute claim. The final review showed three paths that still start a workflow: a re-run of an old run, a new branch with a workflow file, and a fork pull request. Fix commit dce764c corrected the three documents.
+
 ## Root cause
 
 Inferred, not proven: each writer generalized from the sites in view and did not list every call site or error path from the code before writing a universal claim. Alternative: the plan text framed the first claim.
@@ -187,10 +227,12 @@ In #283, inferred: a summary sentence restated the goal (one folder) and dropped
 
 In #304, inferred, not proven: the four presses share the open path of `openTab`, so the controller assumed that they share the page timeout too, and did not list the sites of the timeout. Alternative: the controller took the list from the plan's list of tabs that a person opens. The rule was in the plan that the controller read; uncertain whether the controller read its own brief as a document that the rule covers.
 
+In #385, inferred, not proven: the session added the exception as a new bullet and did not return to the sentences that the exception limits, and it judged "cannot start" from the current branches and tags only. Other causes are possible. The brief of Task 2 carried this rule.
+
 ## Fix
 
-Proposed, needs no structural change: before a document states a property of every site, or names the only exception, list the sites from the code (for example a grep of the callers or of each method's error path) and the recorded results, and write the claim from that list. For a claim about the files that two commits differ in, run `git diff --name-only` with no path filter, or write the claim with the path scope of the command. A summary line (a Consequences bullet, a status line) that says a component is whole, complete, or in one place is such a claim too: compare it with each exception that the same text or its source keeps. A controller that turns a review finding into a brief claim names only the sites that the finding or a read of the code shows. This stays text: which sites a claim covers needs judgment that no gate can check.
+Proposed, needs no structural change: before a document states a property of every site, or names the only exception, list the sites from the code (for example a grep of the callers or of each method's error path) and the recorded results, and write the claim from that list. For a claim about the files that two commits differ in, run `git diff --name-only` with no path filter, or write the claim with the path scope of the command. A summary line (a Consequences bullet, a status line) that says a component is whole, complete, or in one place is such a claim too: compare it with each exception that the same text or its source keeps. A controller that turns a review finding into a brief claim names only the sites that the finding or a read of the code shows. When a check finds an exception to a claim that the task already wrote, search the changed documents for the claim and rewrite each match in the same edit. A statement that something cannot happen is such a claim: list each path that could cause it first. This stays text: which sites a claim covers needs judgment that no gate can check.
 
 ## Rule
 
-Applies when a document, an ADR, a ruling, a brief, or a report states that every site, call, path, or file has a property, that a component is whole, complete, or in one place, names the one exception, or states which files two commits differ in; a summary line such as a Consequences bullet counts, and so does a brief or a ruling that carries a review finding or a plan fact to more sites than its source names. Action: list each site from the code and the recorded results before writing the sentence, and write the claim so that it holds for each listed site, or name each exception, and name each site that is not checked; for a summary line, compare the claim with each exception that the same text or its source keeps; for a diff, take the file list from a diff with no path filter, or write the claim with the same path scope as the command (for example "no agent-text file differs"). Check: a reader can map each site of the list to the sentence, no exception of the same text or its source contradicts the sentence, and a grep of the sites, or the command of the claim rerun with the scope that the sentence states, finds none that the sentence does not cover.
+Applies when a document, an ADR, a ruling, a brief, or a report states that every site, call, path, or file has a property, that a component is whole, complete, or in one place, names the one exception, states that something cannot happen, or states which files two commits differ in; a summary line such as a Consequences bullet counts, and so does a brief or a ruling that carries a review finding or a plan fact to more sites than its source names. Action: list each site from the code and the recorded results before writing the sentence, and write the claim so that it holds for each listed site, or name each exception, and name each site that is not checked; for a summary line, compare the claim with each exception that the same text or its source keeps; for a diff, take the file list from a diff with no path filter, or write the claim with the same path scope as the command (for example "no agent-text file differs"); for a statement that something cannot happen, list each path that could cause it; when a check finds an exception to a claim that the task already wrote, search the changed documents for each sentence of that claim and correct each one in the same edit. Check: a reader can map each site of the list to the sentence, no exception of the same text or its source contradicts the sentence, the diff holds no sentence that an exception found by a check contradicts, and a grep of the sites, or the command of the claim rerun with the scope that the sentence states, finds none that the sentence does not cover.

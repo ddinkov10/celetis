@@ -57,7 +57,8 @@ window.
 ## Verify gate
 
 `scripts/verify.ts` is the verify gate and the only check of this repository. Its last line is
-`verify: PASS`. CI runs it on Bun 1.4.4.
+`verify: PASS`. The `merge` landing runs it as its suite. The workflow `test.yml` holds the same
+check on Bun 1.4.4, and it is disabled (ADR-0135).
 
 Add no test to the repository. The gate refuses a tracked test file (ADR-0029).
 
@@ -241,8 +242,8 @@ The lanes of this repository are the skills of the plugin itself, on the issues 
 (`landing` in `.celetis.yaml`): a build step runs the verify gate locally, then ends
 with `celetis --agent <host> land <n> '<subject>'`, which runs `suite` (`scripts/verify.ts`) on the commit that it lands and puts one squash commit on `main` without a PR.
 The landing is the last act of a change: this repository deploys only its documentation site, with
-`.github/workflows/docs.yml` on each push to `main`. The repository is private, so that deploy job
-fails until the maintainer makes the repository public and sets the Pages source (ADR-0122).
+`.github/workflows/docs.yml` on each push to `main`. The repository is public, the site is at
+`https://ddinkov10.github.io/celetis/`, and `docs.yml` is the only enabled workflow on `main` (ADR-0135).
 A release is a separate act of the maintainer: `scripts/release.ts <X.Y.Z>` (`scripts/README.md`, "The release"; ADR-0118).
 The manifests on `main` hold no `version`: a `version` there stops each machine that follows `main` at that copy.
 For installation changes, follow `plugins/celetis/README.md`, "Updates".

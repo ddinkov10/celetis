@@ -148,7 +148,7 @@ place, so a document needs no header and no change, and a new document in a publ
 with no edit of the site. A link from a document to a file outside the published homes, for example
 an ADR or `AGENTS.md`, opens that file on GitHub. The workflow `.github/workflows/docs.yml` builds
 the site and deploys it to GitHub Pages on each push to `main`; it needs a public repository or a
-plan with Pages, and the maintainer sets **Pages → Source** to **GitHub Actions** once. The skill
+plan with Pages, GitHub Actions turned on, and **Pages → Source** set to **GitHub Actions**. The skill
 `docs-site` writes the same files into a product project. The verify gate installs no package of
 the site and builds nothing of it, so a document with a broken link lands, and its deploy fails
 after the landing. The failure shows only in GitHub Actions
@@ -285,9 +285,9 @@ which `celetis --agent <host> events` reads
 ([the workflow document](../../plugins/celetis/docs/workflow.md#start-the-script);
 [the engine document](../../engine/README.md#the-event-record)).
 
-**Checks.** The verify gate `scripts/verify.ts` is the only check of this repository, and CI runs it
-([the scripts document](../../scripts/README.md#the-verify-gate)). Besides the type, format, and
-plugin checks, it checks the citations and links of the agent text, the contract, the import rules,
+**Checks.** The verify gate `scripts/verify.ts` is the only check of this repository, and the
+`merge` landing runs it ([the scripts document](../../scripts/README.md#the-verify-gate)).
+Besides the type, format, and plugin checks, it checks the citations and links of the agent text, the contract, the import rules,
 the contract version, and the layout of `engine/lib/`
 ([`AGENTS.md`](../../AGENTS.md), "Verify gate" and "The engine layout"). A check that needs the Herdr
 app or the hc core runs in a lab of `scripts/herdr-lab.ts`, away from the window of the maintainer

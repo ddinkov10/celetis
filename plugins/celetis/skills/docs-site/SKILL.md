@@ -62,7 +62,8 @@ Read `<plugin>/skills/docs-site/site.md` before step 3.
    ("Existing files"). Do not push, and
    change no setting of the repository.
 6. **Report** each written file, the URL, and the step of the maintainer: in the settings of the
-   repository on GitHub, set **Pages → Source** to **GitHub Actions**. Name the risk that the
+   repository on GitHub, turn on GitHub Actions when it is off, and set **Pages → Source** to
+   **GitHub Actions**. Name the risk that the
    verify gate of the product can refuse the new files (for example a check of each tracked
    TypeScript file or of each package). Name the missing line of `README.md` when the skill did
    not edit it.

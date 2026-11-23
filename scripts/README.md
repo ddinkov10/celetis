@@ -76,6 +76,7 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
 The workflow `test.yml` has one job, `test`, on Linux. It installs the locked packages of the
 engine, the gate tools and the packages of the board page too, with `scripts/worktree-setup.ts`,
 then `actionlint` and Claude Code with `scripts/install-tools.ts`, then runs the verify gate.
+The workflow is disabled in this repository (ADR-0135), so it does not run.
 
 The workflow `docs.yml` builds the site of `website/` and deploys it to GitHub Pages on each push
 to `main`. It is no check of a change.

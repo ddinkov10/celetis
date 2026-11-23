@@ -105,9 +105,10 @@ agent that waits.
   board.
 - `engine/board/fonts/`: Geist and Geist Mono with `OFL.txt`.
 
-The repository is private. Its only deployment is the documentation site (`.github/workflows/docs.yml`,
-ADR-0122), which is not public until the maintainer makes the repository public and sets the Pages
-source. It has no customers, testimonials, pricing, or usage metrics. Future work must not invent them.
+The repository is public. Its only deployment is the documentation site at
+`https://ddinkov10.github.io/celetis/` (`.github/workflows/docs.yml`, ADR-0122). GitHub Actions does
+not run the verify gate (ADR-0135). It has no customers, testimonials, pricing, or usage metrics.
+Future work must not invent them.
 
 ## Product Principles
 
