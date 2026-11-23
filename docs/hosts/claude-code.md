@@ -117,6 +117,12 @@ names its model in `resolvedModel` and has no `effort` field (#367).
 - 2.1.299 is the floor: the hook reads the `skill.prompt` fields `source`, `pluginName`, and
   `path`, which came in that release (`plugins/celetis/README.md`, "Requirements").
 - 2.1.312 is the release on which the facts entry was built (#105).
+- 2.1.330, observed with a private home on 2026-11-23 (#370): a new session with no reload loads
+  the install record. The `reload_plugins` control request loads the copy at the `HEAD` of the
+  marketplace clone, also a detached `HEAD`. `claude plugin update` refreshes a registered Git
+  marketplace to its branch head before it installs. `claude plugin marketplace update` replaces a
+  detached clone with a clone at the branch head, and keeps a local change when the clone is already
+  at that head. A reload loads a local change of the clone.
 - `plugins/celetis/docs/workflow.md`, "Acceptance status", separates observed versions from open checks.
 
 ## The module index

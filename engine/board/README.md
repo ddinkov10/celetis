@@ -132,7 +132,7 @@ starts the daemon in the main checkout from each checkout of the repository, and
 **Check for updates** starts discovery in one press. **Checking…** retains focus and ignores
 another press. **Up to date** reports that the installed engine and registered plugins match
 the configured target of each part: the head of its branch, or the newest release of its source for
-a part that follows a release. It does not mean that an open agent session has reloaded new code.
+a part that follows a release. The Claude marketplace clone is also at that target. It does not mean that an open agent session has reloaded new code.
 **Restart needed** (below) shows a daemon that runs another engine than the installed one. Press
 **Up to date** for a fresh check. Progress and results use the polite status region,
 without a success toast or current-result dialog. A check does not refresh issues or approve

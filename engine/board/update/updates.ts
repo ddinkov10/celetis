@@ -10,6 +10,7 @@ import { engineSource, installedEngine, readEngine } from '../../lib/install/ins
 import { bunArgs, childEnv } from '../../lib/process/process.ts';
 import { containProcess, type Job } from '../../lib/process/windows.ts';
 import { recordEvent } from '../../lib/state/events.ts';
+import { pendingParts } from '../../lib/update/pending.ts';
 import type { PreparedUpdate, UpdateCheck, UpdateResult } from '../../lib/update/updater.ts';
 import type { BoardOffer, UpdateStage, UpdateView } from '../types.ts';
 import { isUpdateCheck, isUpdateResult, isWorkerRecord, UPDATE_PIPE_LIMIT } from './worker.ts';
@@ -33,12 +34,6 @@ class WorkerFailure extends Error {
 
 type Worker = { done: Promise<UpdateCheck | UpdateResult>; stop(reason: string): void };
 type Component = 'engine' | PluginHost;
-const pendingParts = (offer: PreparedUpdate): Component[] => [
-  ...offer.plugins
-    .filter((plugin) => plugin.installed !== plugin.target || plugin.resolvedRef !== plugin.to)
-    .map((plugin) => plugin.host),
-  ...(offer.engine.source.revision !== offer.target ? (['engine'] as const) : []),
-];
 
 function worker(
   mode: 'check' | 'apply',

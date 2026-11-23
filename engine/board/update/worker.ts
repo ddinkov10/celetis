@@ -57,6 +57,7 @@ export function isPreparedUpdate(value: unknown): value is PreparedUpdate {
         plugin.layer === null &&
         sha(plugin.installed) &&
         sha(plugin.target) &&
+        (plugin.clone === undefined || (plugin.host === 'claude' && sha(plugin.clone))) &&
         (plugin.scope === undefined || text(plugin.scope)) &&
         strings(plugin.siblings),
     ) && new Set(value.plugins.map((plugin) => plugin.host)).size === value.plugins.length
@@ -71,6 +72,7 @@ function isParts(value: unknown): boolean {
       (entry) =>
         object(entry) &&
         part(entry.part) &&
+        (entry.clone === undefined || (entry.part === 'claude' && sha(entry.clone))) &&
         (text(entry.error) ||
           text(entry.skipped) ||
           (['root', 'source', 'ref'].every((key) => text(entry[key])) &&

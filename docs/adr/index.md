@@ -152,3 +152,4 @@ gate refused a repeated number, and they keep their files.
 | [0131](0131-the-operations-screen-renders-in-react.md) | The Operations screen renders in React | [0114](0114-the-engine-library-groups-its-files-into-feature-folders.md), [0123](0123-the-board-page-runs-on-react-with-a-locked-build.md) | [0133](0133-the-queue-and-the-agent-order-render-in-react.md) |
 | [0132](0132-the-coordinator-panel-renders-in-react.md) | The coordinator panel renders in React |  |  |
 | [0133](0133-the-queue-and-the-agent-order-render-in-react.md) | The queue and the agent order render in React | [0131](0131-the-operations-screen-renders-in-react.md) |  |
+| [0134](0134-the-update-pins-the-claude-marketplace-clone.md) | The update pins the Claude marketplace clone |  |  |

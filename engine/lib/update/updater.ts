@@ -39,6 +39,7 @@ import { installRecorder, markDefect } from '../state/events.ts';
 import { revision } from '../state/fields.ts';
 import { writeAtomic } from '../state/state.ts';
 import { UpdateLock, withPluginRead } from './lock.ts';
+import { partDiffers, pendingParts } from './pending.ts';
 import { followTarget, fullRef, newestTarget, requestTarget, resolveRef } from './target.ts';
 import type { UpdateStage } from './types.ts';
 
@@ -52,6 +53,7 @@ export type Installation = {
   source: string;
   ref: string;
   installed: string;
+  clone?: string;
   scope?: string;
   registered?: unknown;
   user: Readonly<{ path: string; source: Record<string, unknown> }> | null;
@@ -63,7 +65,7 @@ export type Part =
   | { part: 'engine' | PluginHost; skipped: string }
   | { part: 'engine' | PluginHost; error: string }
   | ({ part: 'engine' } & Offer & { to: string })
-  | ({ part: PluginHost } & UpdateTarget & { ref: string; to: string });
+  | ({ part: PluginHost } & UpdateTarget & { ref: string; to: string; clone?: string });
 export type PreparedUpdate = {
   parts: Part[];
   engine: { installed: Engine; source: EngineSource; to: EngineSource };
@@ -188,8 +190,43 @@ async function claudeRegistrations(records: unknown, scope: unknown, version: un
   return matches;
 }
 
+const clonePlace = (location: string) => [`--git-dir=${join(location, '.git')}`, `--work-tree=${location}`];
+
+async function cloneRevision(location: string): Promise<string> {
+  let head: string;
+  let changes: string;
+  try {
+    head = await git([...clonePlace(location), 'rev-parse', '--verify', 'HEAD'], location);
+    if (!revision.test(head)) throw new Error(`invalid HEAD ${head}`);
+    changes = await git([...clonePlace(location), 'status', '--porcelain', '--untracked-files=normal'], location);
+  } catch (error) {
+    const [first, reason] = (error as Error).message.split('\n');
+    throw new HostError(
+      `update: cannot read the Claude marketplace clone ${location}: ${reason || first}; repair: claude plugin marketplace update celetis`,
+      exits.prerequisite,
+    );
+  }
+  // A plugin reload copies the working tree, and `claude plugin marketplace update` keeps a change at the branch head.
+  if (changes)
+    throw new HostError(
+      `update: the Claude marketplace clone ${location} has local changes (${changes.split('\n')[0]?.trim()}); to discard them, run git -C "${location}" reset --hard and git -C "${location}" clean -fd, then run celetis update again`,
+      exits.prerequisite,
+    );
+  return head;
+}
+
+// An inline `settings` record, which a stopped update can leave behind, has no clone.
+const nativeClone = async (record: unknown): Promise<string | undefined> =>
+  object(record) &&
+  typeof record.installLocation === 'string' &&
+  object(record.source) &&
+  (record.source.source === 'git' || record.source.source === 'github')
+    ? cloneRevision(record.installLocation)
+    : undefined;
+
 async function installation(host: PluginHost, cwd: string): Promise<[Installation, PolicyRecord[]]> {
   const home = await bindUpdateHome(host);
+  let clone: string | undefined;
   let siblings: string[] = [];
   let user: Installation['user'] = null;
   let policies: PolicyRecord[] = [];
@@ -274,6 +311,7 @@ async function installation(host: PluginHost, cwd: string): Promise<[Installatio
       }
     }
     installed = await installedRevision(host, root, configured.source, nativeRevision);
+    clone = await nativeClone(nativeMarket);
   } else {
     const metadata = await codexPlugin(cwd);
     root = metadata.root;
@@ -314,6 +352,7 @@ async function installation(host: PluginHost, cwd: string): Promise<[Installatio
       home,
       source: configured.source,
       installed,
+      ...(clone ? { clone } : {}),
       root: await realpath(root),
       ref: configured.ref,
       scope,
@@ -397,8 +436,8 @@ async function inspectPlugin(
   });
 }
 
-function pluginPart({ host, home, root, source, resolvedRef, to, installed, target }: PluginUpdate): Part {
-  return { part: host, home, root, source, ref: resolvedRef, to, installed, target };
+function pluginPart({ host, home, root, source, resolvedRef, to, installed, target, clone }: PluginUpdate): Part {
+  return { part: host, home, root, source, ref: resolvedRef, to, installed, target, ...(clone ? { clone } : {}) };
 }
 
 const slow: typeof run = (file, args, options) =>
@@ -563,11 +602,7 @@ export async function inspectUpdate(cwd: string, request: string | null = null):
   const { parts, prepared, error } = await discoverUpdate(cwd, request);
   return {
     parts,
-    offer: prepared?.parts.some(
-      (part) => 'installed' in part && (part.installed !== part.target || part.ref !== part.to),
-    )
-      ? prepared
-      : null,
+    offer: prepared?.parts.some((part) => 'installed' in part && partDiffers(part)) ? prepared : null,
     error,
   };
 }
@@ -660,7 +695,15 @@ async function moveClaude(
       `update: the Claude marketplace record in ${registryPath} does not follow ${name} after the add: ${JSON.stringify(registered)}`,
       exits.blocked,
     );
-  return { ...target, ref: name, resolvedRef: target.to, user: { path: user.path, source }, registered };
+  const clone = await nativeClone(registered);
+  return {
+    ...target,
+    ref: name,
+    resolvedRef: target.to,
+    user: { path: user.path, source },
+    registered,
+    ...(clone ? { clone } : {}),
+  };
 }
 
 async function moveCodex(
@@ -805,87 +848,117 @@ async function updatePlugin(
           env,
         });
         operation = 'prepare native target';
-        const action = join(scratch, 'target.json');
-        const catalog = {
-          name: 'celetis',
-          owner: { name: 'Celetis' },
-          plugins: [
-            {
-              name: 'celetis',
-              source: {
-                source: 'git-subdir',
-                url: target.source,
-                path: 'plugins/celetis',
-                ...(details.ref === 'HEAD' ? {} : { ref: details.ref }),
-                sha: target.target,
+        if (details.clone !== target.target) {
+          operation = 'claude marketplace clone pin';
+          const pin: typeof run = (file, args, options) =>
+            execute(file, args, {
+              ...options,
+              env: {
+                ...env,
+                GIT_TERMINAL_PROMPT: '0',
+                GCM_INTERACTIVE: 'false',
+                GIT_ASKPASS: '',
+                SSH_ASKPASS_REQUIRE: 'never',
               },
-            },
-          ],
-        };
-        const inline = { source: 'settings', ...catalog };
-        const staged = { ...original, source: inline, installLocation: scratch, autoUpdate: false };
-        await mkdir(join(scratch, '.claude-plugin'));
-        await writeFile(join(scratch, '.claude-plugin/marketplace.json'), JSON.stringify(catalog), { mode: 0o600 });
-        await writeFile(
-          action,
-          JSON.stringify({
-            extraKnownMarketplaces: { celetis: { autoUpdate: false, source: inline } },
-          }),
-          { mode: 0o600 },
-        );
-        await revalidate();
-        await replaceClaudeMarketplace(registryPath, original, staged);
-        operation = 'claude target-bound plugin update';
-        let installationError: unknown;
-        let restorationError: unknown;
-        try {
-          await lock.run(
-            'claude',
-            ['--settings', action, 'plugin', 'update', 'celetis@celetis', '--scope', details.scope ?? '', '--json'],
-            { cwd: process.cwd(), env },
-          );
-        } catch (error) {
-          installationError = error;
-        } finally {
-          if (!installationError) completed.push(operation);
-          operation = 'claude original marketplace restoration';
+            });
+          const place = clonePlace(location);
           try {
-            await replaceClaudeMarketplace(registryPath, staged, original);
-            if (!isDeepStrictEqual((await jsonFile(registryPath)).celetis, original))
-              restorationError = new HostError('update: native marketplace restoration is incomplete', exits.blocked);
-            else completed.push(operation);
+            await git([...place, 'fetch', '-q', '--depth', '1', '--no-tags', 'origin', target.target], location, pin);
+            await git([...place, 'checkout', '-q', '--detach', target.target], location, pin);
           } catch (error) {
-            restorationError = error;
+            throw new HostError(
+              `${(error as Error).message}\nrepair: claude plugin marketplace update celetis, then run celetis update again`,
+              exits.blocked,
+            );
           }
-          if (restorationError) {
+          completed.push(operation);
+          expected = { ...expected, clone: target.target };
+          details = await revalidate();
+          operation = 'prepare native target';
+        }
+        if (details.installed !== target.target || moving) {
+          const action = join(scratch, 'target.json');
+          const catalog = {
+            name: 'celetis',
+            owner: { name: 'Celetis' },
+            plugins: [
+              {
+                name: 'celetis',
+                source: {
+                  source: 'git-subdir',
+                  url: target.source,
+                  path: 'plugins/celetis',
+                  ...(details.ref === 'HEAD' ? {} : { ref: details.ref }),
+                  sha: target.target,
+                },
+              },
+            ],
+          };
+          const inline = { source: 'settings', ...catalog };
+          const staged = { ...original, source: inline, installLocation: scratch, autoUpdate: false };
+          await mkdir(join(scratch, '.claude-plugin'));
+          await writeFile(join(scratch, '.claude-plugin/marketplace.json'), JSON.stringify(catalog), { mode: 0o600 });
+          await writeFile(
+            action,
+            JSON.stringify({
+              extraKnownMarketplaces: { celetis: { autoUpdate: false, source: inline } },
+            }),
+            { mode: 0o600 },
+          );
+          await revalidate();
+          await replaceClaudeMarketplace(registryPath, original, staged);
+          operation = 'claude target-bound plugin update';
+          let installationError: unknown;
+          let restorationError: unknown;
+          try {
+            await lock.run(
+              'claude',
+              ['--settings', action, 'plugin', 'update', 'celetis@celetis', '--scope', details.scope ?? '', '--json'],
+              { cwd: process.cwd(), env },
+            );
+          } catch (error) {
+            installationError = error;
+          } finally {
+            if (!installationError) completed.push(operation);
+            operation = 'claude original marketplace restoration';
             try {
-              const remaining = (await jsonFile(registryPath)).celetis;
-              const owned = await stat(scratch);
-              const referenced =
-                object(remaining) && typeof remaining.installLocation === 'string'
-                  ? await stat(remaining.installLocation)
-                  : null;
-              retainScratch =
-                !referenced?.isDirectory() || (referenced.dev === owned.dev && referenced.ino === owned.ino);
-            } catch {
-              retainScratch = true;
+              await replaceClaudeMarketplace(registryPath, staged, original);
+              if (!isDeepStrictEqual((await jsonFile(registryPath)).celetis, original))
+                restorationError = new HostError('update: native marketplace restoration is incomplete', exits.blocked);
+              else completed.push(operation);
+            } catch (error) {
+              restorationError = error;
+            }
+            if (restorationError) {
+              try {
+                const remaining = (await jsonFile(registryPath)).celetis;
+                const owned = await stat(scratch);
+                const referenced =
+                  object(remaining) && typeof remaining.installLocation === 'string'
+                    ? await stat(remaining.installLocation)
+                    : null;
+                retainScratch =
+                  !referenced?.isDirectory() || (referenced.dev === owned.dev && referenced.ino === owned.ino);
+              } catch {
+                retainScratch = true;
+              }
             }
           }
-        }
-        if (restorationError)
-          throw new HostError(
-            [
-              installationError instanceof Error ? installationError.message : '',
-              (restorationError as Error).message,
-              retainScratch ? `Recovery: retained native marketplace catalog at ${scratch}` : '',
-            ]
-              .filter(Boolean)
-              .join('\n'),
-            exits.blocked,
-          );
-        if (installationError) {
-          operation = 'claude target-bound plugin update';
-          throw installationError;
+          if (restorationError)
+            throw new HostError(
+              [
+                installationError instanceof Error ? installationError.message : '',
+                (restorationError as Error).message,
+                retainScratch ? `Recovery: retained native marketplace catalog at ${scratch}` : '',
+              ]
+                .filter(Boolean)
+                .join('\n'),
+              exits.blocked,
+            );
+          if (installationError) {
+            operation = 'claude target-bound plugin update';
+            throw installationError;
+          }
         }
       } else {
         operation = 'codex target-bound marketplace upgrade';
@@ -998,8 +1071,9 @@ export function line(part: Part): string {
   if ('error' in part) return `  ${part.part}  error: ${part.error.split('\n')[0]}`;
   if ('skipped' in part) return `  ${part.part}  skipped: ${part.skipped}`;
   const from = part.ref === part.to ? `${part.source} ${part.ref}` : `${part.source} ${part.ref} -> ${part.to}`;
-  if (part.installed === part.target && part.ref === part.to)
-    return `  ${part.part}  up to date  ${short(part.installed)}  ${from}`;
+  if (!partDiffers(part)) return `  ${part.part}  up to date  ${short(part.installed)}  ${from}`;
+  if (part.installed === part.target && part.ref === part.to && 'clone' in part && part.clone)
+    return `  ${part.part}  marketplace clone ${short(part.clone)} -> ${short(part.target)}  ${from}`;
   return `  ${part.part}  ${short(part.installed)} -> ${short(part.target)}  ${from}`;
 }
 
@@ -1008,10 +1082,7 @@ export async function executeUpdate(
   stage: (value: UpdateStage) => void,
   ownerPid: number,
 ): Promise<UpdateResult> {
-  const pending: ('engine' | PluginHost)[] = offer.plugins
-    .filter((plugin) => plugin.installed !== plugin.target || plugin.resolvedRef !== plugin.to)
-    .map((plugin) => plugin.host);
-  if (offer.engine.source.revision !== offer.target) pending.push('engine');
+  const pending = pendingParts(offer);
   const completed: ('engine' | PluginHost)[] = [];
   const expected = structuredClone(offer);
   try {

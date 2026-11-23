@@ -834,7 +834,8 @@ from its ref:
 "Newest" is the numeric order of the three numbers of the tag, and each part reads the tags of its
 own source. A part that follows a release on a source with no release tag is an error part. A
 host with no CLI on `PATH`, or with no Celetis, is skipped. At a stop of the list below, it prints
-one line for each part: the installed and the target revision or `up to date`, then the source
+one line for each part: the installed and the target revision, `marketplace clone <clone> -> <target>`
+when only the marketplace clone of the Claude part differs, or `up to date`, then the source
 and the full ref of the part, with ` -> <target ref>` when the target ref is another ref; or a
 skipped part with its reason, or the first line of an error.
 
@@ -924,8 +925,8 @@ address are one source: `ddinkov10/celetis` of Claude Code, and
 full name, so the `HEAD` of Claude Code and the `main` of Codex and of the engine are one ref,
 `refs/heads/main`.
 
-When each part is at its target, the command prints `✓ Celetis is up to date (<label>).` and asks
-nothing. `<label>` is the short target of the engine when the engine follows a branch and stays on
+When each part and the marketplace clone of the Claude part are at their target, the command
+prints `✓ Celetis is up to date (<label>).` and asks nothing. `<label>` is the short target of the engine when the engine follows a branch and stays on
 it. Else it is the target ref of the engine and then its short target, for example
 `v0.0.2 1a2b3c4d5e6f`.
 
@@ -936,8 +937,8 @@ terminal, with no part lines before it. The question of `celetis update --to <re
 other answer leaves each part unchanged and prints `Nothing changed.` With no interactive terminal, it stops with a line that tells you to run `celetis update` in an interactive terminal, and
 exits 3. No cache path, commit hash, or flag confirms an update.
 
-After confirmation, it updates each part that is not at its own target or not on its target ref,
-in this order: Claude Code, Codex, and then the engine. A plugin whose target ref is another ref
+After confirmation, it updates each part that is not at its own target, not on its target ref, or
+(for Claude Code) has its marketplace clone at another commit, in this order: Claude Code, Codex, and then the engine. A plugin whose target ref is another ref
 moves that ref ("The move of a ref" below). It prints one progress row: `Updating`, then ` ✓ <part>` for each part that it
 completes, and ` ✗ <part>` for a part that fails. Then it checks the installed parts again, with
 the contract pair of the installed folders. The first failure stops the update: it prints the
@@ -950,7 +951,8 @@ no retry: a new attempt is a new command and a new answer. At the end it prints
 a terminal, when `NO_COLOR` is set, or when `TERM` is `dumb`.
 
 `celetis update check` is read-only. It prints one JSON array of the parts. An installed part
-gives its folder, source, full ref (`ref`), target ref (`to`), installed revision, and target; another part gives
+gives its folder, source, full ref (`ref`), target ref (`to`), installed revision, and target. The
+Claude part also gives `clone`, the `HEAD` of its marketplace clone. Another part gives
 `skipped` or `error`. After the JSON, it prints the line or lines of the stop on stderr when the
 list above gives a stop. It exits 0, or 6 when a part has an error. For entry maintenance, agents run it when the person
 explicitly requests update status or update troubleshooting, and report each part and each
@@ -1014,7 +1016,7 @@ discovery holds a short shared lock and releases it before a foreground starts. 
 refuses the attempt; running sessions do not reserve this mutex. The existing 120-second monotonic
 deadline and descendant cleanup apply. Revalidation under that lock must match the offered home,
 root, source, configured and resolved refs, target ref, installed revision, target, scope,
-registration, Claude user entry, and sibling set. A changed identity or target refuses this attempt.
+registration, Claude user entry, Claude marketplace clone, and sibling set. A changed identity or target refuses this attempt.
 Failures preserve native diagnostics and observed partial state. The update of the engine holds
 `<base>/.local/share/celetis/install.lock`, so a second install or update refuses while it runs. It
 clones the target into a staging folder, installs the locked packages into it, checks the source,
@@ -1022,7 +1024,15 @@ the ref, and the revision of the clone, and then switches the engine as "First i
 A terminal update stops the clone and the install after 120 seconds each. An update that the board
 runs sets no time limit on them.
 
-Claude keeps its native installation scope. It writes a private catalog that names `plugins/celetis`
+Claude keeps its native installation scope. A plugin reload loads the copy at the `HEAD` of the
+marketplace clone, so the update first fetches the exact target into that clone and checks it out
+detached. A failed fetch or checkout stops the update before the plugin moves. When only the clone
+differs, the update moves the clone and runs no native update. A local change in the clone is an
+error of the Claude part, because a reload would load it. The line names the two commands that
+discard the change: `git -C "<clone>" reset --hard` and `git -C "<clone>" clean -fd`. When the
+clone cannot be read, or the fetch or the checkout fails, run
+`claude plugin marketplace update celetis`, then `celetis update`. The pin shows no credential or
+host-key prompt, so a source that needs a new login or an unknown SSH host key fails. For the native update, it writes a private catalog that names `plugins/celetis`
 of the approved source with a `git-subdir` entry and the exact target SHA, then temporarily
 registers that catalog and its matching inline source for one native update. It restores the
 complete saved marketplace entry locally before it removes the catalog and releases the lock,
