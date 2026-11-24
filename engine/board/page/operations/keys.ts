@@ -1,6 +1,6 @@
 import { FIND_KEY } from '../shell.ts';
 import { phone, shellStore } from '../store.ts';
-import { $, copy, openUrl } from '../ui.ts';
+import { copy, openUrl } from '../ui.ts';
 import { actionsOf, copyWhat } from './actions.ts';
 import { closeDetails, openDetails, screen, setTab } from './state.ts';
 
@@ -94,7 +94,7 @@ const cardPress = (node: HTMLElement, key: string): (() => void) | undefined => 
 const pressOf = (event: KeyboardEvent): (() => void) | undefined => {
   const { key } = event;
   if (key === 'Escape')
-    return shell().details !== null && screen.get().menu === null && !$('menu').matches(':popover-open')
+    return shell().details !== null && screen.get().menu === null && !shellStore.get().inputs.moreOpen
       ? () => closeDetails(true)
       : undefined;
   const isBoardShown =
@@ -114,7 +114,9 @@ export const handleKey = (event: KeyboardEvent): boolean => {
   const target = event.target as Element;
   if (
     screen.get().stopFor !== null ||
-    target.closest?.('[data-slot="dropdown-menu-content"]:not([data-agent-menu]), [data-slot="alert-dialog-content"]')
+    target.closest?.(
+      '[data-slot="dropdown-menu-content"]:not([data-agent-menu], [data-more-menu]), [data-slot="alert-dialog-content"]',
+    )
   )
     return false;
   const press = pressOf(event);

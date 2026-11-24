@@ -1,16 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
 import { cn } from 'cn';
-import { memo, type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import type { Board, DaemonView } from '../../types.ts';
 import { age, clock } from '../../view.ts';
 import { AgentOrder } from '../agents/agents.tsx';
 import { viewOptions } from '../query.ts';
+import { openShortcuts } from '../shortcuts/shortcuts.tsx';
 import { shellStore, useShellStore } from '../store.ts';
 import { THEME_WORDS } from '../theme/choice.ts';
 import { Button } from '../ui/button.tsx';
 import { Card, CardDescription, CardTitle } from '../ui/card.tsx';
 import { Toggle } from '../ui/toggle.tsx';
-import { $, capital, SERVER_DOWN } from '../ui.ts';
+import { capital, SERVER_DOWN } from '../ui.ts';
+import { UpdateControl } from '../update/update.tsx';
 import { Icon } from './icon.tsx';
 
 type Tone = 'ok' | 'fail' | 'wait' | 'off';
@@ -53,23 +55,6 @@ function RowText({ id, label, help }: { id: string; label: string; help: string 
     </div>
   );
 }
-
-const UpdateHost = memo(
-  () => (
-    <button
-      type="button"
-      className="sb-btn update-open"
-      id="update-open"
-      aria-controls="update-dialog"
-      aria-expanded="false"
-      aria-label="Check for updates, Celetis"
-      title="Check for updates, Celetis"
-    >
-      <span className="label">Check for updates</span>
-    </button>
-  ),
-  () => true,
-);
 
 function Automation({ daemon, isDown }: { daemon: DaemonView | null; isDown: boolean }) {
   const auto = isDown ? null : (daemon?.auto ?? null);
@@ -273,13 +258,7 @@ function Preferences() {
         >
           {keys ? 'On' : 'Off'}
         </Toggle>
-        <Button
-          variant="ghost"
-          id="keys-open"
-          className={SMALL}
-          title="Keyboard shortcuts (?)"
-          onClick={() => $('keys').showModal()}
-        >
+        <Button variant="ghost" id="keys-open" className={SMALL} title="Keyboard shortcuts (?)" onClick={openShortcuts}>
           <Icon name="keyboard" />
           <span>Keys</span>
         </Button>
@@ -332,7 +311,7 @@ export function Control() {
           after it.
         </CardDescription>
         <div className="mt-3">
-          <UpdateHost />
+          <UpdateControl />
         </div>
       </Card>
       <Preferences />

@@ -1820,8 +1820,11 @@ the texts are `Open the issue` and `Read the issues again`.
 
 - When a press fails, a toast names the press (`Go failed`, `Run failed`, `Resume failed`, `Open agent failed`,
   `Open shell failed`, `Set aside failed`, `Stop failed`, `Refresh failed`, `Queue action failed`, `Make visual failed`) above the line of the server. An error toast
-  stays until Close, Escape on the toast, or a newer toast; a success toast hides after 6 s. After
-  Close or Escape, the focus returns to the element that had it before it last went into the toast. After Go, Open shell, or
+  stays until Close, Escape on the toast, or a newer toast; a success toast hides after 6 s. A pointer over a toast, or the
+  focus inside it, pauses its timer; a window with no focus does not. A swipe dismisses it. F6 moves the focus to the region `Notifications`, which holds the toast. When
+  a toast closes with the focus inside it, the focus returns to the element that had it before it last went into the
+  toast; a close with the focus elsewhere moves no focus. A newer toast takes a focus that was inside the old toast on
+  its Close control. After Go, Open shell, or
   Refresh, the card keeps its button. A failed Run, Resume, or Open agent ends its `Starting` card
   and permits a retry after the next read. It also leaves `Last start failed: <line>` on its card,
   with the line of the toast, until the next such press of the issue or a session of the issue
@@ -1866,16 +1869,21 @@ and the files of the packages of `engine/bun.lock`. It writes the style sheet `b
 `page/app.css` with the Tailwind CLI of the lockfile; the hand-written rules are in `page/board.css`.
 It compiles every target before it writes any output. Plugin users run no build.
 
-`index.html` holds the head and an empty `<body>`. `page/main.tsx` renders one React root into the body,
-then starts `page/board.ts`. The root owns the frame of "The layout, the keys, and the errors": the skip
-links, the sidebar, the bottom bar, the work area with its banners, and the box of each area. Each node
-has one owner. React renders a node of the frame in full, from the state of `page/store.ts` and the
-board read of `page/query.ts`. The host components of `page/app/hosts.tsx` render the markup of a screen
-that has not moved to React once and never again, and the older page modules fill and change that markup.
+`index.html` holds the head and an empty `<body>`. `page/main.tsx` renders one React root into the body.
+The root renders the frame of "The layout, the keys, and the errors": the skip links, the sidebar, the
+bottom bar, the work area with its banners, and the box of each area. It also renders each screen, the
+dialogs, the toast, and the live region. Each node has one owner. A view renders from a store or from the
+board read of `page/query.ts`, and a store renders no node.
 
-The Operations screen renders through React from `page/operations/`: the tabs, the issues of Agents and
-Pipeline, the details, the card menus, and the Stop dialog. The coordinator panel and the Chat button render through React from
-`page/coordinator/`. The queue section stays host markup of `page/app/hosts.tsx` until #360.
+A mount effect of `App` starts the board read one microtask after the first commit, so that a store emit of
+the start commits before a listener reads the DOM. `page/read/read.ts` holds the start, the `QueryObserver`
+of the board read, the redraw key, the notices, the title, and the favicon. It also writes `data-stale` on the
+body. `page/intake/intake.ts` holds New intake. `page/app/keys.ts` holds the global `keydown` listener.
+
+The other folders of `page/` hold one surface each: `operations/` (the tabs, the issues of Agents and
+Pipeline, the details, the card menus, and the Stop dialog), `coordinator/` (the panel and the Chat button),
+`queue/`, `agents/`, `palette/`, `shortcuts/`, `toast/`, and `update/`. `theme/` holds the theme choice and its
+early script, and `ui/` holds the shared components and view helpers.
 
 ## Limits
 

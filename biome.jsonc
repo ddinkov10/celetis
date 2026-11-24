@@ -17,11 +17,6 @@
       "linter": { "rules": { "security": { "noDangerouslySetInnerHtml": "error" } } }
     },
     {
-      // The host components render the markup of the old page once, and the old page modules fill it.
-      "includes": ["engine/board/page/app/hosts.tsx"],
-      "linter": { "rules": { "a11y": { "useHeadingContent": "off", "noNoninteractiveTabindex": "off" } } }
-    },
-    {
       // The rule order of board.css sets its cascade, and a reorder changes the board UI (#84).
       "includes": ["engine/board/page/board.css"],
       "linter": {

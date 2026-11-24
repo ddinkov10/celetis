@@ -4,7 +4,7 @@ import { Icon } from '../app/icon.tsx';
 import { Timed } from '../operations/parts.tsx';
 import { Button } from '../ui/button.tsx';
 import { Textarea } from '../ui/textarea.tsx';
-import { $, SERVER_DOWN } from '../ui.ts';
+import { SERVER_DOWN } from '../ui.ts';
 import { coordinator, timeOf, useCoordinator } from './coordinator.ts';
 import { CoordinatorLog } from './log.tsx';
 import { bannerOf, hintOf, IN_FLIGHT, LIMIT, sendBlock, WORDS } from './rules.ts';
@@ -23,8 +23,10 @@ const sendOnEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
 };
 
 const focusEntry = () => {
-  const target = [$('coordinator-field'), $('coordinator-start')].find((node) => node.checkVisibility());
-  (target ?? $('coordinator-log')).focus({ preventScroll: true });
+  const target = ['coordinator-field', 'coordinator-start']
+    .map((id) => document.getElementById(id) as HTMLElement)
+    .find((node) => node.checkVisibility());
+  (target ?? (document.getElementById('coordinator-log') as HTMLElement)).focus({ preventScroll: true });
 };
 
 const submit = (event: FormEvent) => {

@@ -6,7 +6,7 @@ import { clock } from '../../view.ts';
 import { isChatShown } from '../shell.ts';
 import { phone, shellStore } from '../store.ts';
 import { announce, post, SERVER_DOWN, store } from '../ui.ts';
-import { isReconnecting } from '../update-dialog.ts';
+import { isReconnecting } from '../update/state.ts';
 import {
   type Act,
   type Answer,

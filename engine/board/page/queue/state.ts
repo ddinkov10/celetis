@@ -4,7 +4,8 @@ import type { IssueKey } from '../../../lib/tracker/key.ts';
 import type { Board, Card } from '../../types.ts';
 import { knownAgent } from '../../view.ts';
 import { shellStore } from '../store.ts';
-import { announce, toast } from '../ui.ts';
+import { toast } from '../toast/toast.ts';
+import { announce } from '../ui.ts';
 
 export type QueueState = Readonly<{
   board: Board | null;

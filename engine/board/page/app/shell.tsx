@@ -1,15 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
 import { cn } from 'cn';
 import type { ComponentProps, ReactNode } from 'react';
-import type { Board } from '../../types.ts';
+import type { Board, MenuEntry } from '../../types.ts';
 import { ChatMark } from '../coordinator/button.tsx';
 import { useCoordinator } from '../coordinator/coordinator.ts';
 import { Operations } from '../operations/operations.tsx';
+import { setArea } from '../operations/state.ts';
+import { openPalette } from '../palette/state.ts';
 import { viewOptions } from '../query.ts';
 import { AREA_ICONS, AREA_NAMES, AREAS, type Area, badgeText, FIND_KEY, isChatShown } from '../shell.ts';
 import { shellStore, useShellStore } from '../store.ts';
 import { Badge } from '../ui/badge.tsx';
 import { Button } from '../ui/button.tsx';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '../ui/dropdown-menu.tsx';
+import { Entries, FirstFocus } from '../ui/menu-entries.tsx';
 import {
   SidebarFooter,
   SidebarHeader,
@@ -18,6 +22,7 @@ import {
   SidebarMenuItem,
   Sidebar as SidebarRoot,
 } from '../ui/sidebar.tsx';
+import { ViewBoundary } from '../ui/view-boundary.tsx';
 import { capital, SERVER_DOWN } from '../ui.ts';
 import { Control } from './control.tsx';
 import { Home } from './home.tsx';
@@ -187,6 +192,7 @@ function Sidebar() {
       <Button
         variant="outline"
         id="find"
+        onClick={openPalette}
         aria-label="Search or run a step: the cards, history, and commands"
         aria-keyshortcuts="Control+K Meta+K /"
         className="h-8 w-full justify-start gap-2.5 py-0 pr-1.5 pl-2.5 text-left leading-normal font-normal text-muted-foreground hover:bg-secondary hover:text-card-foreground rail:h-[50px] rail:flex-col rail:justify-center rail:gap-[5px] rail:px-0.5 rail:py-1.5 rail:text-center rail:text-[0.6875rem] rail:leading-[1.1] rail:font-medium phone:size-11 phone:flex-none phone:justify-center phone:p-0 [&_.icon]:size-3.5"
@@ -286,6 +292,16 @@ function DockItem({ className, ...props }: ComponentProps<typeof Button>) {
   );
 }
 
+const phoneMenu = (): MenuEntry[] =>
+  (['throughput'] as const).map((area) => ({
+    label: AREA_NAMES[area],
+    icon: AREA_ICONS[area],
+    key: '',
+    run: () => setArea(area),
+  }));
+
+const closeMore = () => shellStore.setInputs({ moreOpen: false });
+
 function BottomBar() {
   const shell = useShellStore((state) => state.shell);
   const isPhone = useShellStore((state) => state.isPhone);
@@ -346,17 +362,35 @@ function BottomBar() {
         <Icon name="sliders" />
         <span className="label">Control</span>
       </DockItem>
-      <DockItem
-        id="board-more"
-        aria-label="More board actions"
-        aria-haspopup="menu"
-        aria-expanded={moreOpen}
-        aria-current={current(isPhone && shell.area === 'throughput')}
-        title="More board actions"
-      >
-        <Icon name="dots" />
-        <span className="label">More</span>
-      </DockItem>
+      <DropdownMenu modal={false} open={moreOpen} onOpenChange={(isOpen) => shellStore.setInputs({ moreOpen: isOpen })}>
+        <DropdownMenuTrigger
+          render={
+            <DockItem
+              id="board-more"
+              aria-label="More board actions"
+              aria-current={current(isPhone && shell.area === 'throughput')}
+              title="More board actions"
+            />
+          }
+        >
+          <Icon name="dots" />
+          <span className="label">More</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          aria-label="Board actions"
+          data-more-menu=""
+          side="top"
+          positionerClassName="z-[110]"
+          onKeyDown={(event) => {
+            if (event.key.length === 1 && event.key !== ' ') event.preventBaseUIHandler();
+          }}
+        >
+          <FirstFocus />
+          <ViewBoundary snapshot={shell} fallback={null} onFail={closeMore}>
+            <Entries list={phoneMenu} close={closeMore} />
+          </ViewBoundary>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </nav>
   );
 }

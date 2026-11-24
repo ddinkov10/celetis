@@ -4,4 +4,3 @@ import { App } from './app/app.tsx';
 
 const root = createRoot(document.body);
 flushSync(() => root.render(<App />));
-await import('./board.ts');

@@ -6,7 +6,7 @@ import type { Action, Board, Card, CoordinatorView } from '../../types.ts';
 import { isYourTurn, keyOf, needsYou, parseOpenEpics, parseSeenTurn, pipeline, signature } from '../../view.ts';
 import type { Area, Pane, Shell, Tab } from '../shell.ts';
 import { phone, shellStore } from '../store.ts';
-import { $, announce, store } from '../ui.ts';
+import { announce, store } from '../ui.ts';
 import { type CardIndex, indexCards, type Launch, project, SLOW_START_TEXT, type View } from './cards.ts';
 
 type Pressed = ReadonlyMap<IssueKey | null, 'pending' | 'done'>;
@@ -216,12 +216,15 @@ phone.addEventListener('change', () =>
 );
 
 export const areaStop = () => {
-  const tabNode = $(`tab-${shell().tab}`);
-  return shell().area === 'operations' && tabNode.checkVisibility() ? tabNode : $('work');
+  const tabNode = document.getElementById(`tab-${shell().tab}`) as HTMLElement;
+  return shell().area === 'operations' && tabNode.checkVisibility()
+    ? tabNode
+    : (document.getElementById('work') as HTMLElement);
 };
 
 export const setShell = (next: Shell, active: Element | null = document.activeElement) => {
-  const wasInPanel = active instanceof HTMLElement && $('panel').contains(active);
+  const wasInPanel =
+    active instanceof HTMLElement && (document.getElementById('panel') as HTMLElement).contains(active);
   const wasInBoard = active instanceof HTMLElement && Boolean(document.getElementById('tp-board')?.contains(active));
   const leavesQueue =
     next.tab !== 'queue' &&
@@ -270,7 +273,9 @@ export const openDetails = (key: string) => {
   if (shell().tab === 'pipeline') selected?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   const entry = screen.index().byKey.get(key);
   if (entry?.column === 'human') seeTurn(entry.card);
-  $('panel').querySelector<HTMLElement>(PANEL_FOCUS)?.focus({ preventScroll: true });
+  (document.getElementById('panel') as HTMLElement)
+    .querySelector<HTMLElement>(PANEL_FOCUS)
+    ?.focus({ preventScroll: true });
 };
 
 const revealCard = (key: string) => {

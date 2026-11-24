@@ -4,7 +4,8 @@ import type { Board } from '../types.ts';
 import { boardKey, queryClient } from './query.ts';
 import { type Area, readShell, type Shell } from './shell.ts';
 import { applyTheme, readTheme, THEME_KEY, THEMES, type Theme, writeTheme } from './theme/choice.ts';
-import { announce, capital, post, store, toast } from './ui.ts';
+import { toast } from './toast/toast.ts';
+import { announce, capital, post, store } from './ui.ts';
 
 export type Settings = Readonly<{ theme: Theme; notify: boolean; keys: boolean }>;
 export type Inputs = Readonly<{
@@ -133,7 +134,12 @@ export const shellStore = {
   setShell: (next: Shell) => {
     store.set('area', next.area);
     store.set('tab', next.tab);
-    emit({ ...state, shell: next, isPhone: phone.matches });
+    emit({
+      ...state,
+      shell: next,
+      isPhone: phone.matches,
+      inputs: phone.matches ? state.inputs : { ...state.inputs, moreOpen: false },
+    });
   },
   setInputs: (patch: Partial<Inputs>) => {
     const changed = Object.entries(patch).filter(

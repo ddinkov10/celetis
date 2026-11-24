@@ -3,7 +3,8 @@ import type { Level } from '../../../lib/workflow/effort.ts';
 import type { Action, Board, Card, MenuEntry } from '../../types.ts';
 import { agentOf, cleanCause, keyOf, knownAgent, levelSource, runTitle, startTitle } from '../../view.ts';
 import { shellStore } from '../store.ts';
-import { announce, copy, openUrl, post, send, toast } from '../ui.ts';
+import { toast } from '../toast/toast.ts';
+import { announce, copy, openUrl, post, send } from '../ui.ts';
 import type { Launch } from './cards.ts';
 import { openDetails, screen } from './state.ts';
 

@@ -14,13 +14,15 @@ function DropdownMenuContent({
   align = 'end',
   side = 'bottom',
   sideOffset = 6,
+  positionerClassName,
   className,
   ...props
-}: MenuPrimitive.Popup.Props & Pick<MenuPrimitive.Positioner.Props, 'anchor' | 'align' | 'side' | 'sideOffset'>) {
+}: MenuPrimitive.Popup.Props &
+  Pick<MenuPrimitive.Positioner.Props, 'anchor' | 'align' | 'side' | 'sideOffset'> & { positionerClassName?: string }) {
   return (
     <MenuPrimitive.Portal>
       <MenuPrimitive.Positioner
-        className="isolate z-50 outline-none"
+        className={cn('isolate z-50 outline-none', positionerClassName)}
         anchor={anchor}
         align={align}
         side={side}

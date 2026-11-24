@@ -1,4 +1,5 @@
 import type { Host } from '../../lib/host/names.ts';
+import { toast } from './toast/toast.ts';
 
 const CODEX_ICON =
   'data:image/svg+xml;base64,PHN2ZyBoZWlnaHQ9IjFlbSIgc3R5bGU9ImZsZXg6bm9uZTtsaW5lLWhlaWdodDoxIiB2aWV3Qm94PSIwIDAgMjQgMjQiIHdpZHRoPSIxZW0iIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHRpdGxlPkNvZGV4PC90aXRsZT48cGF0aCBkPSJNMTkuNTAzIDBINC40OTZBNC40OTYgNC40OTYgMCAwMDAgNC40OTZ2MTUuMDA3QTQuNDk2IDQuNDk2IDAgMDA0LjQ5NiAyNGgxNS4wMDdBNC40OTYgNC40OTYgMCAwMDI0IDE5LjUwM1Y0LjQ5NkE0LjQ5NiA0LjQ5NiAwIDAwMTkuNTAzIDB6IiBmaWxsPSIjZmZmIj48L3BhdGg+PHBhdGggZD0iTTkuMDY0IDMuMzQ0YTQuNTc4IDQuNTc4IDAgMDEyLjI4NS0uMzEyYzEgLjExNSAxLjg5MS41NCAyLjY3MyAxLjI3NS4wMS4wMS4wMjQuMDE3LjAzNy4wMjFhLjA5LjA5IDAgMDAuMDQzIDAgNC41NSA0LjU1IDAgMDEzLjA0Ni4yNzVsLjA0Ny4wMjIuMTE2LjA1N2E0LjU4MSA0LjU4MSAwIDAxMi4xODggMi4zOTljLjIwOS41MS4zMTMgMS4wNDEuMzE1IDEuNTk1YTQuMjQgNC4yNCAwIDAxLS4xMzQgMS4yMjMuMTIzLjEyMyAwIDAwLjAzLjExNWMuNTk0LjYwNy45ODggMS4zMyAxLjE4MyAyLjE3LjI4OSAxLjQyNS0uMDA3IDIuNzEtLjg4NyAzLjg1NGwtLjEzNi4xNjZhNC41NDggNC41NDggMCAwMS0yLjIwMSAxLjM4OC4xMjMuMTIzIDAgMDAtLjA4MS4wNzZjLS4xOTEuNTUxLS4zODMgMS4wMjMtLjc0IDEuNDk0LS45IDEuMTg3LTIuMjIyIDEuODQ2LTMuNzExIDEuODM4LTEuMTg3LS4wMDYtMi4yMzktLjQ0LTMuMTU3LTEuMzAyYS4xMDcuMTA3IDAgMDAtLjEwNS0uMDI0Yy0uMzg4LjEyNS0uNzguMTQzLTEuMjA0LjEzOGE0LjQ0MSA0LjQ0MSAwIDAxLTEuOTQ1LS40NjYgNC41NDQgNC41NDQgMCAwMS0xLjYxLTEuMzM1Yy0uMTUyLS4yMDItLjMwMy0uMzkyLS40MTQtLjYxN2E1LjgxIDUuODEgMCAwMS0uMzctLjk2MSA0LjU4MiA0LjU4MiAwIDAxLS4wMTQtMi4yOTguMTI0LjEyNCAwIDAwLjAwNi0uMDU2LjA4NS4wODUgMCAwMC0uMDI3LS4wNDggNC40NjcgNC40NjcgMCAwMS0xLjAzNC0xLjY1MSAzLjg5NiAzLjg5NiAwIDAxLS4yNTEtMS4xOTIgNS4xODkgNS4xODkgMCAwMS4xNDEtMS42Yy4zMzctMS4xMTIuOTgyLTEuOTg1IDEuOTMzLTIuNjE4LjIxMi0uMTQxLjQxMy0uMjUxLjYwMS0uMzMuMjE1LS4wODkuNDMtLjE2NC42NDYtLjIyN2EuMDk4LjA5OCAwIDAwLjA2NS0uMDY2IDQuNTEgNC41MSAwIDAxLjgyOS0xLjYxNSA0LjUzNSA0LjUzNSAwIDAxMS44MzctMS4zODh6bTMuNDgyIDEwLjU2NWEuNjM3LjYzNyAwIDAwMCAxLjI3MmgzLjYzNmEuNjM3LjYzNyAwIDEwMC0xLjI3MmgtMy42MzZ6TTguNDYyIDkuMjNhLjYzNy42MzcgMCAwMC0xLjEwNi42MzFsMS4yNzIgMi4yMjQtMS4yNjYgMi4xMzZhLjYzNi42MzYgMCAxMDEuMDk1LjY0OWwxLjQ1NC0yLjQ1NWEuNjM2LjYzNiAwIDAwLjAwNS0uNjRMOC40NjIgOS4yM3oiIGZpbGw9InVybCgjbG9iZS1pY29ucy1jb2RleC1fUl8wXykiPjwvcGF0aD48ZGVmcz48bGluZWFyR3JhZGllbnQgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiIGlkPSJsb2JlLWljb25zLWNvZGV4LV9SXzBfIiB4MT0iMTIiIHgyPSIxMiIgeTE9IjMiIHkyPSIyMSI+PHN0b3Agc3RvcC1jb2xvcj0iI0IxQTdGRiI+PC9zdG9wPjxzdG9wIG9mZnNldD0iLjUiIHN0b3AtY29sb3I9IiM3QTlERkYiPjwvc3RvcD48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMzOTQxRkYiPjwvc3RvcD48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48L3N2Zz4=';
@@ -10,7 +11,6 @@ const OPENCODE_ICON =
 
 export const AGENT_ICONS: Record<Host, string> = { claude: CLAUDE_ICON, codex: CODEX_ICON, opencode: OPENCODE_ICON };
 
-const NS = 'http://www.w3.org/2000/svg';
 const ring = (extra: Record<string, string> = {}): [string, Record<string, string | number>] => [
   'circle',
   { cx: 8, cy: 8, r: 6, ...extra },
@@ -205,40 +205,6 @@ export const ICONS: Record<string, [string, Record<string, string | number>][]> 
   ],
 };
 
-type Elements = {
-  favicon: HTMLLinkElement;
-  palette: HTMLDialogElement;
-  keys: HTMLDialogElement;
-  'pal-input': HTMLInputElement;
-  'keys-on': HTMLInputElement;
-};
-export const $ = <Id extends string>(id: Id) =>
-  document.getElementById(id) as Id extends keyof Elements ? Elements[Id] : HTMLElement;
-
-export const el = <Tag extends keyof HTMLElementTagNameMap>(
-  tag: Tag,
-  className?: string,
-  text?: string | null,
-): HTMLElementTagNameMap[Tag] => {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-};
-
-export const icon = (name: string) => {
-  const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 16 16');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.setAttribute('class', `icon i-${name}`);
-  for (const [tag, attributes] of ICONS[name] as [string, Record<string, string | number>][]) {
-    const part = document.createElementNS(NS, tag);
-    for (const [key, value] of Object.entries(attributes)) part.setAttribute(key, String(value));
-    svg.append(part);
-  }
-  return svg;
-};
-
 export const safeUrl = (url?: string | null): string | null => {
   if (url && !/[\u0000-\u0020\u007f-\u009f]/.test(url)) {
     try {
@@ -252,49 +218,6 @@ export const safeUrl = (url?: string | null): string | null => {
 export const openUrl = (url?: string | null) => {
   const href = safeUrl(url);
   if (href) window.open(href, '_blank', 'noopener,noreferrer');
-};
-
-const withCode = (text: string) => {
-  const node = el('span', 'toast-detail');
-  text.split('`').forEach((part, index) => {
-    if (part) node.append(index % 2 ? el('code', '', part) : part);
-  });
-  return node;
-};
-
-let toastTimer: ReturnType<typeof setTimeout> | undefined;
-let toastOrigin: Element | null = null;
-export const hideToast = () => {
-  const node = $('toast');
-  const hadFocus = node.contains(document.activeElement);
-  clearTimeout(toastTimer);
-  node.hidden = true;
-  const origin = toastOrigin;
-  toastOrigin = null;
-  if (hadFocus && origin instanceof HTMLElement && origin.isConnected && !origin.closest('[hidden]'))
-    origin.focus({ preventScroll: true });
-};
-export const setupToast = () => {
-  $('toast').addEventListener('focusin', (event) => {
-    if (event.relatedTarget instanceof Element && !$('toast').contains(event.relatedTarget))
-      toastOrigin = event.relatedTarget;
-  });
-  $('toast').addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return;
-    event.preventDefault();
-    event.stopPropagation();
-    hideToast();
-  });
-  $('toast-close').addEventListener('click', hideToast);
-};
-export const toast = (title: string, { detail = '', isError = false } = {}) => {
-  $('toast').dataset.tone = isError ? 'error' : 'ok';
-  $('toast-icon').replaceChildren(icon(isError ? 'alert' : 'check'));
-  $('toast-text').replaceChildren(el('strong', 'toast-title', title));
-  if (detail) $('toast-text').append(withCode(detail));
-  $('toast').hidden = false;
-  clearTimeout(toastTimer);
-  if (!isError) toastTimer = setTimeout(hideToast, 6000);
 };
 
 export const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
@@ -362,19 +285,6 @@ export const copy = async (text: string, what: string) => {
   }
 };
 
-export const iconButton = (name: string, label: string, press: (event: MouseEvent) => unknown, className = '') => {
-  const node = el('button', `icon-btn ${className}`.trim());
-  node.type = 'button';
-  node.setAttribute('aria-label', label);
-  node.title = label;
-  node.append(icon(name));
-  node.addEventListener('click', (event) => {
-    event.stopPropagation();
-    if (node.getAttribute('aria-disabled') !== 'true') press(event);
-  });
-  return node;
-};
-
 export const store = {
   key: (name: string) => `celetis:${name}`,
   get: (key: string) => {
@@ -406,18 +316,28 @@ export const store = {
   },
 };
 
+let announced = '';
 let announcing: ReturnType<typeof setTimeout> | undefined;
+const announcers = new Set<() => void>();
+const say = (text: string) => {
+  announced = text;
+  for (const listener of announcers) listener();
+};
+export const announcement = {
+  get: (): string => announced,
+  subscribe: (listener: () => void) => {
+    announcers.add(listener);
+    return () => void announcers.delete(listener);
+  },
+};
 export const announce = (text: string) => {
-  const live = $('announce');
   clearTimeout(announcing);
-  if (live.textContent !== text) {
-    live.textContent = text;
+  if (announced !== text) {
+    say(text);
     return;
   }
-  live.textContent = '';
-  announcing = setTimeout(() => {
-    live.textContent = text;
-  }, 100);
+  say('');
+  announcing = setTimeout(() => say(text), 100);
 };
 
 export const TYPES: Record<string, string> = { bug: 'bug', feature: 'spark', chore: 'wrench', hotfix: 'flame' };
