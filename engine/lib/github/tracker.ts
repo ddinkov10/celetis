@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { githubForms, parseEpicAcceptance, parseEpicChildren } from '../epic/acceptance.ts';
 import { run } from '../process/process.ts';
 import { github } from '../tracker/grammar.ts';
@@ -313,6 +314,11 @@ export function githubTracker(client: Client): Tracker {
     },
     async commentIssue(n: IssueKey, file: string, attachments: readonly string[]) {
       signal?.throwIfAborted();
+      if (attachments.length === 0) {
+        const endpoint = `issues/${n}/comments`;
+        const raw = await send('POST', endpoint, { fields: { body: await readFile(file, 'utf8') }, silent: false });
+        return `${parsed(endpoint, () => text(record(json(raw)).html_url))}\n`;
+      }
       const result = await run(
         'gh',
         ['issue', 'comment', n, `--body-file=${file}`, ...attachments.map((value) => `--attach=${value}`)],
