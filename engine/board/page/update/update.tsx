@@ -86,6 +86,14 @@ function Content({ shown }: { shown: UpdateShown }) {
         className="m-[6px_0_0] text-[0.78125rem] leading-[1.5] text-muted-foreground"
       >
         {shown.description}
+        {shown.release ? (
+          <span
+            id="update-release"
+            className="mt-[10px] block font-mono text-[0.6875rem] leading-[1.6] whitespace-pre-line wrap-anywhere text-card-foreground"
+          >
+            {shown.release}
+          </span>
+        ) : null}
       </Dialog.Description>
       <p
         id="update-progress"

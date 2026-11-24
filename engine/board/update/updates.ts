@@ -375,6 +375,14 @@ export function createUpdates({
             parts: prepared.parts.flatMap((part) =>
               'installed' in part ? [{ part: part.part, installed: part.installed, target: part.target }] : [],
             ),
+            release:
+              prepared.engine.to.kind === 'package' && prepared.engine.to.revision !== prepared.engine.source.revision
+                ? {
+                    version: prepared.engine.to.version,
+                    revision: prepared.engine.to.revision,
+                    integrity: prepared.engine.to.integrity,
+                  }
+                : null,
           };
           view = {
             phase: 'available',

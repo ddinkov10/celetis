@@ -1,11 +1,11 @@
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { readdir, readFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import { HostError } from '../command/errors.ts';
 import { type ExitCode, exits } from '../contract/contract.ts';
 import { selectHost } from '../host/host.ts';
-import { engineRevision } from '../process/git.ts';
 import { daemonScript, processScript, processState } from '../process/identity.ts';
 import { privateFolderProblem } from '../process/windows.ts';
+import { engineRevision } from '../release/release.ts';
 import { daemonSockets } from '../state/state.ts';
 import {
   type DaemonAnswer,
@@ -54,6 +54,37 @@ export async function findDaemon(common: string): Promise<Found> {
     if (refusal) throw refusal;
   }
   return { kind: 'runs', identity };
+}
+
+export async function liveRevisions(): Promise<ReadonlySet<string> | null> {
+  let names: string[];
+  try {
+    names = await readdir(daemonSockets.path);
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT' ? new Set() : null;
+  }
+  const revisions = await Promise.all(
+    names
+      .filter((name) => name.endsWith('.sock'))
+      .map(async (name) => {
+        try {
+          const response = await fetch('http://daemon/status', {
+            unix: join(daemonSockets.path, name),
+            signal: AbortSignal.timeout(5000),
+          });
+          return parseStatus(await response.json()).daemon.revision;
+        } catch (error) {
+          const code = (error as { code?: unknown }).code;
+          return code === 'ENOENT' || code === 'ECONNREFUSED' ? '' : null;
+        }
+      }),
+  );
+  const live = new Set<string>();
+  for (const revision of revisions) {
+    if (revision === null) return null;
+    if (revision) live.add(revision);
+  }
+  return live;
 }
 
 export function socketFolderRefusal(reason: string | null): HostError | null {

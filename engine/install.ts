@@ -3,9 +3,17 @@ import { HostError } from './lib/command/errors.ts';
 import { commandInput } from './lib/command/operation.ts';
 import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
 import { requireBun } from './lib/host/host.ts';
-import { enginePaths, engineSource, installEngine } from './lib/install/installation.ts';
+import { enginePaths, engineSource, installEngine, type PackageEngine } from './lib/install/installation.ts';
+import { versionTarget } from './lib/package/registry.ts';
 import { childEnv } from './lib/process/process.ts';
+import { hasGitEntry, readStamp } from './lib/release/release.ts';
 import { installRecorder } from './lib/state/events.ts';
+
+async function runningPackage(root: string): Promise<PackageEngine> {
+  const { version, revision, source } = await readStamp(root);
+  const { integrity } = await versionTarget(version);
+  return { kind: 'package', source, version, revision, integrity };
+}
 
 export async function main(argv: string[]): Promise<ExitCode> {
   try {
@@ -14,7 +22,8 @@ export async function main(argv: string[]): Promise<ExitCode> {
     if (args.length) throw new HostError(usage('install'), exits.usage);
     const paths = enginePaths();
     const root = dirname(import.meta.dir);
-    const engine = await installEngine(root, await engineSource(root), paths);
+    const wanted = (await hasGitEntry(root)) ? await engineSource(root) : await runningPackage(root);
+    const engine = await installEngine(root, wanted, paths);
     console.log(`install: ${engine.command} -> ${engine.entry}`);
     const key = (path: string) => (process.platform === 'win32' ? path.toLowerCase() : path);
     const items = (childEnv().PATH ?? '').split(delimiter).filter(Boolean);

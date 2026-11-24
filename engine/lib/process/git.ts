@@ -1,4 +1,5 @@
 import { realpath } from 'node:fs/promises';
+import { devNull } from 'node:os';
 import { HostError } from '../command/errors.ts';
 import { exits } from '../contract/contract.ts';
 import { run } from './process.ts';
@@ -53,8 +54,28 @@ export async function mainCheckout(cwd: string): Promise<string> {
   throw new HostError(message, exits.prerequisite);
 }
 
-export async function engineRevision(root: string): Promise<string> {
-  const result = await run('git', ['rev-parse', '--verify', 'HEAD'], { cwd: root });
-  if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
-  return result.stdout.trimEnd();
-}
+const transportVariables = new Set(['GIT_SSL_CAINFO', 'GIT_SSL_CAPATH']);
+
+const withoutGitVariables = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
+  Object.fromEntries(
+    Object.entries(env).filter(([key]) => !/^git_/i.test(key) || transportVariables.has(key.toUpperCase())),
+  );
+
+// GIT_DIR at the null device stops repository discovery, whatever the cwd.
+export const unattended: typeof run = (file, args, options = {}) =>
+  run(file, args, {
+    ...options,
+    timeout: 30_000,
+    env: {
+      ...withoutGitVariables(options.env ?? process.env),
+      GIT_DIR: devNull,
+      GIT_CONFIG_GLOBAL: devNull,
+      GIT_CONFIG_SYSTEM: devNull,
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_TERMINAL_PROMPT: '0',
+      GCM_INTERACTIVE: 'false',
+      GIT_ASKPASS: '',
+      SSH_ASKPASS_REQUIRE: 'never',
+      GIT_SSH_COMMAND: 'ssh -o BatchMode=yes',
+    },
+  });

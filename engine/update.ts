@@ -26,10 +26,13 @@ export async function update(checked: UpdateCheck): Promise<ExitCode> {
   const engine = checked.parts.find((part) => part.part === 'engine');
   if (!engine || !('to' in engine)) throw new HostError('update: no installed engine was inspected', exits.blocked);
   const offer = checked.offer;
+  const to = offer?.engine.to;
   const label =
-    engine.to.startsWith('refs/heads/') && engine.to === engine.ref && !offer?.request
-      ? short(engine.target)
-      : `${engine.to.replace(/^refs\/(heads|tags)\//, '')} ${short(engine.target)}`;
+    to?.kind === 'package'
+      ? `v${to.version} ${to.revision} ${to.integrity}`
+      : engine.to.startsWith('refs/heads/') && engine.to === engine.ref && !offer?.request
+        ? short(engine.target)
+        : `${engine.to.replace(/^refs\/(heads|tags)\//, '')} ${short(engine.target)}`;
   if (!offer) {
     console.log(`${styleText('green', '✓')} Celetis is up to date (${label}).`);
     return exits.done;

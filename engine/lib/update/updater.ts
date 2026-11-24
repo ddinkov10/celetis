@@ -17,7 +17,18 @@ import { codexRequest } from '../host/codex/app-server.ts';
 import { configHome } from '../host/homes.ts';
 import { hostAvailability, requireBun } from '../host/host.ts';
 import { isHost, isPluginHost, type PluginHost, pluginHosts } from '../host/names.ts';
-import { type Engine, type EngineSource, engineSource, installEngine, readEngine } from '../install/installation.ts';
+import {
+  type Engine,
+  type EngineSource,
+  engineIdentity,
+  enginePaths,
+  engineRefName,
+  engineSource,
+  holdsEngine,
+  installEngine,
+  readEngine,
+} from '../install/installation.ts';
+import { engineTarget } from '../package/package.ts';
 import {
   bindUpdateHome,
   claudeInstallation,
@@ -40,7 +51,7 @@ import { revision } from '../state/fields.ts';
 import { writeAtomic } from '../state/state.ts';
 import { UpdateLock, withPluginRead } from './lock.ts';
 import { partDiffers, pendingParts } from './pending.ts';
-import { followTarget, fullRef, newestTarget, requestTarget, resolveRef } from './target.ts';
+import { followTarget, newestTarget, requestTarget, resolveRef } from './target.ts';
 import type { UpdateStage } from './types.ts';
 
 export type { UpdateStage };
@@ -531,32 +542,42 @@ async function discoverUpdate(
         const source = await engineSource(installed.root);
         if (installed.revision !== source.revision)
           throw new HostError(
-            'update: installed engine link and Git revision disagree; repair the engine',
+            'update: installed engine link and revision disagree; repair the engine',
             exits.prerequisite,
           );
-        const resolved =
-          request === null
-            ? await followTarget(source.source, source.ref, cwd)
-            : await requestTarget(source.source, request, cwd);
-        if (resolved.target === source.revision && resolved.full !== fullRef(source.ref))
+        const { to, full, contract } = await engineTarget(source, request, cwd);
+        const ref = engineRefName(source);
+        if (to.revision === source.revision && full !== ref)
           throw new HostError(
-            `update: the engine follows ${fullRef(source.ref)} at ${short(source.revision)}, and ${resolved.full} is the same commit; the engine cannot move between two refs at one commit`,
+            `update: the engine follows ${ref} at ${short(source.revision)}, and ${full} is the same commit; the engine cannot move between two refs at one commit`,
+            exits.prerequisite,
+          );
+        const folder = join(enginePaths().versions, to.revision);
+        if (
+          to.revision !== source.revision &&
+          (await lstat(folder).catch(() => null)) &&
+          !(await holdsEngine(folder, to))
+        )
+          throw new HostError(
+            `update: ${folder} holds another engine than ${full}; move it away, then run celetis update again`,
             exits.prerequisite,
           );
         const text =
-          source.revision === resolved.target
+          source.revision === to.revision
             ? await fileOnDisk(join(installed.root, servedContractsFile))
-            : await fileAt(scratch, source.source, resolved.target, servedContractsFile);
+            : to.kind === 'package'
+              ? contract
+              : await fileAt(scratch, to.source, to.revision, servedContractsFile);
         serves = text === null ? null : servedContracts(text);
-        engine = { installed, source, to: { source: source.source, ref: resolved.ref, revision: resolved.target } };
+        engine = { installed, source, to };
         return {
           part: 'engine',
           root: installed.root,
           source: source.source,
-          ref: fullRef(source.ref),
-          to: resolved.full,
+          ref,
+          to: full,
           installed: source.revision,
-          target: resolved.target,
+          target: to.revision,
         };
       }),
     ];
@@ -1110,13 +1131,13 @@ export async function executeUpdate(
         const source = await engineSource(installed.root);
         if (
           !isDeepStrictEqual(source, offer.engine.to) ||
-          (await installedRevision('engine', installed.root, source.source)) !== offer.target
+          (await engineIdentity(installed.root, source)) !== offer.target
         )
           throw new HostError('update: fresh engine does not match the approved source, ref, or target', exits.blocked);
         expected.engine = { installed, source, to: offer.engine.to };
         expected.parts = expected.parts.map((value) =>
           value.part === 'engine' && 'to' in value
-            ? { ...value, root: installed.root, ref: value.to, installed: offer.target }
+            ? { ...value, root: installed.root, source: source.source, ref: value.to, installed: offer.target }
             : value,
         );
       } else {

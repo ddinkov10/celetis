@@ -12,7 +12,6 @@ import { type ExitCode, exits, signalExit } from '../contract/contract.ts';
 import { createCoordinator } from '../coordinator/coordinator.ts';
 import { type Engine, enginePaths } from '../install/installation.ts';
 import { versionFolderGone } from '../install/version-folder.ts';
-import { engineRevision } from '../process/git.ts';
 import { processStart, processState } from '../process/identity.ts';
 import { childEnv } from '../process/process.ts';
 import { holdFolder, makePrivateFolder, privateFolderProblem } from '../process/windows.ts';
@@ -20,6 +19,7 @@ import { admitQueue, failQueueLaunch, reconcileQueue } from '../queue/actions.ts
 import { queueSelection, readQueue } from '../queue/queue.ts';
 import { setAside } from '../queue/set-aside.ts';
 import type { QueueReceipt } from '../queue/types.ts';
+import { engineRevision } from '../release/release.ts';
 import {
   type Admission,
   autoLoop,

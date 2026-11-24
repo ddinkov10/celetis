@@ -4,14 +4,18 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { HostError } from '../command/errors.ts';
 import { exits } from '../contract/contract.ts';
+import { liveRevisions } from '../daemon/client.ts';
 import { celetisBase } from '../host/homes.ts';
+import { writeArchive } from '../package/archive.ts';
+import { checkReleaseTag, readRecord, readTarget, writeRecord } from '../package/package.ts';
+import { versionTarget } from '../package/registry.ts';
 import { installedRevision } from '../plugin/metadata.ts';
 import { git } from '../process/git.ts';
 import { run } from '../process/process.ts';
-import { manifestVersion, type Ref } from '../release/release.ts';
+import { hasGitEntry, manifestVersion, readStamp, type releaseSource } from '../release/release.ts';
 import { revision as fullRevision } from '../state/fields.ts';
 import { installLock, withLock, writeAtomic } from '../state/state.ts';
-import { fullRef, resolveRef } from '../update/target.ts';
+import { resolveRef } from '../update/target.ts';
 import { installDependencies } from './dependencies.ts';
 
 export type EnginePaths = Readonly<{
@@ -23,7 +27,23 @@ export type EnginePaths = Readonly<{
   current: string;
 }>;
 export type Engine = Readonly<{ root: string; entry: string; revision: string; command: string }>;
-export type EngineSource = Readonly<{ source: string; ref: Ref; revision: string }>;
+export type GitEngine = Readonly<{
+  kind: 'git';
+  source: string;
+  ref: Readonly<{ kind: 'branch'; name: string }>;
+  revision: string;
+}>;
+export type PackageEngine = Readonly<{
+  kind: 'package';
+  source: typeof releaseSource;
+  version: string;
+  revision: string;
+  integrity: string;
+}>;
+export type EngineSource = GitEngine | PackageEngine;
+
+export const engineRefName = (source: EngineSource) =>
+  source.kind === 'git' ? `refs/heads/${source.ref.name}` : `refs/tags/v${source.version}`;
 
 const shShim = [
   '#!/bin/sh',
@@ -109,7 +129,7 @@ export async function installedEngine(target: string): Promise<Engine> {
   if (!fullRevision.test(target) || !engine || engine.revision !== target)
     throw new HostError('update: the installed engine is not the approved target; check again', exits.prerequisite);
   const source = await engineSource(engine.root);
-  if (source.revision !== target || (await installedRevision('engine', engine.root, source.source)) !== target)
+  if (source.revision !== target || (await engineIdentity(engine.root, source)) !== target)
     throw new HostError(
       'update: the installed engine identity differs from the approved target; check again',
       exits.prerequisite,
@@ -118,41 +138,93 @@ export async function installedEngine(target: string): Promise<Engine> {
 }
 
 export async function engineSource(root: string): Promise<EngineSource> {
+  if (!(await hasGitEntry(root))) return packageEngine(root, basename(root));
   const source = await git(['config', '--get', 'remote.origin.url'], root);
   const revision = await git(['rev-parse', '--verify', 'HEAD'], root);
-  const ref = await engineRef(root, revision);
+  const ref = await engineBranch(root);
   if (await git(['status', '--porcelain', '--untracked-files=normal'], root))
     throw new HostError(
       `celetis: ${root} has changes that are not in a commit; commit or remove them, then run the install again`,
       exits.prerequisite,
     );
-  return { source, ref, revision };
+  return { kind: 'git', source, ref, revision };
 }
 
-async function engineRef(root: string, revision: string): Promise<Ref> {
+async function engineBranch(root: string): Promise<GitEngine['ref']> {
   const branch = await run('git', ['symbolic-ref', '--quiet', '--short', 'HEAD'], { cwd: root });
   if (branch.code === 0) return { kind: 'branch', name: branch.stdout.trimEnd() };
   if (branch.code !== 1)
     throw new HostError(`celetis: cannot read the HEAD of ${root}: ${branch.stderr.trimEnd()}`, exits.blocked);
-  const version = await manifestVersion(root);
-  const name = `v${version}`;
-  const tag = await run('git', ['rev-parse', '--quiet', '--verify', `refs/tags/${name}^{commit}`], { cwd: root });
-  if (version === null || tag.code !== 0 || tag.stdout.trimEnd() !== revision)
-    throw new HostError(
-      `celetis: ${root} is on no branch and not at its release tag; check out a branch or a release tag, then run the install again`,
-      exits.prerequisite,
-    );
-  return { kind: 'release', name };
+  throw new HostError(
+    `celetis: ${root} is on no branch; check out a branch, or install a release with bunx celetis@latest install`,
+    exits.prerequisite,
+  );
+}
+
+async function packageEngine(root: string, name: string): Promise<PackageEngine> {
+  const stamp = await readStamp(root);
+  const record = await readRecord(root);
+  if (
+    (await hasGitEntry(root)) ||
+    name !== stamp.revision ||
+    (await manifestVersion(root)) !== stamp.version ||
+    record.version !== stamp.version ||
+    record.revision !== stamp.revision
+  )
+    throw new HostError(`celetis: ${root} is not a valid engine package`, exits.prerequisite);
+  return {
+    kind: 'package',
+    source: stamp.source,
+    version: stamp.version,
+    revision: stamp.revision,
+    integrity: record.integrity,
+  };
+}
+
+export async function engineIdentity(root: string, source: EngineSource): Promise<string> {
+  return source.kind === 'git'
+    ? installedRevision('engine', root, source.source)
+    : (await packageEngine(root, source.revision)).revision;
 }
 
 async function holds(folder: string, wanted: EngineSource): Promise<boolean> {
-  const found = await engineSource(folder);
+  if (wanted.kind === 'package') return isDeepStrictEqual(await packageEngine(folder, wanted.revision), wanted);
   return (
-    found.source === wanted.source &&
-    isDeepStrictEqual(found.ref, wanted.ref) &&
-    found.revision === wanted.revision &&
-    (await installedRevision('engine', folder, wanted.source)) === wanted.revision
+    isDeepStrictEqual(await engineSource(folder), wanted) && (await engineIdentity(folder, wanted)) === wanted.revision
   );
+}
+
+export const holdsEngine = (folder: string, wanted: EngineSource): Promise<boolean> =>
+  holds(folder, wanted).catch((error) => {
+    if (error instanceof HostError) return false;
+    throw error;
+  });
+
+async function cloneEngine(from: string, wanted: GitEngine, staging: string, cwd: string): Promise<void> {
+  await git(['clone', '--quiet', '--no-checkout', '--origin', 'origin', '--', from, staging], cwd, slow);
+  await git(['remote', 'set-url', 'origin', wanted.source], staging, slow);
+  await git(['checkout', '--quiet', '-B', wanted.ref.name, wanted.revision], staging, slow);
+}
+
+async function unpackEngine(wanted: PackageEngine, staging: string, cwd: string): Promise<void> {
+  const target = await versionTarget(wanted.version);
+  if (target.integrity !== wanted.integrity)
+    throw new HostError(
+      `celetis: the registry integrity of ${wanted.version} differs from the approved value; the engine did not change`,
+      exits.prerequisite,
+    );
+  const { stamp, files } = await readTarget(target, cwd);
+  if (stamp.revision !== wanted.revision)
+    throw new HostError(
+      `celetis: the package ${wanted.version} holds revision ${stamp.revision}, not ${wanted.revision}; the engine did not change`,
+      exits.prerequisite,
+    );
+  if (!files.some(({ path, mode }) => path === 'engine/celetis' && mode === 0o755))
+    throw new HostError(
+      `celetis: the package ${wanted.version} has no executable engine/celetis; the engine did not change`,
+      exits.prerequisite,
+    );
+  await writeArchive(files, staging);
 }
 
 const replace = (path: string, text: string) => writeAtomic(path, text, { mode: 0o644 });
@@ -177,30 +249,26 @@ export async function installEngine(
           exits.prerequisite,
         );
       const source = await engineSource(expected.engine.root);
-      const full = fullRef(wanted.ref);
-      const remote = await resolveRef(wanted.source, full, expected.engine.root);
-      if (
-        !isDeepStrictEqual(source, expected.source) ||
-        source.revision !== expected.engine.revision ||
-        source.source !== wanted.source ||
-        remote.full !== full ||
-        remote.target !== wanted.revision
-      )
+      const full = engineRefName(wanted);
+      const unchanged =
+        wanted.kind === 'git'
+          ? await resolveRef(wanted.source, full, expected.engine.root).then(
+              (remote) => source.source === wanted.source && remote.full === full && remote.target === wanted.revision,
+            )
+          : (await versionTarget(wanted.version)).integrity === wanted.integrity;
+      if (!isDeepStrictEqual(source, expected.source) || source.revision !== expected.engine.revision || !unchanged)
         throw new HostError(
           'update: engine source, ref, or target changed; check again and obtain a new decision',
           exits.prerequisite,
         );
     };
     await validateExpected();
+    if (wanted.kind === 'package') await checkReleaseTag(wanted, paths.versions);
     for (const name of await readdir(paths.versions))
       if (name.startsWith('.')) await rm(join(paths.versions, name), { recursive: true, force: true });
     const root = join(paths.versions, wanted.revision);
     if (await lstat(root).catch(() => null)) {
-      const same = await holds(root, wanted).catch((error) => {
-        if (error instanceof HostError) return false;
-        throw error;
-      });
-      if (!same)
+      if (!(await holdsEngine(root, wanted)))
         throw new HostError(
           `celetis: ${root} holds another engine; remove it, then run the install again`,
           exits.prerequisite,
@@ -208,20 +276,8 @@ export async function installEngine(
     } else {
       const staging = join(paths.versions, `.${wanted.revision}.${randomUUID()}`);
       try {
-        await git(
-          ['clone', '--quiet', '--no-checkout', '--origin', 'origin', '--', from, staging],
-          paths.versions,
-          slow,
-        );
-        await git(['remote', 'set-url', 'origin', wanted.source], staging, slow);
-        if (wanted.ref.kind === 'branch')
-          await git(['checkout', '--quiet', '-B', wanted.ref.name, wanted.revision], staging, slow);
-        else {
-          const tag = `refs/tags/${wanted.ref.name}`;
-          if ((await run('git', ['rev-parse', '--quiet', '--verify', tag], { cwd: staging })).code !== 0)
-            await git(['fetch', '--quiet', '--no-tags', '--', from, `${tag}:${tag}`], staging, slow);
-          await git(['checkout', '--quiet', '--detach', wanted.revision], staging, slow);
-        }
+        if (wanted.kind === 'git') await cloneEngine(from, wanted, staging, paths.versions);
+        else await unpackEngine(wanted, staging, paths.versions);
         if ((await lstat(join(staging, 'engine', 'celetis')).catch(() => null))?.isFile()) {
           const dependencies = await installDependencies(staging, 'user');
           if (dependencies.kind === 'no-lock')
@@ -237,9 +293,15 @@ export async function installEngine(
             );
           }
         }
+        if (wanted.kind === 'package')
+          await writeRecord(staging, {
+            version: wanted.version,
+            revision: wanted.revision,
+            integrity: wanted.integrity,
+          });
         if (!(await holds(staging, wanted)))
           throw new HostError(
-            `celetis: the clone of ${from} is not ${wanted.source} ${wanted.ref.name} at ${wanted.revision}`,
+            `celetis: the staged engine is not ${wanted.source} ${engineRefName(wanted)} at ${wanted.revision}`,
             exits.blocked,
           );
         await rename(staging, root);
@@ -275,13 +337,15 @@ export async function installEngine(
     folders.sort((one, two) => two.time - one.time);
     const versions = await realpath(paths.versions);
     const running = resolve(import.meta.dir, '../../..');
-    for (const { name } of folders.slice(3))
-      if (name !== wanted.revision && join(versions, name) !== running) {
-        // A running engine reads only the entry of its version folder, so that folder must be complete or absent.
-        const renamed = join(paths.versions, `.${name}.${randomUUID()}`);
-        await rename(join(paths.versions, name), renamed);
-        await rm(renamed, { recursive: true, force: true });
-      }
+    const daemons = folders.length > 3 ? await liveRevisions() : null;
+    if (daemons)
+      for (const { name } of folders.slice(3))
+        if (name !== wanted.revision && join(versions, name) !== running && !daemons.has(name)) {
+          // A running engine reads only the entry of its version folder, so that folder must be complete or absent.
+          const renamed = join(paths.versions, `.${name}.${randomUUID()}`);
+          await rename(join(paths.versions, name), renamed);
+          await rm(renamed, { recursive: true, force: true });
+        }
     const engine = await readEngine(paths);
     if (!engine) throw new HostError(`celetis: the install did not make ${paths.link}`, exits.blocked);
     return engine;

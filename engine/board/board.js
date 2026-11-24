@@ -32424,6 +32424,7 @@ var shown2 = {
   isChecking: false,
   title: "",
   description: "",
+  release: "",
   progress: "",
   isProgressBusy: false,
   diagnostic: "",
@@ -32527,6 +32528,10 @@ var paint = () => {
     timeout: `The ${kind} may be done. The page got no answer in 60 seconds.`,
     current: target ? `Installed ${target.slice(0, 12)}.` : "No update is available."
   }[phase]);
+  const exact = phase === "available" ? update?.offer?.release : null;
+  const release = exact ? `Version ${exact.version}
+Revision ${exact.revision}
+Integrity ${exact.integrity}` : "";
   let status = "";
   if (phase === "restarting")
     status = "Reconnecting to the new daemon…";
@@ -32557,6 +32562,7 @@ var paint = () => {
   write({
     title,
     description,
+    release,
     progress: status,
     isProgressBusy,
     diagnostic,
@@ -34863,10 +34869,17 @@ function Content({ shown }) {
         className: "text-[0.875rem] leading-[1.4] font-semibold",
         children: shown.title
       }),
-      /* @__PURE__ */ jsx_runtime9.jsx(DialogDescription, {
+      /* @__PURE__ */ jsx_runtime9.jsxs(DialogDescription, {
         id: "update-description",
         className: "m-[6px_0_0] text-[0.78125rem] leading-[1.5] text-muted-foreground",
-        children: shown.description
+        children: [
+          shown.description,
+          shown.release ? /* @__PURE__ */ jsx_runtime9.jsx("span", {
+            id: "update-release",
+            className: "mt-[10px] block font-mono text-[0.6875rem] leading-[1.6] whitespace-pre-line wrap-anywhere text-card-foreground",
+            children: shown.release
+          }) : null
+        ]
       }),
       /* @__PURE__ */ jsx_runtime9.jsx("p", {
         id: "update-progress",

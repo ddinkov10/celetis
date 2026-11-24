@@ -1,8 +1,10 @@
-import { readFile } from 'node:fs/promises';
+import { lstat, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { z } from 'zod';
 import { HostError } from '../command/errors.ts';
 import { exits } from '../contract/contract.ts';
-import { engineRevision } from '../process/git.ts';
+import { run } from '../process/process.ts';
+import { revision } from '../state/fields.ts';
 
 export type Ref = Readonly<{ kind: 'branch' | 'release'; name: string }>;
 
@@ -48,6 +50,61 @@ export async function manifestVersion(root: string): Promise<string | null> {
   if (typeof manifest.version !== 'string' || releaseParts(`v${manifest.version}`) === null)
     throw new HostError(`celetis: the plugin manifest ${file} has a version that is not X.Y.Z`, exits.prerequisite);
   return manifest.version;
+}
+
+export const releaseSource = 'https://github.com/ddinkov10/celetis.git';
+
+export const manifests = ['plugins/celetis/.claude-plugin/plugin.json', 'plugins/celetis/.codex-plugin/plugin.json'];
+
+export type ReleaseStamp = Readonly<{ version: string; revision: string; source: typeof releaseSource }>;
+
+export const releaseVersion = z.string().refine((value) => releaseParts(`v${value}`) !== null);
+
+const stampShape = z.strictObject({
+  version: releaseVersion,
+  revision: z.string().regex(revision),
+  source: z.literal(releaseSource),
+});
+
+export function parseStamp(text: string): ReleaseStamp {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (error) {
+    throw new HostError('celetis: the release stamp is not JSON', exits.prerequisite, { cause: error });
+  }
+  const stamp = stampShape.safeParse(value);
+  if (!stamp.success) throw new HostError('celetis: the release stamp is not valid', exits.prerequisite);
+  return stamp.data;
+}
+
+export async function readStamp(root: string): Promise<ReleaseStamp> {
+  const file = join(root, 'engine/release.json');
+  let text: string;
+  try {
+    text = await readFile(file, 'utf8');
+  } catch (error) {
+    throw new HostError(`celetis: cannot read the release stamp ${file}`, exits.prerequisite, { cause: error });
+  }
+  return parseStamp(text);
+}
+
+export async function hasGitEntry(root: string): Promise<boolean> {
+  const entry = join(root, '.git');
+  try {
+    await lstat(entry);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw new HostError(`celetis: cannot read ${entry}`, exits.blocked, { cause: error });
+  }
+}
+
+export async function engineRevision(root: string): Promise<string> {
+  if (!(await hasGitEntry(root))) return (await readStamp(root)).revision;
+  const result = await run('git', ['rev-parse', '--verify', 'HEAD'], { cwd: root });
+  if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
+  return result.stdout.trimEnd();
 }
 
 export async function engineRelease(root: string): Promise<string> {

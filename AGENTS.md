@@ -243,8 +243,8 @@ The lanes of this repository are the skills of the plugin itself, on the issues 
 with `celetis --agent <host> land <n> '<subject>'`, which runs `suite` (`scripts/verify.ts`) on the commit that it lands and puts one squash commit on `main` without a PR.
 The landing is the last act of a change: this repository deploys only its documentation site, with
 `.github/workflows/docs.yml` on each push to `main`. The repository is public, the site is at
-`https://ddinkov10.github.io/celetis/`, and `docs.yml` is the only enabled workflow on `main` (ADR-0135).
-A release is a separate act of the maintainer: `scripts/release.ts <X.Y.Z>` (`scripts/README.md`, "The release"; ADR-0118).
+`https://ddinkov10.github.io/celetis/`, and `docs.yml` is the only workflow that a push to `main` runs (ADR-0135, ADR-0138).
+A release is a separate act of the maintainer: `scripts/release.ts <X.Y.Z>` pushes the tag `v<X.Y.Z>`, and the workflow `.github/workflows/release.yml` of that tag publishes that version to npm (`scripts/README.md`, "The release"; ADR-0118).
 The manifests on `main` hold no `version`: a `version` there stops each machine that follows `main` at that copy.
 For installation changes, follow `plugins/celetis/README.md`, "Updates".
 
@@ -267,7 +267,8 @@ For installation changes, follow `plugins/celetis/README.md`, "Updates".
   `engine/lib/terminal/terminal.ts`, `engine/lib/workflow/effort.ts`, `engine/lib/process/process.ts`,
   `engine/lib/update/updater.ts`, `engine/lib/update/target.ts`, `engine/lib/release/release.ts`,
   `engine/lib/install/installation.ts`,
-  `engine/lib/install/dependencies.ts`, `engine/lib/queue/queue.ts`, `engine/lib/queue/types.ts`,
+  `engine/lib/install/dependencies.ts`, `engine/lib/package/archive.ts`, `engine/lib/package/package.ts`,
+  `engine/lib/package/registry.ts`, `engine/lib/queue/queue.ts`, `engine/lib/queue/types.ts`,
   `engine/lib/coordinator/coordinator.ts`, `engine/lib/coordinator/types.ts`,
   `engine/lib/host/codex/app-server.ts`, `engine/lib/daemon/server.ts`, and
   `engine/lib/daemon/types.ts`.

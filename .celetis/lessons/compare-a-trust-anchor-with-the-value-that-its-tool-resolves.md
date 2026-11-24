@@ -9,7 +9,7 @@
     "release"
   ],
   "date": "2026-11-23",
-  "status": "active",
+  "status": "superseded",
   "source": "The implement session of #251 on Claude Code, Task 1, a controller ruling on the report of the implementer, 2026-11-23",
   "incidents": [
     {
@@ -44,8 +44,25 @@
         "state": "not-needed",
         "detail": "The rule stays text, because which constants are trust anchors is a judgment of each design."
       }
+    },
+    {
+      "id": "a6e467b7-8eb1-4127-868e-8b1b0a5e9035",
+      "requestDigest": "5e463bf11b6bf126a3da68f415b5fffefcdbff6017aea3d0146c3e1252c3036e",
+      "date": "2026-11-24",
+      "decision": "supersede",
+      "source": "agent review: lesson curation in the landing of #251; claude child opus/high\n\nSupersede under the reviewer rules: new evidence shows that the rule of the active lesson compare-a-trust-anchor-with-the-value-that-its-tool-resolves is wrong, and two incompatible rules must not stay active. The proposal holds observed tool output: a probe of the resolved-URL guard of de580bd (the action of the old rule) accepted remote.<source>.vcs and ran a helper, and a probe on a9cbbd1 accepted a system insteadOf from a user-owned system file. Its rule states applicability, action, and check, widens no permission, weakens no check or gate, adds no network or credential act, and agrees with the principle boundary-discipline of the plugin celetis. The read of the lane (unattended of engine/lib/process/git.ts) sets GIT_DIR, GIT_CONFIG_GLOBAL, and GIT_CONFIG_SYSTEM to the null device, sets GIT_CONFIG_NOSYSTEM, and drops the other GIT_ variables, as the Fix says. No live or historical lesson holds its incidents. Edits: the replacement keeps the incident and review of the old lesson, its What happened and Root cause name the first incident and its inferred cause, the description covers the three incidents, and the Fix states the replacement in place of the proposed reconciliation.",
+      "related": [
+        "give-a-read-of-a-trust-anchor-no-config-source-of-its-tool",
+        "compare-a-trust-anchor-with-the-value-that-its-tool-resolves"
+      ],
+      "followUp": {
+        "state": "not-needed",
+        "detail": "The rule stays text, because which constants are trust anchors is a judgment of each design."
+      }
     }
-  ]
+  ],
+  "replacement": "give-a-read-of-a-trust-anchor-no-config-source-of-its-tool",
+  "reason": "Replaced by give-a-read-of-a-trust-anchor-no-config-source-of-its-tool: the #251 incident 653eac5d shows that remote.<source>.vcs passed the check of the resolved URL that this rule prescribes, started another helper, and forged the tag proof. The replacement keeps this incident and its review, and removes each config source of the tool from the read."
 }
 ---
 # Compare a trust anchor with the value that its tool resolves

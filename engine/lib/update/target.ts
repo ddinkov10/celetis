@@ -1,6 +1,7 @@
 import { HostError } from '../command/errors.ts';
 import { exits } from '../contract/contract.ts';
 import { git } from '../process/git.ts';
+import { run } from '../process/process.ts';
 import { newestRelease, type Ref, releaseParts } from '../release/release.ts';
 import { revision } from '../state/fields.ts';
 
@@ -29,10 +30,11 @@ export async function resolveRef(
   name: string,
   cwd: string,
   exact: readonly string[] | null = name.startsWith('refs/') ? [name] : name === 'HEAD' ? null : shortRef(name),
+  execute: typeof run = run,
 ): Promise<Resolved> {
   let remote: string;
   try {
-    remote = await git(['ls-remote', '--symref', '--', source, name, `${name}^{}`], cwd);
+    remote = await git(['ls-remote', '--symref', '--', source, name, `${name}^{}`], cwd, execute);
   } catch (error) {
     throw new HostError(
       `update: cannot resolve configured Git ref ${name}: ${(error as Error).message}`,

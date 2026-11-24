@@ -81,6 +81,9 @@ The workflow is disabled in this repository (ADR-0135), so it does not run.
 The workflow `docs.yml` builds the site of `website/` and deploys it to GitHub Pages on each push
 to `main`. It is no check of a change.
 
+The workflow `release.yml` runs on a pushed release tag `v<X.Y.Z>` and publishes that version to npm
+(ADR-0138; "The release"). It is no check of a change either.
+
 ## The pin installer
 
 `scripts/install-tools.ts` installs the native `actionlint` after a check of its hash, and with
@@ -117,6 +120,66 @@ A manifest that is not valid JSON gives no `release:` line: the script ends with
 JSON parse error and exit 1, and nothing was tagged.
 
 On success it prints `release: v<X.Y.Z> -> <full commit>` and exits 0.
+
+The pushed tag runs the workflow `release.yml`. Its job checks out the tag, runs the verify gate,
+and runs `scripts/package.ts <X.Y.Z> "$RUNNER_TEMP/celetis"` at the top of that checkout. It runs
+`npm publish` on the tarball `"$RUNNER_TEMP/celetis/celetis-<X.Y.Z>.tgz"` that the script packed and
+read, through trusted publishing with no stored token, only when the last line is `package: publish`.
+
+`scripts/package.ts <X.Y.Z> <folder>` makes the npm package of a release. It refuses unless the
+current folder is the top of a checkout, `HEAD` is the commit of the tag `v<X.Y.Z>`, the tree is clean, both
+plugin manifests hold the version, and `<folder>` does not exist. It then makes `<folder>` and
+writes into `<folder>/package` the folders `engine/` and `plugins/celetis/` of `HEAD` from `git archive`, a root
+`package.json`, and the release stamp `engine/release.json`. The `package.json` has the name
+`celetis`, the `bin` `engine/celetis`, the `dependencies` of `engine/package.json`, `engines.bun`
+from `bunFloor`, the `repository.url` of the fixed source, and `"license": "UNLICENSED"`, with no
+script. Then it runs `npm pack` of `<folder>/package` into `<folder>`, reads the tarball
+`celetis-<X.Y.Z>.tgz` with `readArchive` of `engine/lib/package/archive.ts`, the reader of each
+install, and checks that `engine/celetis` has the mode 755. So a tracked name that the install
+refuses stops the release before any publish. Then it reads the package document of the registry
+(`BUN_CONFIG_REGISTRY`, else `https://registry.npmjs.org`). Its first line names the version, the
+commit, and the tarball. Its
+last line is `package: publish` when npm holds no such version, or `package: published` when the
+stamp of the published tarball has the same version and commit. It publishes nothing itself.
+
+- Exit 2: the arguments are not one version `X.Y.Z` and one folder, or `BUN_CONFIG_REGISTRY` is not
+  an http or https URL. In the second case the folder already exists.
+- Exit 3: a refusal of the checkout or the folder, with `package: <reason>`, also a failed
+  `git rev-parse --show-toplevel`. The script writes nothing.
+- Exit 3: the packed tarball fails `readArchive`, for example for a tracked name with a space, a
+  letter outside ASCII, or a Windows device name, and the line is `celetis: the package archive is
+  not valid: <reason>`; or `engine/celetis` is not executable in it. The folder stays.
+- Exit 3: npm holds the version at another commit, its tarball fails the integrity, archive, or
+  stamp check, or the registry document is not valid. The folder stays.
+- Exit 6: another Git command failed, `npm pack` failed or wrote no tarball, or the registry cannot
+  be read. The folder can stay.
+
+A failed job leaves the tag, and `latest` of npm stays at the older version. Rerun the failed job in
+GitHub Actions: it publishes when npm has no such version, and it passes with no write when npm
+holds the version at the same commit. When npm holds the version at another commit, the job fails,
+and npm lets no one replace a published version; make a new release. When npm has no such version
+but holds a newer one, published after the failed job, the rerun prints `package: publish` and
+`npm publish` fails: npm refuses to apply the `latest` tag to an older version. `latest` does not
+move. Make a new release.
+
+The documents of npm do not say that trusted publishing works for the first publish of a new
+package. If the job of the first npm release fails at `npm publish`, publish that version by hand
+from a temporary worktree at the tag, then remove the worktree:
+
+```sh
+git worktree add --detach <dir> v<X.Y.Z>
+cd <dir>
+bun --no-env-file --no-install --config=/dev/null --no-macros scripts/worktree-setup.ts "$PWD"
+bun --no-env-file --no-install --config=/dev/null --no-macros scripts/package.ts <X.Y.Z> <absolute new folder>
+npm login
+npm publish <absolute new folder>/celetis-<X.Y.Z>.tgz --access public
+```
+
+Then rerun the failed job. It prints `package: published` and publishes nothing. A version that was
+published by hand has no provenance. Add the trusted publisher of the package `celetis` on
+npmjs.com, with the repository `ddinkov10/celetis` and the workflow `release.yml`, at most 2 days
+before the next release: a new publisher configuration expires after 2 days with no successful
+publish.
 
 ## The Herdr lab
 

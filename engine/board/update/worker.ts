@@ -1,7 +1,8 @@
 import { isDeepStrictEqual } from 'node:util';
 import { exits } from '../../lib/contract/contract.ts';
 import { isPluginHost } from '../../lib/host/names.ts';
-import { releaseParts } from '../../lib/release/release.ts';
+import { integrityForm } from '../../lib/package/registry.ts';
+import { releaseParts, releaseSource } from '../../lib/release/release.ts';
 import { installRecorder, markDefect } from '../../lib/state/events.ts';
 import { revision } from '../../lib/state/fields.ts';
 import type { PreparedUpdate, UpdateCheck, UpdateResult, UpdateStage } from '../../lib/update/updater.ts';
@@ -26,8 +27,27 @@ const ref = (value: unknown) =>
   keys(value, ['kind', 'name']) &&
   text(value.name) &&
   (value.kind === 'branch' || (value.kind === 'release' && releaseParts(value.name) !== null));
-const engineSource = (value: unknown): value is Record<string, unknown> =>
-  object(value) && text(value.source) && ref(value.ref) && sha(value.revision);
+const engineSource = (value: unknown): value is Record<string, unknown> => {
+  if (!object(value)) return false;
+  if (value.kind === 'git')
+    return (
+      keys(value, ['kind', 'source', 'ref', 'revision']) &&
+      text(value.source) &&
+      ref(value.ref) &&
+      (value.ref as Record<string, unknown>).kind === 'branch' &&
+      sha(value.revision)
+    );
+  return (
+    value.kind === 'package' &&
+    keys(value, ['kind', 'source', 'version', 'revision', 'integrity']) &&
+    value.source === releaseSource &&
+    text(value.version) &&
+    releaseParts(`v${value.version}`) !== null &&
+    sha(value.revision) &&
+    text(value.integrity) &&
+    integrityForm.test(value.integrity)
+  );
+};
 
 export function isPreparedUpdate(value: unknown): value is PreparedUpdate {
   if (!object(value) || value.request !== null || !sha(value.target) || !isParts(value.parts) || !object(value.engine))

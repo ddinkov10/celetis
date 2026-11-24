@@ -6826,7 +6826,7 @@ var commands = [
     })
   ], "Resolves the six digits. `--json` gives the score of the selected host and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null"),
   entry("dispatch", true, dispatchForms, `Acts: ${dispatchForms.map(({ words }) => `\`${words[1]}\``).join(", ")}. The task loop applies each returned pair and reports exact native arguments/results. Evidence is agent-reported, not independently checked. Records: \`/tmp/celetis-<uid>/dispatch/<host>-<session>.json\` on macOS and Linux; \`<os.tmpdir()>/celetis/dispatch/<host>-<session>.json\` on Windows. It exits ${exits.done} for a ready, reported, or closed result (also \`show\`), ${exits.usage} for bad usage or an invalid \`.celetis.yaml\`, ${exits.prerequisite} for a refusal or a busy dispatch lock, ${exits.blocked} for a setup failure, and ${exits.stop} when the engine stops the task`, ["done", "internal", "usage", "prerequisite", "blocked", "stop"], undefined, true),
-  entry("install", false, [form("install")], 'Installs the revision of the clean checkout that it runs from as the engine ("First install"); takes no arguments'),
+  entry("install", false, [form("install")], 'Installs the engine from the release package or the clean branch checkout that it runs from ("First install"); takes no arguments'),
   entry("setup", true, [
     form("setup check", [], {
       ...changes,

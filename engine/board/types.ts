@@ -38,6 +38,7 @@ export type BoardOffer = {
   id: string;
   target: string;
   parts: { part: 'engine' | PluginHost; installed: string; target: string }[];
+  release: Readonly<{ version: string; revision: string; integrity: string }> | null;
 };
 export type UpdateView = {
   phase:

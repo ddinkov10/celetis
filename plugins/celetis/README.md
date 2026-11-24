@@ -166,8 +166,22 @@ commands that install Bun.
 
 ### First install
 
-Install the engine `celetis` one time on each machine. Run this command in a normal terminal, or
-in Git Bash on Windows:
+Install the engine `celetis` one time on each machine. A machine follows a release or a branch.
+
+For a release, run this command in a normal terminal, or in Git Bash on Windows:
+
+```sh
+bunx celetis@latest install
+```
+
+The command runs the newest package of `celetis`, and that package installs its own version into a
+version folder. The `bunx` cache is never the installed engine. `BUN_CONFIG_REGISTRY` selects the
+registry, and the default is `https://registry.npmjs.org`. The install checks the sha512 integrity
+of the package. It also checks that `refs/tags/v<X.Y.Z>` of
+`https://github.com/ddinkov10/celetis.git` is at the revision that the package names. A failed check
+changes nothing.
+
+For a branch, run this command:
 
 ```sh
 celetis_tmp="$(mktemp -d "$HOME/.celetis-install.XXXXXX")" &&
@@ -182,29 +196,32 @@ The clone goes into a new folder in your home folder, not into the shared tempor
 looks for a workspace root and for packages in each folder above `engine/`, and on Linux other
 users can write to `/tmp`.
 
-`celetis install` installs the revision of the clean checkout that it runs from, here the trunk of
-`ddinkov10/celetis`. The checkout must be on a branch or at a release tag `v<X.Y.Z>`, with no
-uncommitted changes; a linked worktree is also a checkout. A checkout at a release tag has a
-detached `HEAD` at the commit of that tag, holds the tag, and its plugin manifest has the version
-of the tag. The install refuses a detached checkout at any other commit, and exits 3. The URL of
-the clone is the source of the engine. The ref of the engine is the branch of the checkout, or the
-release tag of the checkout. For a branch, `celetis update` moves the engine to the head of that
-branch of that source. For a release tag, it moves the engine to the newest release tag of that
-source.
+`celetis install` from a checkout installs the revision of that clean checkout, here the trunk of
+`ddinkov10/celetis`. The checkout must be on a branch, with no uncommitted changes; a linked
+worktree is also a checkout. The install refuses a detached checkout, also at a release tag, and
+exits 3. The URL of the clone is the source of the engine, and the branch of the checkout is its
+ref. `celetis update` moves the engine to the head of that branch of that source.
 
-For a machine that runs a release, add `--branch v<X.Y.Z>` to the clone of the command above, for
-example `git clone --quiet --branch v0.0.1 https://github.com/ddinkov10/celetis.git "$celetis_tmp/celetis"`.
-On such a machine, add the marketplace of each host at the same release tag:
-`claude plugin marketplace add ddinkov10/celetis#v<X.Y.Z>` in "Each machine: Claude Code", and
-`codex plugin marketplace add ddinkov10/celetis --ref v<X.Y.Z>` in "Each machine: Codex only".
+An older install can leave a version folder that is a Git clone at a release tag. `celetis update
+check` shows an `error` part for it that names `bunx celetis@latest install`. When the newest
+release has the revision of that folder, the install refuses the folder as another engine. Move the
+folder away, and run the command again. Then move away the launcher entry that the next error
+names, and run the command one more time.
+
+On a machine that follows a release, add the marketplace of each host at the same release tag:
+`claude plugin marketplace add https://github.com/ddinkov10/celetis.git#v<X.Y.Z>` in "Each machine:
+Claude Code", and `codex plugin marketplace add https://github.com/ddinkov10/celetis.git --ref v<X.Y.Z>`
+in "Each machine: Codex only".
 
 `<base>` is `CELETIS_HOME` when that variable is not empty, else the
 home folder; set it for each process that runs `celetis`. The engine refuses a `CELETIS_HOME` that
 is not an absolute path, and the install then exits 2. The install makes these entries:
 
-- `<base>/.local/share/celetis/versions/<revision>/` is a Git clone of the source of the checkout
-  at that full revision: on its branch, or, at a release tag, with a detached `HEAD` and that local
-  tag. The install refuses a version folder that holds another engine.
+- `<base>/.local/share/celetis/versions/<revision>/` holds one of two kinds of engine. For a branch,
+  it is a Git clone of the source of the checkout at that full revision, on its branch. For a
+  release, it is the unpacked package with no `.git`, and the record `.celetis-package.json` holds
+  its version, revision, and integrity. The install refuses a version folder that holds another
+  engine.
 - `<base>/.local/share/celetis/versions/<revision>/engine/node_modules/` holds the packages that
   `engine/bun.lock` of that revision locks. The install puts them into the new version folder with
   `bun install --frozen-lockfile --production --ignore-scripts`, so no lifecycle script runs. The
@@ -222,8 +239,9 @@ is not an absolute path, and the install then exits 2. The install makes these e
   never reads changed text. A partial set of these three entries reads as no engine, and the
   next install writes the absent entries.
 
-An install keeps the three newest version folders, the current one, and the installed version
-that runs that install. It removes the other version folders. It changes no file outside
+An install keeps the three newest version folders, the current one, the installed version that
+runs that install, and the version folder of each daemon that answers its status read. It removes
+the other version folders. When a daemon socket gives no clear answer, it removes no version folder. It changes no file outside
 `<base>/.local/share/celetis/` and its own entries in
 `<base>/.local/bin/`. When `<base>/.local/bin/celetis`, or `celetis.cmd` on Windows, is there and
 is not an entry of the engine, the install refuses and changes nothing. Move that entry away, then run the install again.
@@ -253,7 +271,7 @@ or the board's update control ("Updates").
 1. Add the marketplace, and install the plugin:
 
    ```bash
-   claude plugin marketplace add ddinkov10/celetis
+   claude plugin marketplace add https://github.com/ddinkov10/celetis.git
    claude plugin install celetis@celetis
    ```
 
@@ -338,11 +356,11 @@ line that names each branch that stays on GitHub. Delete that branch from a loca
 
 ### Each machine: Codex only
 
-Use a signed-in Codex CLI. This repository is public, so it needs no Git credentials. Claude is not
-required. Add the Git source, then install the plugin:
+Use a signed-in Codex CLI. The repository is public, so its HTTPS source needs no Git credentials.
+Claude is not required. Add the Git source, then install the plugin:
 
 ```bash
-codex plugin marketplace add ddinkov10/celetis --ref main
+codex plugin marketplace add https://github.com/ddinkov10/celetis.git --ref main
 codex plugin add celetis@celetis --json
 ```
 
@@ -350,7 +368,7 @@ The engine finds the enabled installation through `skills/list`; it does not cal
 path. A local-path marketplace is unsuitable for `celetis update`: it reads the contract file of the
 plugin from a Git source, and `plugin marketplace upgrade celetis` requires a Git source. The check
 of a new step reads no Git source, so a step can start with a local source ("Updates"). `--ref main` selects the landed source, the branch of the engine. On a machine whose engine runs a release, add the marketplace at that release tag instead:
-`codex plugin marketplace add ddinkov10/celetis --ref v<X.Y.Z>`. For an unlanded check, use supported checkout loading with the existing host and authentication. These commands and result fields were checked
+`codex plugin marketplace add https://github.com/ddinkov10/celetis.git --ref v<X.Y.Z>`. For an unlanded check, use supported checkout loading with the existing host and authentication. These commands and result fields were checked
 on Codex 0.162.1. See the [Codex CLI reference](https://learn.chatgpt.com/docs/cli/reference).
 
 Install Superpowers from its Git marketplace:
@@ -764,7 +782,7 @@ setup"):
 | `celetis --agent <host> config <checkout> <plugin>` | The reader of `.celetis.yaml` for the agent. It first checks that `<plugin>` is a Celetis plugin: a folder whose `.claude-plugin/plugin.json` has `"name": "celetis"`. It then validates the whole file of `<checkout>`, and checks each `custom` key against `<plugin>/skills/<key>/SKILL.md`, a regular file with no symbolic link. It prints the configuration as one compact JSON line. `--agent` selects nothing. It exits 2 for another form, a folder that is not a Celetis plugin, or a missing or invalid file; the line names the field or the plugin folder. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis --agent <host> capscore J V B N S X [--json] [--bias N] [--attempt N] [--reviewer] [--profile FILE] [--runtime-models FILE]` | Resolves the six digits. `--json` gives the score of the selected host and the host pair. With a Codex profile, it selects the profile by live runtime identity and needs `--runtime-models`; with no Codex profile, `dispatch.model` is null. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis --agent <host> dispatch next <n> <task> implementer\|reviewer J V B N S X --bias N [--profile FILE] [--runtime-models FILE] \| dispatch report <dispatch-id> <report-file> \| dispatch gate <n> <task> pass\|fail <gate> <report> [--profile FILE] [--runtime-models FILE] \| dispatch review <n> <task> findings\|blocked [--profile FILE] [--runtime-models FILE] \| dispatch close <n> <task> \| dispatch show` | Acts: `next`, `report`, `gate`, `review`, `close`, `show`. The task loop applies each returned pair and reports exact native arguments/results. Evidence is agent-reported, not independently checked. Records: `/tmp/celetis-<uid>/dispatch/<host>-<session>.json` on macOS and Linux; `<os.tmpdir()>/celetis/dispatch/<host>-<session>.json` on Windows. It exits 0 for a ready, reported, or closed result (also `show`), 2 for bad usage or an invalid `.celetis.yaml`, 3 for a refusal or a busy dispatch lock, 6 for a setup failure, and 8 when the engine stops the task. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked, 8 stop |
-| `celetis install` | Installs the revision of the clean checkout that it runs from as the engine ("First install"); takes no arguments. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
+| `celetis install` | Installs the engine from the release package or the clean branch checkout that it runs from ("First install"); takes no arguments. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis --agent <host> setup check \| setup write --tracker github\|local --hosts claude\|codex\|claude,codex\|codex,claude --landing pr\|merge [--suite <file>] [--setup-file <file>] [--ignore <line>] [--baseline-file <file>] \| setup try --tracker github\|local --hosts claude\|codex\|claude,codex\|codex,claude --landing pr\|merge [--suite <file>] [--setup-file <file>] [--ignore <line>] [--baseline-file <file>] \| setup try --remove \| setup lane <path> \| setup push` | The deterministic part of `/celetis:setup`: validated saved answers from `check`, bounded owned refresh and removal in `write`, the test lane (`try` makes it and runs the worktree setup there, and `try --remove` removes it), the run of the worktree setup in a lane that exists (`lane`), and the commit of planned paths, including deletions, with the push. Every setup run calls the engine; no product launcher is written. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked, or the exit code of the worktree setup script |
 | `celetis --agent <host> setup status` | Reports the required wiring of the active checkout for the selected host, also from a subfolder or a lane worktree: `origin`, `.celetis.yaml` and its configured files, the Celetis block, the Claude imports and settings or the Codex restriction, the ignore and attribute lines, the record of setup, and the workflow labels. It writes nothing, runs no product file, and fetches nothing. An incomplete report ends with `Run /celetis:setup in the main checkout: <path>`. It exits 0 when the wiring is complete, 3 when it is missing, invalid, or different, and 6 when an observation is blocked. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
 | `celetis agents read \| agents replace '<JSON>'` | Reads the local ordered preference, or replaces it with exactly `order` and `expectedVersion`. It shares the Git common directory across worktrees and requires no YAML. It exits 2 for a replacement that is not JSON or not a valid order, and for an `agents.json` that does not validate. It exits 3 for a stale-edit conflict, and returns the latest order; a busy write lock also exits 3, with no JSON. It exits 6 for an unsafe or unreadable record. Repeating the current order succeeds. Exit status: 0 done, 1 internal, 2 usage, 3 prerequisite, 6 blocked |
@@ -846,9 +864,9 @@ celetis update
 It reads three parts: the engine, the Celetis plugin of Claude Code, and the Celetis plugin of
 Codex. Each part follows one ref of its own source: a branch, or a release tag `v<X.Y.Z>`. An
 absent ref and `HEAD` mean the default branch of the source. The ref of the engine is the branch
-or the release tag of its version folder ("First install"). The source and the ref of a plugin
-are the native marketplace source of its host. For Codex, it is the marketplace `celetis`. For
-Claude Code, the order is:
+of its Git clone, or the release tag `v<X.Y.Z>` of its npm package ("First install"). The source
+and the ref of a plugin are the native marketplace source of its host. For Codex, it is the
+marketplace `celetis`. For Claude Code, the order is:
 
 1. With a user entry `extraKnownMarketplaces.celetis` in `settings.json` of the Claude
    configuration folder, the part takes its source and its ref from that entry.
@@ -868,10 +886,24 @@ from its ref:
 | a branch | the head of that branch | the head of the branch `<ref>`, or the commit of the release tag `<ref>` |
 | a release tag | the commit of the newest release tag of the source | the head of the branch `<ref>`, or the commit of the release tag `<ref>` |
 
-"Newest" is the numeric order of the three numbers of the tag, and each part reads the tags of its
-own source. A part that follows a release on a source with no release tag is an error part. A
-host with no CLI on `PATH`, or with no Celetis, is skipped. At a stop of the list below, it prints
-one line for each part: the installed and the target revision, `marketplace clone <clone> -> <target>`
+For the engine, a release is a version of the npm package `celetis`. `BUN_CONFIG_REGISTRY` selects
+the registry, and the default is `https://registry.npmjs.org`. The target of an engine on a release
+is `dist-tags.latest` of the package, not the newest tag, also when that version is older than the
+installed version. `celetis update --to v<X.Y.Z>` selects that version of the package. A branch
+selects Git, at the source of the engine, so `--to` moves the engine between the two kinds in both
+directions. These are errors of the engine part: a registry that is down, an error answer, a
+malformed document, a version that the registry lacks, a package whose tag `refs/tags/v<X.Y.Z>` of
+`https://github.com/ddinkov10/celetis.git` is absent or on another commit than the revision in the
+package, and a registry integrity of the installed version that differs from its record.
+
+No Git config file applies to the read of that tag, neither the system file nor your own. So a
+value such as `http.proxy` or `http.sslCAInfo` in a Git config file does not apply to it. For a
+proxy or a CA, set the environment variables, such as `HTTPS_PROXY` and `GIT_SSL_CAINFO`.
+
+"Newest" is the numeric order of the three numbers of the tag, and each plugin part reads the tags
+of its own source. A plugin part that follows a release on a source with no release tag is an error
+part. A host with no CLI on `PATH`, or with no Celetis, is skipped. At a stop of the list below, it
+prints one line for each part: the installed and the target revision, `marketplace clone <clone> -> <target>`
 when only the marketplace clone of the Claude part differs, or `up to date`, then the source
 and the full ref of the part, with ` -> <target ref>` when the target ref is another ref; or a
 skipped part with its reason, or the first line of an error.
@@ -889,14 +921,18 @@ that part, and its line names the ref. The engine cannot move between two refs a
 because its version folder has the name of its revision and holds one ref. So a `<ref>` at the
 commit of the installed engine, when the engine follows another ref, is an error of the engine
 part: `update: the engine follows <full ref> at <revision>, and <full target ref> is the same commit; the engine cannot move between two refs at one commit`.
+A version folder at the target revision that holds another engine, such as a retained folder of
+the other kind, is also an error of the engine part, so no part moves:
+`update: <folder> holds another engine than <full target ref>; move it away, then run celetis update again`.
 The stops, the question, and the update after it follow the rules below.
 
 Before it asks anything, it checks the contract pair of the targets. It reads
 `plugins/celetis/contract.json` at the target of each plugin and
 `engine/lib/contract/versions.json` at the target of the engine. It reads them from the Git
-source of the part, with one shallow fetch of each source and revision into a temporary folder,
-and it runs no code of a target. A part that is at its target uses the file of its installed
-folder. Then it stops with no change at the first of these:
+source of the part, with one shallow fetch of each source and revision into a temporary folder.
+For an engine target on npm, it reads the file from the downloaded package, after it checks the
+integrity and the tag. It runs no code of a target. A part that is at its target uses the file of
+its installed folder. Then it stops with no change at the first of these:
 
 1. A part has an error. A failed fetch or read of a contract file is an error of its part, and
    its line names the path, the source, the target, and the reason.
@@ -969,7 +1005,9 @@ it. Else it is the target ref of the engine and then its short target, for examp
 
 Else it asks `Update Celetis to <label>? Sessions keep running. [Y/n]` one time in an interactive
 terminal, with no part lines before it. The question of `celetis update --to <ref>` always names
-`<ref>` before the short target, also when the engine stays on that branch. Press Enter or enter `y` or
+`<ref>` before the short target, also when the engine stays on that branch. When the target of the
+engine is a package, `<label>` is `v<X.Y.Z> <full revision> <sha512 integrity>`, so you confirm that
+exact package. Press Enter or enter `y` or
 `yes` to permit that exact attempt. EOF or any
 other answer leaves each part unchanged and prints `Nothing changed.` With no interactive terminal, it stops with a line that tells you to run `celetis update` in an interactive terminal, and
 exits 3. No cache path, commit hash, or flag confirms an update.
@@ -1023,9 +1061,9 @@ A fresh session loads the updated skills and tools; old cache files are not guar
 available to running work. Restart a session or the daemon if it still needs a resource that the
 host replaced.
 
-An install or an update keeps the three newest version folders, the current one, and the folder
-of the engine that runs that install. A daemon that stays open through three later updates can
-lose its version folder; it then prints a line that says the engine version was removed after an update, and exits 3. Before each new step
+An install or an update keeps the three newest version folders, the current one, the folder of
+the engine that runs that install, and the folder of each daemon that answers its status read.
+A daemon whose version folder is gone prints a line that says the engine version was removed after an update, and exits 3. Before each new step
 session, the daemon reads the contract version in `contract.json` of the plugin folder of the
 session's host and compares it with the versions that it serves. When it does not serve that
 version, it starts no session and prints a line that says that the plugin needs contract `<n>` and
@@ -1055,9 +1093,12 @@ deadline and descendant cleanup apply. Revalidation under that lock must match t
 root, source, configured and resolved refs, target ref, installed revision, target, scope,
 registration, Claude user entry, Claude marketplace clone, and sibling set. A changed identity or target refuses this attempt.
 Failures preserve native diagnostics and observed partial state. The update of the engine holds
-`<base>/.local/share/celetis/install.lock`, so a second install or update refuses while it runs. It
-clones the target into a staging folder, installs the locked packages into it, checks the source,
-the ref, and the revision of the clone, and then switches the engine as "First install" says.
+`<base>/.local/share/celetis/install.lock`, so a second install or update refuses while it runs. For
+a Git target, it clones the target into a staging folder, installs the locked packages into it,
+checks the source, the ref, and the revision of the clone, and then switches the engine as "First
+install" says. For a package target, it reads the package document again and refuses a changed
+integrity. It then downloads and checks the package, unpacks it into a staging folder, installs the
+locked packages, checks the identity, and switches the engine in the same way.
 A terminal update stops the clone and the install after 120 seconds each. An update that the board
 runs sets no time limit on them.
 

@@ -810,7 +810,7 @@ export const commands: readonly Entry[] = [
     'install',
     false,
     [form('install')],
-    'Installs the revision of the clean checkout that it runs from as the engine ("First install"); takes no arguments',
+    'Installs the engine from the release package or the clean branch checkout that it runs from ("First install"); takes no arguments',
   ),
   entry(
     'setup',

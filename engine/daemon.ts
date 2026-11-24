@@ -19,7 +19,6 @@ import { startDetached } from './lib/daemon/start.ts';
 import { type DaemonIdentity, type DaemonStatus, daemonPaths, type RunRow } from './lib/daemon/types.ts';
 import { hostAvailability, requireBun } from './lib/host/host.ts';
 import { isHost } from './lib/host/names.ts';
-import { engineRevision } from './lib/process/git.ts';
 import { daemonScript, processAlive, processStart, processState } from './lib/process/identity.ts';
 import { bunArgs, childEnv } from './lib/process/process.ts';
 import {
@@ -30,6 +29,7 @@ import {
   privateFolderProblem,
   sessionJobName,
 } from './lib/process/windows.ts';
+import { engineRevision } from './lib/release/release.ts';
 import { projectNeedsGh } from './lib/services/services.ts';
 import { installRecorder, passOn } from './lib/state/events.ts';
 import { issueLock, type LockOwner } from './lib/state/locks.ts';

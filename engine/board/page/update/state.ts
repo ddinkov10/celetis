@@ -15,6 +15,7 @@ export type UpdateShown = Readonly<{
   isChecking: boolean;
   title: string;
   description: string;
+  release: string;
   progress: string;
   isProgressBusy: boolean;
   diagnostic: string;
@@ -100,6 +101,7 @@ let shown: UpdateShown = {
   isChecking: false,
   title: '',
   description: '',
+  release: '',
   progress: '',
   isProgressBusy: false,
   diagnostic: '',
@@ -239,6 +241,8 @@ const paint = () => {
       current: target ? `Installed ${target.slice(0, 12)}.` : 'No update is available.',
     }[phase],
   );
+  const exact = phase === 'available' ? update?.offer?.release : null;
+  const release = exact ? `Version ${exact.version}\nRevision ${exact.revision}\nIntegrity ${exact.integrity}` : '';
   let status = '';
   if (phase === 'restarting') status = 'Reconnecting to the new daemon…';
   else if (phase === 'restart-needed') status = 'The daemon runs an older Celetis engine.';
@@ -264,6 +268,7 @@ const paint = () => {
   write({
     title,
     description,
+    release,
     progress: status,
     isProgressBusy,
     diagnostic,

@@ -6,9 +6,8 @@ import { HostError } from '../engine/lib/command/errors.ts';
 import { type ExitCode, exits } from '../engine/lib/contract/contract.ts';
 import { installArgs, installDependencies } from '../engine/lib/install/dependencies.ts';
 import { bunArgs, run } from '../engine/lib/process/process.ts';
-import { newestRelease, releaseParts } from '../engine/lib/release/release.ts';
+import { manifests, newestRelease, releaseParts } from '../engine/lib/release/release.ts';
 
-const manifests = ['plugins/celetis/.claude-plugin/plugin.json', 'plugins/celetis/.codex-plugin/plugin.json'];
 const nameLine = '  "name": "celetis",';
 
 const refuse = (reason: string, code: ExitCode = exits.prerequisite) => new HostError(`release: ${reason}`, code);

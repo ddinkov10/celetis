@@ -131,12 +131,14 @@ starts the daemon in the main checkout from each checkout of the repository, and
 **Open work during updates.** The section `Updates` of Control keeps one update control.
 **Check for updates** starts discovery in one press. **Checking…** retains focus and ignores
 another press. **Up to date** reports that the installed engine and registered plugins match
-the configured target of each part: the head of its branch, or the newest release of its source for
-a part that follows a release. The Claude marketplace clone is also at that target. It does not mean that an open agent session has reloaded new code.
+the configured target of each part: the head of its branch, the newest release of its source for
+a plugin that follows a release, or `dist-tags.latest` of npm for an engine that follows a release. The Claude marketplace clone is also at that target. It does not mean that an open agent session has reloaded new code.
 **Restart needed** (below) shows a daemon that runs another engine than the installed one. Press
 **Up to date** for a fresh check. Progress and results use the polite status region,
 without a success toast or current-result dialog. A check does not refresh issues or approve
-installation. Only the separate **Update and restart** decision approves an offer.
+installation. Only the separate **Update and restart** decision approves an offer. The dialog of an
+offer that moves an engine from npm names the exact release in three labelled lines: the version, the full
+revision, and the integrity.
 
 The daemon checks at its start and every 10 minutes, in a worker child process. Concurrent
 checks share one worker, with a 120-second limit. These checks do not wait for issue or terminal
@@ -145,7 +147,8 @@ the offer ID; the controller keeps its complete identity. A stale offer, conflic
 a new check and decision. The native update locks and validation also apply to this path.
 
 The nonmodal update dialog keeps the board usable. It shows a title,
-one line, and its actions. The control and the polite status region carry each state; no change
+a description, and its actions, and for an offer that moves an engine from npm also the three
+release lines. The control and the polite status region carry each state; no change
 of state opens the dialog. Only a press of the control opens it, and an open dialog stays open
 across changes of state until Escape, **Later**, **Close**, or **Hide progress**. At **Up to date**
 an open dialog shows `Celetis is up to date`, the line `Installed <the first 12 characters of the
@@ -1179,11 +1182,17 @@ process. Twelve rules hold for the server and the page:
    no shell.
 9. For issue and session data, it runs `git` only in the main checkout or in a lane worktree.
    The `git diff` of a session runs with `--no-optional-locks`, so it writes nothing. Update
-   workers also validate the native plugin and engine installations.
+   workers also validate the native plugin and engine installations. For an engine that follows a release, they read
+   the npm registry and check the package document, the tarball, and the release tag of the fixed source before any
+   write (ADR-0138).
 10. Open shell refuses a path that is not under `.claude/worktrees/` of the main checkout.
 11. The server writes nothing in a product working tree. The trend sampler and the delivery read write
     only `trend-samples.jsonl` and `trend-cache.jsonl` in `<git common dir>/celetis/`. An approved
-    update changes only the validated native plugin and engine installations. For a part that
+    update changes only the validated native plugin and engine installations. For an engine that
+    follows a release, it writes only after the checks of item 9: it unpacks the package into a
+    staging folder in `versions/` of the engine, runs the frozen install with `--ignore-scripts`
+    there, writes the record `.celetis-package.json`, renames the folder to `versions/<revision>`,
+    and then points the launcher at it. For a part that
     follows a release, the update also moves the source record of the plugin to the new release tag:
     it writes only the `ref` of `extraKnownMarketplaces.celetis.source` in the Claude user settings,
     and it removes and adds the `celetis` marketplace record of Codex with the same source. The
@@ -1277,7 +1286,7 @@ These files enforce the rules. They are the trust files of the board:
 | 6 (what the page sends) | `engine/board/requests.ts`, the page modules of `engine/board/page/` |
 | 7 (`isSafeId`) | `engine/lib/terminal/terminal.ts` |
 | 8 (no shell) | `engine/board/perimeter.ts` (`run`), `engine/lib/process/process.ts` (`run` of the issue and status reads), `engine/lib/host/codex/app-server.ts` (`createCodexClient`) |
-| 9 (`git` only in the repository, `--no-optional-locks`; update workers validate the installations) | `engine/lib/board-read/board-read.ts` (`isInside`, `readDiff`), `engine/board/update/worker.ts`, `engine/lib/update/updater.ts`, `engine/lib/update/target.ts` (`resolveRef`, the ref of a target), `engine/lib/release/release.ts` (`releaseParts`, the release form), `engine/lib/install/dependencies.ts` |
+| 9 (`git` only in the repository, `--no-optional-locks`; update workers validate the installations) | `engine/lib/board-read/board-read.ts` (`isInside`, `readDiff`), `engine/board/update/worker.ts`, `engine/lib/update/updater.ts`, `engine/lib/update/target.ts` (`resolveRef`, the ref of a target), `engine/lib/release/release.ts` (`releaseParts`, the release form), `engine/lib/install/dependencies.ts`, `engine/lib/package/registry.ts` (`parseDocument`, `download`), `engine/lib/package/archive.ts` (`readArchive`), `engine/lib/package/package.ts` (`checkReleaseTag`, `readTarget`) |
 | 10 (Open shell under `.claude/worktrees/`) | `engine/board/presses.ts`, `engine/lib/board-read/board-read.ts` (`isInside`) |
 | 11 (no write in a product working tree; the trend files only in the git common dir) | No one file: each module of the board; the read model reads, and only `engine/board/trends.ts` through `engine/lib/board-read/trends.ts` and the History read through the trend cache write, in `<git common dir>/celetis/` |
 | 12 (text as text, the Content-Security-Policies, the visual page) | `engine/board/perimeter.ts`, `engine/lib/state/fields.ts` (`isCommit`), `engine/lib/board-read/board-read.ts` (`readVisualPage`), `engine/lib/workflow/visual.ts` (`hasPage`), the page modules |
