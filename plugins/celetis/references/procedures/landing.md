@@ -114,7 +114,8 @@ argument.
 
 The exit status of `land <n> '<subject>'` gives the result (`<plugin>/docs/workflow.md`, "A landing", gives each class):
 
-- **Exit 0** ends the step: the change is on the trunk, and the worktree and the branch are gone.
+- **Exit 0** ends the step: the change is on the trunk, the local worktree and branch are gone, and
+  the remote branch is gone unless a `land: warning:` line names it.
   **An act of the maintainer** (each `land:` line other than `land: #<n> is on <trunk>` and
   `land: <branch> and its worktree are gone`, for example
   `land: the main checkout did not move to origin/<trunk>; run git pull on <trunk> there`) is no

@@ -14,7 +14,15 @@ import { laneFolder } from './lib/state/state.ts';
 import { type IssueKey, parseHandle } from './lib/tracker/key.ts';
 import { TrackerError } from './lib/tracker/tracker.ts';
 import { branchGlobs, branchPattern, laneBranch, laneOf, prototypeGlob } from './lib/workflow/workflow.ts';
-import { checkoutOf, markerOf, removeCheckout, removeLane, runSetup, updateLane } from './lib/workflow/worktree.ts';
+import {
+  checkoutOf,
+  markerOf,
+  refusedDeletion,
+  removeCheckout,
+  removeLane,
+  runSetup,
+  updateLane,
+} from './lib/workflow/worktree.ts';
 
 const recoveryLine =
   'the quota recovery keeps the dirty lane; trunk integration waits until the lane is clean. Inspect the existing changes and the issue before you edit.';
@@ -140,7 +148,8 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
     }
     if (current && resolve(await git(['rev-parse', '--show-toplevel'])) === current)
       throw new HostError(`leave ${current} before removing it`, exits.prerequisite);
-    await removeLane(n, branch, current, cwd);
+    for (const refused of await removeLane(n, branch, current, cwd))
+      console.error(`worktree: warning: ${refusedDeletion(refused)}`);
     return exits.done;
   }
   const trunk = (await fromGitHub(codeHost.repository(), `cannot read the default branch from ${codeHost.name}`))

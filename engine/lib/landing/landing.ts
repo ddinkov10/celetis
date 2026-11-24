@@ -16,7 +16,7 @@ import type { IssueKey } from '../tracker/key.ts';
 import { writeRefreshHint } from '../tracker/refresh-hints.ts';
 import { TrackerError } from '../tracker/tracker.ts';
 import { branchGlobs, decide, landable } from '../workflow/workflow.ts';
-import { checkoutOf, removeLane } from '../workflow/worktree.ts';
+import { checkoutOf, deleteRemoteBranches, refusedDeletion, removeLane } from '../workflow/worktree.ts';
 import { mergeMechanism } from './merge.ts';
 import { prMechanism } from './pr.ts';
 
@@ -271,18 +271,12 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
         await mechanism.after();
         await completeParent();
         interrupted();
-        const deletion = await gitRaw(['push', '-q', 'origin', '--delete', branch]);
-        if (deletion.code !== 0) {
-          const left = await gitRaw(['ls-remote', '--heads', 'origin', `refs/heads/${branch}`]);
-          process.stderr.write(left.stderr);
-          if (left.code !== 0 || left.stdout.trimEnd()) {
-            throw new HostError(`${deletion.stdout}${deletion.stderr}`.trimEnd(), exits.blocked);
-          }
-        }
+        const refused = await deleteRemoteBranches([branch], main, signal);
         interrupted();
-        await removeLane(n, branch, checkout, main, signal);
+        const refusedPrototypes = await removeLane(n, branch, checkout, main, signal);
         interrupted();
-        console.log(`land: ${branch} and its worktree are gone`);
+        for (const name of [...refused, ...refusedPrototypes]) console.log(`land: warning: ${refusedDeletion(name)}`);
+        if (refused.length === 0) console.log(`land: ${branch} and its worktree are gone`);
         await writeRefreshHint(main, n);
         return { status: exits.done, defect: null };
       })

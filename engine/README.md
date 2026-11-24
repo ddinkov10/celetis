@@ -120,8 +120,8 @@ It adds the row `<n>\t<run line of T>` to the record and ends the issue. The ski
 auto mode takes, have no skip check. So your start with the number is the override: it
 starts T.
 
-**Auto mode** of the daemon reads the decision of each open issue from the same resolver (`nextOpen`)
-and takes the lowest open issue whose decision is a Run,
+**Auto mode** of the daemon reads the decision of each open issue from the same resolver, with the
+GraphQL batch read of `nextOpen`, and takes the lowest open issue whose decision is a Run,
 whose Run has the gate `auto`, whose lane is in `autoLanes` of the main `.celetis.yaml`,
 whose step has no row in the record, whose number is not in the `set-aside` file, and
 whose lock is free. A Run with no lane, the `triage` step of an issue with no lane label, counts as

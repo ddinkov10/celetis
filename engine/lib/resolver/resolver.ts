@@ -78,10 +78,18 @@ function reader(operation: Operation, signal?: AbortSignal) {
   const checkout = operation.checkout.main as string;
   const { tracker, codeHost } = services(operation.mainConfig as Config, checkout, signal);
 
+  const listedIssues = async () => (await tracker.issues('open')).filter((issue) => !issue.pull);
+
   async function openIssues(): Promise<Fetched[]> {
-    const issues = (await tracker.issues('open')).filter((issue) => !issue.pull);
+    const issues = await listedIssues();
     const histories = await tracker.timelines(issues);
     return issues.map((issue) => ({ issue, data: issueData(issue, histories.get(issue.key) ?? []) }));
+  }
+
+  async function eachOpenIssue(): Promise<Fetched[]> {
+    const fetched: Fetched[] = [];
+    for (const { key } of await listedIssues()) fetched.push(await tracker.read(key));
+    return fetched;
   }
 
   const dirty = (path: string) => isDirty(path, checkout, signal);
@@ -121,7 +129,7 @@ function reader(operation: Operation, signal?: AbortSignal) {
     }
   }
 
-  return { checkout, tracker, codeHost, openIssues, dirty, lanes, observe, settle };
+  return { checkout, tracker, codeHost, openIssues, eachOpenIssue, dirty, lanes, observe, settle };
 }
 
 type Keeps = (lane: string) => Promise<boolean>;
@@ -177,15 +185,18 @@ export async function readDecision(
   return { next: value, stderr };
 }
 
+export type OpenRead = 'batch' | 'each';
+
 export async function nextOpen(
   operation: Operation,
+  source: OpenRead,
   signal?: AbortSignal,
 ): Promise<{ rows: readonly { number: IssueKey; next: Next }[] | null; stderr: string }> {
   const read = reader(operation, signal);
   const { value, stderr } = await read.settle<{ number: IssueKey; next: Next }[] | null>(null, async () => {
     let issues: Fetched[];
     try {
-      issues = await read.openIssues();
+      issues = await (source === 'batch' ? read.openIssues() : read.eachOpenIssue());
     } catch {
       return null;
     }

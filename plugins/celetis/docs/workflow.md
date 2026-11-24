@@ -423,7 +423,7 @@ The exit status and the first word of the `land` line give the result:
 
 | Status | First word | Result | Examples |
 |---|---|---|---|
-| 0 | none | landed | the change is on the trunk; also with a warning, for example when the parent of the issue cannot be read |
+| 0 | none | landed | the change is on the trunk; also with a warning, for example when the parent of the issue cannot be read, or when GitHub refuses the deletion of a remote branch with HTTP 403 (the warning names the branch) |
 | 1 | none | an internal error of `land` | an unexpected exception; the 500 answer of the daemon, with its line |
 | 2 | `usage` | usage | bad arguments (the usage line); no Git checkout; a run from inside the lane worktree; a dirty lane worktree; no lane branch; nothing to land; an invalid configuration; a refusal of the request by the daemon with code 2, with its line (for example the 400 usage line of the requests, or the 413 line of a subject that makes the body more than 16 KiB) |
 | 3 | `prerequisite` | the issue is not ready to land | the landing prerequisites of `docs/issue-tracker.md`, "Branches, PRs, merge"; another live holder of `land-<n>`; a daemon at another revision (the line tells you to restart it with `celetis daemon stop`, then `celetis daemon start`) |

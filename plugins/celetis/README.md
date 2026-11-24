@@ -93,8 +93,9 @@ The documents:
   not hold the locked packages of the engine. The first install and `celetis update` install them
   from it; an offline update with a cold cache stops with exit 6.
 - Superpowers, installed and enabled on the selected host: the lanes call its `superpowers:*` skills.
-- The scripts use only the REST API of GitHub (`gh api`), so they also work where a proxy refuses
-  GraphQL, as in a Claude Code cloud session.
+- The commands of a lane use only the REST API of GitHub (`gh api`), so they also work where a proxy
+  refuses GraphQL, as in a Claude Code cloud session. The board and the auto mode of the daemon also
+  use GraphQL.
 - The trunk of the main checkout is current. The trunk is the default branch of the repository on
   GitHub. The config comes from the main checkout of the product project, and so does the custom
   part of a step that the script starts (`docs/configuration.md`, "Fields and defaults"):
@@ -301,10 +302,44 @@ or the board's update control ("Updates").
    settings: `celetis update` refuses a machine where it is on. See [Updates](#updates) before
    changing an installed Celetis package. The Superpowers setting stays independent.
 
+### A Claude Code cloud session
+
+A cloud session does not read the user settings of your machine, and an Anthropic-hosted environment
+does not add a marketplace that a repository declares. So put this script in the setup script of the
+cloud environment. It runs as root before Claude Code starts, so the session has the skills at its
+start:
+
+```bash
+#!/bin/bash
+set -euo pipefail
+npm install -g bun@1.4.4
+export PATH="$HOME/.local/bin:$PATH"
+celetis_tmp="$(mktemp -d "$HOME/.celetis-install.XXXXXX")"
+git clone --quiet https://github.com/ddinkov10/celetis.git "$celetis_tmp/celetis"
+bun install --cwd="$celetis_tmp/celetis/engine" --frozen-lockfile --production --ignore-scripts
+BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros "$celetis_tmp/celetis/engine/celetis" install
+rm -rf "$celetis_tmp"
+ln -sf "$HOME/.local/bin/celetis" /usr/local/bin/celetis
+claude plugin marketplace add ddinkov10/celetis
+claude plugin install celetis@celetis
+claude plugin marketplace add obra/superpowers-marketplace
+claude plugin install superpowers@superpowers-marketplace
+```
+
+The cloud environment caches the result of a script that finishes within about five minutes. The
+cache holds for about seven days, or until the script or the allowed hosts change, so a session can
+start with an older engine in that time.
+
+A cloud session runs the commands of a lane. The board and the auto mode of the daemon are not part
+of a cloud session.
+
+The GitHub proxy of a cloud session refuses branch deletions. So `land` prints a `land: warning:`
+line that names each branch that stays on GitHub. Delete that branch from a local session.
+
 ### Each machine: Codex only
 
-Use a signed-in Codex CLI and Git access that can read this public repository without a
-prompt. Claude is not required. Add the Git source, then install the plugin:
+Use a signed-in Codex CLI. This repository is public, so it needs no Git credentials. Claude is not
+required. Add the Git source, then install the plugin:
 
 ```bash
 codex plugin marketplace add ddinkov10/celetis --ref main
@@ -482,7 +517,8 @@ host's skill selector. Native desktop selector acceptance is optional under
 - The landing puts the change on the trunk by the `landing` field of `.celetis.yaml`. With `pr`,
   `celetis --agent <host> land <n> '<subject>'` waits for the checks, squash-merges the PR, and
   removes the worktree and the branch. With `merge`, it runs the `suite` file in the lane and puts
-  the tip on the trunk as one squash commit, with no PR. When a daemon runs, it runs one landing at
+  the tip on the trunk as one squash commit, with no PR. When GitHub refuses the deletion of the
+  remote branch with HTTP 403, `land` prints a warning that names the branch and finishes. When a daemon runs, it runs one landing at
   a time, and a second `land` waits for its turn; with no daemon, `land` runs the landing itself. `docs/issue-tracker.md`, "Branches, PRs, merge", and
   `references/procedures/landing.md` give the steps.
 - The other lanes are shorter. `/celetis:bug` finds the root cause, posts it as a `## Root cause`

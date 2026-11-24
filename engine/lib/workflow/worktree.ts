@@ -106,13 +106,40 @@ export async function updateLane(checkout: string, branch: string, trunk: string
   );
 }
 
+const refusedWith403 = (stderr: string) =>
+  /^(?:error: RPC failed; HTTP 403 |fatal: unable to access .*: The requested URL returned error: 403$)/m.test(stderr);
+
+export const refusedDeletion = (branch: string) =>
+  `GitHub refused the deletion of origin/${branch} with HTTP 403; the local lane is gone; delete the remote branch from a session with write access`;
+
+export async function deleteRemoteBranches(
+  branches: readonly string[],
+  cwd: string,
+  signal?: AbortSignal,
+): Promise<readonly string[]> {
+  const refs = branches.map((branch) => `refs/heads/${branch}`);
+  signal?.throwIfAborted();
+  const deletion = await run('git', ['push', '-q', 'origin', '--delete', ...refs], { cwd, signal });
+  signal?.throwIfAborted();
+  if (deletion.code === 0) return [];
+  const left = await run('git', ['ls-remote', '--heads', 'origin', ...refs], { cwd, signal });
+  signal?.throwIfAborted();
+  process.stderr.write(left.stderr);
+  const failed = new HostError(`${deletion.stdout}${deletion.stderr}`.trimEnd(), exits.blocked);
+  if (left.code !== 0) throw failed;
+  const listed = new Set(left.stdout.split('\n').map((line) => line.slice(line.indexOf('\t') + 1)));
+  const staying = branches.filter((branch) => listed.has(`refs/heads/${branch}`));
+  if (staying.length > 0 && !refusedWith403(deletion.stderr)) throw failed;
+  return staying;
+}
+
 export async function removeLane(
   n: IssueKey,
   branch: string,
   checkout: string,
   cwd: string,
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<readonly string[]> {
   const git = async (args: string[], output = false) => {
     signal?.throwIfAborted();
     const result = await run('git', args, { cwd, signal });
@@ -132,15 +159,18 @@ export async function removeLane(
     }
     await git(['branch', '-D', prototype], true);
   }
-  if (pushed)
-    await git(
-      ['push', '-q', 'origin', '--delete', ...pushed.split('\n').map((line) => line.slice(line.indexOf('\t') + 1))],
-      true,
-    );
+  const refused = pushed
+    ? await deleteRemoteBranches(
+        pushed.split('\n').map((line) => line.slice(line.indexOf('\t') + 1).replace(/^refs\/heads\//, '')),
+        cwd,
+        signal,
+      )
+    : [];
   if (checkout) {
     signal?.throwIfAborted();
     await run('git', ['worktree', 'unlock', checkout], { cwd, signal });
     await removeCheckout(checkout, cwd, false, signal);
   }
   await git(['branch', '-D', branch], true);
+  return refused;
 }

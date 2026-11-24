@@ -229,7 +229,7 @@ export function autoLoop(
           await tracker.pull('daemon');
           process.stderr.write(tracker.stderr());
         }
-        const { rows, stderr } = await nextOpen(current, signal);
+        const { rows, stderr } = await nextOpen(current, 'batch', signal);
         process.stderr.write(stderr);
         if (signal.aborted) break;
         let started = false;

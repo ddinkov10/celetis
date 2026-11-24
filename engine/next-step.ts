@@ -50,7 +50,7 @@ async function resolveNext(
   operation: Operation,
 ): Promise<{ code: ExitCode; stdout: string; stderr: string }> {
   if (input.kind === 'open') {
-    const { rows, stderr } = await nextOpen(operation);
+    const { rows, stderr } = await nextOpen(operation, 'each');
     if (!rows) {
       const { name } = services(operation.mainConfig as Config, operation.checkout.main as string).tracker;
       return { code: exits.blocked, stdout: `stop cannot read the open issues from ${name}\n`, stderr };
