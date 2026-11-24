@@ -123,6 +123,7 @@ names its model in `resolvedModel` and has no `effort` field (#367).
   marketplace to its branch head before it installs. `claude plugin marketplace update` replaces a
   detached clone with a clone at the branch head, and keeps a local change when the clone is already
   at that head. A reload loads a local change of the clone.
+- 2.1.331 in a cloud session on 2026-11-24 (#386): the GitHub proxy refuses GraphQL requests and branch deletions, as #386 reports.
 - `plugins/celetis/docs/workflow.md`, "Acceptance status", separates observed versions from open checks.
 
 ## The module index
