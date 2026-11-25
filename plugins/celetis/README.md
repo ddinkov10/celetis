@@ -149,7 +149,7 @@ The documents:
   `npx` with network access, and sends anonymous telemetry to Google unless the shell sets
   `DISABLE_TELEMETRY=1`.
 - On macOS, herdr-core 0.1.19 (`hc`) with its running server, and the open window of the Herdr app
-  0.1.15 (`herdr-app`), for each run and for the board: each session runs in a tab
+  0.1.18 (`herdr-app`), for each run and for the board: each session runs in a tab
   of the Herdr app (ADR-0058, ADR-0062). The host reports its status to herdr-core with OSC 7501
   and needs no integration: Claude Code since 2.1.295, and Codex 0.166.0. A host release that
   reports no status gets no step end and no session card.

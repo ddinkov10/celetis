@@ -2111,7 +2111,7 @@ Three facts bound a reader:
 - Claude receives `/exit` through its composer, so text that a person types at the same moment
   can join that command ([The step end](../plugins/celetis/docs/workflow.md#the-step-end)).
 - The `hc` and `herdr-app` calls of the script use the API of herdr-core 0.1.19 and the commands of
-  the Herdr app 0.1.15. Both are previews (version 0.x), so a later 0.x release can break the step
+  the Herdr app 0.1.18. Both are previews (version 0.x), so a later 0.x release can break the step
   end. Two
   parts of the step end are not checked: the end of a session after its
   `celetis --agent <host> land` run ends (ADR-0008), and the end of a session after it adds

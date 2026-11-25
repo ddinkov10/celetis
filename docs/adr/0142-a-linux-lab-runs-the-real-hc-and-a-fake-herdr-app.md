@@ -25,6 +25,15 @@
   (`--herdr-core`), and `engine/lib/terminal/terminal.ts` (`readSpaces`, `startTab`).
 - The release manifest of herdr-core 0.1.19: https://releases.herdr.dev/core/0.1.19/manifest.json
 
+## Supersedes
+
+Only these clauses change. The records keep their historical text and evidence.
+
+- [A run session tab never takes the focus](0101-a-run-session-tab-never-takes-the-focus.md), in part:
+  - "Decision", item 7, and "Consequences", the item "The documented Herdr app goes from 0.1.11 to 0.1.15": the
+    documented Herdr app is now 0.1.18. The documents and the install line of `requireTerminals` say 0.1.18. The rest
+    of item 7 stays: herdr-core stays 0.1.19, and the sentences about the Herdr app 0.1.11 in [0058](0058-herdr-core-hosts-the-agent-terminals.md) and [0062](0062-each-session-runs-in-a-tab-that-the-runner-steers.md) stay.
+
 ## Context
 
 A Claude Code cloud session runs in a Linux container with no `hc` and no Herdr app. The lab `scripts/herdr-lab.ts up`
@@ -245,6 +254,7 @@ Read: `CONSTITUTION.md`, amended 2026-11-12.
 - A cloud session can take a change outside the list from its Verify to the landing with no Mac or Windows machine.
 - A change of the list cannot land before its one session on a real machine. With no connected machine, it stops at
   `ready-for-human`.
+- The documented Herdr app is 0.1.18, because V5 of #390 observed it over `hc` 0.1.22.
 - The fake is verified against the Herdr app 0.1.18 over `hc` 0.1.22 only. A later drift of the real app (for example a new required
   field of `ls`, or a space that the app keeps) does not show in a Linux check until a change of the list runs the
   fidelity check again.
