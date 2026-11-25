@@ -228,7 +228,7 @@ bun --no-env-file --no-install --config=/dev/null --no-macros scripts/herdr-lab.
 bun --no-env-file --no-install --config=/dev/null --no-macros scripts/herdr-lab.ts down <id>
 ```
 
-The root is `/tmp/<id>` with `state`, `run`, `app`, and `bin`, as on macOS. `up` exits 2 with `refused` when `hc` is
+The root is `/tmp/<id>` with `state`, `run`, and `app` as on macOS, plus `bin`. `up` exits 2 with `refused` when `hc` is
 not on `PATH`, and it needs no real `herdr-app`. In place of the window, it writes the launcher
 `<root>/bin/herdr-app`, which runs `scripts/fake-herdr-app.ts` of the checkout that ran `up`. `<root>/bin` is first
 on the `PATH` of the lab core and of `run`, so each program of the lab and each tab resolves `herdr-app` to the fake.

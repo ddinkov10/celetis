@@ -17,6 +17,8 @@
   Linux session are throwaway scripts, and the fake is a tool of the lab, not a test.
 - [herdr-core hosts the agent terminals](0058-herdr-core-hosts-the-agent-terminals.md): the source of the recorded
   facts about the Herdr app (probe 3, and the error JSON on stdout) that "The fake answers" cites.
+- [A run session tab never takes the focus](0101-a-run-session-tab-never-takes-the-focus.md): the source of the
+  recorded facts about `space.rename` and `pane.focus` on the real app (probes 1 and 2).
 - [Native Windows is a support target again](0107-native-windows-is-a-support-target-again.md): the Windows lines of
   `scripts/herdr-lab.ts`, which this record leaves as they are.
 - `scripts/herdr-lab.ts` (`upLinux`, `labEnv`), `scripts/fake-herdr-app.ts`, `scripts/install-tools.ts`
@@ -154,10 +156,12 @@ difference as a limit.
 | --- | --- |
 | `ls` exits 0 and prints `{"spaces":[...]}` with `id`, `name`, `machine: null`, `tabs[].id`, and `tabs[].terminals[].terminal` | Recorded: `readSpaces` parses this form against the real app every day, and `herdr-lab.ts up` reads the empty `ls` |
 | A live terminal with the label `herdr.space=<id>` gets a tab in the space `<id>`; one tab for each such terminal | Recorded: ADR-0058, probe 3 |
-| The name of a space after `space.rename` is the new name | Recorded by engine use, inferred: `startTab` reuses a space by its name through `spaceNamed`, so the real `ls` shows the new name |
+| The name of a space after `space.rename` is the new name | Recorded: ADR-0101, "Constraints and evidence": "a space that `space.rename` named keeps its name" |
 | `status` exits 0 | Recorded: `herdr-lab.ts up` waits for exit 0 from the real app |
 | The error JSON of a failed `do` call is on stdout | Recorded: ADR-0058 |
-| `do space.rename`, `do tab.rename`, and `do pane.focus` with a known id exit 0 | Recorded for the exit: the engine ignores the result of each rename, and `focusTerminal` fails on a nonzero exit. The stdout `{}` is unverified, because no code reads it |
+| `do space.rename` with a known space succeeds (exit 0) | Recorded: ADR-0101, "Constraints and evidence", probe 1 (`space.rename` acts on the real app 0.1.15 and does not move the focus). The stdout `{}` is an unverified assumption, because no code reads it |
+| `do tab.rename` with a known tab succeeds (exit 0) | Recorded: ADR-0058, "Constraints and evidence", probe 3 (`tab.rename` names the real tab). The stdout `{}` is an unverified assumption, because no code reads it |
+| `do pane.focus` with a known terminal exits 0 and prints `{}` | Unverified assumption: ADR-0101, probe 2, records that `pane.focus --terminal <id>` focuses the terminal on the real app, and no record names its exit or its output. `openTab` swallows a focus failure, so no engine path reads them |
 | The name of a new space before `space.rename` is its id | Unverified assumption |
 | The tab id form `tab-<terminal>` | Unverified assumption |
 | A space is absent from `ls` when no live terminal carries its label; a terminal that is not live, or has no safe `herdr.space`, gets no tab; spaces come in the order of the first terminal | Unverified assumption |
@@ -177,7 +181,7 @@ does not fail where the real app answers.
 **The scope of a Linux pass.** A Linux pass does not prove macOS: the engine path differs where `hc` or `bash` differs,
 for example in the login files of `bash -lic`. A Linux-only failure is a real finding of the engine on Linux, and the
 report says so. A report of a Linux lab check names the platform, `hc` 0.1.19, and the fake app. A Linux check that
-starts a host tab follows the two build facts above: a fixture `HOME` with the `~/.bash_profile` that puts `<root>/bin`
+starts a host tab follows the build facts above: a fixture `HOME` with the `~/.bash_profile` that puts `<root>/bin`
 and the fixture `bin` first, a control tab that reads one `command -v` for each name before the first launch, and a
 bounded read of `foreground`.
 
