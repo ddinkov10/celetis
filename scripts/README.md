@@ -45,7 +45,7 @@ The jobs run in bounded workers. A passing run prints the success line of
 ## The build
 
 `scripts/build.ts` writes the files that come from other files. Besides the files that
-[`AGENTS.md`](../AGENTS.md#verify-gate) names, it writes the engine entry `engine/celetis` and
+[`AGENTS.md`](../AGENTS.md#verify-gate) names, it writes the engine entry `engine/celetis`, the package entry `engine/bootstrap`, and
 `plugins/celetis/hooks/entry.js`, which embeds `plugins/celetis/references/procedures/entry.md`. An edit of
 that file needs a run of the build. The build installs nothing. Add the file `engine/<name>.ts` with each new declared command.
 
@@ -131,11 +131,12 @@ current folder is the top of a checkout, `HEAD` is the commit of the tag `v<X.Y.
 plugin manifests hold the version, and `<folder>` does not exist. It then makes `<folder>` and
 writes into `<folder>/package` the folders `engine/` and `plugins/celetis/` of `HEAD` from `git archive`, a root
 `package.json`, and the release stamp `engine/release.json`. The `package.json` has the name
-`celetis`, the `bin` `engine/celetis`, the `dependencies` of `engine/package.json`, `engines.bun`
+`celetis`, the `bin` `engine/bootstrap`, the `dependencies` of `engine/package.json`, `engines.bun`
 from `bunFloor`, the `repository.url` of the fixed source, and `"license": "UNLICENSED"`, with no
-script. Then it runs `npm pack` of `<folder>/package` into `<folder>`, reads the tarball
+script. The `bin` starts `engine/celetis` with the launch flags on each platform, because the Bun
+bin shim of Windows cannot run the start line of `engine/celetis`. Then it runs `npm pack` of `<folder>/package` into `<folder>`, reads the tarball
 `celetis-<X.Y.Z>.tgz` with `readArchive` of `engine/lib/package/archive.ts`, the reader of each
-install, and checks that `engine/celetis` has the mode 755. So a tracked name that the install
+install, and checks that `engine/celetis` and `engine/bootstrap` have the mode 755. So a tracked name that the install
 refuses stops the release before any publish. Then it reads the package document of the registry
 (`BUN_CONFIG_REGISTRY`, else `https://registry.npmjs.org`). Its first line names the version, the
 commit, and the tarball. Its
@@ -148,7 +149,7 @@ stamp of the published tarball has the same version and commit. It publishes not
   `git rev-parse --show-toplevel`. The script writes nothing.
 - Exit 3: the packed tarball fails `readArchive`, for example for a tracked name with a space, a
   letter outside ASCII, or a Windows device name, and the line is `celetis: the package archive is
-  not valid: <reason>`; or `engine/celetis` is not executable in it. The folder stays.
+  not valid: <reason>`; or `engine/celetis` or `engine/bootstrap` is not executable in it. The folder stays.
 - Exit 3: npm holds the version at another commit, its tarball fails the integrity, archive, or
   stamp check, or the registry document is not valid. The folder stays.
 - Exit 6: another Git command failed, `npm pack` failed or wrote no tarball, or the registry cannot
