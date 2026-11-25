@@ -42,7 +42,10 @@ Use temporary test data with the existing hosts. If a check lacks access, report
 limitation and continue independent checks.
 
 A check that uses the Herdr app or the hc core runs in a lab of `scripts/herdr-lab.ts`, never in
-the maintainer's window or core. The lab runs on macOS and Windows. One lab serves one Verify run.
+the maintainer's window or core. The lab runs on macOS, Linux, and Windows. On Linux, the lab uses the
+real `hc` that `scripts/install-tools.ts --herdr-core` installs (put its `bin` folder on `PATH` before `up`) and
+the fake Herdr app `scripts/fake-herdr-app.ts`. A Linux check that starts a host tab uses the fixture `HOME`
+and the control tab of ADR-0142, "The scope of a Linux pass". One lab serves one Verify run.
 The setup runs `up` once and records the lab id. Each scenario runs its commands through
 `run <id> <command>…`: the entry of the checkout, a board script, and each `hc` and `herdr-app`
 read. The phase ends with `down <id>`. Run the script with the bun flags of the verify gate
@@ -53,6 +56,12 @@ check needs no GitHub repository, no real issue, and no human step. The lab scen
 landing are the whole Herdr proof of a change, so `### Your steps` lists no Herdr check, also not
 after the landing. When `up` fails, its scenarios have no PASS and stay out of the maintainer's
 window.
+
+A Linux lab check needs no consent and no human act. It proves only what
+[ADR-0142](docs/adr/0142-a-linux-lab-runs-the-real-hc-and-a-fake-herdr-app.md) allows. A change of the list
+of that record holds at Verify for one session on a connected Mac or Windows machine. A report of a Linux
+lab check names the platform, `hc` 0.1.19, and the fake app, and a Linux-only failure is a finding of the
+engine on Linux.
 
 ## Verify gate
 
@@ -83,7 +92,7 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
   bun --no-env-file --no-install --config=/dev/null --no-macros scripts/install-tools.ts /absolute/private-tools --claude
   ```
 
-  `scripts/install-tools.ts` owns the pins of `actionlint` and Claude Code. On Windows, omit `--claude`: the installer refuses it. The installer checks the official native actionlint hash.
+  `scripts/install-tools.ts` owns the pins of `actionlint`, Claude Code, and herdr-core. On Windows, omit `--claude`: the installer refuses it. On Linux, `--herdr-core` also installs the pinned `hc` for the Herdr lab ("Host checks"); the installer refuses that flag on macOS and Windows. The installer checks the official native actionlint hash and the official hash of the herdr-core archive.
   The gate finds Biome, TypeScript, and the type root in `engine/node_modules` of its checkout, and
   `actionlint` on `PATH`. Checks install nothing.
   The `merge` landing runs the gate as its suite in the master daemon, with the environment of

@@ -317,7 +317,7 @@ export async function requireTerminals(exec: Exec = run, env: NodeJS.ProcessEnv 
   });
   if (!Bun.which('herdr-app', { PATH }))
     throw new TerminalError(
-      'herdr-app is not on PATH; install the Herdr app 0.1.15, then start again',
+      'herdr-app is not on PATH; install the Herdr app 0.1.18, then start again',
       exits.prerequisite,
     );
   await readSpaces(exec).catch((error: unknown) => {

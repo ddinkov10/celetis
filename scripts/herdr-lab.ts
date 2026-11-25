@@ -64,6 +64,7 @@ function labEnv(source: NodeJS.ProcessEnv, id: LabId): NodeJS.ProcessEnv {
   if (windows) return { ...env, HC_SESSION: id, HERDR_APP_HOME: join(root, 'app') };
   return {
     ...env,
+    ...(process.platform === 'linux' ? { PATH: env.PATH ? `${root}/bin:${env.PATH}` : `${root}/bin` } : {}),
     HC_SESSION: id,
     XDG_STATE_HOME: `${root}/state`,
     XDG_RUNTIME_DIR: `${root}/run`,
@@ -323,7 +324,7 @@ async function down(id: LabId): Promise<number> {
 
 async function up(): Promise<number> {
   if (process.platform !== 'darwin') {
-    console.error('herdr-lab: up runs only on macOS and Windows');
+    console.error('herdr-lab: up runs only on macOS, Linux, and Windows');
     return 2;
   }
   if (inLab()) {
@@ -383,6 +384,66 @@ async function up(): Promise<number> {
       throw new Error('the lab herdr-app ls is not empty');
     const version = async (file: string) => (await run(file, ['--version'], { env, timeout })).stdout.trim();
     console.log(JSON.stringify({ id, root, socket, appPid, hc: await version(hc), herdrApp: await version(app) }));
+    return 0;
+  } catch (error) {
+    console.error(`herdr-lab: up failed: ${(error as Error).message}`);
+    await down(id);
+    return 1;
+  }
+}
+
+function quoted(text: string): string {
+  return `'${text.replaceAll("'", `'\\''`)}'`;
+}
+
+async function upLinux(): Promise<number> {
+  if (inLab()) {
+    console.error('herdr-lab: refused: HC_SESSION already names a lab');
+    return 2;
+  }
+  const hc = Bun.which('hc');
+  if (!hc) {
+    console.error('herdr-lab: refused: hc must be on PATH');
+    return 2;
+  }
+  const id = labId(`celetis-lab-${randomBytes(3).toString('hex')}`);
+  if (!id) return 1;
+  const root = rootOf(id);
+  try {
+    await mkdir(root, { mode: 0o700 });
+  } catch (error) {
+    console.error(`herdr-lab: cannot make ${root}: ${(error as Error).message}`);
+    return 1;
+  }
+  console.log(id);
+  try {
+    const env = labEnv(process.env, id);
+    for (const name of ['state', 'run', 'app', 'bin']) await mkdir(`${root}/${name}`, { mode: 0o700 });
+    const app = `${root}/bin/herdr-app`;
+    const fake = join(import.meta.dir, 'fake-herdr-app.ts');
+    const command = [process.execPath, ...bunArgs(fake, [])].map(quoted).join(' ');
+    await writeFile(app, `#!/bin/sh\nexec env BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 ${command} "$@"\n`, {
+      mode: 0o700,
+    });
+    const start = await run(hc, ['server', 'start', '--json'], { env, timeout });
+    if (start.code !== 0) throw new Error(`hc server start: exit ${start.code}: ${firstLine(start.stderr)}`);
+    const socket = labSocket(id);
+    if (!(await lstat(socket).catch(() => null))?.isSocket()) throw new Error(`no lab socket at ${socket}`);
+    const terminals = await run(hc, ['ls', '--json'], { env, timeout });
+    if (terminals.code !== 0 || (JSON.parse(terminals.stdout) as { terminals: unknown[] }).terminals.length)
+      throw new Error('the lab hc ls is not empty');
+    const deadline = Date.now() + timeout;
+    while ((await run(app, ['status'], { env, timeout })).code !== 0) {
+      if (Date.now() > deadline) throw new Error('the lab herdr-app status did not answer in 30 s');
+      await Bun.sleep(250);
+    }
+    const spaces = await run(app, ['ls'], { env, timeout });
+    if (spaces.code !== 0 || (JSON.parse(spaces.stdout) as { spaces: unknown[] }).spaces.length)
+      throw new Error('the lab herdr-app ls is not empty');
+    const version = async (file: string) => (await run(file, ['--version'], { env, timeout })).stdout.trim();
+    console.log(
+      JSON.stringify({ id, root, socket, appPid: null, hc: await version(hc), herdrApp: await version(app) }),
+    );
     return 0;
   } catch (error) {
     console.error(`herdr-lab: up failed: ${(error as Error).message}`);
@@ -647,7 +708,8 @@ async function runIn(id: LabId, command: string, args: string[]): Promise<number
 
 async function main(argv: string[]): Promise<number> {
   const [command, value = '', ...rest] = argv;
-  if (command === 'up' && argv.length === 1) return windows ? upWindows() : up();
+  if (command === 'up' && argv.length === 1)
+    return windows ? upWindows() : process.platform === 'linux' ? upLinux() : up();
   if ((command === 'down' && argv.length === 2) || (command === 'run' && rest.length)) {
     const id = labId(value);
     if (!id) {

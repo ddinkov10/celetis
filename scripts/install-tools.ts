@@ -15,6 +15,18 @@ const hashes: Record<string, string> = {
   windows_amd64: '6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9',
 };
 
+export const herdrCoreVersion = '0.1.19';
+const herdrCoreAssets: Record<string, { name: string; hash: string }> = {
+  linux_amd64: {
+    name: 'x86_64',
+    hash: '4adcfb423d52f24c5cc4a1e2cd2fcad1f62d28bb77876ac472c29082a3eaa424',
+  },
+  linux_arm64: {
+    name: 'aarch64',
+    hash: 'f95c34fd7177ed58807d74fe4ee78bb3dc73eb37f21c69496064000a21abcb10',
+  },
+};
+
 interface InstallOptions {
   platform?: string;
   arch?: string;
@@ -22,6 +34,8 @@ interface InstallOptions {
   download?: (url: string) => Promise<Uint8Array>;
   execute?: typeof run;
   claude?: boolean;
+  herdrCore?: boolean;
+  herdrCoreHashes?: Record<string, string>;
 }
 
 export async function installTools(destination: string, options: InstallOptions = {}): Promise<void> {
@@ -41,9 +55,21 @@ export async function installTools(destination: string, options: InstallOptions 
       if (!response.ok) throw new Error(`install-tools: download failed (${response.status}): ${url}`);
       return new Uint8Array(await response.arrayBuffer());
     });
-  const archive = await download(url);
-  if (createHash('sha256').update(archive).digest('hex') !== hash)
-    throw new Error(`install-tools: hash mismatch: ${url}`);
+  const verified = async (url: string, hash: string) => {
+    const archive = await download(url);
+    if (createHash('sha256').update(archive).digest('hex') !== hash)
+      throw new Error(`install-tools: hash mismatch: ${url}`);
+    return archive;
+  };
+  const core = options.herdrCore ? herdrCoreAssets[target] : undefined;
+  if (options.herdrCore && !core) throw new Error(`install-tools: herdr-core has no build for ${platform}/${arch}`);
+  const archive = await verified(url, hash);
+  const coreArchive = core
+    ? await verified(
+        `https://releases.herdr.dev/core/${herdrCoreVersion}/herdr-core-linux-${core.name}.tar.gz`,
+        options.herdrCoreHashes?.[target] ?? core.hash,
+      )
+    : null;
   destination = resolve(destination);
   await mkdir(dirname(destination), { recursive: true });
   const stage = await mkdtemp(join(dirname(destination), '.celetis-tools.'));
@@ -76,6 +102,19 @@ export async function installTools(destination: string, options: InstallOptions 
     await rename(join(stage, binary), join(stage, 'bin', binary));
     await chmod(join(stage, 'bin', binary), 0o755);
     if (options.claude) await symlink('../node_modules/.bin/claude', join(stage, 'bin/claude'));
+    if (coreArchive) {
+      const corePath = join(stage, 'herdr-core.tar.gz');
+      await writeFile(corePath, coreArchive);
+      const unpacked = await execute('tar', ['-xzf', corePath, '-C', stage, '--no-same-owner', 'herdr-core'], {
+        timeout: 30_000,
+      });
+      if (unpacked.code)
+        throw new Error(`install-tools: extraction failed (exit ${unpacked.code})\n${unpacked.stderr}`);
+      await rename(join(stage, 'herdr-core'), join(stage, 'bin/herdr-core'));
+      await chmod(join(stage, 'bin/herdr-core'), 0o755);
+      await symlink('herdr-core', join(stage, 'bin/hc'));
+      await rm(corePath);
+    }
     await rm(archivePath);
     if (await lstat(destination).catch(() => null)) {
       await rename(destination, backup);
@@ -105,12 +144,23 @@ export async function main(argv: string[]): Promise<number> {
 }
 
 async function execute(args: string[], explicit: string | undefined): Promise<number> {
-  if (!args[0] || args.length > 2 || (args[1] !== undefined && args[1] !== '--claude')) {
-    console.error('usage: scripts/install-tools.ts DESTINATION [--claude]');
+  const flags = args.slice(1);
+  if (
+    !args[0] ||
+    flags.some((flag) => flag !== '--claude' && flag !== '--herdr-core') ||
+    new Set(flags).size !== flags.length
+  ) {
+    console.error('usage: scripts/install-tools.ts DESTINATION [--claude] [--herdr-core]');
     return 2;
   }
-  if (args[1] === '--claude' && process.platform === 'win32') {
+  const claude = flags.includes('--claude');
+  const herdrCore = flags.includes('--herdr-core');
+  if (claude && process.platform === 'win32') {
     console.error('install-tools: --claude is not supported on Windows; use the existing claude installation');
+    return 2;
+  }
+  if (herdrCore && process.platform !== 'linux') {
+    console.error('install-tools: --herdr-core installs only on Linux; the Herdr app supplies hc on macOS and Windows');
     return 2;
   }
   const operation = await createOperation(
@@ -120,7 +170,7 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
   );
   await hostAdapter(operation.host).checkHome();
   try {
-    await installTools(args[0], { claude: args[1] === '--claude' });
+    await installTools(args[0], { claude, herdrCore });
     const bin = join(resolve(args[0]), 'bin');
     if (process.env.GITHUB_PATH) await appendFile(process.env.GITHUB_PATH, `${bin}\n`);
     console.log(`install-tools: ${bin}`);

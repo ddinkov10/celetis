@@ -86,8 +86,10 @@ The workflow `release.yml` runs on a pushed release tag `v<X.Y.Z>` and publishes
 
 ## The pin installer
 
-`scripts/install-tools.ts` installs the native `actionlint` after a check of its hash, and with
-`--claude` Claude Code. Biome, TypeScript, and `@types/bun` are devDependencies of
+`scripts/install-tools.ts` installs the native `actionlint` after a check of its hash, with
+`--claude` Claude Code, and with `--herdr-core` the pinned `hc` of herdr-core after a check of the hash of its
+archive. The flag `--herdr-core` works on Linux only: macOS and Windows refuse it, because the Herdr app
+supplies `hc` there. Biome, TypeScript, and `@types/bun` are devDependencies of
 `engine/package.json`: the gate runs the JavaScript entries of Biome and TypeScript from
 `engine/node_modules` on the selected Bun. [`AGENTS.md`](../AGENTS.md#verify-gate) gives its command.
 
@@ -188,7 +190,7 @@ publish.
 maintainer's window and core. It is no job of the gate. [`AGENTS.md`](../AGENTS.md#host-checks) gives
 its use.
 
-The lab runs on macOS and Windows. On Windows, the root is `%TEMP%\<id>`, and the lab core keeps its
+The lab runs on macOS, Linux, and Windows. On Windows, the root is `%TEMP%\<id>`, and the lab core keeps its
 state in `%LOCALAPPDATA%\herdr-core\<id>`. `up` sets a protected access list on the root (the current
 user, SYSTEM, and the administrators, with no inherited entry), and `down` exits 2 with `refused` for
 a root that another user owns or can reach. Windows gives no read of the environment of another
@@ -210,3 +212,40 @@ Most causes clear when the cause ends and `down` runs again. Two need a manual r
 by hand. When the job cannot be opened and no `down` saw it empty (the keeper ended early), no read
 finds the other lab processes, because the job name is gone and Windows gives no read of the
 environment of another process. Restart Windows, or accept the risk, then delete the root by hand.
+
+On Linux, the lab runs the real `hc` and a fake Herdr app
+([ADR-0142](../docs/adr/0142-a-linux-lab-runs-the-real-hc-and-a-fake-herdr-app.md) gives what such a check may
+prove). Install `hc` into a private folder, and put its `bin` folder first on `PATH`:
+
+```sh
+bun --no-env-file --no-install --config=/dev/null --no-macros scripts/install-tools.ts /absolute/private-tools --herdr-core
+```
+
+An install replaces the whole folder, so pass `--claude --herdr-core` together when one folder serves both.
+
+Then run the lab with the same Bun flags:
+
+```sh
+bun --no-env-file --no-install --config=/dev/null --no-macros scripts/herdr-lab.ts up
+bun --no-env-file --no-install --config=/dev/null --no-macros scripts/herdr-lab.ts run <id> herdr-app ls
+bun --no-env-file --no-install --config=/dev/null --no-macros scripts/herdr-lab.ts down <id>
+```
+
+The root is `/tmp/<id>` with `state`, `run`, and `app` as on macOS, plus `bin`. `up` exits 2 with `refused` when `hc` is
+not on `PATH`, and it needs no real `herdr-app`. In place of the window, it writes the launcher
+`<root>/bin/herdr-app`, which runs `scripts/fake-herdr-app.ts` of the checkout that ran `up`. `<root>/bin` is first
+on the `PATH` of the lab core and of `run`, so each program of the lab and each tab resolves `herdr-app` to the fake.
+The JSON line of `up` has `"appPid":null` and the version line of the fake, `herdr-app 0.1.18 (celetis fake)`.
+`down` is the macOS `down`: it logs a skip for the real core and the real app that it does not find.
+
+The fake keeps no process. Each call derives the spaces and the tabs from the labels `herdr.space` of the lab core
+(`hc ls`, then `hc get` for each live terminal), and keeps only names and the focus in the folder
+`<root>/app/celetis-fake-app/`: `space-<id>.name`, `tab-<id>.name`, and `focus`. Its `ls` gives a tab no name. It
+answers `--version`, `status`, `ls`, `do space.rename`, `do tab.rename`, and `do pane.focus`. Each other call exits 2
+with `unsupported`. Outside a lab (`HC_SESSION` is not a lab id, or `HERDR_APP_HOME` is not `<root>/app`), each call
+exits 2 with `refused`, and the fake reads and writes nothing.
+
+A tab runs `$SHELL -lic`, which is `bash -lic` when `$SHELL` is `/bin/bash`, and a login file can put another `claude`
+before `<root>/bin`. A check that starts a host tab gives the lab a fixture `HOME` with a `~/.bash_profile` that puts
+`<root>/bin` and the fixture `bin` first on `PATH`, and reads `command -v` for each name in a control tab before the
+first launch.
