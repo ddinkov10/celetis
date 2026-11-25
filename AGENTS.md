@@ -44,7 +44,8 @@ limitation and continue independent checks.
 A check that uses the Herdr app or the hc core runs in a lab of `scripts/herdr-lab.ts`, never in
 the maintainer's window or core. The lab runs on macOS, Linux, and Windows. On Linux, the lab uses the
 real `hc` that `scripts/install-tools.ts --herdr-core` installs (put its `bin` folder on `PATH` before `up`) and
-the fake Herdr app `scripts/fake-herdr-app.ts`. One lab serves one Verify run.
+the fake Herdr app `scripts/fake-herdr-app.ts`. A Linux check that starts a host tab uses the fixture `HOME`
+and the control tab of ADR-0141, "The scope of a Linux pass". One lab serves one Verify run.
 The setup runs `up` once and records the lab id. Each scenario runs its commands through
 `run <id> <command>…`: the entry of the checkout, a board script, and each `hc` and `herdr-app`
 read. The phase ends with `down <id>`. Run the script with the bun flags of the verify gate

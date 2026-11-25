@@ -168,7 +168,7 @@ difference as a limit.
 | `ls` gives a tab no name field, and `tab.rename` writes the name to a file that `ls` does not read | Unverified assumption: `readSpaces` reads no tab name, and the fake check cannot read one |
 | `pane.focus` stores the terminal in `focus`, and answers `{}` | Unverified assumption |
 | An unknown id in a `do` call exits 1 with `{"error":{"message":"<space, tab, or terminal> not found: <id>"}}`; a `space.rename` JSON that does not parse exits 1 with `invalid space.rename JSON` | Unverified assumption for the exit code and the message (the stream is recorded) |
-| `hc ls` fails: exit 1 and `{"error":{"message":"hc ls failed: <first stderr line>"}}` on stdout | Unverified assumption for the exit code and the message (the stream is recorded); no record shows a real answer for a failed `hc ls` |
+| `hc ls` fails: exit 1 and `{"error":{"message":"hc ls failed: <first stderr line>"}}` on stdout; when `hc ls` gives no list, exit 1 and `{"error":{"message":"hc ls failed: no list of terminals"}}` on stdout | Unverified assumption for the exit code and the message (the stream is recorded); no record shows a real answer for a failed `hc ls` |
 | `--version` prints `herdr-app 0.1.15 (celetis fake)` | Unverified assumption |
 | The `where` label of `hc get`, which gives the tab title to `readTerminal`, is absent | Unverified assumption about the app: it probably comes from the Herdr app (`engine/board/README.md`). The `hc get` of a Linux tab has no `where` label (build), so a Linux lab gives no tab title to a session with no `celetis.link` label |
 
@@ -225,7 +225,7 @@ Read: `CONSTITUTION.md`, amended 2026-11-12.
   fake, and no Linux check proves an outcome that rests on one.
 - A Linux lab needs `hc` on `PATH` and the host `releases.herdr.dev` for the install, and needs no real `herdr-app`.
 - The macOS `up` and the Windows `upWindows` of `scripts/herdr-lab.ts` keep their lines. The Linux additions are
-  `upLinux`, the Linux `PATH` in `labEnv`, and the dispatch in `main`. The macOS `up` changes only the text of its
+  `upLinux`, its helper `quoted`, the Linux `PATH` in `labEnv`, and the dispatch in `main`. The macOS `up` changes only the text of its
   refusal for another platform. The Mac session of #390 runs `up`, one daemon step, and `down` on macOS to prove the
   macOS result.
 

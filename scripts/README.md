@@ -220,6 +220,8 @@ prove). Install `hc` into a private folder, and put its `bin` folder first on `P
 bun --no-env-file --no-install --config=/dev/null --no-macros scripts/install-tools.ts /absolute/private-tools --herdr-core
 ```
 
+An install replaces the whole folder, so pass `--claude --herdr-core` together when one folder serves both.
+
 Then run the lab with the same Bun flags:
 
 ```sh
