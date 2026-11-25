@@ -235,7 +235,7 @@ The root is `/tmp/<id>` with `state`, `run`, and `app` as on macOS, plus `bin`. 
 not on `PATH`, and it needs no real `herdr-app`. In place of the window, it writes the launcher
 `<root>/bin/herdr-app`, which runs `scripts/fake-herdr-app.ts` of the checkout that ran `up`. `<root>/bin` is first
 on the `PATH` of the lab core and of `run`, so each program of the lab and each tab resolves `herdr-app` to the fake.
-The JSON line of `up` has `"appPid":null` and the version line of the fake, `herdr-app 0.1.15 (celetis fake)`.
+The JSON line of `up` has `"appPid":null` and the version line of the fake, `herdr-app 0.1.18 (celetis fake)`.
 `down` is the macOS `down`: it logs a skip for the real core and the real app that it does not find.
 
 The fake keeps no process. Each call derives the spaces and the tabs from the labels `herdr.space` of the lab core

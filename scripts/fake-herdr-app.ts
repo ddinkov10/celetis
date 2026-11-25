@@ -5,7 +5,7 @@ import { run } from '../engine/lib/process/process.ts';
 import { isSafeId } from '../engine/lib/terminal/terminal.ts';
 
 const timeout = 15_000;
-const version = 'herdr-app 0.1.15 (celetis fake)';
+const version = 'herdr-app 0.1.18 (celetis fake)';
 
 type Live = { terminal: string; space: string };
 

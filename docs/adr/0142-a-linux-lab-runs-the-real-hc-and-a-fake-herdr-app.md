@@ -73,7 +73,7 @@ the input, the wait, and the screen of a session come from `hc`.
   - `herdr-core` is owned by the user that ran the install, and `hc` is a link to it. A wrong hash refuses the install
     before any write.
   - `herdr-lab.ts up` on Linux printed the id, then the JSON line with `"appPid":null`, `hc 0.1.19`, and
-    `herdr-app 0.1.15 (celetis fake)`. `down` exited 0, and no process kept the lab id in its environment (zombies in
+    `herdr-app 0.1.18 (celetis fake)`. `down` exited 0, and no process kept the lab id in its environment (zombies in
     state `Z` excepted).
 
 ## Decision
@@ -127,7 +127,7 @@ focus is a Herdr app check.
   the checkout, with the lab environment.
 
 **The fidelity check.** Once per session of items 1 to 3, in one real lab on macOS (`herdr-lab.ts up`, then `run`),
-with the Herdr app 0.1.15 and `hc` 0.1.19:
+with the Herdr app 0.1.18 over `hc` 0.1.22:
 
 - Start terminals with `hc run --bg` and the labels `herdr.space=<id>` and `celetis.link=<name>`: two in one new space
   and one in a second space. Then rename a space and a tab, and focus one terminal.
@@ -145,32 +145,52 @@ with the Herdr app 0.1.15 and `hc` 0.1.19:
   each difference in the fake, or record it here as a limit of a Linux check.
 
 **The fake answers.** The real Herdr app runs only in the Mac session. Each answer of the fake has one label.
-"Recorded" is an answer that the fidelity check observed with the Herdr app 0.1.15, or, before that check, a fact that
+"Recorded" is an answer that the fidelity check observed with the Herdr app 0.1.18 over `hc` 0.1.22, or a fact that
 a record of this repository observed with a real app, or a form that the engine parse accepts and that the engine uses
-against the real app every day. "Unverified assumption" is each answer that the fidelity check did not observe. A
-Linux check proves no outcome that rests on an unverified answer. This list is the state before the first fidelity
-check; the Mac session of #390 turns each observed answer into a recorded one in this record, and records each
-difference as a limit.
+against the real app every day. "Limit" is an answer that the fidelity check observed and found different on the real
+app. "Unverified assumption" is each answer that the fidelity check did not observe. A Linux check proves no outcome
+that rests on a limit or on an unverified answer. This list is the state after the Mac session of #390 (V5 (a), 2026-11-25,
+macOS arm64, https://github.com/ddinkov10/celetis/issues/390#issuecomment-7171407776). Each call of that session ran against the real app and
+against the fake over one lab core.
 
 | Answer of the fake | Label and basis |
 | --- | --- |
-| `ls` exits 0 and prints `{"spaces":[...]}` with `id`, `name`, `machine: null`, `tabs[].id`, and `tabs[].terminals[].terminal` | Recorded: `readSpaces` parses this form against the real app every day, and `herdr-lab.ts up` reads the empty `ls` |
-| A live terminal with the label `herdr.space=<id>` gets a tab in the space `<id>`; one tab for each such terminal | Recorded: ADR-0058, probe 3 |
-| The name of a space after `space.rename` is the new name | Recorded: ADR-0101, "Constraints and evidence": "a space that `space.rename` named keeps its name" |
-| `status` exits 0 | Recorded: `herdr-lab.ts up` waits for exit 0 from the real app |
-| The error JSON of a failed `do` call is on stdout | Recorded: ADR-0058 |
-| `do space.rename` with a known space succeeds (exit 0) | Recorded: ADR-0101, "Constraints and evidence", probe 1 (`space.rename` acts on the real app 0.1.15 and does not move the focus). The stdout `{}` is an unverified assumption, because no code reads it |
-| `do tab.rename` with a known tab succeeds (exit 0) | Recorded: ADR-0058, "Constraints and evidence", probe 3 (`tab.rename` names the real tab). The stdout `{}` is an unverified assumption, because no code reads it |
-| `do pane.focus` with a known terminal exits 0 and prints `{}` | Unverified assumption: ADR-0101, probe 2, records that `pane.focus --terminal <id>` focuses the terminal on the real app, and no record names its exit or its output. `openTab` swallows a focus failure, so no engine path reads them |
-| The name of a new space before `space.rename` is its id | Unverified assumption |
-| The tab id form `tab-<terminal>` | Unverified assumption |
-| A space is absent from `ls` when no live terminal carries its label; a terminal that is not live, or has no safe `herdr.space`, gets no tab; spaces come in the order of the first terminal | Unverified assumption |
-| `ls` gives a tab no name field, and `tab.rename` writes the name to a file that `ls` does not read | Unverified assumption: `readSpaces` reads no tab name, and the fake check cannot read one |
-| `pane.focus` stores the terminal in `focus`, and answers `{}` | Unverified assumption |
-| An unknown id in a `do` call exits 1 with `{"error":{"message":"<space, tab, or terminal> not found: <id>"}}`; a `space.rename` JSON that does not parse exits 1 with `invalid space.rename JSON` | Unverified assumption for the exit code and the message (the stream is recorded) |
+| `ls` exits 0 and prints `{"spaces":[...]}` with `id`, `name`, `machine: null`, `tabs[].id`, and `tabs[].terminals[].terminal` | Recorded: `readSpaces` parses this form against the real app every day, and `herdr-lab.ts up` reads the empty `ls`. V5 (a): `spaces[].id`, `machine`, and `tabs[].terminals[].terminal` are equal. The real `ls` has more fields (`folder`, `active`, `recent`, and a tab `name`), which no code reads |
+| A live terminal with the label `herdr.space=<id>` gets a tab in the space `<id>`; one tab for each such terminal | Recorded: ADR-0058, probe 3; V5 (a): a live terminal with the label gets a tab, and a terminal with no `herdr.space` gets none |
+| The name of a space after `space.rename` is the new name | Recorded: ADR-0101, "Constraints and evidence": "a space that `space.rename` named keeps its name"; V5 (a): `ls` shows the new name |
+| `status` exits 0 | Recorded: `herdr-lab.ts up` waits for exit 0 from the real app; V5 (a): exit 0 on both. The real app prints a JSON status object and the fake prints nothing, and no code reads it |
+| The error JSON of a failed `do` call is on stdout | Recorded: ADR-0058; V5 (a): the error JSON of an unknown id is on stdout with exit 1 on both. The form differs (limit 2) |
+| `do space.rename` with a known space succeeds (exit 0) | Recorded: ADR-0101, "Constraints and evidence", probe 1 (`space.rename` acts on the real app and does not move the focus); V5 (a): exit 0, and a control with the other id acted only on the other space. The real stdout is `{"ok": true}`, not `{}`, and no code reads it |
+| `do tab.rename` with a known tab succeeds (exit 0) | Recorded: ADR-0058, "Constraints and evidence", probe 3 (`tab.rename` names the real tab); V5 (a): exit 0, and a control with the other `--id` acted only on the other tab. The real stdout is `{"ok": true}`, not `{}`, and no code reads it |
+| `do pane.focus` with a known terminal exits 0 and prints `{}` | Recorded for the exit: ADR-0101, probe 2, records that `pane.focus --terminal <id>` focuses the terminal on the real app; V5 (a): exit 0, and a control with the other `--terminal` acted only on the other terminal. The real stdout is `{"ok": true}`, not `{}`. `openTab` swallows a focus failure, so no engine path reads the output |
+| The name of a new space before `space.rename` is its id | Limit 1: the real app names it by the folder of its first terminal |
+| The tab id form `tab-<terminal>` | Limit: the real tab id is `tb<32 hex>`. The id of each `ls` worked as `--id` on its own app, and no code reads the form |
+| A space is absent from `ls` when no live terminal carries its label; a terminal that is not live, or has no safe `herdr.space`, gets no tab; spaces come in the order of the first terminal | Recorded for a terminal with no `herdr.space` and for a terminal that ends or is removed (V5 (a): no tab on the real app). Unverified assumption for the absence of a space with no live terminal and for the order of spaces |
+| `ls` gives a tab no name field, and `tab.rename` writes the name to a file that `ls` does not read | Limit: the real `ls` gives each tab a `name` (`"1"`, `"2"`, or the name that `tab.rename` set). `readSpaces` reads no tab name |
+| `pane.focus` stores the terminal in `focus`, and answers `{}` | Recorded for the exit (the row above). The file `focus` is internal to the fake, and V5 (a) did not read a focus state of the real app |
+| An unknown id in a `do` call exits 1 with `{"error":{"message":"<space, tab, or terminal> not found: <id>"}}`; a `space.rename` JSON that does not parse exits 1 with `invalid space.rename JSON` | Recorded for the exit code 1 and the stream, by V5 (a), for an unknown space, tab, and terminal. Limit 2 for the form and the text. Limit 3 for the JSON that does not parse: the real app exits 2 with stderr `herdr-app: args are not JSON: ...` |
 | `hc ls` fails: exit 1 and `{"error":{"message":"hc ls failed: <first stderr line>"}}` on stdout; when `hc ls` gives no list, exit 1 and `{"error":{"message":"hc ls failed: no list of terminals"}}` on stdout | Unverified assumption for the exit code and the message (the stream is recorded); no record shows a real answer for a failed `hc ls` |
-| `--version` prints `herdr-app 0.1.15 (celetis fake)` | Unverified assumption |
-| The `where` label of `hc get`, which gives the tab title to `readTerminal`, is absent | Unverified assumption about the app: it probably comes from the Herdr app (`engine/board/README.md`). The `hc get` of a Linux tab has no `where` label (build), so a Linux lab gives no tab title to a session with no `celetis.link` label |
+| `--version` prints `herdr-app 0.1.18 (celetis fake)` | Recorded for the number: V5 (a) observed `herdr-app 0.1.18`. The suffix marks the fake. Only the line of `up` reads it |
+| The `where` label of `hc get`, which gives the tab title to `readTerminal`, is absent | Limit: V5 (a) observed that the real app writes `where` (`fixture-one / renamed-b`, the space name and the tab name), and a terminal in no space has none. The `hc get` of a Linux tab has no `where` label (build), so a Linux lab gives no tab title to a session with no `celetis.link` label |
+
+**The limits of a Linux check.** The Mac session of #390 (V5 (a) and V5 (b), the Herdr app 0.1.18 over `hc` 0.1.22 on
+macOS arm64, 2026-11-25, https://github.com/ddinkov10/celetis/issues/390#issuecomment-7171407776) found five differences. The maintainer decided to keep each as a limit, and
+the fake does not change for them. A Linux check proves no outcome that rests on one:
+
+1. The name of a new space. The real app names a space that a label made by the folder of its first terminal (the
+   basename of the `cwd` of `hc run`), and the fake names it by its id. `startTab` looks a space up by the name
+   `basename(<main checkout>)` (`spaceNamed`), so with the real app a space made by a label can match before
+   `space.rename`, and with the fake it matches only after it.
+2. The error JSON. The real app prints `{"error": "<text>"}` (for example `no space "zz"`), and the fake prints
+   `{"error":{"message":"<text>"}}` (for example `space not found: zz`). `failure()` of
+   `engine/lib/terminal/terminal.ts` reads both forms, so only the text of an engine error differs.
+3. A `space.rename` JSON that does not parse. The real app exits 2 with a stderr line, and the fake exits 1 with JSON on
+   stdout. No engine call sends such JSON.
+4. `HC_SESSION`. The real app does not read it: `ls` with another `HC_SESSION` exited 0 with the lab spaces. The fake
+   refuses it by its guard. The guard is a rule of the lab, and it proves nothing about the real app.
+5. The sweep of `down` on macOS. On the Mac of the check, `ps e` shows no environment for an Apple platform binary
+   (`/bin/zsh`, `/bin/bash`, `/bin/sleep`), so the sweep of `herdr-lab.ts down` cannot find a lab `zsh` or `bash` by its
+   token. In the runs of V5 (b), no such process outlived the core.
 
 Two rules of the fake carry no claim about the real app: the guard answer (exit 2, stderr
 `herdr-app (celetis fake): refused: not in a lab`), and the refusal of each other call (exit 2, stderr
@@ -218,11 +238,11 @@ Read: `CONSTITUTION.md`, amended 2026-11-12.
 - A cloud session can take a change outside the list from its Verify to the landing with no Mac or Windows machine.
 - A change of the list cannot land before its one session on a real machine. With no connected machine, it stops at
   `ready-for-human`.
-- The fake is verified against the Herdr app 0.1.15 only. A later drift of the real app (for example a new required
+- The fake is verified against the Herdr app 0.1.18 over `hc` 0.1.22 only. A later drift of the real app (for example a new required
   field of `ls`, or a space that the app keeps) does not show in a Linux check until a change of the list runs the
   fidelity check again.
-- Until the Mac session of #390 runs, the answers that the list marks as unverified assumptions are guesses of the
-  fake, and no Linux check proves an outcome that rests on one.
+- The answers that the list marks as limits or as unverified assumptions are not shown to equal the real app, and no
+  Linux check proves an outcome that rests on one.
 - A Linux lab needs `hc` on `PATH` and the host `releases.herdr.dev` for the install, and needs no real `herdr-app`.
 - The macOS `up` and the Windows `upWindows` of `scripts/herdr-lab.ts` keep their lines. The Linux additions are
   `upLinux`, its helper `quoted`, the Linux `PATH` in `labEnv`, and the dispatch in `main`. The macOS `up` changes only the text of its
