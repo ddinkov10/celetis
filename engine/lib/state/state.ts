@@ -25,6 +25,7 @@ export type LockName =
   | 'sequence'
   | 'dispatch'
   | 'event'
+  | 'lifecycle'
   | 'lesson'
   | 'lessonCapture'
   | 'install';
@@ -78,6 +79,7 @@ const policies: Readonly<Record<LockName, Readonly<{ wait: number; line: (path: 
   lessonCapture: { wait: 120_000, line: (path) => `${path}: busy: timed out waiting for the lesson lock` },
   // The wait blocks the whole process, and engine/README.md states 2 s.
   event: { wait: 2_000, line: () => 'celetis: the record lock is busy after 2 seconds' },
+  lifecycle: { wait: 2_000, line: () => 'daemon: the lifecycle log lock is busy after 2 seconds' },
   // A second install must refuse at once.
   install: {
     wait: 0,
@@ -155,6 +157,12 @@ export function repositoryLayout(common: string) {
     daemon,
     daemonIdentity: join(daemon.path, 'daemon.json'),
     daemonLog: join(daemon.path, 'daemon.log'),
+    lifecycleLog: Object.freeze({
+      folder: daemon,
+      current: join(daemon.path, 'events.jsonl'),
+      rotated: join(daemon.path, 'events.1.jsonl'),
+      lock: lockAt('lifecycle', join(daemon.path, 'events.lock'), [root, daemon]),
+    }),
     coordinator: join(daemon.path, 'coordinator.json'),
     runs,
     runRecord: (id: string) => join(runs.path, `${id}.json`),

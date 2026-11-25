@@ -5,6 +5,7 @@ import { described, type LandingEnd, lockedLanding } from '../landing/landing.ts
 import { recordEvent } from '../state/events.ts';
 import { createLockOwner } from '../state/locks.ts';
 import type { IssueKey } from '../tracker/key.ts';
+import type { Lifecycle } from './lifecycle.ts';
 import type { DaemonRequest, LandingRow } from './types.ts';
 
 // One latin1 character per written byte; `own` is false for the wait line and the suite output that streamBun forwards.
@@ -14,6 +15,7 @@ type Context = Readonly<{
   main: string;
   start: string;
   pid: number;
+  lifecycle: Lifecycle;
   enter<T>(issue: IssueKey, sink: Sink, work: () => T): T;
 }>;
 export type Landings = Readonly<{
@@ -89,7 +91,9 @@ export function createLandings(context: Context): Landings {
       const beat = setInterval(() => push('\n'), heartbeat);
       if (!ahead) place.first.resolve();
       line.push(place);
-      if (ahead)
+      const site = { run: null, issue: request.number };
+      if (ahead) {
+        context.lifecycle.record(site, () => [{ type: 'landing.waits', data: { ahead: ahead.issue } }]);
         context.enter(
           request.number,
           (kind, text) => sink(kind, text, false),
@@ -98,6 +102,7 @@ export function createLandings(context: Context): Landings {
               `land: #${place.issue} waits for the landing of #${ahead.issue} in the daemon PID ${context.pid}`,
             ),
         );
+      }
       const entry: Running = { place, done: Promise.resolve() };
       const settle = async () => {
         let end: LandingEnd;
@@ -111,6 +116,7 @@ export function createLandings(context: Context): Landings {
           } else {
             place.state = 'runs';
             place.changedMs = Date.now();
+            context.lifecycle.record(site, () => [{ type: 'landing.started', data: {} }]);
             end = await context.enter(request.number, sink, () =>
               lockedLanding(request, context.main, createLockOwner(context.main, context.start), place.abort.signal),
             );
@@ -118,6 +124,7 @@ export function createLandings(context: Context): Landings {
         } catch (error) {
           end = { status: exits.internal, defect: { error } };
         }
+        context.lifecycle.record(site, () => [{ type: 'landing.ended', data: { code: end.status } }]);
         leave(place);
         clearInterval(beat);
         push(`${JSON.stringify({ code: end.status })}\n`);

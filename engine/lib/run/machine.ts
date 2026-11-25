@@ -155,7 +155,10 @@ export type State =
       ((Opened & Readonly<{ fresh: true; session: Steered }>) | Readonly<{ fresh: false; session: Facts }>))
   | (Readonly<{ kind: 'live' }> &
       UnwatchedSession &
-      ((Opened & Readonly<{ fresh: true }>) | Readonly<{ fresh: false; session: Released }>))
+      (
+        | (Opened & Readonly<{ fresh: true; work: SessionWork; host: Host }>)
+        | Readonly<{ fresh: false; session: Released }>
+      ))
   | Readonly<{ kind: 'closing'; number: IssueKey; cause: Cause }>
   | Readonly<{ kind: 'advancing'; number: IssueKey }>
   | Readonly<{ kind: 'reporting'; error: unknown }>
@@ -387,9 +390,14 @@ function newIssue(number: IssueKey, first: Loop['first'], basis: Basis, request:
 
 const cleared = (loop: Loop): Loop => ({ ...loop, attempted: [], retrying: false, retryBlocked: false });
 
+const detachedFailure = (failed: Failure): boolean => failed.detached && failed.error instanceof HostError;
+
+export const detaches = (event: Event): boolean =>
+  (event.kind === 'failed' && detachedFailure(event.failure)) || (event.kind === 'usage-blocked' && event.detached);
+
 function failure(failed: Failure, run: RunFacts): Step<'reporting' | 'ending'> {
   const { error } = failed;
-  if (failed.detached && error instanceof HostError)
+  if (detachedFailure(failed))
     return ending({ ok: true, end: { kind: 'detached', code: exits.done, reason: '' }, started: false });
   if (run.input.kind === 'queue') {
     if (failed.queueWritable && !failed.storageFailed) return { state: { kind: 'reporting', error }, effects: [] };
@@ -966,7 +974,17 @@ export const on: Table = {
       const { terminal, tab, barrier, exit, ticket } = event;
       if (state.scope === 'unwatched')
         return {
-          state: { kind: 'live', scope: 'unwatched', number: state.number, terminal, fresh: true, barrier, exit },
+          state: {
+            kind: 'live',
+            scope: 'unwatched',
+            number: state.number,
+            terminal,
+            fresh: true,
+            barrier,
+            exit,
+            work: state.start.work,
+            host: state.start.host,
+          },
           effects: [],
         };
       if (ticket === null) return fail(state.issue.number, new Error('usage: a session started with no usage attempt'));

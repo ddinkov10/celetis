@@ -338,7 +338,7 @@ lock, step-end, and recovery checks accept it as the daemon. Nothing starts a da
 go to it in its process ([The start of a step](#the-start-of-a-step), "The answer"). The shared locks keep one owner
 for each issue, for the queue, and for auto mode across the daemon and a second daemon.
 
-**The commands.** `celetis daemon start`, `status`, `stop`, and `auto on|off` (`engine/daemon.ts`) find the Git
+**The commands.** `celetis daemon start`, `status`, `stop`, `auto on|off`, and `events` (`engine/daemon.ts`) find the Git
 common folder of the current folder, so a linked worktree reaches the daemon of its repository.
 The row of `daemon` in [The commands](../plugins/celetis/README.md#the-commands) gives the output
 and the exit codes of each form.
@@ -392,7 +392,8 @@ value.
    check guards only the race between that check and the spawn;
 4. reads its process start, then takes the lock ref `daemon` with that start. A failed read of the
    start stops the daemon before the lock with exit 6. When another live process holds `daemon`,
-   the daemon names its PID and exits 3;
+   the daemon names its PID and exits 3. Else it makes the writer of the lifecycle log and writes
+   `daemon.started` ([The lifecycle log](#the-lifecycle-log));
 5. reads `board.port` of the main `.celetis.yaml` with the full validation of the config, default
    4403. A file with an error prints the diagnostic of the config reader and exits with its code;
 6. reads the coordinator record ([The coordinator session](#the-coordinator-session), "The
@@ -612,8 +613,8 @@ the issue, the state, and the time, after the run lines.
 **The output.** Each line that the daemon writes to its stdout or stderr starts with
 `<ISO time> <tag> `. The tag is the first 8 characters of the run ID for a line of a run,
 `land-<n>` for a line of the landing of #<n>, else
-`daemon`, also for the lines of the board. A line of a run is a daemon line, apart from the lines that keep their own prefix. The daemon writes
-nothing else to a file; the process that starts the daemon decides where its stdout and stderr go. A run that ends
+`daemon`, also for the lines of the board. A line of a run is a daemon line, apart from the lines that keep their own prefix. Apart from the lifecycle log ([The lifecycle log](#the-lifecycle-log)) and the event `run-exit` below, the daemon writes
+no log file; the process that starts the daemon decides where its stdout and stderr go. A run that ends
 with a nonzero code adds the event `run-exit` to the event record, with its last line as
 `message`. Each write of a landing, also of its suite, also goes to the stream of its request, as
 the landing wrote it, with no time and no tag; when the client is gone, it goes only to the log. A
@@ -630,8 +631,9 @@ for the requests of the board in flight, as the socket waits for its requests: s
 the answer of the daemon, for example the stop line for a wake that the stop refuses, and the
 daemon then waits for each run that it started. Then it closes the board: it stops
 the reads, closes the update check and its worker, closes the connections, and closes the
-listener. Then it closes the socket (the socket file goes), removes the identity file, and
-releases `daemon`. A board request that runs longer than its 5 seconds loses its connection at the
+listener. Then it closes the socket (the socket file goes), removes the identity file, writes
+`daemon.ended` to the lifecycle log ([The lifecycle log](#the-lifecycle-log)), and releases `daemon`.
+A board request that runs longer than its 5 seconds loses its connection at the
 close of the board, and the exit of the daemon ends its work. It exits 0 after a stop request and 128
 plus the number of a signal. A restart stops in the same way, then starts its successor ("The
 restart").
@@ -1770,7 +1772,9 @@ file. A removed clone loses its record.
 Each Celetis process that detects a failure appends one entry to the event record of the user. A
 later session reads the record with `celetis --agent <host> events [--after <id>]`. The record is
 local. It has no network part. [ADR-0066](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0066-one-shared-event-record-with-a-lock.md) holds
-the reasons why all processes write one shared file under a lock.
+the reasons why all processes write one shared file under a lock. The record holds failures only.
+The entries that are not failures go to the lifecycle log of the repository
+([The lifecycle log](#the-lifecycle-log)).
 
 The record folder is `<base>/.local/state/celetis/`. `<base>` is `CELETIS_HOME` when it is set,
 else the home folder. A relative `CELETIS_HOME` is an error of the record: no entry is written.
@@ -1905,7 +1909,9 @@ reads `events.1.jsonl` and then `events.jsonl`, and prints each entry as one JSO
 oldest first. The record file is input that the command does not trust. It prints a line
 only after it parsed the line as a JSON object with a string `id`. It skips the incomplete last
 line of a file (no `\n`). A line that is not a valid entry gives one stderr line with the file
-name and the line number, and the read continues. With `--after <id>`, it prints the entries after the last entry with that `id`.
+name and the line number, and the read continues. It follows no link and reads only a regular file
+that is private to the current user (mode 0600). A link, a FIFO, another file type, or a file that
+is not private is an unsafe file: the command prints one `state:` line and exits 6. On Windows, the read follows a link, and the mode rule does not apply. With `--after <id>`, it prints the entries after the last entry with that `id`.
 When no kept entry has the `id`, it prints one stderr line and then all entries. With no folder
 or no file, it prints nothing. The exit code is 0 for each of these; the row of `events` in
 [The commands](../plugins/celetis/README.md#the-commands) gives the other codes. The command writes
@@ -1925,6 +1931,142 @@ The record has these gaps:
 - The exit codes 129, 130, and 143 are not recorded.
 - The checks of #239 ran on macOS only. The `flock` exit path on Linux, and `LockFileEx`, the
   rename over an existing file, and the exit handler on Windows, have no runtime evidence.
+
+## The lifecycle log
+
+The master daemon appends one entry to the lifecycle log of its repository for each change of its
+work that the type table below lists. A person or a tool reads the log with
+`celetis --agent <host> daemon events [--after <id>]`, also when no daemon runs. The log is local. It
+has no network part. [ADR-0141](https://github.com/ddinkov10/celetis/blob/main/docs/adr/0141-the-daemon-keeps-a-lifecycle-log-of-its-own.md)
+holds the reasons why the daemon has a log of its own and the event record does not hold these
+entries.
+
+The log folder is the daemon folder, `<git common dir>/celetis/daemon/`, which also holds
+`daemon.log`. It holds three files:
+
+- `events.jsonl` is the current file.
+- `events.1.jsonl` is the one older file. It exists after the first rotation.
+- `events.lock` is the lock file.
+
+The folder has mode 0700, and each file has mode 0600. On Windows, the mode rule does not apply. The
+first write makes the files. A repository whose daemon never started has no log.
+
+**The writer.** Only the master daemon writes. It makes its writer right after it takes the lock
+`daemon` ("The master daemon", "The start", step 4), and its first entry is `daemon.started` with
+`seq` 1. A daemon that does not get the lock writes nothing. A successor starts after its
+predecessor released `daemon`, so one daemon writes at a time. The coordinator session, the board,
+the queue record, and the `land` command with no daemon write no entry.
+
+A write follows the event record: an exclusive lock on `events.lock` with a 2-second bound, one whole
+line with one write, the end of a partial last line with `\n` first, and a rotation to
+`events.1.jsonl` when `events.jsonl` is larger than 5 MiB. The event record and this log share this
+code (`engine/lib/state/lines.ts`). A whole line is 16 KiB at most. When a line is too long, the writer
+cuts `data.reason` first, then the last items of `data.numbers`. It keeps valid UTF-8 and valid
+JSON, and it lists each cut field in `truncated`. The log is about 10 MiB at most, so the oldest
+entries leave the log with the rotation. The write is synchronous: while a reader holds the shared
+lock, a write waits up to 2 seconds, and the daemon process waits with it.
+
+An entry is one JSON object on one line, ended by `\n`, in UTF-8:
+
+| Field | Value |
+| --- | --- |
+| `schema` | `1` |
+| `id` | `<time>-<pid>-<8 hex>`. It is unique. `--after` uses it |
+| `time` | ISO 8601 UTC with milliseconds |
+| `seq` | An integer that starts at 1 at each daemon start and grows by 1 for each entry that the daemon tries to write. A gap means a lost write |
+| `daemon` | `{pid, revision}`: the PID of the daemon, and the full revision of its engine |
+| `type` | The name of the transition, one of the table below |
+| `run` | The run ID, or `null` for an entry outside a run |
+| `issue` | The current issue key of the run as a string (`"12"`), the key of a landing, or `null` for an entry of no issue |
+| `data` | The fields of the `type` |
+| `truncated` | The names of the cut fields. It is absent when no field was cut |
+
+The entry holds no environment value, no `argv`, and no `cwd`.
+
+The types, in the order of the table:
+
+| `type` | Written when | `data` |
+| --- | --- | --- |
+| `daemon.started` | The daemon took the lock `daemon` | `{successor}`: `true` when the daemon follows a restart |
+| `daemon.ended` | The stop of the daemon completes, also after SIGINT, SIGTERM, or SIGHUP, before the release of `daemon` | `{code, restart}`: the exit code, and `true` when the stop holds the claim of a successor ("The restart"). The spawn of that successor can still fail |
+| `auto.status` | The `auto` value of `daemon status` changes | `{from, to, code}`: two of `off`, `on`, and `stopping`; `code` is the exit code of the loop for a change to `off`, else `null` |
+| `run.started` | `begin()` of `engine/lib/run/engine.ts` makes a run: a new run, also one that the admission then refuses, or a takeover | `{kind, numbers, adopted}`: the `kind` of the request, the queue keys when they are known (else `null`), and `true` for a takeover |
+| `run.transition` | The driver of the run sets the state of its machine, also to the same state, after the effects of the entry ran | `{from, event, to}`, and `dropped` when the entry or an effect threw |
+| `run.status` | The status label of the run changes to another value | `{from, to}`: two values of the `state` field of the status row |
+| `step.started` | A session becomes live: the machine goes from `opening` to `live`, for a step session and for an unwatched session (`run resume`, `run assist`) | `{step, host, tab, attempt}`: the work of the session, the host, the tab name, and the attempt ID or `null` |
+| `step.ended` | The machine leaves `live` for another state | `{step, host, event, code}`: the event that ended the session, and the exit code of the host when it is known, else `null` |
+| `run.ended` | The run reaches `finished` | `{end, code, reason}`: `closed`, `gate`, `stopped`, or `detached`, or `failed` for an unexpected error |
+| `landing.waits` | A landing of the daemon waits behind another landing | `{ahead}`: the issue key of that landing |
+| `landing.started` | A landing of the daemon runs | `{}` |
+| `landing.ended` | A landing of the daemon ends, also one that never ran | `{code}`: the exit code of the landing |
+
+The log has two state axes, and each has one writer site:
+
+- **The machine state** (17 states, "The master daemon", "The run machine") comes only from the driver loop of `begin()`. That loop is the only code that sets the state of a
+  run, so each transition of each run is in the log. This is the view of what happens underneath.
+- **The status label** (the `state` field of the status row, "The status object") comes only from `mark` of
+  `engine/lib/run/activities.ts`. Its ten values are the stable view.
+
+`step.started` and `step.ended` come from the machine transition. The function `transitionNotes` of
+`engine/lib/run/lifecycle.ts` maps one transition to its entries. A run that a takeover adopts gives
+no `step.started` for its live session in the log of the new daemon. The daemon before wrote it.
+A refused admission gives `run.started`, its transitions, and `run.ended`, so each run that `begin()`
+makes is in the log. A detached run at a daemon stop gives `run.ended` with `end` `detached`, and the
+successor continues the same run ID with `run.started` with `adopted` `true`. A detach does not end
+the live session, so a detached live session gives no `step.ended`, also when the run passes `closing`
+on its way to `ending`.
+
+**The order.** The file order is the write order, because each write holds the exclusive lock. One
+daemon writes from one thread, so the entries of a run are in the order of its transitions, and the
+entries of two runs interleave in the order that they happened. The driver writes `run.transition`
+after the effects of the entry ran. A `mark` in an activity or in an effect writes its `run.status`
+at once, so a `run.status` entry can come before the `run.transition` of the same cycle. When the
+entry or an effect threw, the driver runs the entry for `failed` and writes one `run.transition` with
+`event` `failed` and `dropped`, the kind of the event whose entry did not complete. The state that
+the first entry returned is not in the log, because the driver never set it.
+
+`seq` orders the entries of one daemon. A new `daemon.started` with another PID starts a new
+sequence. A daemon that a `SIGKILL` or a crash ends writes no `daemon.ended`: a reader sees that end
+as a `daemon.started` of another PID with no `daemon.ended` before it. A gap in `seq` marks an entry
+whose write failed.
+
+**A failed write.** A write that fails changes no run, no landing, no exit code, and no answer of the
+daemon. The daemon prints `daemon: cannot record the lifecycle event: <reason>`
+for the first failure of each reason, and prints a reason again only after a later write succeeded.
+The line goes to the daemon log with the tag `daemon`. It is outside the frame of the run that wrote
+the entry, so it is never the last line of a run in `daemon status` and never the `message` of a
+`run-exit` entry. A reason is, for example, a lock that is busy after 2 seconds, or a folder or a
+file that is not private.
+
+**The reader.** `celetis --agent <host> daemon events [--after <id>]` reads the log of the repository
+of its checkout, with no request to the daemon. It follows `celetis events`:
+
+- It takes a shared lock with the same 2-second bound.
+- It reads `events.1.jsonl` and then `events.jsonl`, and prints each entry as one JSON line on
+  stdout, oldest first.
+- The files are input that the command does not trust. It prints a line only after it parsed the
+  line as a JSON object with a string `id`. It skips the incomplete last line of a file. A line that
+  is not a valid entry gives one stderr line with the file name and the line number, and the read
+  continues.
+- It follows no link and reads only a regular file that is private to the current user (mode
+  0600). A link, a FIFO, another file type, or a file that is not private is an unsafe file: it
+  prints one `state:` line, reads no byte of that file, and exits 6. On Windows, the read follows a
+  link, and the mode rule does not apply.
+- With `--after <id>`, it prints the entries after the last entry with that `id`. When no kept entry
+  has the `id`, it prints one stderr line and then all entries, so a reader that fell behind the
+  rotation gets each kept entry.
+- With no folder, or with no log file, it prints nothing and exits 0.
+
+The read writes no entry. It makes the lock file `events.lock` only when a log file exists and the
+lock file does not. The row of `daemon` in [The commands](../plugins/celetis/README.md#the-commands)
+gives the exit codes.
+
+Three facts bound a reader:
+
+- A `run.transition` uses the names of the machine of the engine revision in `daemon.revision`. A
+  later engine can rename a state, so a tool that keys on a name must read the revision.
+- `numbers` of `run.started` is `null` for each run today.
+- The log keeps about 10 MiB of entries. A daemon that runs long loses its oldest entries.
 
 ## Limits
 

@@ -283,7 +283,10 @@ exit-class table of [the plugin README](../../plugins/celetis/README.md#the-comm
 line. Each Celetis process that detects a failure also appends one entry to a local event record,
 which `celetis --agent <host> events` reads
 ([the workflow document](../../plugins/celetis/docs/workflow.md#start-the-script);
-[the engine document](../../engine/README.md#the-event-record)).
+[the engine document](../../engine/README.md#the-event-record)). The master daemon also appends one entry
+for each change of its runs, steps, and landings to a lifecycle log of its own, which
+`celetis --agent <host> daemon events` reads
+([the engine document](../../engine/README.md#the-lifecycle-log)).
 
 **Checks.** The verify gate `scripts/verify.ts` is the only check of this repository, and the
 `merge` landing runs it ([the scripts document](../../scripts/README.md#the-verify-gate)).
