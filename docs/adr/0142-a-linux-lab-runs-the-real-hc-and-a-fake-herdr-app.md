@@ -32,7 +32,7 @@ Only these clauses change. The records keep their historical text and evidence.
 - [A run session tab never takes the focus](0101-a-run-session-tab-never-takes-the-focus.md), in part:
   - "Decision", item 7, and "Consequences", the item "The documented Herdr app goes from 0.1.11 to 0.1.15": the
     documented Herdr app is now 0.1.18. The documents and the install line of `requireTerminals` say 0.1.18. The rest
-    of item 7 stays: herdr-core stays 0.1.19, and the sentences about the Herdr app 0.1.11 in [0058](0058-herdr-core-hosts-the-agent-terminals.md) and [0062](0062-each-session-runs-in-a-tab-that-the-runner-steers.md) stay.
+    of item 7 stays: herdr-core stays 0.1.19, and the sentences about the Herdr app 0.1.11 in the two older records stay.
 
 ## Context
 
