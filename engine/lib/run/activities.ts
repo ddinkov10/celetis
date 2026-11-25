@@ -12,6 +12,7 @@ import { type CheckoutIdentity, createOperation, type HostSelection, type Operat
 import type { AgentChoice, Config, Host } from '../config/core.ts';
 import { requireContract } from '../contract/check.ts';
 import { type ExitCode, exits, signalExit } from '../contract/contract.ts';
+import type { Lifecycle } from '../daemon/lifecycle.ts';
 import { daemonArgv } from '../daemon/start.ts';
 import { stopKeptLine } from '../daemon/types.ts';
 import { hostAvailability } from '../host/host.ts';
@@ -131,6 +132,7 @@ export type Options = Readonly<{
   checkout?: CheckoutIdentity;
   tabs?: { finished: string };
   journal: (record: RunRecord) => Promise<void>;
+  lifecycle: Lifecycle;
 }>;
 type Live = Steered & Readonly<{ ended: Promise<number | null>; barrier: Identity; startedMs: number }>;
 export type IssueHooks = {
@@ -252,12 +254,17 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
   const mark = (next: RunState) => {
     if (stop) held = next;
     const label = stop && next !== 'ending' && next !== 'finished' ? 'stopping' : next;
+    const before = shown.state;
     shown = {
       ...shown,
       state: label,
       changedMs: Date.now(),
       ...(attentive.has(label) ? {} : { terminal: null, turn: null }),
     };
+    if (label !== before)
+      options.lifecycle.record({ run: id, issue: shown.issue }, () => [
+        { type: 'run.status', data: { from: before, to: label } },
+      ]);
   };
   let told: string | null = null;
   const say = (message: string) => {

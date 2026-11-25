@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { lstat, readFile, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, join } from 'node:path';
 import { z } from 'zod';
@@ -32,8 +33,18 @@ import {
 import { engineRevision } from './lib/release/release.ts';
 import { projectNeedsGh } from './lib/services/services.ts';
 import { installRecorder, passOn } from './lib/state/events.ts';
+import { linesAfter, readLines } from './lib/state/lines.ts';
 import { issueLock, type LockOwner } from './lib/state/locks.ts';
-import { daemonSockets, ensureFolder, repositoryLayout, startFiles, writeAtomic } from './lib/state/state.ts';
+import {
+  checkFolder,
+  daemonSockets,
+  ensureFolder,
+  repositoryLayout,
+  startFiles,
+  stateOutcome,
+  withLockSync,
+  writeAtomic,
+} from './lib/state/state.ts';
 import { requireTerminals, TerminalError } from './lib/terminal/terminal.ts';
 import { parseHandle } from './lib/tracker/key.ts';
 
@@ -208,6 +219,20 @@ async function stop(common: string): Promise<ExitCode> {
   return exits.done;
 }
 
+function events(common: string, after: string | null): ExitCode {
+  const log = repositoryLayout(common).lifecycleLog;
+  try {
+    if (!checkFolder(log.folder) || !(existsSync(log.current) || existsSync(log.rotated))) return exits.done;
+    const kept = withLockSync(log.lock, 'shared', () => readLines(log, 'daemon'));
+    const shown = linesAfter(kept, after, 'daemon');
+    if (shown.length) console.log(shown.map((item) => item.line).join('\n'));
+    return exits.done;
+  } catch (error) {
+    if (stateOutcome(error)?.kind !== 'busy') throw error;
+    throw new HostError('daemon: the lifecycle log lock is busy after 2 seconds; try again', exits.prerequisite);
+  }
+}
+
 export async function main(argv: string[]): Promise<ExitCode> {
   try {
     const { args, explicit } = commandInput(argv);
@@ -216,7 +241,9 @@ export async function main(argv: string[]): Promise<ExitCode> {
     const valid =
       form === 'auto'
         ? args.length === 2 && (word === 'on' || word === 'off')
-        : args.length === 1 && (form === 'start' || form === 'status' || form === 'stop');
+        : form === 'events'
+          ? args.length === 1 || (args.length === 3 && args[1] === '--after')
+          : args.length === 1 && (form === 'start' || form === 'status' || form === 'stop');
     if (!valid) {
       console.error(usage('daemon'));
       return exits.usage;
@@ -224,6 +251,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
     const checkout = await locateCheckouts(process.cwd());
     if (checkout.common === null || checkout.main === null)
       throw new HostError('daemon: this folder is no Git checkout', exits.usage);
+    if (form === 'events') return events(checkout.common, args[2] ?? null);
     if (form === 'start') return await start(checkout.common, checkout.main);
     if (form === 'status') return await status(checkout.common);
     if (form === 'auto') return await auto(checkout.common, word === 'on', explicit);

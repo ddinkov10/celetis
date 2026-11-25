@@ -8,6 +8,25 @@ export const bunShebang =
 
 export const engineEntry = `${bunShebang}\nimport { main } from './launcher.ts';\n\nprocess.exitCode = await main(process.argv.slice(2));\n`;
 
+const bunFlags = (config: string) => ['--no-env-file', '--no-install', `--config=${config}`, '--no-macros'];
+const devNullAtRun = `\${devNull}`;
+
+// The Bun Windows shim reads no NAME=value word of a start line, and native Windows Bun refuses
+// /dev/null, so a package bin starts engine/celetis again with the launch flags.
+export const bootstrapEntry = `#!/usr/bin/env -S bun --no-env-file --no-install --cwd=/ --no-macros
+import { spawnSync } from 'node:child_process';
+import { constants, devNull } from 'node:os';
+import { join } from 'node:path';
+
+const flags = [${bunFlags(devNullAtRun)
+  .map((flag) => (flag.includes(devNullAtRun) ? `\`${flag}\`` : `'${flag}'`))
+  .join(', ')}];
+const env = { ...process.env, BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0', DO_NOT_TRACK: '1' };
+const { status, signal, error } = spawnSync(process.execPath, [...flags, join(import.meta.dir, 'celetis'), ...process.argv.slice(2)], { stdio: 'inherit', env });
+if (error) console.error(error.message);
+process.exitCode = status ?? (signal ? 128 + constants.signals[signal] : 1);
+`;
+
 export function updateDescriptor(): number | undefined {
   const fd = Number(process.env.CELETIS_UPDATE_FD);
   if (!Number.isInteger(fd) || fd < 3) return undefined;
@@ -139,7 +158,7 @@ export function run(
 }
 
 export function bunArgs(entry: string, args: string[]): string[] {
-  return ['--no-env-file', '--no-install', `--config=${devNull}`, '--no-macros', entry, ...args];
+  return [...bunFlags(devNull), entry, ...args];
 }
 
 export function streamBun(file: string, args: string[], cwd: string, signal: AbortSignal): Promise<number> {

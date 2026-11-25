@@ -2,6 +2,7 @@ import { HostError } from '../command/errors.ts';
 import { createOperation, type HostSelection, locateCheckouts, type Operation } from '../command/operation.ts';
 import type { Config, Host } from '../config/core.ts';
 import { type ExitCode, exits } from '../contract/contract.ts';
+import type { Lifecycle, LifecycleNote } from '../daemon/lifecycle.ts';
 import { versionFolderGone } from '../install/version-folder.ts';
 import { childEnv } from '../process/process.ts';
 import { readSetAside } from '../queue/set-aside.ts';
@@ -14,6 +15,7 @@ import type { IssueKey } from '../tracker/key.ts';
 import type { Level, Model } from '../workflow/effort.ts';
 import { autoTakes, gateOf, type SessionWork } from '../workflow/workflow.ts';
 import { activities, createIo, detachRun, die, failedOf, type Io, type Options, perform } from './activities.ts';
+import { transitionNotes } from './lifecycle.ts';
 import { type Effect, type Event, initial, on, type RunFacts, type State, type Working } from './machine.ts';
 import type { RunRecord } from './record.ts';
 
@@ -88,13 +90,14 @@ function handled<T>(work: Promise<T>): Promise<T> {
 export function createRun(
   place: Place,
   input: RunInput,
-  options: { hooks: RunHooks; locks?: LockOwner; journal: Journal; from?: RunRecord },
+  options: { hooks: RunHooks; locks?: LockOwner; journal: Journal; lifecycle: Lifecycle; from?: RunRecord },
 ): RunHandle {
   return begin(place, input, {
     hooks: options.hooks,
     locks: options.locks ?? createLockOwner(place.main),
     filter: { said: '', repeat: input.kind === 'auto' },
     journal: options.journal,
+    lifecycle: options.lifecycle,
     from: options.from,
   }).handle;
 }
@@ -104,13 +107,16 @@ const act = activities as Record<Working, (state: State, io: Io) => Promise<Even
 const table = on as Record<Working, Record<Event['kind'], Entry>>;
 
 function begin(place: Place, input: RunInput, options: Started): { handle: RunHandle; settled: Promise<Settled> } {
-  const { from } = options;
+  const { from, lifecycle } = options;
   const io = createIo(place, input, options, from);
+  const { id, admit, admitted } = io;
   const run: RunFacts = { input, shared: io.shared };
+  const record = (notes: () => readonly LifecycleNote[]) => lifecycle.record({ run: id, issue: io.shown.issue }, notes);
   const drive = async (): Promise<Settled> => {
     let located = false;
     let state = initial(input, from);
     while (state.kind !== 'finished') {
+      const previous = state;
       const entries = table[state.kind];
       let event: Event;
       try {
@@ -122,28 +128,38 @@ function begin(place: Place, input: RunInput, options: Started): { handle: RunHa
       } catch (error) {
         event = failedOf(io, error);
       }
+      let ran = event;
+      let dropped: Event['kind'] | null = null;
       let step: ReturnType<Entry>;
       try {
         step = entries[event.kind](state, event, run);
         for (const effect of step.effects) await perform(effect, io);
       } catch (error) {
-        step = entries.failed(state, failedOf(io, error), run);
+        dropped = event.kind;
+        ran = failedOf(io, error);
+        step = entries.failed(state, ran, run);
         for (const effect of step.effects) await perform(effect, io);
       }
       state = step.state;
+      record(() => transitionNotes(previous, ran, state, dropped));
     }
     if (!state.result.ok) throw state.result.error;
     return { end: state.result.end, started: state.result.started };
   };
-  const { id, admit, admitted } = io;
+  record(() => [
+    { type: 'run.started', data: { kind: input.kind, numbers: io.shown.numbers, adopted: from !== undefined } },
+  ]);
   const ended = handled(
     drive().then(
       ({ end, started }) => {
+        record(() => [{ type: 'run.ended', data: { end: end.kind, code: end.code, reason: end.reason } }]);
         admit({ ok: false, line: io.told ?? end.reason, code: end.code });
         return { end, started };
       },
       (error: unknown) => {
-        admit({ ok: false, line: error instanceof Error ? error.message : String(error), code: exits.internal });
+        const reason = error instanceof Error ? error.message : String(error);
+        record(() => [{ type: 'run.ended', data: { end: 'failed', code: exits.internal, reason } }]);
+        admit({ ok: false, line: reason, code: exits.internal });
         throw error;
       },
     ),
@@ -172,6 +188,7 @@ export function autoLoop(
     launch: <T extends Readonly<{ handle: RunHandle }>>(start: () => T) => T;
     leaving?: () => void;
     journal: Journal;
+    lifecycle: Lifecycle;
     adopted?: Promise<ExitCode>;
   },
 ): { admitted: Promise<Admission>; done: Promise<ExitCode> } {
@@ -266,6 +283,7 @@ export function autoLoop(
                   checkout,
                   tabs,
                   journal: options.journal,
+                  lifecycle: options.lifecycle,
                 },
               );
             const run = options.launch(start);

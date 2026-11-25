@@ -1,0 +1,10 @@
+#!/usr/bin/env -S bun --no-env-file --no-install --cwd=/ --no-macros
+import { spawnSync } from 'node:child_process';
+import { constants, devNull } from 'node:os';
+import { join } from 'node:path';
+
+const flags = ['--no-env-file', '--no-install', `--config=${devNull}`, '--no-macros'];
+const env = { ...process.env, BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0', DO_NOT_TRACK: '1' };
+const { status, signal, error } = spawnSync(process.execPath, [...flags, join(import.meta.dir, 'celetis'), ...process.argv.slice(2)], { stdio: 'inherit', env });
+if (error) console.error(error.message);
+process.exitCode = status ?? (signal ? 128 + constants.signals[signal] : 1);

@@ -104,7 +104,9 @@ of the daemon as it comes.
 
 After the answer, the run lives in the daemon. `celetis daemon status` shows one line for each run,
 with its state and its last line, then one line for each landing ("A landing"), and `<git common dir>/celetis/daemon/daemon.log` has each
-line of the runs. Ctrl+C, a signal, or a closed terminal of the command stops no run.
+line of the runs. `celetis --agent <host> daemon events [--after <id>]` prints the lifecycle log of the
+daemon: one JSON line, in write order, for each change of the daemon, of a run, of a step, and of a landing
+([The lifecycle log](https://github.com/ddinkov10/celetis/blob/main/engine/README.md#the-lifecycle-log)). Ctrl+C, a signal, or a closed terminal of the command stops no run.
 `celetis daemon stop` stops the daemon and detaches every run; no command stops one run.
 
 A line that tells you to start the run again means: send the request again. A line that tells you

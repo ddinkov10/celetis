@@ -45,7 +45,7 @@ A check that uses the Herdr app or the hc core runs in a lab of `scripts/herdr-l
 the maintainer's window or core. The lab runs on macOS, Linux, and Windows. On Linux, the lab uses the
 real `hc` that `scripts/install-tools.ts --herdr-core` installs (put its `bin` folder on `PATH` before `up`) and
 the fake Herdr app `scripts/fake-herdr-app.ts`. A Linux check that starts a host tab uses the fixture `HOME`
-and the control tab of ADR-0141, "The scope of a Linux pass". One lab serves one Verify run.
+and the control tab of ADR-0142, "The scope of a Linux pass". One lab serves one Verify run.
 The setup runs `up` once and records the lab id. Each scenario runs its commands through
 `run <id> <command>…`: the entry of the checkout, a board script, and each `hc` and `herdr-app`
 read. The phase ends with `down <id>`. Run the script with the bun flags of the verify gate
@@ -58,7 +58,7 @@ after the landing. When `up` fails, its scenarios have no PASS and stay out of t
 window.
 
 A Linux lab check needs no consent and no human act. It proves only what
-[ADR-0141](docs/adr/0141-a-linux-lab-runs-the-real-hc-and-a-fake-herdr-app.md) allows. A change of the list
+[ADR-0142](docs/adr/0142-a-linux-lab-runs-the-real-hc-and-a-fake-herdr-app.md) allows. A change of the list
 of that record holds at Verify for one session on a connected Mac or Windows machine. A report of a Linux
 lab check names the platform, `hc` 0.1.19, and the fake app, and a Linux-only failure is a finding of the
 engine on Linux.

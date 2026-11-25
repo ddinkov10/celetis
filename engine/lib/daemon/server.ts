@@ -42,6 +42,7 @@ import { daemonSockets, ensureFolder, privateState, writeAtomic } from '../state
 import type { IssueKey } from '../tracker/key.ts';
 import { shortRevision, socketFolderRefusal } from './client.ts';
 import { createLandings, type Sink } from './landing.ts';
+import { createLifecycle, type LifecycleData } from './lifecycle.ts';
 import { daemonArgv, startDetached } from './start.ts';
 import {
   type CoordinatorAnswer,
@@ -323,6 +324,11 @@ async function serve(
     console.error(`daemon: another daemon of this repository has PID ${holder}; this one stops`);
     return { code: exits.prerequisite, successor: null };
   }
+  const lifecycle = createLifecycle(layout.lifecycleLog, { pid: process.pid, revision: identity.revision }, (line) =>
+    frames.exit(() => console.error(line)),
+  );
+  const daemonSite = { run: null, issue: null };
+  lifecycle.record(daemonSite, () => [{ type: 'daemon.started', data: { successor: handover.after !== null } }]);
 
   const entries = new Map<string, Entry>();
   const coordinator = createCoordinator(place, checkout, () =>
@@ -339,6 +345,7 @@ async function serve(
     main,
     start,
     pid: process.pid,
+    lifecycle,
     enter: (issue, sink, work) => frames.run({ tag: landLock(issue), last: null, sink }, work),
   });
   const opened = Promise.withResolvers<BoardHandle>();
@@ -372,6 +379,16 @@ async function serve(
     const kept = [...loops].find(({ control }) => control.active && !control.leaving);
     claim.successor = { engine, auto: kept ? { selection: kept.selection } : null };
     stop(exits.done);
+  };
+  const autoNow = (): DaemonStatus['auto'] =>
+    [...loops].some(({ control }) => control.active && !control.leaving) ? 'on' : loops.size ? 'stopping' : 'off';
+  let autoWritten: DaemonStatus['auto'] = 'off';
+  const noteAuto = (code: ExitCode | null) => {
+    const from = autoWritten;
+    const to = autoNow();
+    if (to === from) return;
+    autoWritten = to;
+    lifecycle.record(daemonSite, () => [{ type: 'auto.status', data: { from, to, code: to === 'off' ? code : null } }]);
   };
   const fatal = () => stop(exits.blocked);
   const removed = () => stop(exits.prerequisite, removedLine);
@@ -428,7 +445,7 @@ async function serve(
     return run;
   };
   const begin = (input: RunInput, gh: boolean) =>
-    launch(() => ({ handle: createRun(place, input, { hooks: hooksOf(gh), journal }) }), 'pending').handle;
+    launch(() => ({ handle: createRun(place, input, { hooks: hooksOf(gh), journal, lifecycle }) }), 'pending').handle;
   const openLoop = (selection: Selection, adopted?: Promise<ExitCode>): Loop => {
     const control = { active: true, leaving: false };
     const abort = new AbortController();
@@ -442,18 +459,23 @@ async function serve(
         launch,
         leaving: () => {
           control.leaving = true;
+          noteAuto(null);
         },
         journal,
+        lifecycle,
         adopted,
       },
     );
+    let exit: ExitCode = exits.internal;
     const loop: Loop = {
       control,
       abort,
       admitted: started.admitted,
       done: started.done
         .then(
-          () => {},
+          (code) => {
+            exit = code;
+          },
           (error: unknown) => {
             console.error(error instanceof Error ? (error.stack ?? described(error)) : described(error));
             recordEvent({ name: 'run-defect', message: described(error), error });
@@ -461,10 +483,12 @@ async function serve(
         )
         .finally(() => {
           loops.delete(loop);
+          noteAuto(exit);
         }),
       selection,
     };
     loops.add(loop);
+    noteAuto(null);
     return loop;
   };
 
@@ -491,7 +515,7 @@ async function serve(
     schema: 1,
     daemon: identity,
     board: (await opened.promise).url,
-    auto: [...loops].some(({ control }) => control.active && !control.leaving) ? 'on' : loops.size ? 'stopping' : 'off',
+    auto: autoNow(),
     runs: await Promise.all([...entries.values()].map(row)),
     landings: landings.rows(),
     coordinator: coordinator.live(),
@@ -514,6 +538,7 @@ async function serve(
     const request = ++autoRequests;
     if (!on) {
       for (const loop of loops) loop.control.active = false;
+      noteAuto(null);
       return accepted;
     }
     for (;;) {
@@ -522,6 +547,7 @@ async function serve(
       const kept = [...loops].find((each) => !each.control.leaving);
       if (kept) {
         kept.control.active = true;
+        noteAuto(null);
         return verdict(await kept.admitted, null);
       }
       if (!loops.size) break;
@@ -729,6 +755,7 @@ async function serve(
   };
 
   const handlers = new Map<NodeJS.Signals, () => void>();
+  let closing: LifecycleData['daemon.ended'] = { code: exits.internal, restart: false };
   try {
     for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
       const handler = () => stop(signalExit(constants.signals[signal]));
@@ -761,6 +788,7 @@ async function serve(
           hooks: hooksOf(!unwatched(record.input.kind)),
           locks: createLockOwner(main),
           journal,
+          lifecycle,
           from: record,
         }),
       }));
@@ -799,6 +827,7 @@ async function serve(
       loop.control.active = false;
       loop.abort.abort();
     }
+    noteAuto(null);
     const landed = landings.stop();
     const settle = async () => {
       let waited = -1;
@@ -819,10 +848,15 @@ async function serve(
     if (!closed) await server.stop(true);
     await rm(paths.identity, { force: true });
     const { successor } = claim;
+    closing = { code, restart: successor !== null };
     return { code, successor: successor && { ...successor, port: board.port, start, main, log: paths.log } };
+  } catch (error) {
+    closing = { code: codeOf(error), restart: false };
+    throw error;
   } finally {
     for (const [signal, handler] of handlers) process.off(signal, handler);
     await board?.close();
+    lifecycle.record(daemonSite, () => [{ type: 'daemon.ended', data: closing }]);
     await owner.releaseAll();
   }
 }

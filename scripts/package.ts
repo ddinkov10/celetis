@@ -58,7 +58,7 @@ async function writePackage(root: string, stamp: ReleaseStamp, folder: string): 
     version: stamp.version,
     license: 'UNLICENSED',
     repository: { type: 'git', url: `git+${releaseSource}` },
-    bin: { celetis: 'engine/celetis' },
+    bin: { celetis: 'engine/bootstrap' },
     files: ['engine', 'plugins/celetis'],
     engines: { bun: `>=${bunFloor}` },
     dependencies,
@@ -76,8 +76,10 @@ async function pack(folder: string, version: string): Promise<string> {
   const data = await readFile(tarball).catch((error: Error) => {
     throw refuse(`npm pack wrote no ${tarball}: ${error.message}`, exits.blocked);
   });
-  if (!readArchive(new Uint8Array(data)).some(({ path, mode }) => path === 'engine/celetis' && mode === 0o755))
-    throw refuse(`${tarball} has no executable engine/celetis`);
+  const entries = readArchive(new Uint8Array(data));
+  for (const entry of ['engine/celetis', 'engine/bootstrap'])
+    if (!entries.some(({ path, mode }) => path === entry && mode === 0o755))
+      throw refuse(`${tarball} has no executable ${entry}`);
   return tarball;
 }
 

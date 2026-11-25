@@ -15,7 +15,7 @@ import {
 } from '../engine/lib/contract/contract.ts';
 import { entryParts } from '../engine/lib/contract/entry-text.ts';
 import { hostAdapter } from '../engine/lib/host/hosts.ts';
-import { bunArgs, engineEntry } from '../engine/lib/process/process.ts';
+import { bootstrapEntry, bunArgs, engineEntry } from '../engine/lib/process/process.ts';
 
 const root = dirname(import.meta.dir);
 const nativeTargets = [
@@ -476,6 +476,7 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
     built.push({ output: target.output, mode: target.mode, bytes });
   }
   built.push({ output: 'engine/celetis', mode: 0o755, bytes: Buffer.from(engineEntry) });
+  built.push({ output: 'engine/bootstrap', mode: 0o755, bytes: Buffer.from(bootstrapEntry) });
   for (const [output, blocks] of [
     ['plugins/celetis/README.md', readmeBlocks],
     ['plugins/celetis/docs/issue-tracker.md', trackerBlocks],

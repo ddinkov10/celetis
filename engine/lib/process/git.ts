@@ -61,6 +61,9 @@ const withoutGitVariables = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
     Object.entries(env).filter(([key]) => !/^git_/i.test(key) || transportVariables.has(key.toUpperCase())),
   );
 
+// Git for Windows refuses the device path \\.\nul of os.devNull, and accepts nul.
+const nullDevice = process.platform === 'win32' ? 'nul' : devNull;
+
 // GIT_DIR at the null device stops repository discovery, whatever the cwd.
 export const unattended: typeof run = (file, args, options = {}) =>
   run(file, args, {
@@ -68,9 +71,9 @@ export const unattended: typeof run = (file, args, options = {}) =>
     timeout: 30_000,
     env: {
       ...withoutGitVariables(options.env ?? process.env),
-      GIT_DIR: devNull,
-      GIT_CONFIG_GLOBAL: devNull,
-      GIT_CONFIG_SYSTEM: devNull,
+      GIT_DIR: nullDevice,
+      GIT_CONFIG_GLOBAL: nullDevice,
+      GIT_CONFIG_SYSTEM: nullDevice,
       GIT_CONFIG_NOSYSTEM: '1',
       GIT_TERMINAL_PROMPT: '0',
       GCM_INTERACTIVE: 'false',

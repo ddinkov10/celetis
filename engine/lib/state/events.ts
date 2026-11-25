@@ -1,5 +1,4 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { closeSync, constants, fstatSync, mkdirSync, openSync, readSync, renameSync, writeSync } from 'node:fs';
 import { constants as os } from 'node:os';
 import { basename, dirname, relative, resolve, sep } from 'node:path';
 import { format } from 'node:util';
@@ -8,7 +7,8 @@ import { type ExitCode, exits, passThrough, signalExit } from '../contract/contr
 import { type Host, isHost } from '../host/names.ts';
 import { type IssueKey, keySource } from '../tracker/key.ts';
 import { revision as fullRevision } from './fields.ts';
-import { ensureFolder, eventLayout, privateMode, withLockSync } from './state.ts';
+import { appendLine, lineLimit, shorten } from './lines.ts';
+import { eventLayout } from './state.ts';
 
 type Cut = 'message' | 'exception.stacktrace' | 'argv';
 
@@ -39,9 +39,7 @@ type Report = { name: string; issue: IssueKey | null; code: number | null } & (
   | { kind: 'defect'; error: unknown }
 );
 
-const lineLimit = 16_384;
 const captureLimit = 16_384;
-const rotateSize = 5_242_880;
 const signalCodes = new Set<number>([
   exits.done,
   ...(['SIGHUP', 'SIGINT', 'SIGTERM'] as const).map((name) => signalExit(os.signals[name])),
@@ -129,7 +127,7 @@ function record(report: Report): void {
   if (installed === undefined) return;
   const { command, write } = installed;
   try {
-    append(serialize(entry(command, report)));
+    appendLine(eventLayout(), serialize(entry(command, report)));
   } catch (error) {
     const reason = (error instanceof Error ? error.message : String(error)).replace(/^celetis: /, '');
     try {
@@ -215,27 +213,6 @@ function fingerprint(key: string[]): string {
   return createHash('sha256').update(key.join('\n')).digest('hex').slice(0, 16);
 }
 
-function jsonBytes(point: number): number {
-  if (point === 0x22 || point === 0x5c) return 2;
-  if (point < 0x20) return [0x08, 0x09, 0x0a, 0x0c, 0x0d].includes(point) ? 2 : 6;
-  if (point < 0x80) return 1;
-  if (point < 0x800) return 2;
-  if (point >= 0xd800 && point <= 0xdfff) return 6;
-  return point < 0x10000 ? 3 : 4;
-}
-
-function shorten(text: string, excess: number): string {
-  let budget = -excess;
-  for (const char of text) budget += jsonBytes(char.codePointAt(0) ?? 0);
-  let end = 0;
-  for (const char of text) {
-    budget -= jsonBytes(char.codePointAt(0) ?? 0);
-    if (budget < 0) break;
-    end += char.length;
-  }
-  return text.slice(0, end);
-}
-
 function serialize(entry: EventEntry): string {
   const truncated: Cut[] = [];
   const excess = () => Buffer.byteLength(JSON.stringify(entry)) + 1 - lineLimit;
@@ -252,31 +229,4 @@ function serialize(entry: EventEntry): string {
     while (over > 0 && entry.argv.length) over -= Buffer.byteLength(JSON.stringify(entry.argv.pop() ?? '')) + 1;
   }
   return `${JSON.stringify(entry)}\n`;
-}
-
-function append(line: string): void {
-  const { folder, current, rotated, lock } = eventLayout();
-  mkdirSync(dirname(folder.path), { recursive: true });
-  ensureFolder(folder);
-  withLockSync(lock, 'exclusive', () => {
-    const fd = openSync(
-      current,
-      constants.O_RDWR | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW,
-      0o600,
-    );
-    let size: number;
-    try {
-      const stat = fstatSync(fd);
-      if (!stat.isFile() || !privateMode(stat))
-        throw new HostError(`${current}: need a private regular file`, exits.blocked);
-      const last = Buffer.alloc(1);
-      const ended = stat.size === 0 || (readSync(fd, last, 0, 1, stat.size - 1) === 1 && last[0] === 0x0a);
-      const bytes = Buffer.from(ended ? line : `\n${line}`);
-      if (writeSync(fd, bytes) !== bytes.length) throw new HostError(`${current}: incomplete write`, exits.blocked);
-      size = fstatSync(fd).size;
-    } finally {
-      closeSync(fd);
-    }
-    if (size > rotateSize) renameSync(current, rotated);
-  });
 }

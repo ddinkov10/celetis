@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs';
 import { HostError } from './lib/command/errors.ts';
 import { commandInput } from './lib/command/operation.ts';
 import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
 import { requireBun } from './lib/host/host.ts';
+import { linesAfter, readLines } from './lib/state/lines.ts';
 import { checkFolder, eventLayout, stateOutcome, withLockSync } from './lib/state/state.ts';
 
 function parse(argv: string[]): string | null {
@@ -12,49 +12,15 @@ function parse(argv: string[]): string | null {
   throw new HostError(usage('events'), exits.usage);
 }
 
-function readFile(path: string): string {
-  try {
-    return readFileSync(path, 'utf8');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return '';
-    throw error;
-  }
-}
-
-function entries({ rotated, current }: { rotated: string; current: string }): { id: string; line: string }[] {
-  const kept: { id: string; line: string }[] = [];
-  for (const path of [rotated, current]) {
-    const lines = readFile(path).split('\n');
-    lines.pop();
-    lines.forEach((text, index) => {
-      try {
-        const value: unknown = JSON.parse(text);
-        if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new SyntaxError();
-        const id: unknown = Reflect.get(value, 'id');
-        if (typeof id !== 'string') throw new SyntaxError();
-        kept.push({ id, line: JSON.stringify(value) });
-      } catch (error) {
-        if (!(error instanceof SyntaxError)) throw error;
-        console.error(`events: ${path}:${index + 1}: not a valid entry; the read continues`);
-      }
-    });
-  }
-  return kept;
-}
-
 export async function main(argv: string[]): Promise<ExitCode> {
   try {
     requireBun();
     const after = parse(argv);
     const layout = eventLayout();
     if (!checkFolder(layout.folder)) return exits.done;
-    let kept = withLockSync(layout.lock, 'shared', () => entries(layout));
-    if (after !== null) {
-      const index = kept.findLastIndex((item) => item.id === after);
-      if (index >= 0) kept = kept.slice(index + 1);
-      else console.error(`events: no kept entry has the id ${after}; the output starts at the oldest kept entry`);
-    }
-    if (kept.length) console.log(kept.map((item) => item.line).join('\n'));
+    const kept = withLockSync(layout.lock, 'shared', () => readLines(layout, 'events'));
+    const shown = linesAfter(kept, after, 'events');
+    if (shown.length) console.log(shown.map((item) => item.line).join('\n'));
     return exits.done;
   } catch (error) {
     if (!(error instanceof HostError)) throw error;

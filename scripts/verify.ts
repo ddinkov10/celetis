@@ -44,6 +44,7 @@ export const generatedFiles = [
   'engine/board/theme.js',
   `${plugin}hooks/entry.js`,
   'engine/celetis',
+  'engine/bootstrap',
   'docs/adr/index.md',
 ];
 export const fileRoles: Record<string, string> = {

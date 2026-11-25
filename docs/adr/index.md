@@ -159,4 +159,5 @@ gate refused a repeated number, and they keep their files.
 | [0138](0138-the-engine-of-a-release-installs-from-npm.md) | The engine of a release installs from npm | [0042](0042-one-celetis-program-for-both-hosts.md), [0091](0091-the-engine-is-one-name-and-the-folder-engine.md), [0118](0118-versioned-releases-and-a-pin-for-each-machine.md), [0135](0135-github-actions-runs-only-the-documentation-deploy.md) |  |
 | [0139](0139-the-plain-comment-act-posts-through-rest.md) | The plain comment act posts through REST | [0108](0108-each-issue-write-of-a-session-goes-through-the-command-issue.md), [0126](0126-a-local-tracker-in-the-git-bug-format.md) |  |
 | [0140](0140-the-board-style-sheet-has-no-hand-written-layer.md) | The board style sheet has no hand-written layer, and each class rule lives on its owner | [0123](0123-the-board-page-runs-on-react-with-a-locked-build.md) |  |
-| [0141](0141-a-linux-lab-runs-the-real-hc-and-a-fake-herdr-app.md) | A Linux lab runs the real hc and a fake Herdr app |  |  |
+| [0141](0141-the-daemon-keeps-a-lifecycle-log-of-its-own.md) | The daemon keeps a lifecycle log of its own |  |  |
+| [0142](0142-a-linux-lab-runs-the-real-hc-and-a-fake-herdr-app.md) | A Linux lab runs the real hc and a fake Herdr app |  |  |
