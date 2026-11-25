@@ -22,7 +22,7 @@ import { buttonVariants } from '../ui/button.tsx';
 import { Separator } from '../ui/separator.tsx';
 import { copy, safeUrl } from '../ui.ts';
 import { detailActions, onTracker } from './actions.ts';
-import { ActionButton, GateLabel, IconButton, Link, Mark, PrChips, Timed, useKeptFocus } from './parts.tsx';
+import { ActionButton, GateLabel, IconButton, Mark, Num, PrChips, Timed, useKeptFocus, WARNING } from './parts.tsx';
 import { closeDetails, screen, useScreen } from './state.ts';
 
 // The class sec-label has no rule: the detect scenario reads it to leave the 11.5px aside of the label alone.
@@ -105,7 +105,9 @@ function Ask({ card, actions, registry }: { card: Card; actions: Action[]; regis
       </div>
       <Screen card={card} />
       <div className="flex items-center justify-between gap-2">
-        <span className="hint text-[0.75rem] text-muted-foreground">Answer it in the terminal pane.</span>
+        <span className="inline-flex items-center gap-1.5 text-[0.75rem] text-muted-foreground">
+          Answer it in the terminal pane.
+        </span>
         {actions.slice(0, 1).map((action) => (
           <ActionButton key={action.id} card={card} action={action} className="phone:min-h-11" />
         ))}
@@ -289,15 +291,15 @@ function Details({ card }: { card: Card }) {
         <div className="flex min-w-0 flex-1 items-center gap-[7px] overflow-hidden font-mono text-[0.71875rem] leading-none font-normal whitespace-nowrap text-muted-foreground phone:[&_a]:inline-flex phone:[&_a]:min-h-11 phone:[&_a]:items-center">
           <Mark card={card} registry={registry} identifiedByText />
           {card.number === null ? (
-            <span className="num none">human session</span>
+            <span className="font-sans whitespace-nowrap text-muted-foreground tabular-nums">human session</span>
           ) : (
-            <Link className="num" url={card.url}>{`#${card.number}`}</Link>
+            <Num url={card.url}>{`#${card.number}`}</Num>
           )}
           {[card.type, card.step === card.type ? null : card.step].map(
             (part, at) =>
               part && (
                 <Fragment key={at}>
-                  <span className="sep">·</span>
+                  <span className="opacity-60">·</span>
                   <span>{part}</span>
                 </Fragment>
               ),
@@ -337,7 +339,7 @@ function Details({ card }: { card: Card }) {
               className={cn(
                 'inline-flex min-h-6 items-center gap-1.5 rounded-[7px] py-1 pr-[9px] pl-[7px] text-[0.75rem] leading-[1.25] font-medium [&_.icon]:size-[13px]',
                 (state && (state !== 'waits' || asks) ? TONES[state] : undefined) ?? MUTED_TONE,
-                state === 'starts' && '[&_.icon]:animate-[turn_0.9s_linear_infinite] [&_.icon]:text-working',
+                state === 'starts' && '[&_.icon]:animate-turn [&_.icon]:text-working',
               )}
             >
               <Icon name={state ? (PILL_ICONS[state] ?? 'pending') : 'pending'} />
@@ -356,7 +358,7 @@ function Details({ card }: { card: Card }) {
               </>
             )}
           </div>
-          {card.warning && <p className="warning">{card.warning}</p>}
+          {card.warning && <p className={WARNING}>{card.warning}</p>}
         </div>
         {asks ? (
           <Ask card={card} actions={actions} registry={registry} />
@@ -429,7 +431,7 @@ export function Panel() {
   return (
     <section
       {...kept}
-      className="flex min-h-0 min-w-0 flex-1 animate-[panel-in_0.18s_cubic-bezier(0.2,0.8,0.2,1)] flex-col overflow-hidden rounded-3xl border border-border-strong bg-panel phone:scroll-pb-[calc(var(--dock)+8px)] min-[720px]:group-data-[tab=pipeline]/ops:flex-[0_1_auto] min-[720px]:group-data-[tab=pipeline]/ops:[grid-area:1/2]"
+      className="flex min-h-0 min-w-0 flex-1 animate-panel-in flex-col overflow-hidden rounded-3xl border border-border-strong bg-panel phone:scroll-pb-[calc(var(--dock)+8px)] min-[720px]:group-data-[tab=pipeline]/ops:flex-[0_1_auto] min-[720px]:group-data-[tab=pipeline]/ops:[grid-area:1/2]"
       id="panel"
       aria-label="Card details"
       tabIndex={-1}

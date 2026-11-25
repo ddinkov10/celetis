@@ -15,13 +15,6 @@
     {
       "includes": ["engine/board/**"],
       "linter": { "rules": { "security": { "noDangerouslySetInnerHtml": "error" } } }
-    },
-    {
-      // The rule order of board.css sets its cascade, and a reorder changes the board UI (#84).
-      "includes": ["engine/board/page/board.css"],
-      "linter": {
-        "rules": { "style": { "noDescendingSpecificity": "off" }, "complexity": { "noImportantStyles": "off" } }
-      }
     }
   ]
 }

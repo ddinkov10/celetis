@@ -40,7 +40,7 @@ const root = dirname(import.meta.dir);
 const plugin = 'plugins/celetis/';
 export const generatedFiles = [
   'engine/board/board.js',
-  'engine/board/board.css',
+  'engine/board/app.css',
   'engine/board/theme.js',
   `${plugin}hooks/entry.js`,
   'engine/celetis',

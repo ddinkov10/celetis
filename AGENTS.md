@@ -94,8 +94,8 @@ BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-instal
   a check or an explicit role in `scripts/verify.ts`.
 - Author each first-party program in TypeScript. Bun 1.4.4 or later runs commands.
   `scripts/build.ts` uses exactly Bun 1.4.4 to generate browser assets (also the stylesheet
-  `engine/board/board.css` from `engine/board/page/app.css`; edit the rules in
-  `engine/board/page/board.css`), native hook modules,
+  `engine/board/app.css` from `engine/board/page/app.css`; edit the global rules
+  there, and write each other rule as utilities of its owner component), native hook modules,
   the generated blocks of `plugins/celetis/README.md` and `plugins/celetis/docs/issue-tracker.md` from `engine/lib/contract/contract.ts`,
   and `docs/adr/index.md` from the records of `docs/adr/`. `--check` compares bytes, and modes on macOS and Linux, without
   writes.
@@ -289,7 +289,7 @@ A look decision of the board uses these two facts:
   view, and the control Coordinator shows `no session`. The server reads its page files from its own folder
   (`HERE` in `engine/board/perimeter.ts`), so the variants show with the live issues and sessions.
   After an edit of a page module or a page stylesheet, `scripts/build.ts` writes
-  `engine/board/board.js` and `engine/board/board.css` in that checkout.
+  `engine/board/board.js` and `engine/board/app.css` in that checkout.
 
 ## The engine layout
 

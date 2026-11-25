@@ -447,7 +447,7 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
   const page = await pageArtifacts(root);
   const built: { output: string; mode: number; bytes: Buffer }[] = [
     { output: 'engine/board/board.js', mode: 0o644, bytes: page.js },
-    { output: 'engine/board/board.css', mode: 0o644, bytes: page.css },
+    { output: 'engine/board/app.css', mode: 0o644, bytes: page.css },
   ];
   const locked = await lockedPackages(root);
   for (const target of [...browserTargets, ...nativeTargets]) {

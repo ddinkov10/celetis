@@ -13,6 +13,7 @@ import { Card, CardDescription, CardTitle } from '../ui/card.tsx';
 import { Toggle } from '../ui/toggle.tsx';
 import { capital, SERVER_DOWN } from '../ui.ts';
 import { UpdateControl } from '../update/update.tsx';
+import { AREA_SCREEN } from './area.ts';
 import { Icon } from './icon.tsx';
 
 type Tone = 'ok' | 'fail' | 'wait' | 'off';
@@ -170,7 +171,7 @@ function Status({ data, isDown }: { data: Board | undefined; isDown: boolean }) 
         ) : source.readAt ? (
           <>
             read{' '}
-            <time className="time" dateTime={source.readAt} title={clock(source.readAt, true)}>
+            <time className="time tabular-nums" dateTime={source.readAt} title={clock(source.readAt, true)}>
               {age(source.readAt, now)} ago
             </time>
           </>
@@ -287,7 +288,10 @@ export function Control() {
   const { data, isError } = useQuery(viewOptions);
   return (
     <section
-      className="area-screen content-start items-start justify-center justify-items-stretch gap-3.5 overflow-auto grid-cols-[minmax(0,min(100%,720px))] p-5 phone:scroll-pb-[calc(var(--dock)+8px)] phone:p-3"
+      className={cn(
+        AREA_SCREEN,
+        'content-start items-start justify-center justify-items-stretch gap-3.5 overflow-auto grid-cols-[minmax(0,min(100%,720px))] p-5 phone:scroll-pb-[calc(var(--dock)+8px)] phone:p-3',
+      )}
       id="area-control"
       aria-labelledby="area-control-title"
     >

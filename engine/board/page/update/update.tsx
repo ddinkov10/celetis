@@ -2,6 +2,7 @@ import { Dialog } from '@base-ui/react/dialog';
 import { cn } from 'cn';
 import { type FocusEvent, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import { Icon } from '../app/icon.tsx';
+import { Button } from '../ui/button.tsx';
 import { ViewBoundary } from '../ui/view-boundary.tsx';
 import { type UpdateShown, updateStore } from './state.ts';
 
@@ -33,9 +34,10 @@ function ControlBody({ shown }: { shown: UpdateShown }) {
     <button
       type="button"
       className={cn(
-        'sb-btn flex-none [anchor-name:--update] aria-disabled:cursor-wait aria-disabled:bg-[var(--fill)] aria-disabled:text-working',
-        shown.isAccent &&
-          'bg-[color-mix(in_srgb,var(--needs-tint)_10%,transparent)] text-needs [&:hover]:bg-[color-mix(in_srgb,var(--needs-tint)_13%,transparent)]',
+        'inline-flex min-h-6 flex-none items-center gap-[7px] rounded-[6px] [border:0] px-2 py-0 font-sans text-[0.75rem] leading-none font-normal [anchor-name:--update] aria-disabled:cursor-wait aria-disabled:bg-[var(--fill)] aria-disabled:text-working phone:min-h-11 phone:min-w-11 [&_.icon]:size-[13px]',
+        shown.isAccent
+          ? 'bg-[color-mix(in_srgb,var(--needs-tint)_10%,transparent)] text-needs [&:hover]:bg-[color-mix(in_srgb,var(--needs-tint)_13%,transparent)]'
+          : 'bg-transparent text-muted-foreground [&:hover:not([aria-disabled=true])]:bg-accent [&:hover:not([aria-disabled=true])]:text-foreground',
         !shown.isAccent && !shown.isChecking && '-ms-2',
       )}
       id="update-open"
@@ -114,39 +116,42 @@ function Content({ shown }: { shown: UpdateShown }) {
         {shown.recovery}
       </p>
       <div className="mt-[18px] grid gap-1.5">
-        <button
+        <Button
           ref={start}
-          type="button"
-          className={cn('btn primary', ACTION)}
+          variant="primary"
+          size="action"
+          className={ACTION}
           id="update-start"
           hidden={!shown.showStart}
           aria-disabled={shown.isStartDisabled}
           onClick={updateStore.confirm}
         >
           {shown.startLabel}
-        </button>
-        <button
+        </Button>
+        <Button
           ref={check}
-          type="button"
-          className={cn('btn primary', ACTION)}
+          variant="primary"
+          size="action"
+          className={ACTION}
           id="update-check"
           hidden={!shown.showCheck}
           aria-disabled={shown.isCheckDisabled}
           onClick={updateStore.check}
         >
           Check again
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="secondary"
+          size="action"
           className={cn(
-            'btn ghost bg-transparent text-card-foreground [&:hover]:bg-[var(--fill)] [&:hover]:text-foreground',
+            'bg-transparent text-card-foreground [&:hover]:bg-[var(--fill)] [&:hover]:text-foreground',
             ACTION,
           )}
           id="update-later"
           onClick={updateStore.close}
         >
           {shown.later}
-        </button>
+        </Button>
       </div>
     </>
   );

@@ -3,6 +3,7 @@ import { Icon } from '../app/icon.tsx';
 import { shellStore, useShellStore } from '../store.ts';
 import { Button } from '../ui/button.tsx';
 import { Dialog, DialogClose, DialogContent, DialogTitle } from '../ui/dialog.tsx';
+import { Kbd } from '../ui/kbd.tsx';
 import { ViewBoundary } from '../ui/view-boundary.tsx';
 
 const ROW = 'flex items-center gap-3.5 px-2 py-[7px] not-first:border-t not-first:border-border';
@@ -42,8 +43,8 @@ export function Shortcuts() {
           <dl className="m-0 px-3 pt-1 pb-2">
             <div className={ROW}>
               <dt className="flex w-[92px] flex-none gap-1">
-                <kbd>⌘K</kbd>
-                <kbd>/</kbd>
+                <Kbd>⌘K</Kbd>
+                <Kbd>/</Kbd>
               </dt>
               <dd className="m-0 text-[0.8125rem]">
                 Search the cards, history, and commands, or type #n to jump to an issue
@@ -51,25 +52,25 @@ export function Shortcuts() {
             </div>
             <div className={ROW}>
               <dt className="flex w-[92px] flex-none gap-1">
-                <kbd>j</kbd>
-                <kbd>k</kbd>
-                <kbd>↓</kbd>
-                <kbd>↑</kbd>
+                <Kbd>j</Kbd>
+                <Kbd>k</Kbd>
+                <Kbd>↓</Kbd>
+                <Kbd>↑</Kbd>
               </dt>
               <dd className="m-0 text-[0.8125rem]">Next or previous card or epic group</dd>
             </div>
             <div className={ROW}>
               <dt className="flex w-[92px] flex-none gap-1">
-                <kbd>h</kbd>
-                <kbd>l</kbd>
-                <kbd>←</kbd>
-                <kbd>→</kbd>
+                <Kbd>h</Kbd>
+                <Kbd>l</Kbd>
+                <Kbd>←</Kbd>
+                <Kbd>→</Kbd>
               </dt>
               <dd className="m-0 text-[0.8125rem]">Card in the column to the left or right</dd>
             </div>
             <div className={ROW}>
               <dt className="flex w-[92px] flex-none gap-1">
-                <kbd>Enter</kbd>
+                <Kbd>Enter</Kbd>
               </dt>
               <dd className="m-0 text-[0.8125rem]">
                 Main button of the card: Go, Run, Resume, Open agent, Open shell, or Open issue
@@ -77,66 +78,66 @@ export function Shortcuts() {
             </div>
             <div className={ROW}>
               <dt className="flex w-[92px] flex-none gap-1">
-                <kbd>Space</kbd>
+                <Kbd>Space</Kbd>
               </dt>
               <dd className="m-0 text-[0.8125rem]">
                 {'Show the details of the card; '}
-                <kbd>Esc</kbd>
+                <Kbd>Esc</Kbd>
                 {' hides them'}
               </dd>
             </div>
             <div className={ROW}>
               <dt className="flex w-[92px] flex-none gap-1">
-                <kbd>Enter</kbd>
-                <kbd>Space</kbd>
+                <Kbd>Enter</Kbd>
+                <Kbd>Space</Kbd>
               </dt>
               <dd className="m-0 text-[0.8125rem]">On an epic group, show or hide its issues</dd>
             </div>
             <div className={ROW}>
               <dt className="flex w-[92px] flex-none gap-1">
-                <kbd>m</kbd>
+                <Kbd>m</Kbd>
               </dt>
               <dd className="m-0 text-[0.8125rem]">All the actions of the card</dd>
             </div>
             <div className={ROW}>
               <dt className="flex w-[92px] flex-none gap-1">
-                <kbd>o</kbd>
+                <Kbd>o</Kbd>
               </dt>
               <dd className="m-0 text-[0.8125rem]">Open the issue</dd>
             </div>
             <div className={ROW}>
               <dt className="flex w-[92px] flex-none gap-1">
-                <kbd>c</kbd>
+                <Kbd>c</Kbd>
               </dt>
               <dd className="m-0 text-[0.8125rem]">Copy the command or the path of the card</dd>
             </div>
             <div className={ROW}>
               <dt className="flex w-[92px] flex-none gap-1">
-                <kbd>s</kbd>
+                <Kbd>s</Kbd>
               </dt>
               <dd className="m-0 text-[0.8125rem]">Set the card aside, or stop its session</dd>
             </div>
             <div className={ROW}>
               <dt className="flex w-[92px] flex-none gap-1">
-                <kbd>v</kbd>
+                <Kbd>v</Kbd>
               </dt>
               <dd className="m-0 text-[0.8125rem]">Change between the tabs Agents and Pipeline</dd>
             </div>
             <div className={ROW}>
               <dt className="flex w-[92px] flex-none gap-1">
-                <kbd>d</kbd>
+                <Kbd>d</Kbd>
               </dt>
               <dd className="m-0 text-[0.8125rem]">Open or close the tab History</dd>
             </div>
             <div className={ROW}>
               <dt className="flex w-[92px] flex-none gap-1">
-                <kbd>r</kbd>
+                <Kbd>r</Kbd>
               </dt>
               <dd className="m-0 text-[0.8125rem]">Read the issues again</dd>
             </div>
             <div className={ROW}>
               <dt className="flex w-[92px] flex-none gap-1">
-                <kbd>?</kbd>
+                <Kbd>?</Kbd>
               </dt>
               <dd className="m-0 text-[0.8125rem]">Show this list</dd>
             </div>
@@ -150,8 +151,8 @@ export function Shortcuts() {
               onChange={(event) => shellStore.setKeys(event.target.checked)}
             />
             <span>
-              Single-key shortcuts (<kbd>j</kbd> <kbd>k</kbd> <kbd>h</kbd> <kbd>l</kbd> <kbd>v</kbd> <kbd>d</kbd>{' '}
-              <kbd>r</kbd> <kbd>/</kbd> <kbd>?</kbd>
+              Single-key shortcuts (<Kbd>j</Kbd> <Kbd>k</Kbd> <Kbd>h</Kbd> <Kbd>l</Kbd> <Kbd>v</Kbd> <Kbd>d</Kbd>{' '}
+              <Kbd>r</Kbd> <Kbd>/</Kbd> <Kbd>?</Kbd>
               ). The keys of a focused card or epic group always work.
             </span>
           </label>

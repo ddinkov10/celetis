@@ -217,7 +217,7 @@ const glyph = (key: Column, hasWaits = false) => (
     className={cn(
       'grid size-[18px] flex-none place-items-center',
       GLYPH[key],
-      hasWaits && '[&_.core]:origin-[8px_8px] [&_.core]:animate-[breathe_2.4s_cubic-bezier(0.45,0,0.55,1)_infinite]',
+      hasWaits && '[&_.core]:origin-[8px_8px] [&_.core]:animate-breathe',
     )}
   >
     <Icon name={`col-${key}`} />
@@ -236,7 +236,7 @@ function Skeleton({ isPipeline }: { isPipeline: boolean }) {
         {GHOSTS.map((size) => (
           <div
             key={size}
-            className={`card @container relative flex flex-none animate-[flow_1.4s_linear_infinite] cursor-default flex-col gap-2 rounded-xl border border-transparent px-3.5 py-3 transition-[border-color,background-color] duration-150 ease-[ease] [background:linear-gradient(100deg,var(--card)_40%,var(--card-hover)_50%,var(--card)_60%)_0_0/300%_100%] [box-shadow:none] ${size}`}
+            className={`card @container relative flex flex-none animate-flow-fast cursor-default flex-col gap-2 rounded-xl border border-transparent px-3.5 py-3 transition-[border-color,background-color] duration-150 ease-[ease] [background:linear-gradient(100deg,var(--card)_40%,var(--card-hover)_50%,var(--card)_60%)_0_0/300%_100%] [box-shadow:none] ${size}`}
           />
         ))}
       </div>

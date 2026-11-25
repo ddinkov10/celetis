@@ -7,7 +7,7 @@ original proportions, colors, and backgrounds in both themes.
 
 OpenCode has no extracted asset. Its icon in `page/ui.ts` is a letter mark made here: an SVG of the
 letter "O" in the weight and the text colors of the Board, for the light and the dark theme. A card
-shows it in a box (the `.agent-opencode` rules of `board.css`).
+shows it in a box (the mark of `page/operations/parts.tsx` draws it).
 
 ## Provenance
 

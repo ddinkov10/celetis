@@ -3,6 +3,7 @@ import type { MenuEntry } from '../../types.ts';
 import { Icon } from '../app/icon.tsx';
 import { AGENT_ICONS } from '../ui.ts';
 import { DropdownMenuItem, DropdownMenuSeparator } from './dropdown-menu.tsx';
+import { Kbd } from './kbd.tsx';
 
 export function Entries({ list, close }: { list: () => (MenuEntry | 'rule')[]; close: () => void }) {
   return list().map((entry, at) =>
@@ -35,7 +36,7 @@ export function Entries({ list, close }: { list: () => (MenuEntry | 'rule')[]; c
             </em>
           )}
         </div>
-        {entry.key ? <kbd>{entry.key}</kbd> : <span />}
+        {entry.key ? <Kbd>{entry.key}</Kbd> : <span />}
       </DropdownMenuItem>
     ),
   );

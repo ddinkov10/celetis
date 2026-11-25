@@ -75,7 +75,7 @@ agent that waits.
   widen them, including the Content-Security-Policy of the board page. ADR-0065 records the one
   sandboxed route.
 - Browser sources are TypeScript. `scripts/build.ts` generates the browser bundles `theme.js` and `board.js`,
-  and the stylesheet `board.css` with the Tailwind CLI of the lockfile.
+  and the stylesheet `app.css` with the Tailwind CLI of the lockfile.
   Product repositories run no build.
 - `scripts/verify.ts` is the only check of this repository. The repository adds no test file.
 - Full keyboard use is part of the product: single-key shortcuts, `⌘K` search, and card focus

@@ -1,3 +1,4 @@
+import { cn } from 'cn';
 import { type FocusEvent, useLayoutEffect, useRef } from 'react';
 import type { Board, Card as BoardCard } from '../../types.ts';
 import { agentOf, keyOf, stateLabel } from '../../view.ts';
@@ -5,6 +6,7 @@ import { facts, type Kind, sparkPath, type Tile, tileOf } from '../home.ts';
 import { shellStore, useShellStore } from '../store.ts';
 import { Button } from '../ui/button.tsx';
 import { Card, CardTitle } from '../ui/card.tsx';
+import { AREA_SCREEN } from './area.ts';
 import { Icon } from './icon.tsx';
 
 const KINDS: readonly Kind[] = ['needs', 'working', 'landed', 'median'];
@@ -143,7 +145,10 @@ export function Home() {
   }, [board]);
   return (
     <section
-      className="area-screen flex flex-col place-items-stretch gap-3 overflow-auto p-5 phone:scroll-pb-[calc(var(--dock)+8px)] phone:p-3"
+      className={cn(
+        AREA_SCREEN,
+        'flex flex-col place-items-stretch gap-3 overflow-auto p-5 phone:scroll-pb-[calc(var(--dock)+8px)] phone:p-3',
+      )}
       id="area-home"
       aria-labelledby="area-home-title"
     >

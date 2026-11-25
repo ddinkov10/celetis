@@ -6,11 +6,12 @@ import type { PaletteItem } from '../../types.ts';
 import { filterItems } from '../../view.ts';
 import { Icon } from '../app/icon.tsx';
 import { Dialog, DialogContent } from '../ui/dialog.tsx';
+import { Kbd } from '../ui/kbd.tsx';
 import { ViewBoundary } from '../ui/view-boundary.tsx';
 import { paletteStore, usePalette } from './state.ts';
 
 const POPUP =
-  'inset-0 h-fit m-[12vh_auto_auto] flex max-h-[min(70vh,560px)] w-[min(640px,calc(100vw-32px))] translate-x-0 translate-y-0 animate-[rise-in_0.16s_cubic-bezier(0.2,0.8,0.2,1)] flex-col overflow-hidden rounded-2xl';
+  'inset-0 h-fit m-[12vh_auto_auto] flex max-h-[min(70vh,560px)] w-[min(640px,calc(100vw-32px))] translate-x-0 translate-y-0 animate-rise-in-fast flex-col overflow-hidden rounded-2xl';
 const ROW =
   'grid min-h-[38px] cursor-pointer grid-cols-[18px_auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-lg px-2.5 text-[0.8125rem] text-card-foreground phone:min-h-[45px] phone:flex-none aria-disabled:cursor-not-allowed aria-disabled:opacity-45 data-highlighted:bg-accent data-highlighted:outline-2 data-highlighted:-outline-offset-2 data-highlighted:outline-ring [&_.icon]:size-[15px]';
 const GO_KBD =
@@ -45,9 +46,9 @@ const option = (item: PaletteItem, index: number) => (
       {item.context}
     </span>
     {item.isGoTo ? (
-      <kbd className={GO_KBD}>Enter to go</kbd>
+      <Kbd className={GO_KBD}>Enter to go</Kbd>
     ) : item.key ? (
-      <kbd className="min-h-5 min-w-5 text-[0.6875rem]">{item.key}</kbd>
+      <Kbd className="min-w-5">{item.key}</Kbd>
     ) : (
       <span />
     )}
@@ -162,16 +163,16 @@ export function Palette() {
           <Search key={session} />
           <div className="flex min-h-[38px] flex-none items-center gap-4 border-t border-t-border px-4 text-[0.75rem] text-muted-foreground [&_kbd]:min-h-[18px] [&_kbd]:min-w-[18px] [&_kbd]:px-1 [&_kbd]:text-[0.6875rem] [&_span]:inline-flex [&_span]:items-center [&_span]:gap-1.5">
             <span>
-              <kbd>↑</kbd>
-              <kbd>↓</kbd>
+              <Kbd>↑</Kbd>
+              <Kbd>↓</Kbd>
               move
             </span>
             <span>
-              <kbd>Enter</kbd>
+              <Kbd>Enter</Kbd>
               do it
             </span>
             <span>
-              <kbd>Esc</kbd>
+              <Kbd>Esc</Kbd>
               close
             </span>
           </div>

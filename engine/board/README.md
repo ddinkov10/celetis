@@ -1874,8 +1874,8 @@ so those two stay free of the DOM. The pinned Bun 1.4.4 build program, `scripts/
 into `board.js` and `page/theme/theme.ts` into the classic script `theme.js`, which `index.html` loads in
 `<head>` before the style sheet, and refuses a bundle input outside `engine/board/`, except
 `engine/lib/tracker/key.ts` and `engine/lib/tracker/grammar.ts`, with which the page reads issue keys,
-and the files of the packages of `engine/bun.lock`. It writes the style sheet `board.css` from
-`page/app.css` with the Tailwind CLI of the lockfile; the hand-written rules are in `page/board.css`.
+and the files of the packages of `engine/bun.lock`. It writes the style sheet `app.css` from
+`page/app.css` with the Tailwind CLI of the lockfile; the global rules are in `page/app.css`, and each other rule is utilities of its owner component.
 It compiles every target before it writes any output. Plugin users run no build.
 
 `index.html` holds the head and an empty `<body>`. `page/main.tsx` renders one React root into the body.

@@ -7,7 +7,7 @@ import { ViewBoundary } from '../ui/view-boundary.tsx';
 import { holdTimer, isFocusInToast, rememberOrigin, type ToastData, toastManager } from './toast.ts';
 
 const ROOT =
-  'fixed bottom-12 left-1/2 z-20 flex w-max max-w-[min(560px,calc(100vw-32px))] items-center gap-2.5 rounded-xl bg-card py-2.5 pr-2 pl-3 text-[0.8125rem] leading-[1.45] text-foreground [box-shadow:var(--float)] [overflow-wrap:anywhere] [transform:translate(calc(-50%_+_var(--toast-swipe-movement-x,0px)),var(--toast-swipe-movement-y,0px))] animate-[rise_0.24s_cubic-bezier(0.2,0.8,0.2,1)] data-ending-style:hidden phone:bottom-[calc(var(--dock)+12px)]';
+  'fixed bottom-12 left-1/2 z-20 flex w-max max-w-[min(560px,calc(100vw-32px))] items-center gap-2.5 rounded-xl bg-card py-2.5 pr-2 pl-3 text-[0.8125rem] leading-[1.45] text-foreground [box-shadow:var(--float)] [overflow-wrap:anywhere] [transform:translate(calc(-50%_+_var(--toast-swipe-movement-x,0px)),var(--toast-swipe-movement-y,0px))] animate-rise data-ending-style:hidden phone:bottom-[calc(var(--dock)+12px)]';
 const MARK = 'grid size-5 flex-none place-items-center rounded-sm [&_.icon]:size-[13px]';
 const OK = 'bg-[color-mix(in_srgb,var(--ready)_14%,transparent)] text-ready';
 const ERROR = 'bg-[color-mix(in_srgb,var(--danger)_14%,transparent)] text-destructive';

@@ -14,7 +14,7 @@ import { copy } from '../ui.ts';
 import { actionsOf, copyWhat, menuName, menuOf, runEntries } from './actions.ts';
 import { type Launch, SLOW_START, SLOW_START_TEXT } from './cards.ts';
 import { columnId, columnStop } from './keys.ts';
-import { ActionButton, GateLabel, IconButton, Link, Mark, PrChips, Timed } from './parts.tsx';
+import { ActionButton, GateLabel, IconButton, Link, Mark, Num, PrChips, Timed, WARNING } from './parts.tsx';
 import { type MenuKind, type ScreenState, screen, useScreen } from './state.ts';
 
 export type Env = Readonly<{
@@ -56,7 +56,7 @@ export function UnseenDot({ className }: { className?: string }) {
 
 const SEG_NOW: Record<string, string> = {
   works:
-    'animate-[flow_1.6s_linear_infinite] [background:linear-gradient(90deg,var(--working)_30%,color-mix(in_srgb,var(--working)_75%,var(--card))_50%,var(--working)_70%)_0_0/300%_100%] [box-shadow:none]',
+    'animate-flow [background:linear-gradient(90deg,var(--working)_30%,color-mix(in_srgb,var(--working)_75%,var(--card))_50%,var(--working)_70%)_0_0/300%_100%] [box-shadow:none]',
   waits: 'bg-needs [box-shadow:none]',
   blocked: 'bg-needs [box-shadow:none]',
   'no-progress': 'bg-destructive [box-shadow:none]',
@@ -137,6 +137,7 @@ const STATE_TEXT: Record<string, string> = {
 };
 const STATUS =
   'inline-flex items-center overflow-hidden font-sans text-[0.75rem] leading-[1.2] font-medium [&>*]:flex-none [&>*]:whitespace-nowrap [&>:last-child]:min-w-0 [&>:last-child]:text-ellipsis [&_.icon]:size-[13px]';
+const STEP = 'font-mono text-[0.95em]';
 const DETAIL = "font-normal text-muted-foreground before:mr-[7px] before:opacity-70 before:content-['·'_/_'']";
 
 function Status({
@@ -164,7 +165,7 @@ function Status({
       >
         <Icon name="aside" />
         <span className="font-semibold text-foreground first-letter:uppercase">{stateLabel(card)}</span>
-        {card.step && <span className={cn(DETAIL, 'mono cq-300:hidden')}>{card.step}</span>}
+        {card.step && <span className={cn(DETAIL, STEP, 'cq-300:hidden')}>{card.step}</span>}
       </span>
     );
   if (card.state) {
@@ -175,7 +176,7 @@ function Status({
           STATUS,
           'min-w-0 gap-[7px] [&>:last-child]:flex-[0_1_auto] [&>:last-child]:overflow-hidden',
           STATE_TEXT[card.state] ?? quiet,
-          card.state === 'starts' && '[&_.icon]:animate-[turn_0.9s_linear_infinite] [&_.icon]:text-working',
+          card.state === 'starts' && '[&_.icon]:animate-turn [&_.icon]:text-working',
           className,
         )}
       >
@@ -192,7 +193,7 @@ function Status({
           </span>
         )}
         {!isShort && card.step && card.step !== card.type && (
-          <span className={cn(DETAIL, 'mono cq-300:hidden')}>{card.step}</span>
+          <span className={cn(DETAIL, STEP, 'cq-300:hidden')}>{card.step}</span>
         )}
       </span>
     );
@@ -211,7 +212,7 @@ function Status({
     >
       {hasGlyph && <Icon name="pending" />}
       <span className="font-normal text-muted-foreground">next</span>
-      <span className="mono font-normal text-foreground">{card.step}</span>
+      <span className={cn(STEP, 'font-normal text-foreground')}>{card.step}</span>
       {card.effort && <StartLabel pair={card.effort} />}
       {card.gate === 'auto' && <GateLabel mode={env.auto} />}
     </span>
@@ -432,7 +433,7 @@ const lookOf = (isSelected: boolean, isWaits: boolean, isStripe: boolean) =>
         ? 'border-[color-mix(in_srgb,var(--needs-tint)_55%,transparent)]'
         : '[&:hover]:border-border-strong',
     isWaits
-      ? "isolate bg-[color-mix(in_srgb,var(--needs-tint)_6%,var(--card))] [--fg3:var(--fg2)] before:pointer-events-none before:absolute before:inset-0 before:z-[-1] before:animate-[attention_3s_cubic-bezier(0.45,0,0.55,1)_infinite] before:rounded-[inherit] before:bg-[color-mix(in_srgb,var(--needs-tint)_10%,transparent)] before:content-[''] motion-reduce:before:opacity-70"
+      ? "isolate bg-[color-mix(in_srgb,var(--needs-tint)_6%,var(--card))] [--fg3:var(--fg2)] before:pointer-events-none before:absolute before:inset-0 before:z-[-1] before:animate-attention before:rounded-[inherit] before:bg-[color-mix(in_srgb,var(--needs-tint)_10%,transparent)] before:content-[''] motion-reduce:before:opacity-70"
       : '[&:hover]:bg-card-hover',
     RINGS[isStripe ? 'stripe' : 'plain'][isSelected ? (isWaits ? 'needs' : 'fg') : 'none'],
   );
@@ -488,9 +489,9 @@ export const Card = memo(function Card({
     </Heading>
   );
   const number = (
-    <Link className={isCompact ? 'num flex-none whitespace-nowrap' : 'num'} url={card.url}>
+    <Num className={isCompact ? 'flex-none' : undefined} url={card.url}>
       {`#${card.number}`}
-    </Link>
+    </Num>
   );
   const runs = runEntries(card);
   const hasTrigger = menu !== null && (menu.kind === 'run' ? runs.length > 0 : menu.isCompact === isCompact);
@@ -560,7 +561,7 @@ export const Card = memo(function Card({
     isUnseen && 'is-unseen',
     column === 'needs' && 'is-needs',
   );
-  const warning = isCompact ? 'warning col-[2/-1] mt-1.5 px-2 py-[5px]' : 'warning';
+  const warning = isCompact ? cn(WARNING, 'col-[2/-1] mt-1.5 px-2 py-[5px]') : WARNING;
   const body = isCompact ? (
     <>
       <Mark card={card} registry={env.registry} />
@@ -570,11 +571,15 @@ export const Card = memo(function Card({
           {number}
           {card.type && card.type !== card.step && (
             <span className="inline-flex flex-none gap-1.5 whitespace-nowrap cq-340:hidden">
-              <span className="sep">·</span>
+              <span className="opacity-60">·</span>
               {card.type}
             </span>
           )}
-          <span className={isNext ? 'sep hidden flex-none whitespace-nowrap' : 'sep flex-none whitespace-nowrap'}>
+          <span
+            className={
+              isNext ? 'hidden flex-none whitespace-nowrap opacity-60' : 'flex-none whitespace-nowrap opacity-60'
+            }
+          >
             ·
           </span>
           <Status
@@ -608,7 +613,7 @@ export const Card = memo(function Card({
         {number}
         {card.type && (
           <>
-            <span className={cn('sep', hideOnOpen)}>·</span>
+            <span className={cn('opacity-60', hideOnOpen)}>·</span>
             <span className={cn('min-w-0 overflow-hidden text-ellipsis whitespace-nowrap', hideOnOpen)}>
               {card.type}
             </span>

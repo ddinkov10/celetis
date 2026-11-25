@@ -13,6 +13,7 @@ import { shellStore, useShellStore } from '../store.ts';
 import { Badge } from '../ui/badge.tsx';
 import { Button } from '../ui/button.tsx';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '../ui/dropdown-menu.tsx';
+import { Kbd } from '../ui/kbd.tsx';
 import { Entries, FirstFocus } from '../ui/menu-entries.tsx';
 import {
   SidebarFooter,
@@ -24,6 +25,7 @@ import {
 } from '../ui/sidebar.tsx';
 import { ViewBoundary } from '../ui/view-boundary.tsx';
 import { capital, SERVER_DOWN } from '../ui.ts';
+import { AREA_SCREEN } from './area.ts';
 import { Control } from './control.tsx';
 import { Home } from './home.tsx';
 import { Icon } from './icon.tsx';
@@ -199,7 +201,7 @@ function Sidebar() {
       >
         <Icon name="search" />
         <span className="min-w-0 flex-1 truncate rail:flex-none rail:text-card-foreground phone:hidden">Search</span>
-        <kbd className="rail:hidden phone:hidden">{FIND_KEY}</kbd>
+        <Kbd className="rail:hidden phone:hidden">{FIND_KEY}</Kbd>
       </Button>
       <SidebarMenu id="dests">
         {AREAS.map((area) => (
@@ -217,9 +219,9 @@ function Sidebar() {
           {hints.map((pair) => (
             <span className="inline-flex items-center gap-1.5" key={pair.join(' ')}>
               {pair.slice(0, -1).map((key) => (
-                <kbd className="min-h-[18px] min-w-[18px] px-1 text-[0.6875rem]" key={key}>
+                <Kbd className="min-h-[18px] min-w-[18px] px-1" key={key}>
                   {key}
-                </kbd>
+                </Kbd>
               ))}
               {pair.at(-1)}
             </span>
@@ -241,10 +243,21 @@ function AreaBox({ area, children }: { area: Area; children: ReactNode }) {
 
 function Throughput() {
   return (
-    <section className="area-screen" id="area-throughput" aria-labelledby="area-throughput-title">
-      <div className="area-empty">
-        <h2 id="area-throughput-title">Throughput is not built yet.</h2>
-        <p>Throughput will show how fast the issues move from intent to the trunk.</p>
+    <section
+      className={`${AREA_SCREEN} place-items-center`}
+      id="area-throughput"
+      aria-labelledby="area-throughput-title"
+    >
+      <div className="max-w-[46ch] p-6 text-center">
+        <h2
+          className="text-sm leading-[1.38] font-semibold tracking-[-0.012em] text-foreground"
+          id="area-throughput-title"
+        >
+          Throughput is not built yet.
+        </h2>
+        <p className="mt-1.5 mb-0 text-[0.78125rem] text-muted-foreground text-pretty">
+          Throughput will show how fast the issues move from intent to the trunk.
+        </p>
       </div>
     </section>
   );
@@ -254,7 +267,13 @@ function Work() {
   const { data, isError } = useQuery(viewOptions);
   const area = useShellStore((state) => state.shell.area);
   return (
-    <main className="work" id="work" tabIndex={-1} aria-label="Work area" data-area={area}>
+    <main
+      className="col-start-2 row-start-1 flex min-h-0 min-w-0 flex-col gap-3 px-4 pt-3 pb-3.5 focus:[outline:none] phone:col-start-1 phone:row-start-2 phone:px-3 phone:pb-[calc(12px+var(--dock))]"
+      id="work"
+      tabIndex={-1}
+      aria-label="Work area"
+      data-area={area}
+    >
       <div className="flex-none not-has-[.banner:not([hidden])]:hidden">
         <p className={cn(BANNER, WARN)} id="dirty" role="alert" hidden={!data?.noRun}>
           {data?.noRun}

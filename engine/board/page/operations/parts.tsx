@@ -1,34 +1,86 @@
+import { cn } from 'cn';
 import { type FocusEvent, type MouseEvent, type ReactNode, useEffect, useLayoutEffect, useRef } from 'react';
 import type { Registry } from '../../../lib/host/names.ts';
 import type { Pull } from '../../../lib/resolver/types.ts';
 import type { Action, Card, DaemonView } from '../../types.ts';
 import { age, agentOf, clock, knownAgent, prFacts } from '../../view.ts';
 import { Icon } from '../app/icon.tsx';
-import { Button, buttonVariants } from '../ui/button.tsx';
+import { Button, buttonVariants, TAP } from '../ui/button.tsx';
 import { AGENT_ICONS, safeUrl, TYPES } from '../ui.ts';
 import { pressId, screen, useScreen } from './state.ts';
 
+export const WARNING =
+  'm-0 rounded-lg border border-[color-mix(in_srgb,var(--amber)_30%,transparent)] bg-[color-mix(in_srgb,var(--amber)_9%,transparent)] px-2.5 py-2 text-[0.75rem] leading-[1.45] text-foreground [overflow-wrap:anywhere]';
+
+const MARK = 'grid min-h-[18px] w-[18px] flex-none place-items-center rounded-xs';
+const LETTER = `${MARK} font-sans text-[0.6875rem] leading-none font-semibold text-foreground`;
+const BOXED = 'bg-accent [box-shadow:inset_0_0_0_1px_var(--line-strong)]';
+const NUM = 'whitespace-nowrap text-card-foreground tabular-nums';
+const NUM_LINK = `inline-flex min-h-6 min-w-6 items-center [&:hover]:text-foreground ${TAP}`;
+const CHIP =
+  'inline-flex min-h-[22px] items-center gap-1.5 rounded-sm border pr-2 pl-1.5 font-sans text-[0.71875rem] leading-none font-medium whitespace-nowrap [&_.icon]:size-3';
+const CHIP_LINK = `[&:hover]:border-border-strong [&:hover]:text-foreground ${TAP}`;
+const NEUTRAL = 'border-border bg-secondary text-card-foreground';
+const GOOD =
+  'border-[color-mix(in_srgb,var(--ready)_28%,transparent)] bg-[color-mix(in_srgb,var(--ready)_8%,transparent)] text-ready';
+const WAITING = `${NEUTRAL} [&_.icon]:text-muted-foreground`;
+const CHIP_TONES: Record<string, string> = {
+  pr: `${NEUTRAL} font-mono font-normal`,
+  'checks-pass': GOOD,
+  'checks-fail':
+    'border-[color-mix(in_srgb,var(--danger)_30%,transparent)] bg-[color-mix(in_srgb,var(--danger)_8%,transparent)] text-destructive',
+  'checks-pending': WAITING,
+  'review-approved': GOOD,
+  'review-changes':
+    'border-[color-mix(in_srgb,var(--amber)_30%,transparent)] bg-[color-mix(in_srgb,var(--amber)_8%,transparent)] text-caution',
+  'review-required': WAITING,
+};
+const GATE =
+  'inline-flex min-h-[18px] cursor-help items-center rounded-xs px-1.5 font-sans text-[0.6875rem] leading-none font-medium';
+const GATE_ON = 'bg-[color-mix(in_srgb,var(--ready)_13%,transparent)] text-ready';
+const GATE_OFF = 'border border-dashed border-border-strong bg-transparent text-card-foreground';
+
 export function Link({
   className,
+  anchorClassName,
   url,
   label,
   title,
   children,
 }: {
   className: string;
+  anchorClassName?: string;
   url?: string | null;
   label?: string;
   title?: string;
   children: ReactNode;
 }) {
   const href = safeUrl(url);
-  const shared = { className: className || undefined, 'aria-label': label, title };
+  const shared = { 'aria-label': label, title };
   return href ? (
-    <a {...shared} href={href} target="_blank" rel="noreferrer">
+    <a {...shared} className={cn(className, anchorClassName) || undefined} href={href} target="_blank" rel="noreferrer">
       {children}
     </a>
   ) : (
-    <span {...shared}>{children}</span>
+    <span {...shared} className={className || undefined}>
+      {children}
+    </span>
+  );
+}
+
+export function Num({
+  url,
+  className,
+  children,
+}: {
+  url: string | null | undefined;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Link className={cn(NUM, className)} anchorClassName={NUM_LINK} url={url}>
+      {children}
+    </Link>
   );
 }
 
@@ -45,7 +97,7 @@ export function Timed({
 }) {
   const now = useScreen((state) => state.now);
   return (
-    <time className={`time ${className}`.trim()} dateTime={iso} title={clock(iso, true)}>
+    <time className={cn('time tabular-nums', className)} dateTime={iso} title={clock(iso, true)}>
       {`${age(iso, now, isFine)}${suffix}`}
     </time>
   );
@@ -64,8 +116,16 @@ export function Mark({
   if (agent) {
     const known = knownAgent(registry, card.agent) ? card.agent : null;
     return (
-      <span className={`mark agent agent-${known ?? 'other'}${known ? ' agent-image' : ''}`} title={agent.name}>
-        {known ? <img src={AGENT_ICONS[known]} alt={identifiedByText ? '' : agent.name} /> : agent.letter}
+      <span className={cn(LETTER, (known === null || known === 'opencode') && BOXED)} title={agent.name}>
+        {known ? (
+          <img
+            className={known === 'opencode' ? 'size-3 object-contain' : 'size-[18px] object-contain'}
+            src={AGENT_ICONS[known]}
+            alt={identifiedByText ? '' : agent.name}
+          />
+        ) : (
+          agent.letter
+        )}
       </span>
     );
   }
@@ -76,7 +136,7 @@ export function Mark({
       : 'nolane';
   return (
     <span
-      className={`mark type-${card.type ?? 'none'}`}
+      className={`${MARK} text-card-foreground [&_.icon]:size-[13px]`}
       title={!card.type && card.number !== null ? 'No lane yet' : undefined}
     >
       <Icon name={name} />
@@ -97,9 +157,9 @@ export function PrChips({ pr }: { pr: Pull | null | undefined }) {
   const items = prFacts(pr);
   if (items.length === 0) return null;
   return (
-    <div className="chips">
+    <div className="flex flex-wrap gap-1.5">
       {items.map((item) => (
-        <Link key={item.kind} className={`chip2 chip-${item.kind}`} url={item.url}>
+        <Link key={item.kind} className={cn(CHIP, CHIP_TONES[item.kind])} anchorClassName={CHIP_LINK} url={item.url}>
           <Icon name={chipIcon(item.kind)} />
           {item.text}
         </Link>
@@ -112,7 +172,7 @@ export function GateLabel({ mode, className = '' }: { mode: DaemonView['auto']; 
   const on = mode === 'on';
   return (
     <span
-      className={`${on ? 'gate gate-auto' : 'gate gate-auto is-off'} ${className}`.trim()}
+      className={cn(GATE, on ? GATE_ON : GATE_OFF, className)}
       title={on ? 'Auto mode of the daemon starts this step by itself' : 'Auto mode is off: this step waits for Run.'}
     >
       {on ? 'auto' : 'auto off'}

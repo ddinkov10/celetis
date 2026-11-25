@@ -12,7 +12,7 @@ import { Button, buttonVariants } from '../ui/button.tsx';
 import { TabsContent } from '../ui/tabs.tsx';
 import { SERVER_DOWN } from '../ui.ts';
 import { act } from './actions.ts';
-import { Link, useKeptFocus, useKeptScroll } from './parts.tsx';
+import { Link, useKeptFocus, useKeptScroll, WARNING } from './parts.tsx';
 import { screen, useScreen } from './state.ts';
 
 const NOTE = 'my-3.5 text-[0.75rem] text-muted-foreground';
@@ -49,7 +49,7 @@ function VisualControl({ entry, isPressed }: { entry: HistoryRow; isPressed: boo
     const name = `The visual of #${number} is in the making`;
     return (
       <span
-        className="inline-flex min-h-7 w-7 items-center justify-center gap-1.5 rounded-lg border phone:min-h-11 phone:min-w-11 border-[color-mix(in_srgb,var(--working)_30%,transparent)] bg-[color-mix(in_srgb,var(--working)_10%,transparent)] p-0 text-[0.78125rem] leading-none font-medium text-[color-mix(in_srgb,var(--working)_80%,var(--fg))] [grid-area:action] [&_.icon]:size-[13px] [&_.icon]:animate-[turn_0.9s_linear_infinite]"
+        className="inline-flex min-h-7 w-7 items-center justify-center gap-1.5 rounded-lg border phone:min-h-11 phone:min-w-11 border-[color-mix(in_srgb,var(--working)_30%,transparent)] bg-[color-mix(in_srgb,var(--working)_10%,transparent)] p-0 text-[0.78125rem] leading-none font-medium text-[color-mix(in_srgb,var(--working)_80%,var(--fg))] [grid-area:action] [&_.icon]:size-[13px] [&_.icon]:animate-turn"
         role="status"
         tabIndex={-1}
         aria-label={name}
@@ -99,7 +99,7 @@ function Landed({
         ) : (
           <>
             {error && (
-              <p className="warning" role="status">
+              <p className={WARNING} role="status">
                 {`${error}. History shows the last good read.`}
               </p>
             )}

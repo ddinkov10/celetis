@@ -5,6 +5,7 @@ import { clock } from '../../view.ts';
 import { Icon } from '../app/icon.tsx';
 import { Link } from '../operations/parts.tsx';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible.tsx';
+import { Kbd } from '../ui/kbd.tsx';
 import { coordinator, useCoordinator } from './coordinator.ts';
 import { IN_FLIGHT, KEYS, type LogItem } from './rules.ts';
 
@@ -14,7 +15,7 @@ const INLINE_CODE = 'rounded-[4px] bg-secondary px-1 py-px font-mono text-[0.75r
 const TEXT =
   'm-0 rounded-lg bg-secondary p-2.5 font-mono text-[0.75rem] leading-[1.55] font-normal whitespace-pre-wrap [overflow-wrap:anywhere]';
 const TRIGGER =
-  'flex min-h-7 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-0 py-1 text-left text-muted-foreground [font:inherit] [&:hover]:text-foreground phone:min-h-11 aria-expanded:[&_.i-chevron]:[transform:rotate(90deg)] [&_.i-chevron]:ml-auto [&_.i-chevron]:[transition:transform_0.2s_ease-out] [&_.i-works]:animate-[turn_1.2s_linear_infinite] [&_.i-works]:text-working';
+  'flex min-h-7 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-0 py-1 text-left text-muted-foreground [font:inherit] [&:hover]:text-foreground phone:min-h-11 aria-expanded:[&_.i-chevron]:[transform:rotate(90deg)] [&_.i-chevron]:ml-auto [&_.i-chevron]:[transition:transform_0.2s_ease-out] [&_.i-works]:animate-turn-slow [&_.i-works]:text-working';
 const SUMMARY = 'min-w-0 truncate font-mono text-[0.71875rem] leading-[1.4] font-normal';
 const STACK = '[&_:is(li,blockquote)>*+*]:mt-[7px]';
 const HEADINGS = ['h3', 'h4', 'h5', 'h6'] as const;
@@ -231,12 +232,12 @@ function KeyButton({ name }: { name: CoordinatorKey }) {
       title={wait ?? `Press ${words} in the session`}
       onClick={() => void coordinator.pressKey(name)}
     >
-      <kbd
+      <Kbd
         className="h-auto min-w-0 border-0 bg-transparent p-0 font-mono text-[0.75rem] leading-none font-medium"
         aria-hidden={differs ? true : undefined}
       >
         {cap}
-      </kbd>
+      </Kbd>
     </button>
   );
 }
@@ -294,7 +295,7 @@ function Item({ item, onToggle }: { item: LogItem; onToggle: OnToggle }) {
       return <Ask item={item} />;
     case 'works':
       return (
-        <li className="flex items-center gap-2 text-card-foreground [&_.i-works]:animate-[turn_1.2s_linear_infinite] [&_.i-works]:text-working">
+        <li className="flex items-center gap-2 text-card-foreground [&_.i-works]:animate-turn-slow [&_.i-works]:text-working">
           <Icon name="works" />
           <span>The coordinator works</span>
         </li>

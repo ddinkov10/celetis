@@ -24951,7 +24951,7 @@ var jsx_runtime = __toESM(require_jsx_runtime());
 var TAP = 'phone:relative phone:before:absolute phone:before:top-1/2 phone:before:left-1/2 phone:before:h-[max(100%,44px)] phone:before:w-[max(100%,44px)] phone:before:content-[""] phone:before:[transform:translate(-50%,-50%)]';
 var FADE = "transition-[background-color,border-color,opacity,transform] duration-150";
 var LABEL = "text-[0.78125rem] leading-none font-medium whitespace-nowrap";
-var variants = cva("group/button inline-flex shrink-0 select-none items-center justify-center rounded-lg border border-transparent py-0 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-[0.97] aria-busy:cursor-progress aria-busy:opacity-70 motion-safe:aria-busy:[&_.icon]:animate-[turn_0.9s_linear_infinite] aria-disabled:cursor-not-allowed aria-disabled:opacity-[0.42] aria-disabled:active:scale-100 [&_svg]:shrink-0", {
+var variants = cva("group/button inline-flex shrink-0 select-none items-center justify-center rounded-lg border border-transparent py-0 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-[0.97] aria-busy:cursor-progress aria-busy:opacity-70 motion-safe:aria-busy:[&_.icon]:animate-turn aria-disabled:cursor-not-allowed aria-disabled:opacity-[0.42] aria-disabled:active:scale-100 [&_svg]:shrink-0", {
   variants: {
     variant: {
       default: `${FADE} bg-primary text-primary-foreground hover:opacity-90`,
@@ -32019,7 +32019,7 @@ var import_react6 = __toESM(require_react());
 var jsx_runtime4 = __toESM(require_jsx_runtime());
 function Icon({ name }) {
   return /* @__PURE__ */ jsx_runtime4.jsx("svg", {
-    className: `icon i-${name}`,
+    className: `icon i-${name} size-4 flex-none fill-none stroke-current stroke-[1.5] [stroke-linecap:round] [stroke-linejoin:round] [&_.fill]:fill-current [&_.fill]:stroke-none [&_.track]:opacity-30`,
     viewBox: "0 0 16 16",
     "aria-hidden": "true",
     children: (ICONS[name] ?? []).map(([tag, { class: className, ...attributes }], at) => import_react6.createElement(tag, { key: at, className, ...attributes }))
@@ -32066,7 +32066,7 @@ function DialogContent({ className, ...props }) {
       /* @__PURE__ */ jsx_runtime5.jsx(DialogOverlay, {}),
       /* @__PURE__ */ jsx_runtime5.jsx(DialogPopup, {
         "data-slot": "dialog-content",
-        className: cn("fixed top-1/2 left-1/2 z-[110] max-h-[calc(100%-6px-2em)] w-[min(480px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 animate-[rise-in_0.2s_cubic-bezier(0.2,0.8,0.2,1)] overflow-auto rounded-3xl bg-card p-0 data-ending-style:pointer-events-none text-card-foreground shadow-float outline-none", className),
+        className: cn("fixed top-1/2 left-1/2 z-[110] max-h-[calc(100%-6px-2em)] w-[min(480px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 animate-rise-in overflow-auto rounded-3xl bg-card p-0 data-ending-style:pointer-events-none text-card-foreground shadow-float outline-none", className),
         finalFocus: false,
         ...props
       })
@@ -32083,6 +32083,16 @@ function DialogTitle2({ className, ...props }) {
 function DialogClose2({ ...props }) {
   return /* @__PURE__ */ jsx_runtime5.jsx(DialogClose, {
     "data-slot": "dialog-close",
+    ...props
+  });
+}
+
+// engine/board/page/ui/kbd.tsx
+var jsx_runtime6 = __toESM(require_jsx_runtime());
+function Kbd({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+    "data-slot": "kbd",
+    className: cn("inline-grid min-h-5 min-w-[22px] place-items-center rounded-sm border border-b-2 border-border-strong bg-secondary px-[5px] py-0 font-mono text-[0.6875rem] leading-none font-medium text-foreground", className),
     ...props
   });
 }
@@ -33390,7 +33400,7 @@ var useCoordinator = (select) => import_react10.useSyncExternalStore(subscribe, 
 
 // engine/board/page/shortcuts/shortcuts.tsx
 var import_react11 = __toESM(require_react());
-var jsx_runtime6 = __toESM(require_jsx_runtime());
+var jsx_runtime7 = __toESM(require_jsx_runtime());
 var ROW = "flex items-center gap-3.5 px-2 py-[7px] not-first:border-t not-first:border-border";
 var listeners6 = new Set;
 var isOpen3 = false;
@@ -33411,137 +33421,137 @@ var subscribe2 = (listener) => {
 function Shortcuts() {
   const open = import_react11.useSyncExternalStore(subscribe2, isShortcutsOpen);
   const keys = useShellStore((state) => state.settings.keys);
-  return /* @__PURE__ */ jsx_runtime6.jsx(Dialog, {
+  return /* @__PURE__ */ jsx_runtime7.jsx(Dialog, {
     open,
     onOpenChange: (next) => (next || !isCovered()) && setOpen(next),
-    children: /* @__PURE__ */ jsx_runtime6.jsx(DialogContent, {
-      children: /* @__PURE__ */ jsx_runtime6.jsxs(ViewBoundary, {
+    children: /* @__PURE__ */ jsx_runtime7.jsx(DialogContent, {
+      children: /* @__PURE__ */ jsx_runtime7.jsxs(ViewBoundary, {
         snapshot: keys,
         fallback: null,
         children: [
-          /* @__PURE__ */ jsx_runtime6.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime7.jsxs("div", {
             className: "flex items-center justify-between pt-4 pr-4 pb-2 pl-5",
             children: [
-              /* @__PURE__ */ jsx_runtime6.jsx(DialogTitle2, {
+              /* @__PURE__ */ jsx_runtime7.jsx(DialogTitle2, {
                 children: "Keyboard shortcuts"
               }),
-              /* @__PURE__ */ jsx_runtime6.jsx(DialogClose2, {
-                render: /* @__PURE__ */ jsx_runtime6.jsx(Button2, {
+              /* @__PURE__ */ jsx_runtime7.jsx(DialogClose2, {
+                render: /* @__PURE__ */ jsx_runtime7.jsx(Button2, {
                   variant: "icon",
                   size: "icon",
                   className: "[border:0]",
                   "aria-label": "Close"
                 }),
-                children: /* @__PURE__ */ jsx_runtime6.jsx(Icon, {
+                children: /* @__PURE__ */ jsx_runtime7.jsx(Icon, {
                   name: "close"
                 })
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime6.jsxs("dl", {
+          /* @__PURE__ */ jsx_runtime7.jsxs("dl", {
             className: "m-0 px-3 pt-1 pb-2",
             children: [
-              /* @__PURE__ */ jsx_runtime6.jsxs("div", {
+              /* @__PURE__ */ jsx_runtime7.jsxs("div", {
                 className: ROW,
                 children: [
-                  /* @__PURE__ */ jsx_runtime6.jsxs("dt", {
+                  /* @__PURE__ */ jsx_runtime7.jsxs("dt", {
                     className: "flex w-[92px] flex-none gap-1",
                     children: [
-                      /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                      /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                         children: "⌘K"
                       }),
-                      /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                      /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                         children: "/"
                       })
                     ]
                   }),
-                  /* @__PURE__ */ jsx_runtime6.jsx("dd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dd", {
                     className: "m-0 text-[0.8125rem]",
                     children: "Search the cards, history, and commands, or type #n to jump to an issue"
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime6.jsxs("div", {
+              /* @__PURE__ */ jsx_runtime7.jsxs("div", {
                 className: ROW,
                 children: [
-                  /* @__PURE__ */ jsx_runtime6.jsxs("dt", {
+                  /* @__PURE__ */ jsx_runtime7.jsxs("dt", {
                     className: "flex w-[92px] flex-none gap-1",
                     children: [
-                      /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                      /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                         children: "j"
                       }),
-                      /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                      /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                         children: "k"
                       }),
-                      /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                      /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                         children: "↓"
                       }),
-                      /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                      /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                         children: "↑"
                       })
                     ]
                   }),
-                  /* @__PURE__ */ jsx_runtime6.jsx("dd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dd", {
                     className: "m-0 text-[0.8125rem]",
                     children: "Next or previous card or epic group"
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime6.jsxs("div", {
+              /* @__PURE__ */ jsx_runtime7.jsxs("div", {
                 className: ROW,
                 children: [
-                  /* @__PURE__ */ jsx_runtime6.jsxs("dt", {
+                  /* @__PURE__ */ jsx_runtime7.jsxs("dt", {
                     className: "flex w-[92px] flex-none gap-1",
                     children: [
-                      /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                      /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                         children: "h"
                       }),
-                      /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                      /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                         children: "l"
                       }),
-                      /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                      /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                         children: "←"
                       }),
-                      /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                      /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                         children: "→"
                       })
                     ]
                   }),
-                  /* @__PURE__ */ jsx_runtime6.jsx("dd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dd", {
                     className: "m-0 text-[0.8125rem]",
                     children: "Card in the column to the left or right"
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime6.jsxs("div", {
+              /* @__PURE__ */ jsx_runtime7.jsxs("div", {
                 className: ROW,
                 children: [
-                  /* @__PURE__ */ jsx_runtime6.jsx("dt", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dt", {
                     className: "flex w-[92px] flex-none gap-1",
-                    children: /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                    children: /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                       children: "Enter"
                     })
                   }),
-                  /* @__PURE__ */ jsx_runtime6.jsx("dd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dd", {
                     className: "m-0 text-[0.8125rem]",
                     children: "Main button of the card: Go, Run, Resume, Open agent, Open shell, or Open issue"
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime6.jsxs("div", {
+              /* @__PURE__ */ jsx_runtime7.jsxs("div", {
                 className: ROW,
                 children: [
-                  /* @__PURE__ */ jsx_runtime6.jsx("dt", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dt", {
                     className: "flex w-[92px] flex-none gap-1",
-                    children: /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                    children: /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                       children: "Space"
                     })
                   }),
-                  /* @__PURE__ */ jsx_runtime6.jsxs("dd", {
+                  /* @__PURE__ */ jsx_runtime7.jsxs("dd", {
                     className: "m-0 text-[0.8125rem]",
                     children: [
                       "Show the details of the card; ",
-                      /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                      /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                         children: "Esc"
                       }),
                       " hides them"
@@ -33549,141 +33559,141 @@ function Shortcuts() {
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime6.jsxs("div", {
+              /* @__PURE__ */ jsx_runtime7.jsxs("div", {
                 className: ROW,
                 children: [
-                  /* @__PURE__ */ jsx_runtime6.jsxs("dt", {
+                  /* @__PURE__ */ jsx_runtime7.jsxs("dt", {
                     className: "flex w-[92px] flex-none gap-1",
                     children: [
-                      /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                      /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                         children: "Enter"
                       }),
-                      /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                      /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                         children: "Space"
                       })
                     ]
                   }),
-                  /* @__PURE__ */ jsx_runtime6.jsx("dd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dd", {
                     className: "m-0 text-[0.8125rem]",
                     children: "On an epic group, show or hide its issues"
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime6.jsxs("div", {
+              /* @__PURE__ */ jsx_runtime7.jsxs("div", {
                 className: ROW,
                 children: [
-                  /* @__PURE__ */ jsx_runtime6.jsx("dt", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dt", {
                     className: "flex w-[92px] flex-none gap-1",
-                    children: /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                    children: /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                       children: "m"
                     })
                   }),
-                  /* @__PURE__ */ jsx_runtime6.jsx("dd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dd", {
                     className: "m-0 text-[0.8125rem]",
                     children: "All the actions of the card"
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime6.jsxs("div", {
+              /* @__PURE__ */ jsx_runtime7.jsxs("div", {
                 className: ROW,
                 children: [
-                  /* @__PURE__ */ jsx_runtime6.jsx("dt", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dt", {
                     className: "flex w-[92px] flex-none gap-1",
-                    children: /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                    children: /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                       children: "o"
                     })
                   }),
-                  /* @__PURE__ */ jsx_runtime6.jsx("dd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dd", {
                     className: "m-0 text-[0.8125rem]",
                     children: "Open the issue"
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime6.jsxs("div", {
+              /* @__PURE__ */ jsx_runtime7.jsxs("div", {
                 className: ROW,
                 children: [
-                  /* @__PURE__ */ jsx_runtime6.jsx("dt", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dt", {
                     className: "flex w-[92px] flex-none gap-1",
-                    children: /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                    children: /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                       children: "c"
                     })
                   }),
-                  /* @__PURE__ */ jsx_runtime6.jsx("dd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dd", {
                     className: "m-0 text-[0.8125rem]",
                     children: "Copy the command or the path of the card"
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime6.jsxs("div", {
+              /* @__PURE__ */ jsx_runtime7.jsxs("div", {
                 className: ROW,
                 children: [
-                  /* @__PURE__ */ jsx_runtime6.jsx("dt", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dt", {
                     className: "flex w-[92px] flex-none gap-1",
-                    children: /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                    children: /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                       children: "s"
                     })
                   }),
-                  /* @__PURE__ */ jsx_runtime6.jsx("dd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dd", {
                     className: "m-0 text-[0.8125rem]",
                     children: "Set the card aside, or stop its session"
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime6.jsxs("div", {
+              /* @__PURE__ */ jsx_runtime7.jsxs("div", {
                 className: ROW,
                 children: [
-                  /* @__PURE__ */ jsx_runtime6.jsx("dt", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dt", {
                     className: "flex w-[92px] flex-none gap-1",
-                    children: /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                    children: /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                       children: "v"
                     })
                   }),
-                  /* @__PURE__ */ jsx_runtime6.jsx("dd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dd", {
                     className: "m-0 text-[0.8125rem]",
                     children: "Change between the tabs Agents and Pipeline"
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime6.jsxs("div", {
+              /* @__PURE__ */ jsx_runtime7.jsxs("div", {
                 className: ROW,
                 children: [
-                  /* @__PURE__ */ jsx_runtime6.jsx("dt", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dt", {
                     className: "flex w-[92px] flex-none gap-1",
-                    children: /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                    children: /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                       children: "d"
                     })
                   }),
-                  /* @__PURE__ */ jsx_runtime6.jsx("dd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dd", {
                     className: "m-0 text-[0.8125rem]",
                     children: "Open or close the tab History"
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime6.jsxs("div", {
+              /* @__PURE__ */ jsx_runtime7.jsxs("div", {
                 className: ROW,
                 children: [
-                  /* @__PURE__ */ jsx_runtime6.jsx("dt", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dt", {
                     className: "flex w-[92px] flex-none gap-1",
-                    children: /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                    children: /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                       children: "r"
                     })
                   }),
-                  /* @__PURE__ */ jsx_runtime6.jsx("dd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dd", {
                     className: "m-0 text-[0.8125rem]",
                     children: "Read the issues again"
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime6.jsxs("div", {
+              /* @__PURE__ */ jsx_runtime7.jsxs("div", {
                 className: ROW,
                 children: [
-                  /* @__PURE__ */ jsx_runtime6.jsx("dt", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dt", {
                     className: "flex w-[92px] flex-none gap-1",
-                    children: /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                    children: /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                       children: "?"
                     })
                   }),
-                  /* @__PURE__ */ jsx_runtime6.jsx("dd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx("dd", {
                     className: "m-0 text-[0.8125rem]",
                     children: "Show this list"
                   })
@@ -33691,52 +33701,52 @@ function Shortcuts() {
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime6.jsxs("label", {
+          /* @__PURE__ */ jsx_runtime7.jsxs("label", {
             className: "mx-3 mt-0 mb-3.5 flex cursor-pointer items-start gap-2.5 rounded-xl bg-secondary p-3 text-[0.78125rem] leading-[1.6] font-medium [&_kbd]:min-h-[18px] [&_kbd]:min-w-[18px] [&_kbd]:px-1 [&_kbd]:text-[0.6875rem]",
             children: [
-              /* @__PURE__ */ jsx_runtime6.jsx("input", {
+              /* @__PURE__ */ jsx_runtime7.jsx("input", {
                 type: "checkbox",
                 id: "keys-on",
                 className: "mx-0 mt-[3px] mb-0 size-4 flex-none accent-ring",
                 checked: keys,
                 onChange: (event) => shellStore.setKeys(event.target.checked)
               }),
-              /* @__PURE__ */ jsx_runtime6.jsxs("span", {
+              /* @__PURE__ */ jsx_runtime7.jsxs("span", {
                 children: [
                   "Single-key shortcuts (",
-                  /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                     children: "j"
                   }),
                   " ",
-                  /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                     children: "k"
                   }),
                   " ",
-                  /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                     children: "h"
                   }),
                   " ",
-                  /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                     children: "l"
                   }),
                   " ",
-                  /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                     children: "v"
                   }),
                   " ",
-                  /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                     children: "d"
                   }),
                   " ",
-                  /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                     children: "r"
                   }),
                   " ",
-                  /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                     children: "/"
                   }),
                   " ",
-                  /* @__PURE__ */ jsx_runtime6.jsx("kbd", {
+                  /* @__PURE__ */ jsx_runtime7.jsx(Kbd, {
                     children: "?"
                   }),
                   "). The keys of a focused card or epic group always work."
@@ -34015,35 +34025,35 @@ var openPalette = () => {
 var usePalette = (select) => import_react12.useSyncExternalStore(paletteStore.subscribe, () => select(state3));
 
 // engine/board/page/palette/palette.tsx
-var jsx_runtime7 = __toESM(require_jsx_runtime());
-var POPUP = "inset-0 h-fit m-[12vh_auto_auto] flex max-h-[min(70vh,560px)] w-[min(640px,calc(100vw-32px))] translate-x-0 translate-y-0 animate-[rise-in_0.16s_cubic-bezier(0.2,0.8,0.2,1)] flex-col overflow-hidden rounded-2xl";
+var jsx_runtime8 = __toESM(require_jsx_runtime());
+var POPUP = "inset-0 h-fit m-[12vh_auto_auto] flex max-h-[min(70vh,560px)] w-[min(640px,calc(100vw-32px))] translate-x-0 translate-y-0 animate-rise-in-fast flex-col overflow-hidden rounded-2xl";
 var ROW2 = "grid min-h-[38px] cursor-pointer grid-cols-[18px_auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-lg px-2.5 text-[0.8125rem] text-card-foreground phone:min-h-[45px] phone:flex-none aria-disabled:cursor-not-allowed aria-disabled:opacity-45 data-highlighted:bg-accent data-highlighted:outline-2 data-highlighted:-outline-offset-2 data-highlighted:outline-ring [&_.icon]:size-[15px]";
 var GO_KBD = "inline-flex min-h-5 min-w-5 items-center px-1.5 font-sans text-[0.6875rem] leading-none font-medium text-card-foreground";
 var exactNumber = (query) => new RegExp(`^#?(${grammar().query})$`).exec(query.trim())?.[1];
-var option = (item, index) => /* @__PURE__ */ jsx_runtime7.jsxs(AutocompleteItem, {
+var option = (item, index) => /* @__PURE__ */ jsx_runtime8.jsxs(AutocompleteItem, {
   value: item,
   index,
   className: cn(ROW2, item.isGoTo && "min-h-11 phone:min-h-11", item.tone === "needs" ? "[&_.icon]:text-needs" : "[&_.icon]:text-muted-foreground data-highlighted:[&_.icon]:text-foreground"),
   "aria-disabled": item.isDisabled ? "true" : undefined,
   "aria-label": item.isGoTo ? `${item.label}, ${item.context}. Press Enter to go.` : undefined,
   title: item.title || undefined,
-  render: (props, state) => /* @__PURE__ */ jsx_runtime7.jsx("div", {
+  render: (props, state) => /* @__PURE__ */ jsx_runtime8.jsx("div", {
     ...props,
     "aria-selected": state.highlighted
   }),
   onClick: () => paletteStore.pick(item),
   children: [
-    /* @__PURE__ */ jsx_runtime7.jsx(Icon, {
+    /* @__PURE__ */ jsx_runtime8.jsx(Icon, {
       name: item.icon
     }),
-    /* @__PURE__ */ jsx_runtime7.jsx("b", {
+    /* @__PURE__ */ jsx_runtime8.jsx("b", {
       className: cn("font-medium whitespace-nowrap text-foreground", item.isGoTo && "font-semibold"),
       children: item.label
     }),
-    /* @__PURE__ */ jsx_runtime7.jsxs("span", {
+    /* @__PURE__ */ jsx_runtime8.jsxs("span", {
       className: "min-w-0 truncate text-card-foreground",
       children: [
-        item.number !== null && !item.isGoTo && /* @__PURE__ */ jsx_runtime7.jsxs("span", {
+        item.number !== null && !item.isGoTo && /* @__PURE__ */ jsx_runtime8.jsxs("span", {
           className: "mr-1.5 font-mono text-xs leading-none font-normal text-card-foreground",
           children: [
             "#",
@@ -34053,13 +34063,13 @@ var option = (item, index) => /* @__PURE__ */ jsx_runtime7.jsxs(AutocompleteItem
         item.context
       ]
     }),
-    item.isGoTo ? /* @__PURE__ */ jsx_runtime7.jsx("kbd", {
+    item.isGoTo ? /* @__PURE__ */ jsx_runtime8.jsx(Kbd, {
       className: GO_KBD,
       children: "Enter to go"
-    }) : item.key ? /* @__PURE__ */ jsx_runtime7.jsx("kbd", {
-      className: "min-h-5 min-w-5 text-[0.6875rem]",
+    }) : item.key ? /* @__PURE__ */ jsx_runtime8.jsx(Kbd, {
+      className: "min-w-5",
       children: item.key
-    }) : /* @__PURE__ */ jsx_runtime7.jsx("span", {})
+    }) : /* @__PURE__ */ jsx_runtime8.jsx("span", {})
   ]
 }, index);
 var sections = (shown, query) => {
@@ -34074,10 +34084,10 @@ var sections = (shown, query) => {
       group = label;
       section = {
         id: `pal-g-${parts.length}`,
-        heading: keyed ? /* @__PURE__ */ jsx_runtime7.jsxs(jsx_runtime7.Fragment, {
+        heading: keyed ? /* @__PURE__ */ jsx_runtime8.jsxs(jsx_runtime8.Fragment, {
           children: [
             "Actions for ",
-            /* @__PURE__ */ jsx_runtime7.jsx("span", {
+            /* @__PURE__ */ jsx_runtime8.jsx("span", {
               className: "normal-case",
               children: `#${exact}`
             })
@@ -34090,13 +34100,13 @@ var sections = (shown, query) => {
     section.options.push(option(item, index));
   });
   if (shown.length === 0)
-    return /* @__PURE__ */ jsx_runtime7.jsx("p", {
+    return /* @__PURE__ */ jsx_runtime8.jsx("p", {
       className: "mx-2.5 my-[18px] text-[0.8125rem] text-muted-foreground",
       children: "No card or command matches."
     });
-  return parts.map((part) => /* @__PURE__ */ jsx_runtime7.jsxs(ComboboxGroup, {
+  return parts.map((part) => /* @__PURE__ */ jsx_runtime8.jsxs(ComboboxGroup, {
     children: [
-      /* @__PURE__ */ jsx_runtime7.jsx(ComboboxGroupLabel, {
+      /* @__PURE__ */ jsx_runtime8.jsx(ComboboxGroupLabel, {
         className: "px-2.5 pt-2.5 pb-1.5 font-sans text-[0.6875rem] leading-none font-semibold tracking-[0.07em] text-muted-foreground uppercase",
         children: part.heading
       }),
@@ -34112,7 +34122,7 @@ function Search() {
   import_react13.useLayoutEffect(() => {
     queueMicrotask(() => input.current?.focus());
   }, []);
-  return /* @__PURE__ */ jsx_runtime7.jsxs(AutocompleteRoot, {
+  return /* @__PURE__ */ jsx_runtime8.jsxs(AutocompleteRoot, {
     open: true,
     inline: true,
     autoHighlight: "always",
@@ -34127,9 +34137,9 @@ function Search() {
         paletteStore.setQuery(next);
     },
     children: [
-      /* @__PURE__ */ jsx_runtime7.jsx("div", {
+      /* @__PURE__ */ jsx_runtime8.jsx("div", {
         className: "flex min-h-[52px] flex-none items-center gap-2.5 border-b border-b-border px-4",
-        children: /* @__PURE__ */ jsx_runtime7.jsx(ComboboxInput, {
+        children: /* @__PURE__ */ jsx_runtime8.jsx(ComboboxInput, {
           ref: input,
           type: "text",
           autoComplete: "off",
@@ -34142,7 +34152,7 @@ function Search() {
           className: "min-w-0 flex-1 self-stretch bg-transparent text-[0.90625rem] text-foreground [border:0] [outline:0] placeholder:text-muted-foreground"
         })
       }),
-      /* @__PURE__ */ jsx_runtime7.jsx(ComboboxList, {
+      /* @__PURE__ */ jsx_runtime8.jsx(ComboboxList, {
         "aria-label": "Results",
         className: "min-h-0 flex-1 overflow-y-auto px-1.5 pt-1.5 pb-2",
         children: sections(shown, query)
@@ -34155,7 +34165,7 @@ function Palette() {
   const items = usePalette((state) => state.items);
   const session = usePalette((state) => state.session);
   const popup = import_react13.useRef(null);
-  return /* @__PURE__ */ jsx_runtime7.jsx(Dialog, {
+  return /* @__PURE__ */ jsx_runtime8.jsx(Dialog, {
     open: isOpen,
     onOpenChange: (next) => {
       if (!next)
@@ -34165,43 +34175,43 @@ function Palette() {
       if (!next)
         paletteStore.takePicked()?.run();
     },
-    children: /* @__PURE__ */ jsx_runtime7.jsx(DialogContent, {
+    children: /* @__PURE__ */ jsx_runtime8.jsx(DialogContent, {
       ref: popup,
       "data-slot": "palette",
       "aria-label": "Search the cards, history, and commands",
       className: POPUP,
       initialFocus: () => popup.current?.querySelector("input") ?? null,
-      children: /* @__PURE__ */ jsx_runtime7.jsxs(ViewBoundary, {
+      children: /* @__PURE__ */ jsx_runtime8.jsxs(ViewBoundary, {
         snapshot: items,
         fallback: null,
         onFail: paletteStore.close,
         children: [
-          /* @__PURE__ */ jsx_runtime7.jsx(Search, {}, session),
-          /* @__PURE__ */ jsx_runtime7.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime8.jsx(Search, {}, session),
+          /* @__PURE__ */ jsx_runtime8.jsxs("div", {
             className: "flex min-h-[38px] flex-none items-center gap-4 border-t border-t-border px-4 text-[0.75rem] text-muted-foreground [&_kbd]:min-h-[18px] [&_kbd]:min-w-[18px] [&_kbd]:px-1 [&_kbd]:text-[0.6875rem] [&_span]:inline-flex [&_span]:items-center [&_span]:gap-1.5",
             children: [
-              /* @__PURE__ */ jsx_runtime7.jsxs("span", {
+              /* @__PURE__ */ jsx_runtime8.jsxs("span", {
                 children: [
-                  /* @__PURE__ */ jsx_runtime7.jsx("kbd", {
+                  /* @__PURE__ */ jsx_runtime8.jsx(Kbd, {
                     children: "↑"
                   }),
-                  /* @__PURE__ */ jsx_runtime7.jsx("kbd", {
+                  /* @__PURE__ */ jsx_runtime8.jsx(Kbd, {
                     children: "↓"
                   }),
                   "move"
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime7.jsxs("span", {
+              /* @__PURE__ */ jsx_runtime8.jsxs("span", {
                 children: [
-                  /* @__PURE__ */ jsx_runtime7.jsx("kbd", {
+                  /* @__PURE__ */ jsx_runtime8.jsx(Kbd, {
                     children: "Enter"
                   }),
                   "do it"
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime7.jsxs("span", {
+              /* @__PURE__ */ jsx_runtime8.jsxs("span", {
                 children: [
-                  /* @__PURE__ */ jsx_runtime7.jsx("kbd", {
+                  /* @__PURE__ */ jsx_runtime8.jsx(Kbd, {
                     children: "Esc"
                   }),
                   "close"
@@ -34684,8 +34694,8 @@ function startRead() {
 
 // engine/board/page/toast/toaster.tsx
 var import_react15 = __toESM(require_react());
-var jsx_runtime8 = __toESM(require_jsx_runtime());
-var ROOT = "fixed bottom-12 left-1/2 z-20 flex w-max max-w-[min(560px,calc(100vw-32px))] items-center gap-2.5 rounded-xl bg-card py-2.5 pr-2 pl-3 text-[0.8125rem] leading-[1.45] text-foreground [box-shadow:var(--float)] [overflow-wrap:anywhere] [transform:translate(calc(-50%_+_var(--toast-swipe-movement-x,0px)),var(--toast-swipe-movement-y,0px))] animate-[rise_0.24s_cubic-bezier(0.2,0.8,0.2,1)] data-ending-style:hidden phone:bottom-[calc(var(--dock)+12px)]";
+var jsx_runtime9 = __toESM(require_jsx_runtime());
+var ROOT = "fixed bottom-12 left-1/2 z-20 flex w-max max-w-[min(560px,calc(100vw-32px))] items-center gap-2.5 rounded-xl bg-card py-2.5 pr-2 pl-3 text-[0.8125rem] leading-[1.45] text-foreground [box-shadow:var(--float)] [overflow-wrap:anywhere] [transform:translate(calc(-50%_+_var(--toast-swipe-movement-x,0px)),var(--toast-swipe-movement-y,0px))] animate-rise data-ending-style:hidden phone:bottom-[calc(var(--dock)+12px)]";
 var MARK = "grid size-5 flex-none place-items-center rounded-sm [&_.icon]:size-[13px]";
 var OK = "bg-[color-mix(in_srgb,var(--ready)_14%,transparent)] text-ready";
 var ERROR = "bg-[color-mix(in_srgb,var(--danger)_14%,transparent)] text-destructive";
@@ -34695,7 +34705,7 @@ var withCode = (text) => {
   const node = [];
   text.split("`").forEach((part, index) => {
     if (part)
-      node.push(index % 2 ? /* @__PURE__ */ jsx_runtime8.jsx("code", {
+      node.push(index % 2 ? /* @__PURE__ */ jsx_runtime9.jsx("code", {
         className: CODE,
         children: part
       }, index) : part);
@@ -34711,37 +34721,37 @@ function ToastItem({ toast }) {
     if (tookOver)
       close.current?.focus({ preventScroll: true });
   }, [tookOver]);
-  return /* @__PURE__ */ jsx_runtime8.jsxs(ToastRoot, {
+  return /* @__PURE__ */ jsx_runtime9.jsxs(ToastRoot, {
     toast,
     className: ROOT,
     children: [
-      /* @__PURE__ */ jsx_runtime8.jsx("span", {
+      /* @__PURE__ */ jsx_runtime9.jsx("span", {
         className: cn(MARK, isError ? ERROR : OK),
-        children: /* @__PURE__ */ jsx_runtime8.jsx(Icon, {
+        children: /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
           name: isError ? "alert" : "check"
         })
       }),
-      /* @__PURE__ */ jsx_runtime8.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime9.jsxs("div", {
         children: [
-          /* @__PURE__ */ jsx_runtime8.jsx(ToastTitle, {
-            render: /* @__PURE__ */ jsx_runtime8.jsx("strong", {}),
+          /* @__PURE__ */ jsx_runtime9.jsx(ToastTitle, {
+            render: /* @__PURE__ */ jsx_runtime9.jsx("strong", {}),
             className: "block font-semibold"
           }),
-          detail ? /* @__PURE__ */ jsx_runtime8.jsx(ToastDescription, {
+          detail ? /* @__PURE__ */ jsx_runtime9.jsx(ToastDescription, {
             className: DETAIL,
             children: withCode(detail)
           }) : null
         ]
       }),
-      /* @__PURE__ */ jsx_runtime8.jsx(ToastClose, {
+      /* @__PURE__ */ jsx_runtime9.jsx(ToastClose, {
         ref: close,
-        render: /* @__PURE__ */ jsx_runtime8.jsx(Button2, {
+        render: /* @__PURE__ */ jsx_runtime9.jsx(Button2, {
           variant: "icon",
           size: "icon",
           className: "px-1.5 py-px [border:0]",
           "aria-label": "Close"
         }),
-        children: /* @__PURE__ */ jsx_runtime8.jsx(Icon, {
+        children: /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
           name: "close"
         })
       })
@@ -34750,20 +34760,20 @@ function ToastItem({ toast }) {
 }
 function ToastList() {
   const { toasts } = useToastManager();
-  return /* @__PURE__ */ jsx_runtime8.jsx(ViewBoundary, {
+  return /* @__PURE__ */ jsx_runtime9.jsx(ViewBoundary, {
     snapshot: toasts,
     fallback: null,
-    children: toasts.map((toast) => /* @__PURE__ */ jsx_runtime8.jsx(ToastItem, {
+    children: toasts.map((toast) => /* @__PURE__ */ jsx_runtime9.jsx(ToastItem, {
       toast
     }, toast.id))
   });
 }
 function Toaster() {
-  return /* @__PURE__ */ jsx_runtime8.jsx(ToastProvider, {
+  return /* @__PURE__ */ jsx_runtime9.jsx(ToastProvider, {
     toastManager,
     limit: 1,
-    children: /* @__PURE__ */ jsx_runtime8.jsx(ToastPortal, {
-      children: /* @__PURE__ */ jsx_runtime8.jsx(ToastViewport, {
+    children: /* @__PURE__ */ jsx_runtime9.jsx(ToastPortal, {
+      children: /* @__PURE__ */ jsx_runtime9.jsx(ToastViewport, {
         onKeyDown: (event) => {
           if (event.key !== "Escape")
             return;
@@ -34785,7 +34795,7 @@ function Toaster() {
           if (!event.currentTarget.contains(event.relatedTarget) && !event.currentTarget.contains(document.activeElement))
             holdTimer("focus", false);
         },
-        children: /* @__PURE__ */ jsx_runtime8.jsx(ToastList, {})
+        children: /* @__PURE__ */ jsx_runtime9.jsx(ToastList, {})
       })
     })
   });
@@ -34793,7 +34803,7 @@ function Toaster() {
 
 // engine/board/page/update/update.tsx
 var import_react16 = __toESM(require_react());
-var jsx_runtime9 = __toESM(require_jsx_runtime());
+var jsx_runtime10 = __toESM(require_jsx_runtime());
 var POPUP2 = "fixed z-[100] m-0 max-h-[calc(100dvh-24px)] w-[min(272px,calc(100vw-24px))] overflow-auto rounded-[12px] border border-border bg-card pt-[18px] pr-[18px] pb-4 pl-[18px] text-foreground [box-shadow:var(--float)] [font:inherit] [position-anchor:--update] [position-try-fallbacks:flip-block] [inset:calc(anchor(--update_bottom)+8px)_auto_auto_anchor(--update_left)] [scrollbar-color:var(--fg3)_var(--card)] phone:[position-anchor:--bar] phone:[position-try-fallbacks:none] phone:[inset:auto_12px_calc(anchor(--bar_top)+8px)_auto]";
 var NO_GUARDS = "[&>[data-base-ui-focus-guard]]:hidden";
 var NOTE = "m-[10px_0_0] text-[0.75rem] wrap-anywhere whitespace-pre-wrap";
@@ -34814,9 +34824,9 @@ var keepTabOrder = (event) => {
 };
 function ControlBody({ shown }) {
   const name = `${shown.label}, Celetis`;
-  return /* @__PURE__ */ jsx_runtime9.jsxs("button", {
+  return /* @__PURE__ */ jsx_runtime10.jsxs("button", {
     type: "button",
-    className: cn("sb-btn flex-none [anchor-name:--update] aria-disabled:cursor-wait aria-disabled:bg-[var(--fill)] aria-disabled:text-working", shown.isAccent && "bg-[color-mix(in_srgb,var(--needs-tint)_10%,transparent)] text-needs [&:hover]:bg-[color-mix(in_srgb,var(--needs-tint)_13%,transparent)]", !shown.isAccent && !shown.isChecking && "-ms-2"),
+    className: cn("inline-flex min-h-6 flex-none items-center gap-[7px] rounded-[6px] [border:0] px-2 py-0 font-sans text-[0.75rem] leading-none font-normal [anchor-name:--update] aria-disabled:cursor-wait aria-disabled:bg-[var(--fill)] aria-disabled:text-working phone:min-h-11 phone:min-w-11 [&_.icon]:size-[13px]", shown.isAccent ? "bg-[color-mix(in_srgb,var(--needs-tint)_10%,transparent)] text-needs [&:hover]:bg-[color-mix(in_srgb,var(--needs-tint)_13%,transparent)]" : "bg-transparent text-muted-foreground [&:hover:not([aria-disabled=true])]:bg-accent [&:hover:not([aria-disabled=true])]:text-foreground", !shown.isAccent && !shown.isChecking && "-ms-2"),
     id: "update-open",
     "aria-controls": "update-dialog",
     "aria-expanded": shown.isOpen,
@@ -34833,10 +34843,10 @@ function ControlBody({ shown }) {
       titleNode()?.focus();
     },
     children: [
-      /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
+      /* @__PURE__ */ jsx_runtime10.jsx(Icon, {
         name: "refresh"
       }),
-      /* @__PURE__ */ jsx_runtime9.jsx("span", {
+      /* @__PURE__ */ jsx_runtime10.jsx("span", {
         className: "label",
         children: shown.label
       })
@@ -34845,10 +34855,10 @@ function ControlBody({ shown }) {
 }
 function UpdateControl() {
   const shown = useUpdate();
-  return /* @__PURE__ */ jsx_runtime9.jsx(ViewBoundary, {
+  return /* @__PURE__ */ jsx_runtime10.jsx(ViewBoundary, {
     snapshot: shown,
     fallback: null,
-    children: /* @__PURE__ */ jsx_runtime9.jsx(ControlBody, {
+    children: /* @__PURE__ */ jsx_runtime10.jsx(ControlBody, {
       shown
     })
   });
@@ -34861,70 +34871,73 @@ function Content({ shown }) {
     if (focusedBefore === start.current && !shown.showStart || focusedBefore === check.current && !shown.showCheck)
       titleNode()?.focus();
   });
-  return /* @__PURE__ */ jsx_runtime9.jsxs(jsx_runtime9.Fragment, {
+  return /* @__PURE__ */ jsx_runtime10.jsxs(jsx_runtime10.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime9.jsx(DialogTitle, {
+      /* @__PURE__ */ jsx_runtime10.jsx(DialogTitle, {
         id: "update-title",
         tabIndex: -1,
         className: "text-[0.875rem] leading-[1.4] font-semibold",
         children: shown.title
       }),
-      /* @__PURE__ */ jsx_runtime9.jsxs(DialogDescription, {
+      /* @__PURE__ */ jsx_runtime10.jsxs(DialogDescription, {
         id: "update-description",
         className: "m-[6px_0_0] text-[0.78125rem] leading-[1.5] text-muted-foreground",
         children: [
           shown.description,
-          shown.release ? /* @__PURE__ */ jsx_runtime9.jsx("span", {
+          shown.release ? /* @__PURE__ */ jsx_runtime10.jsx("span", {
             id: "update-release",
             className: "mt-[10px] block font-mono text-[0.6875rem] leading-[1.6] whitespace-pre-line wrap-anywhere text-card-foreground",
             children: shown.release
           }) : null
         ]
       }),
-      /* @__PURE__ */ jsx_runtime9.jsx("p", {
+      /* @__PURE__ */ jsx_runtime10.jsx("p", {
         id: "update-progress",
         "aria-hidden": "true",
         className: cn("m-[12px_0_0] text-[0.75rem] text-working", shown.isProgressBusy ? "before:mr-2 before:inline-block before:h-[7px] before:w-[7px] before:rounded-[50%] before:bg-current before:content-['']" : "absolute h-px w-px overflow-hidden [clip-path:inset(50%)]"),
         children: shown.progress
       }),
-      /* @__PURE__ */ jsx_runtime9.jsx("p", {
+      /* @__PURE__ */ jsx_runtime10.jsx("p", {
         id: "update-error",
         className: cn(NOTE, "text-[color:var(--danger)]"),
         hidden: !shown.diagnostic,
         children: shown.diagnostic
       }),
-      /* @__PURE__ */ jsx_runtime9.jsx("p", {
+      /* @__PURE__ */ jsx_runtime10.jsx("p", {
         id: "update-recovery",
         className: cn(NOTE, "text-card-foreground"),
         hidden: !shown.recovery,
         children: shown.recovery
       }),
-      /* @__PURE__ */ jsx_runtime9.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime10.jsxs("div", {
         className: "mt-[18px] grid gap-1.5",
         children: [
-          /* @__PURE__ */ jsx_runtime9.jsx("button", {
+          /* @__PURE__ */ jsx_runtime10.jsx(Button2, {
             ref: start,
-            type: "button",
-            className: cn("btn primary", ACTION),
+            variant: "primary",
+            size: "action",
+            className: ACTION,
             id: "update-start",
             hidden: !shown.showStart,
             "aria-disabled": shown.isStartDisabled,
             onClick: updateStore.confirm,
             children: shown.startLabel
           }),
-          /* @__PURE__ */ jsx_runtime9.jsx("button", {
+          /* @__PURE__ */ jsx_runtime10.jsx(Button2, {
             ref: check,
-            type: "button",
-            className: cn("btn primary", ACTION),
+            variant: "primary",
+            size: "action",
+            className: ACTION,
             id: "update-check",
             hidden: !shown.showCheck,
             "aria-disabled": shown.isCheckDisabled,
             onClick: updateStore.check,
             children: "Check again"
           }),
-          /* @__PURE__ */ jsx_runtime9.jsx("button", {
-            type: "button",
-            className: cn("btn ghost bg-transparent text-card-foreground [&:hover]:bg-[var(--fill)] [&:hover]:text-foreground", ACTION),
+          /* @__PURE__ */ jsx_runtime10.jsx(Button2, {
+            variant: "secondary",
+            size: "action",
+            className: cn("bg-transparent text-card-foreground [&:hover]:bg-[var(--fill)] [&:hover]:text-foreground", ACTION),
             id: "update-later",
             onClick: updateStore.close,
             children: shown.later
@@ -34952,18 +34965,18 @@ function UpdateDialog() {
     else if (seen.current.wasInside)
       (prior instanceof HTMLElement && prior.isConnected && !prior.hidden ? prior : control())?.focus();
   }, [shown.isOpen]);
-  return /* @__PURE__ */ jsx_runtime9.jsxs(jsx_runtime9.Fragment, {
+  return /* @__PURE__ */ jsx_runtime10.jsxs(jsx_runtime10.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime9.jsx("p", {
+      /* @__PURE__ */ jsx_runtime10.jsx("p", {
         className: "sr-only",
         id: "update-status",
         role: "status",
         "aria-live": "polite",
         children: shown.status
       }),
-      /* @__PURE__ */ jsx_runtime9.jsx("div", {
+      /* @__PURE__ */ jsx_runtime10.jsx("div", {
         className: cn("contents", NO_GUARDS),
-        children: /* @__PURE__ */ jsx_runtime9.jsx(DialogRoot, {
+        children: /* @__PURE__ */ jsx_runtime10.jsx(DialogRoot, {
           modal: false,
           disablePointerDismissal: true,
           open: shown.isOpen,
@@ -34975,20 +34988,20 @@ function UpdateDialog() {
             if (!next)
               updateStore.close();
           },
-          children: /* @__PURE__ */ jsx_runtime9.jsx(DialogPortal, {
+          children: /* @__PURE__ */ jsx_runtime10.jsx(DialogPortal, {
             keepMounted: true,
             className: NO_GUARDS,
-            children: /* @__PURE__ */ jsx_runtime9.jsx(DialogPopup, {
+            children: /* @__PURE__ */ jsx_runtime10.jsx(DialogPopup, {
               ref: popup,
               id: "update-dialog",
               className: POPUP2,
               initialFocus: false,
               finalFocus: false,
               onBlur: keepTabOrder,
-              children: /* @__PURE__ */ jsx_runtime9.jsx(ViewBoundary, {
+              children: /* @__PURE__ */ jsx_runtime10.jsx(ViewBoundary, {
                 snapshot: shown,
                 fallback: null,
-                children: /* @__PURE__ */ jsx_runtime9.jsx(Content, {
+                children: /* @__PURE__ */ jsx_runtime10.jsx(Content, {
                   shown
                 })
               })
@@ -35055,7 +35068,7 @@ function useGlobalKeys() {
 }
 
 // engine/board/page/coordinator/button.tsx
-var jsx_runtime10 = __toESM(require_jsx_runtime());
+var jsx_runtime11 = __toESM(require_jsx_runtime());
 var MARKS = {
   none: "bg-transparent shadow-[inset_0_0_0_1.5px_var(--fg3)]",
   starting: "bg-transparent shadow-[inset_0_0_0_1.5px_var(--working)]",
@@ -35064,7 +35077,7 @@ var MARKS = {
   dialog: "rounded-[1.5px] bg-needs [transform:rotate(45deg)]"
 };
 function ChatMark({ state, stale, className }) {
-  return /* @__PURE__ */ jsx_runtime10.jsx("i", {
+  return /* @__PURE__ */ jsx_runtime11.jsx("i", {
     className: cn("size-[7px] flex-none rounded-[50%]", MARKS[state], stale && "opacity-55", className),
     "aria-hidden": "true"
   });
@@ -35072,7 +35085,7 @@ function ChatMark({ state, stale, className }) {
 function ChatButton() {
   const mirror = useCoordinator((state) => state.mirror);
   const isDialog = mirror.state === "dialog";
-  return /* @__PURE__ */ jsx_runtime10.jsxs(Button2, {
+  return /* @__PURE__ */ jsx_runtime11.jsxs(Button2, {
     type: "button",
     variant: "secondary",
     size: "action",
@@ -35085,22 +35098,22 @@ function ChatButton() {
     title: mirror.title,
     onClick: () => coordinator.open(),
     children: [
-      /* @__PURE__ */ jsx_runtime10.jsx(Icon, {
+      /* @__PURE__ */ jsx_runtime11.jsx(Icon, {
         name: "message"
       }),
-      /* @__PURE__ */ jsx_runtime10.jsx("span", {
+      /* @__PURE__ */ jsx_runtime11.jsx("span", {
         className: "label",
         children: "Chat"
       }),
-      /* @__PURE__ */ jsx_runtime10.jsx(ChatMark, {
+      /* @__PURE__ */ jsx_runtime11.jsx(ChatMark, {
         state: mirror.state,
         stale: mirror.stale
       }),
-      /* @__PURE__ */ jsx_runtime10.jsx("span", {
+      /* @__PURE__ */ jsx_runtime11.jsx("span", {
         className: cn("font-normal", mirror.stale ? "text-muted-foreground" : isDialog ? "text-foreground" : "text-card-foreground"),
         children: mirror.words
       }),
-      mirror.unseen && /* @__PURE__ */ jsx_runtime10.jsx("i", {
+      mirror.unseen && /* @__PURE__ */ jsx_runtime11.jsx("i", {
         className: "-ml-0.5 size-[7px] flex-none rounded-[50%] bg-foreground shadow-[0_0_0_3px_color-mix(in_srgb,var(--fg)_14%,transparent)]",
         "aria-hidden": "true"
       })
@@ -35113,24 +35126,62 @@ var import_react21 = __toESM(require_react());
 
 // engine/board/page/operations/parts.tsx
 var import_react18 = __toESM(require_react());
-var jsx_runtime11 = __toESM(require_jsx_runtime());
+var jsx_runtime12 = __toESM(require_jsx_runtime());
+var WARNING = "m-0 rounded-lg border border-[color-mix(in_srgb,var(--amber)_30%,transparent)] bg-[color-mix(in_srgb,var(--amber)_9%,transparent)] px-2.5 py-2 text-[0.75rem] leading-[1.45] text-foreground [overflow-wrap:anywhere]";
+var MARK2 = "grid min-h-[18px] w-[18px] flex-none place-items-center rounded-xs";
+var LETTER = `${MARK2} font-sans text-[0.6875rem] leading-none font-semibold text-foreground`;
+var BOXED = "bg-accent [box-shadow:inset_0_0_0_1px_var(--line-strong)]";
+var NUM = "whitespace-nowrap text-card-foreground tabular-nums";
+var NUM_LINK = `inline-flex min-h-6 min-w-6 items-center [&:hover]:text-foreground ${TAP}`;
+var CHIP = "inline-flex min-h-[22px] items-center gap-1.5 rounded-sm border pr-2 pl-1.5 font-sans text-[0.71875rem] leading-none font-medium whitespace-nowrap [&_.icon]:size-3";
+var CHIP_LINK = `[&:hover]:border-border-strong [&:hover]:text-foreground ${TAP}`;
+var NEUTRAL = "border-border bg-secondary text-card-foreground";
+var GOOD = "border-[color-mix(in_srgb,var(--ready)_28%,transparent)] bg-[color-mix(in_srgb,var(--ready)_8%,transparent)] text-ready";
+var WAITING = `${NEUTRAL} [&_.icon]:text-muted-foreground`;
+var CHIP_TONES = {
+  pr: `${NEUTRAL} font-mono font-normal`,
+  "checks-pass": GOOD,
+  "checks-fail": "border-[color-mix(in_srgb,var(--danger)_30%,transparent)] bg-[color-mix(in_srgb,var(--danger)_8%,transparent)] text-destructive",
+  "checks-pending": WAITING,
+  "review-approved": GOOD,
+  "review-changes": "border-[color-mix(in_srgb,var(--amber)_30%,transparent)] bg-[color-mix(in_srgb,var(--amber)_8%,transparent)] text-caution",
+  "review-required": WAITING
+};
+var GATE = "inline-flex min-h-[18px] cursor-help items-center rounded-xs px-1.5 font-sans text-[0.6875rem] leading-none font-medium";
+var GATE_ON = "bg-[color-mix(in_srgb,var(--ready)_13%,transparent)] text-ready";
+var GATE_OFF = "border border-dashed border-border-strong bg-transparent text-card-foreground";
 function Link({
   className,
+  anchorClassName,
   url,
   label,
   title,
   children
 }) {
   const href = safeUrl(url);
-  const shared = { className: className || undefined, "aria-label": label, title };
-  return href ? /* @__PURE__ */ jsx_runtime11.jsx("a", {
+  const shared = { "aria-label": label, title };
+  return href ? /* @__PURE__ */ jsx_runtime12.jsx("a", {
     ...shared,
+    className: cn(className, anchorClassName) || undefined,
     href,
     target: "_blank",
     rel: "noreferrer",
     children
-  }) : /* @__PURE__ */ jsx_runtime11.jsx("span", {
+  }) : /* @__PURE__ */ jsx_runtime12.jsx("span", {
     ...shared,
+    className: className || undefined,
+    children
+  });
+}
+function Num({
+  url,
+  className,
+  children
+}) {
+  return /* @__PURE__ */ jsx_runtime12.jsx(Link, {
+    className: cn(NUM, className),
+    anchorClassName: NUM_LINK,
+    url,
     children
   });
 }
@@ -35141,8 +35192,8 @@ function Timed({
   className = ""
 }) {
   const now = useScreen((state) => state.now);
-  return /* @__PURE__ */ jsx_runtime11.jsx("time", {
-    className: `time ${className}`.trim(),
+  return /* @__PURE__ */ jsx_runtime12.jsx("time", {
+    className: cn("time tabular-nums", className),
     dateTime: iso,
     title: clock(iso, true),
     children: `${age(iso, now, isFine)}${suffix}`
@@ -35156,20 +35207,21 @@ function Mark({
   const agent = agentOf(card, registry);
   if (agent) {
     const known = knownAgent(registry, card.agent) ? card.agent : null;
-    return /* @__PURE__ */ jsx_runtime11.jsx("span", {
-      className: `mark agent agent-${known ?? "other"}${known ? " agent-image" : ""}`,
+    return /* @__PURE__ */ jsx_runtime12.jsx("span", {
+      className: cn(LETTER, (known === null || known === "opencode") && BOXED),
       title: agent.name,
-      children: known ? /* @__PURE__ */ jsx_runtime11.jsx("img", {
+      children: known ? /* @__PURE__ */ jsx_runtime12.jsx("img", {
+        className: known === "opencode" ? "size-3 object-contain" : "size-[18px] object-contain",
         src: AGENT_ICONS[known],
         alt: identifiedByText ? "" : agent.name
       }) : agent.letter
     });
   }
   const name = Object.hasOwn(TYPES, card.type) ? TYPES[card.type] : card.number === null ? "terminal" : "nolane";
-  return /* @__PURE__ */ jsx_runtime11.jsx("span", {
-    className: `mark type-${card.type ?? "none"}`,
+  return /* @__PURE__ */ jsx_runtime12.jsx("span", {
+    className: `${MARK2} text-card-foreground [&_.icon]:size-[13px]`,
     title: !card.type && card.number !== null ? "No lane yet" : undefined,
-    children: /* @__PURE__ */ jsx_runtime11.jsx(Icon, {
+    children: /* @__PURE__ */ jsx_runtime12.jsx(Icon, {
       name
     })
   });
@@ -35179,13 +35231,14 @@ function PrChips({ pr }) {
   const items = prFacts(pr);
   if (items.length === 0)
     return null;
-  return /* @__PURE__ */ jsx_runtime11.jsx("div", {
-    className: "chips",
-    children: items.map((item) => /* @__PURE__ */ jsx_runtime11.jsxs(Link, {
-      className: `chip2 chip-${item.kind}`,
+  return /* @__PURE__ */ jsx_runtime12.jsx("div", {
+    className: "flex flex-wrap gap-1.5",
+    children: items.map((item) => /* @__PURE__ */ jsx_runtime12.jsxs(Link, {
+      className: cn(CHIP, CHIP_TONES[item.kind]),
+      anchorClassName: CHIP_LINK,
       url: item.url,
       children: [
-        /* @__PURE__ */ jsx_runtime11.jsx(Icon, {
+        /* @__PURE__ */ jsx_runtime12.jsx(Icon, {
           name: chipIcon(item.kind)
         }),
         item.text
@@ -35195,8 +35248,8 @@ function PrChips({ pr }) {
 }
 function GateLabel({ mode, className = "" }) {
   const on = mode === "on";
-  return /* @__PURE__ */ jsx_runtime11.jsx("span", {
-    className: `${on ? "gate gate-auto" : "gate gate-auto is-off"} ${className}`.trim(),
+  return /* @__PURE__ */ jsx_runtime12.jsx("span", {
+    className: cn(GATE, on ? GATE_ON : GATE_OFF, className),
     title: on ? "Auto mode of the daemon starts this step by itself" : "Auto mode is off: this step waits for Run.",
     children: on ? "auto" : "auto off"
   });
@@ -35208,7 +35261,7 @@ function IconButton({
   className = "",
   title = label
 }) {
-  return /* @__PURE__ */ jsx_runtime11.jsx(Button2, {
+  return /* @__PURE__ */ jsx_runtime12.jsx(Button2, {
     variant: "icon",
     size: "icon",
     className,
@@ -35218,7 +35271,7 @@ function IconButton({
       event.stopPropagation();
       press(event);
     },
-    children: /* @__PURE__ */ jsx_runtime11.jsx(Icon, {
+    children: /* @__PURE__ */ jsx_runtime12.jsx(Icon, {
       name
     })
   });
@@ -35236,19 +35289,19 @@ function ActionButton({
     "aria-label": action.name,
     "aria-disabled": action.isDisabled ? "true" : undefined
   };
-  const inner = /* @__PURE__ */ jsx_runtime11.jsxs(jsx_runtime11.Fragment, {
+  const inner = /* @__PURE__ */ jsx_runtime12.jsxs(jsx_runtime12.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime11.jsx(Icon, {
+      /* @__PURE__ */ jsx_runtime12.jsx(Icon, {
         name: action.icon
       }),
-      /* @__PURE__ */ jsx_runtime11.jsx("span", {
+      /* @__PURE__ */ jsx_runtime12.jsx("span", {
         className: "label",
         children: isBusy && action.busy ? action.busy : action.label
       })
     ]
   });
   if (action.href)
-    return /* @__PURE__ */ jsx_runtime11.jsx("a", {
+    return /* @__PURE__ */ jsx_runtime12.jsx("a", {
       ...shared,
       "data-slot": "button",
       className: buttonVariants({ variant, size: "action", className: extra }),
@@ -35258,7 +35311,7 @@ function ActionButton({
       onClick: (event) => event.stopPropagation(),
       children: inner
     });
-  return /* @__PURE__ */ jsx_runtime11.jsx(Button2, {
+  return /* @__PURE__ */ jsx_runtime12.jsx(Button2, {
     variant,
     size: "action",
     className: extra,
@@ -35322,9 +35375,9 @@ var useKeptFocus = (find) => {
 };
 
 // engine/board/page/ui/textarea.tsx
-var jsx_runtime12 = __toESM(require_jsx_runtime());
+var jsx_runtime13 = __toESM(require_jsx_runtime());
 function Textarea({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime12.jsx("textarea", {
+  return /* @__PURE__ */ jsx_runtime13.jsx("textarea", {
     "data-slot": "textarea",
     className: cn("field-sizing-content max-h-42 min-h-11 w-full resize-none border-0 bg-transparent px-3.5 pt-[11px] pb-1 text-foreground caret-ring outline-none [font:inherit] placeholder:text-muted-foreground", className),
     ...props
@@ -36285,22 +36338,22 @@ var CollapsiblePanel = /* @__PURE__ */ React107.forwardRef(function CollapsibleP
 if (false)
   ;
 // engine/board/page/ui/collapsible.tsx
-var jsx_runtime13 = __toESM(require_jsx_runtime());
+var jsx_runtime14 = __toESM(require_jsx_runtime());
 function Collapsible(props) {
-  return /* @__PURE__ */ jsx_runtime13.jsx(CollapsibleRoot, {
+  return /* @__PURE__ */ jsx_runtime14.jsx(CollapsibleRoot, {
     "data-slot": "collapsible",
     ...props
   });
 }
 function CollapsibleTrigger2({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime13.jsx(CollapsibleTrigger, {
+  return /* @__PURE__ */ jsx_runtime14.jsx(CollapsibleTrigger, {
     "data-slot": "collapsible-trigger",
     className: cn(className),
     ...props
   });
 }
 function CollapsibleContent({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime13.jsx(CollapsiblePanel, {
+  return /* @__PURE__ */ jsx_runtime14.jsx(CollapsiblePanel, {
     "data-slot": "collapsible-content",
     className: cn(className),
     ...props
@@ -36308,12 +36361,12 @@ function CollapsibleContent({ className, ...props }) {
 }
 
 // engine/board/page/coordinator/entries.tsx
-var jsx_runtime14 = __toESM(require_jsx_runtime());
+var jsx_runtime15 = __toESM(require_jsx_runtime());
 var VERBS = { runs: "Running", done: "Used", failed: "Failed", waits: "Waiting" };
 var MARKS2 = { runs: "works", done: "check", failed: "xcircle", waits: "target" };
 var INLINE_CODE = "rounded-[4px] bg-secondary px-1 py-px font-mono text-[0.75rem] leading-none font-normal";
 var TEXT = "m-0 rounded-lg bg-secondary p-2.5 font-mono text-[0.75rem] leading-[1.55] font-normal whitespace-pre-wrap [overflow-wrap:anywhere]";
-var TRIGGER = "flex min-h-7 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-0 py-1 text-left text-muted-foreground [font:inherit] [&:hover]:text-foreground phone:min-h-11 aria-expanded:[&_.i-chevron]:[transform:rotate(90deg)] [&_.i-chevron]:ml-auto [&_.i-chevron]:[transition:transform_0.2s_ease-out] [&_.i-works]:animate-[turn_1.2s_linear_infinite] [&_.i-works]:text-working";
+var TRIGGER = "flex min-h-7 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-0 py-1 text-left text-muted-foreground [font:inherit] [&:hover]:text-foreground phone:min-h-11 aria-expanded:[&_.i-chevron]:[transform:rotate(90deg)] [&_.i-chevron]:ml-auto [&_.i-chevron]:[transition:transform_0.2s_ease-out] [&_.i-works]:animate-turn-slow [&_.i-works]:text-working";
 var SUMMARY = "min-w-0 truncate font-mono text-[0.71875rem] leading-[1.4] font-normal";
 var STACK = "[&_:is(li,blockquote)>*+*]:mt-[7px]";
 var HEADINGS = ["h3", "h4", "h5", "h6"];
@@ -36330,17 +36383,17 @@ function Inline({ parts }) {
     if (typeof part === "string")
       return part;
     if (part.k === "link")
-      return /* @__PURE__ */ jsx_runtime14.jsx(Link, {
+      return /* @__PURE__ */ jsx_runtime15.jsx(Link, {
         className: "underline underline-offset-2",
         url: part.href,
-        children: /* @__PURE__ */ jsx_runtime14.jsx(Inline, {
+        children: /* @__PURE__ */ jsx_runtime15.jsx(Inline, {
           parts: part.c
         })
       }, at);
     const Tag = part.k;
-    return /* @__PURE__ */ jsx_runtime14.jsx(Tag, {
+    return /* @__PURE__ */ jsx_runtime15.jsx(Tag, {
       className: Tag === "code" ? INLINE_CODE : undefined,
-      children: /* @__PURE__ */ jsx_runtime14.jsx(Inline, {
+      children: /* @__PURE__ */ jsx_runtime15.jsx(Inline, {
         parts: part.c
       })
     }, at);
@@ -36349,67 +36402,67 @@ function Inline({ parts }) {
 function Block({ part }) {
   switch (part.k) {
     case "p":
-      return /* @__PURE__ */ jsx_runtime14.jsx("p", {
+      return /* @__PURE__ */ jsx_runtime15.jsx("p", {
         className: "m-0",
-        children: /* @__PURE__ */ jsx_runtime14.jsx(Inline, {
+        children: /* @__PURE__ */ jsx_runtime15.jsx(Inline, {
           parts: part.c
         })
       });
     case "h": {
       const Heading = HEADINGS[part.level - 1] ?? "h6";
-      return /* @__PURE__ */ jsx_runtime14.jsx(Heading, {
+      return /* @__PURE__ */ jsx_runtime15.jsx(Heading, {
         className: "m-0 font-sans text-[0.84375rem] leading-[1.3] font-semibold",
-        children: /* @__PURE__ */ jsx_runtime14.jsx(Inline, {
+        children: /* @__PURE__ */ jsx_runtime15.jsx(Inline, {
           parts: part.c
         })
       });
     }
     case "code":
-      return /* @__PURE__ */ jsx_runtime14.jsx("pre", {
+      return /* @__PURE__ */ jsx_runtime15.jsx("pre", {
         className: TEXT,
         children: part.text
       });
     case "list": {
-      const items = part.items.map((item, at) => /* @__PURE__ */ jsx_runtime14.jsx("li", {
-        children: /* @__PURE__ */ jsx_runtime14.jsx(Blocks, {
+      const items = part.items.map((item, at) => /* @__PURE__ */ jsx_runtime15.jsx("li", {
+        children: /* @__PURE__ */ jsx_runtime15.jsx(Blocks, {
           parts: item
         })
       }, at));
-      return part.ordered ? /* @__PURE__ */ jsx_runtime14.jsx("ol", {
+      return part.ordered ? /* @__PURE__ */ jsx_runtime15.jsx("ol", {
         className: "m-0 pl-[18px]",
         start: part.start ?? undefined,
         children: items
-      }) : /* @__PURE__ */ jsx_runtime14.jsx("ul", {
+      }) : /* @__PURE__ */ jsx_runtime15.jsx("ul", {
         className: "m-0 pl-[18px]",
         children: items
       });
     }
     case "quote":
-      return /* @__PURE__ */ jsx_runtime14.jsx("blockquote", {
+      return /* @__PURE__ */ jsx_runtime15.jsx("blockquote", {
         className: "m-0 border-l-2 border-border-strong pl-[18px] text-card-foreground",
-        children: /* @__PURE__ */ jsx_runtime14.jsx(Blocks, {
+        children: /* @__PURE__ */ jsx_runtime15.jsx(Blocks, {
           parts: part.c
         })
       });
     case "rule":
-      return /* @__PURE__ */ jsx_runtime14.jsx("hr", {
+      return /* @__PURE__ */ jsx_runtime15.jsx("hr", {
         className: "m-0 border-0 border-t border-border"
       });
   }
 }
 function Blocks({ parts }) {
-  return parts.map((part, at) => /* @__PURE__ */ jsx_runtime14.jsx(Block, {
+  return parts.map((part, at) => /* @__PURE__ */ jsx_runtime15.jsx(Block, {
     part
   }, at));
 }
 function Text({ value }) {
-  return /* @__PURE__ */ jsx_runtime14.jsxs(jsx_runtime14.Fragment, {
+  return /* @__PURE__ */ jsx_runtime15.jsxs(jsx_runtime15.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime14.jsx("pre", {
+      /* @__PURE__ */ jsx_runtime15.jsx("pre", {
         className: TEXT,
         children: value.text
       }),
-      value.cut > 0 && /* @__PURE__ */ jsx_runtime14.jsx("p", {
+      value.cut > 0 && /* @__PURE__ */ jsx_runtime15.jsx("p", {
         className: "m-0 text-[0.75rem] text-muted-foreground",
         children: `(${value.cut} characters left out)`
       })
@@ -36419,53 +36472,53 @@ function Text({ value }) {
 function Call({ call, onToggle }) {
   const row = `c:${call.id}`;
   const isOpen = useCoordinator((state) => state.openRows.get(row) ?? false);
-  return /* @__PURE__ */ jsx_runtime14.jsxs(Collapsible, {
+  return /* @__PURE__ */ jsx_runtime15.jsxs(Collapsible, {
     open: isOpen,
     onOpenChange: (value) => onToggle(row, value),
     "data-state": call.state,
-    render: /* @__PURE__ */ jsx_runtime14.jsx("li", {}),
+    render: /* @__PURE__ */ jsx_runtime15.jsx("li", {}),
     children: [
-      /* @__PURE__ */ jsx_runtime14.jsxs(CollapsibleTrigger2, {
+      /* @__PURE__ */ jsx_runtime15.jsxs(CollapsibleTrigger2, {
         className: cn(TRIGGER, call.state === "done" && "[&_.i-check]:text-ready", call.state === "failed" && "[&_.i-xcircle]:text-destructive", call.state === "waits" && "[&_.i-target]:text-needs"),
         "data-row": row,
         children: [
-          /* @__PURE__ */ jsx_runtime14.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime15.jsx(Icon, {
             name: MARKS2[call.state]
           }),
-          /* @__PURE__ */ jsx_runtime14.jsx("span", {
+          /* @__PURE__ */ jsx_runtime15.jsx("span", {
             className: cn("flex-none", call.state === "runs" && "text-card-foreground", call.state === "failed" && "text-destructive"),
             children: VERBS[call.state]
           }),
           " ",
-          /* @__PURE__ */ jsx_runtime14.jsx("span", {
+          /* @__PURE__ */ jsx_runtime15.jsx("span", {
             className: "flex-none font-medium text-card-foreground",
             children: call.tool
           }),
           " ",
-          /* @__PURE__ */ jsx_runtime14.jsx("span", {
+          /* @__PURE__ */ jsx_runtime15.jsx("span", {
             className: SUMMARY,
             children: call.summary
           }),
-          /* @__PURE__ */ jsx_runtime14.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime15.jsx(Icon, {
             name: "chevron"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime14.jsxs(CollapsibleContent, {
+      /* @__PURE__ */ jsx_runtime15.jsxs(CollapsibleContent, {
         keepMounted: true,
         className: "flex flex-col gap-2 pt-1 pb-2 pl-6",
-        render: /* @__PURE__ */ jsx_runtime14.jsx("div", {}),
+        render: /* @__PURE__ */ jsx_runtime15.jsx("div", {}),
         children: [
-          /* @__PURE__ */ jsx_runtime14.jsx(Text, {
+          /* @__PURE__ */ jsx_runtime15.jsx(Text, {
             value: call.input
           }),
-          call.result && /* @__PURE__ */ jsx_runtime14.jsxs(jsx_runtime14.Fragment, {
+          call.result && /* @__PURE__ */ jsx_runtime15.jsxs(jsx_runtime15.Fragment, {
             children: [
-              /* @__PURE__ */ jsx_runtime14.jsx("p", {
+              /* @__PURE__ */ jsx_runtime15.jsx("p", {
                 className: "m-0 text-[0.75rem] font-medium text-card-foreground",
                 children: call.state === "failed" ? "Error:" : "Result:"
               }),
-              /* @__PURE__ */ jsx_runtime14.jsx(Text, {
+              /* @__PURE__ */ jsx_runtime15.jsx(Text, {
                 value: call.result
               })
             ]
@@ -36482,33 +36535,33 @@ function Run({ entry, onToggle }) {
   const words = isLive ? `Running ${steps(entry.calls.length)}` : `Ran ${steps(entry.calls.length)}${failed ? `, ${failed} failed` : ""}${time === null ? "" : ` · ${time}s`}`;
   const row = `s:${entry.id}`;
   const isOpen = useCoordinator((state) => state.openRows.get(row) ?? isLive);
-  return /* @__PURE__ */ jsx_runtime14.jsxs(Collapsible, {
+  return /* @__PURE__ */ jsx_runtime15.jsxs(Collapsible, {
     open: isOpen,
     onOpenChange: (value) => onToggle(row, value),
     "data-state": isLive ? "runs" : failed ? "failed" : "done",
-    render: /* @__PURE__ */ jsx_runtime14.jsx("li", {}),
+    render: /* @__PURE__ */ jsx_runtime15.jsx("li", {}),
     children: [
-      /* @__PURE__ */ jsx_runtime14.jsxs(CollapsibleTrigger2, {
+      /* @__PURE__ */ jsx_runtime15.jsxs(CollapsibleTrigger2, {
         className: cn(TRIGGER, isLive && "text-card-foreground", !isLive && !failed && "[&_.i-check]:text-ready", failed && "[&_.i-alert]:text-destructive"),
         "data-row": row,
         children: [
-          /* @__PURE__ */ jsx_runtime14.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime15.jsx(Icon, {
             name: isLive ? "works" : failed ? "alert" : "check"
           }),
-          /* @__PURE__ */ jsx_runtime14.jsx("span", {
+          /* @__PURE__ */ jsx_runtime15.jsx("span", {
             className: "flex-none",
             children: words
           }),
-          /* @__PURE__ */ jsx_runtime14.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime15.jsx(Icon, {
             name: "chevron"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime14.jsx(CollapsibleContent, {
+      /* @__PURE__ */ jsx_runtime15.jsx(CollapsibleContent, {
         keepMounted: true,
         className: "m-0 mt-0.5 flex list-none flex-col p-0 pl-6",
-        render: /* @__PURE__ */ jsx_runtime14.jsx("ol", {}),
-        children: entry.calls.map((call) => /* @__PURE__ */ jsx_runtime14.jsx(Call, {
+        render: /* @__PURE__ */ jsx_runtime15.jsx("ol", {}),
+        children: entry.calls.map((call) => /* @__PURE__ */ jsx_runtime15.jsx(Call, {
           call,
           onToggle
         }, call.id))
@@ -36519,28 +36572,28 @@ function Run({ entry, onToggle }) {
 function Entry({ entry, onToggle }) {
   switch (entry.kind) {
     case "you":
-      return /* @__PURE__ */ jsx_runtime14.jsx("li", {
+      return /* @__PURE__ */ jsx_runtime15.jsx("li", {
         className: "flex justify-end",
-        children: /* @__PURE__ */ jsx_runtime14.jsx("p", {
+        children: /* @__PURE__ */ jsx_runtime15.jsx("p", {
           className: "m-0 max-w-[80%] rounded-2xl bg-accent px-3 py-[7px] whitespace-pre-wrap phone:max-w-[90%]",
           title: entry.at ? clock(entry.at, true) : undefined,
           children: entry.text
         })
       });
     case "agent":
-      return /* @__PURE__ */ jsx_runtime14.jsx("li", {
+      return /* @__PURE__ */ jsx_runtime15.jsx("li", {
         className: cn("flex flex-col gap-[7px]", STACK),
-        children: /* @__PURE__ */ jsx_runtime14.jsx(Blocks, {
+        children: /* @__PURE__ */ jsx_runtime15.jsx(Blocks, {
           parts: entry.blocks
         })
       });
     case "note":
-      return /* @__PURE__ */ jsx_runtime14.jsx("li", {
+      return /* @__PURE__ */ jsx_runtime15.jsx("li", {
         className: "self-center rounded-[999px] bg-secondary px-2.5 py-0.5 text-[0.75rem] text-muted-foreground",
         children: `${entry.text.replace(/\.$/, "")}${entry.at ? ` · ${clock(entry.at)}` : ""}`
       });
     case "steps":
-      return /* @__PURE__ */ jsx_runtime14.jsx(Run, {
+      return /* @__PURE__ */ jsx_runtime15.jsx(Run, {
         entry,
         onToggle
       });
@@ -36551,7 +36604,7 @@ function KeyButton({ name }) {
   const { cap, name: words } = KEYS[name];
   const differs = cap !== words;
   const wait = busy && busy !== "key" ? `Wait: ${IN_FLIGHT[busy]}` : null;
-  return /* @__PURE__ */ jsx_runtime14.jsx("button", {
+  return /* @__PURE__ */ jsx_runtime15.jsx("button", {
     type: "button",
     className: "inline-grid min-h-7 min-w-8 place-items-center rounded-lg border border-b-2 border-border-strong bg-secondary px-2 py-0 text-foreground [transition:background-color_0.15s,transform_0.1s] [&:hover]:bg-accent active:[transform:scale(0.97)] aria-disabled:cursor-not-allowed aria-disabled:opacity-[0.42] phone:min-h-11 phone:min-w-11",
     "data-key": name,
@@ -36560,7 +36613,7 @@ function KeyButton({ name }) {
     "aria-busy": busy === "key",
     title: wait ?? `Press ${words} in the session`,
     onClick: () => void coordinator.pressKey(name),
-    children: /* @__PURE__ */ jsx_runtime14.jsx("kbd", {
+    children: /* @__PURE__ */ jsx_runtime15.jsx(Kbd, {
       className: "h-auto min-w-0 border-0 bg-transparent p-0 font-mono text-[0.75rem] leading-none font-medium",
       "aria-hidden": differs ? true : undefined,
       children: cap
@@ -36568,26 +36621,26 @@ function KeyButton({ name }) {
   });
 }
 function Ask({ item }) {
-  return /* @__PURE__ */ jsx_runtime14.jsx("li", {
-    children: /* @__PURE__ */ jsx_runtime14.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime15.jsx("li", {
+    children: /* @__PURE__ */ jsx_runtime15.jsxs("div", {
       className: "flex flex-col gap-2 rounded-[10px] bg-[color-mix(in_srgb,var(--needs-tint)_9%,transparent)] px-3 pt-2 pb-3",
       role: "group",
       "aria-labelledby": "coordinator-ask-name",
       children: [
-        /* @__PURE__ */ jsx_runtime14.jsxs("p", {
+        /* @__PURE__ */ jsx_runtime15.jsxs("p", {
           className: "m-0 flex min-h-7 items-center gap-2 font-semibold text-[color-mix(in_srgb,var(--fg)_20%,var(--needs))] phone:flex-wrap phone:gap-y-0.5",
           children: [
-            /* @__PURE__ */ jsx_runtime14.jsx(Icon, {
+            /* @__PURE__ */ jsx_runtime15.jsx(Icon, {
               name: "target"
             }),
-            /* @__PURE__ */ jsx_runtime14.jsx("span", {
+            /* @__PURE__ */ jsx_runtime15.jsx("span", {
               id: "coordinator-ask-name",
               children: item.call ? `Waiting on you: ${item.call.tool}` : "Waiting on you"
             }),
-            item.call && /* @__PURE__ */ jsx_runtime14.jsxs(jsx_runtime14.Fragment, {
+            item.call && /* @__PURE__ */ jsx_runtime15.jsxs(jsx_runtime15.Fragment, {
               children: [
                 " ",
-                /* @__PURE__ */ jsx_runtime14.jsx("span", {
+                /* @__PURE__ */ jsx_runtime15.jsx("span", {
                   className: "min-w-0 truncate font-mono text-[0.75rem] leading-[1.4] font-normal text-card-foreground phone:flex-[1_0_100%] phone:pl-6",
                   children: item.call.summary
                 })
@@ -36595,14 +36648,14 @@ function Ask({ item }) {
             })
           ]
         }),
-        item.lines.length > 0 && /* @__PURE__ */ jsx_runtime14.jsx("pre", {
+        item.lines.length > 0 && /* @__PURE__ */ jsx_runtime15.jsx("pre", {
           className: cn(TEXT, "ml-6 bg-transparent p-0 text-[0.75rem] leading-[1.6] phone:ml-0"),
           children: item.lines.join(`
 `)
         }),
-        item.keys.length > 0 && /* @__PURE__ */ jsx_runtime14.jsx("div", {
+        item.keys.length > 0 && /* @__PURE__ */ jsx_runtime15.jsx("div", {
           className: "ml-6 flex flex-wrap gap-1.5 phone:ml-0 phone:grid phone:grid-cols-4",
-          children: item.keys.map((key) => /* @__PURE__ */ jsx_runtime14.jsx(KeyButton, {
+          children: item.keys.map((key) => /* @__PURE__ */ jsx_runtime15.jsx(KeyButton, {
             name: key
           }, key))
         })
@@ -36613,47 +36666,47 @@ function Ask({ item }) {
 function Item({ item, onToggle }) {
   switch (item.kind) {
     case "entry":
-      return /* @__PURE__ */ jsx_runtime14.jsx(Entry, {
+      return /* @__PURE__ */ jsx_runtime15.jsx(Entry, {
         entry: item.entry,
         onToggle
       });
     case "answer":
-      return /* @__PURE__ */ jsx_runtime14.jsxs("li", {
+      return /* @__PURE__ */ jsx_runtime15.jsxs("li", {
         className: "flex items-center gap-2 text-muted-foreground [&_.i-check]:text-ready",
         children: [
-          /* @__PURE__ */ jsx_runtime14.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime15.jsx(Icon, {
             name: item.isAnswered ? "check" : "target"
           }),
-          /* @__PURE__ */ jsx_runtime14.jsx("span", {
+          /* @__PURE__ */ jsx_runtime15.jsx("span", {
             children: item.words
           })
         ]
       });
     case "ask":
-      return /* @__PURE__ */ jsx_runtime14.jsx(Ask, {
+      return /* @__PURE__ */ jsx_runtime15.jsx(Ask, {
         item
       });
     case "works":
-      return /* @__PURE__ */ jsx_runtime14.jsxs("li", {
-        className: "flex items-center gap-2 text-card-foreground [&_.i-works]:animate-[turn_1.2s_linear_infinite] [&_.i-works]:text-working",
+      return /* @__PURE__ */ jsx_runtime15.jsxs("li", {
+        className: "flex items-center gap-2 text-card-foreground [&_.i-works]:animate-turn-slow [&_.i-works]:text-working",
         children: [
-          /* @__PURE__ */ jsx_runtime14.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime15.jsx(Icon, {
             name: "works"
           }),
-          /* @__PURE__ */ jsx_runtime14.jsx("span", {
+          /* @__PURE__ */ jsx_runtime15.jsx("span", {
             children: "The coordinator works"
           })
         ]
       });
     case "empty":
-      return /* @__PURE__ */ jsx_runtime14.jsxs("li", {
+      return /* @__PURE__ */ jsx_runtime15.jsxs("li", {
         className: "my-auto py-12 text-center",
         children: [
-          /* @__PURE__ */ jsx_runtime14.jsx("p", {
+          /* @__PURE__ */ jsx_runtime15.jsx("p", {
             className: "m-0 font-semibold",
             children: item.title
           }),
-          /* @__PURE__ */ jsx_runtime14.jsx("p", {
+          /* @__PURE__ */ jsx_runtime15.jsx("p", {
             className: "m-0 mt-1 text-[0.78125rem] text-muted-foreground",
             children: item.text
           })
@@ -36662,14 +36715,14 @@ function Item({ item, onToggle }) {
   }
 }
 function Entries({ items, onToggle }) {
-  return items.map((item) => /* @__PURE__ */ jsx_runtime14.jsx(Item, {
+  return items.map((item) => /* @__PURE__ */ jsx_runtime15.jsx(Item, {
     item,
     onToggle
   }, item.key));
 }
 
 // engine/board/page/coordinator/log.tsx
-var jsx_runtime15 = __toESM(require_jsx_runtime());
+var jsx_runtime16 = __toESM(require_jsx_runtime());
 var CoordinatorLog = import_react20.memo(function CoordinatorLog() {
   const entries = useCoordinator((state) => state.entries);
   const answers = useCoordinator((state) => state.answers);
@@ -36823,25 +36876,25 @@ var CoordinatorLog = import_react20.memo(function CoordinatorLog() {
   };
   const keys = view.actions.includes("key") ? view.keys : [];
   const items = logItems({ entries, answers, dialog: shown === "dialog" ? { lines, keys } : null, state: shown });
-  return /* @__PURE__ */ jsx_runtime15.jsxs(jsx_runtime15.Fragment, {
+  return /* @__PURE__ */ jsx_runtime16.jsxs(jsx_runtime16.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime15.jsx("div", {
+      /* @__PURE__ */ jsx_runtime16.jsx("div", {
         ref: scrollRef,
         className: "m-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-[max(20px,calc((100%-72ch)/2))] pt-[18px] pb-7 font-sans text-[0.8125rem] leading-[1.55] font-normal text-foreground [overflow-wrap:anywhere] group-data-[stale]/co:opacity-70 focus-visible:rounded-none focus-visible:outline-offset-[-2px] phone:scroll-pb-[calc(var(--dock)+8px)] phone:px-3.5 phone:pt-4 phone:pb-6",
         id: "coordinator-log",
         role: "log",
         tabIndex: 0,
         "aria-label": "Conversation with the coordinator",
-        children: /* @__PURE__ */ jsx_runtime15.jsx("ol", {
+        children: /* @__PURE__ */ jsx_runtime16.jsx("ol", {
           ref: contentRef,
           className: "m-0 flex min-h-full list-none flex-col gap-3.5 p-0",
-          children: /* @__PURE__ */ jsx_runtime15.jsx(Entries, {
+          children: /* @__PURE__ */ jsx_runtime16.jsx(Entries, {
             items,
             onToggle
           })
         })
       }),
-      /* @__PURE__ */ jsx_runtime15.jsxs(Button2, {
+      /* @__PURE__ */ jsx_runtime16.jsxs(Button2, {
         ref: toEnd,
         type: "button",
         variant: "secondary",
@@ -36851,10 +36904,10 @@ var CoordinatorLog = import_react20.memo(function CoordinatorLog() {
         hidden: isAtBottom,
         onClick: goToEnd,
         children: [
-          /* @__PURE__ */ jsx_runtime15.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime16.jsx(Icon, {
             name: "chevron"
           }),
-          /* @__PURE__ */ jsx_runtime15.jsx("span", {
+          /* @__PURE__ */ jsx_runtime16.jsx("span", {
             className: "label",
             children: "Go to the end"
           })
@@ -36865,7 +36918,7 @@ var CoordinatorLog = import_react20.memo(function CoordinatorLog() {
 });
 
 // engine/board/page/coordinator/panel.tsx
-var jsx_runtime16 = __toESM(require_jsx_runtime());
+var jsx_runtime17 = __toESM(require_jsx_runtime());
 var LIVE2 = "bg-[color-mix(in_srgb,var(--working)_12%,transparent)] text-[color-mix(in_srgb,var(--fg)_30%,var(--working))] [&_.time]:text-inherit";
 var NEEDS = "bg-[color-mix(in_srgb,var(--needs-tint)_12%,transparent)] text-[color-mix(in_srgb,var(--fg)_20%,var(--needs))] [&_.time]:text-inherit";
 var gate = (reason, title) => ({ "aria-disabled": reason !== null, title: reason ?? title });
@@ -36927,7 +36980,7 @@ function CoordinatorPanel() {
   const block = sendBlock({ busy, state: shown, canSay: can("say"), text });
   const [hint, tone] = hintOf({ text, busy, line, state: shown });
   const startLine = line?.act === "open" ? line.text : null;
-  return /* @__PURE__ */ jsx_runtime16.jsxs("section", {
+  return /* @__PURE__ */ jsx_runtime17.jsxs("section", {
     ref: root,
     className: "coordinator group/co flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-border-strong bg-panel",
     id: "coordinator",
@@ -36936,36 +36989,36 @@ function CoordinatorPanel() {
     "data-stale": ended || chatCause !== null || linesCause !== null || aged ? "" : undefined,
     hidden: !isOpen,
     children: [
-      /* @__PURE__ */ jsx_runtime16.jsxs("header", {
+      /* @__PURE__ */ jsx_runtime17.jsxs("header", {
         className: "flex min-h-12 flex-none flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-border py-2 pr-2.5 pl-5",
         children: [
-          /* @__PURE__ */ jsx_runtime16.jsx("h2", {
+          /* @__PURE__ */ jsx_runtime17.jsx("h2", {
             className: "font-sans text-[0.875rem] leading-none font-semibold tracking-[-0.012em] text-foreground",
             id: "coordinator-title",
             children: "Coordinator"
           }),
-          /* @__PURE__ */ jsx_runtime16.jsx("span", {
+          /* @__PURE__ */ jsx_runtime17.jsx("span", {
             className: "font-mono text-[0.71875rem] leading-none font-normal text-muted-foreground",
             id: "coordinator-host",
             children: host
           }),
-          /* @__PURE__ */ jsx_runtime16.jsxs("span", {
+          /* @__PURE__ */ jsx_runtime17.jsxs("span", {
             className: cn("inline-flex min-h-6 items-center gap-1.5 rounded-md py-1 pr-[9px] pl-[7px] font-sans text-[0.75rem] leading-[1.25] font-medium [&_.time]:font-mono [&_.time]:text-[0.75rem] [&_.time]:leading-none [&_.time]:font-normal [&_.time]:normal-nums", shown === "works" || shown === "starting" ? LIVE2 : shown === "dialog" ? NEEDS : "bg-secondary text-card-foreground [&_.time]:text-muted-foreground"),
             id: "coordinator-head-state",
             children: [
-              /* @__PURE__ */ jsx_runtime16.jsx("span", {
+              /* @__PURE__ */ jsx_runtime17.jsx("span", {
                 children: WORDS[shown]
               }),
-              age && /* @__PURE__ */ jsx_runtime16.jsx(Timed, {
+              age && /* @__PURE__ */ jsx_runtime17.jsx(Timed, {
                 iso: age,
                 isFine: shown === "starting" || shown === "works" || shown === "dialog"
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime16.jsxs("span", {
+          /* @__PURE__ */ jsx_runtime17.jsxs("span", {
             className: "ml-auto flex items-center gap-1.5",
             children: [
-              /* @__PURE__ */ jsx_runtime16.jsx(Button2, {
+              /* @__PURE__ */ jsx_runtime17.jsx(Button2, {
                 type: "button",
                 variant: "quiet",
                 size: "action",
@@ -36975,12 +37028,12 @@ function CoordinatorPanel() {
                 "aria-busy": busy === "interrupt",
                 ...gate(busy && busy !== "interrupt" ? wait : null, "Press the stop key in the session"),
                 onClick: () => coordinator.interrupt(),
-                children: /* @__PURE__ */ jsx_runtime16.jsx("span", {
+                children: /* @__PURE__ */ jsx_runtime17.jsx("span", {
                   className: "label",
                   children: "Interrupt"
                 })
               }),
-              /* @__PURE__ */ jsx_runtime16.jsx(Button2, {
+              /* @__PURE__ */ jsx_runtime17.jsx(Button2, {
                 type: "button",
                 variant: "quiet",
                 size: "action",
@@ -36990,12 +37043,12 @@ function CoordinatorPanel() {
                 "aria-busy": busy === "end",
                 ...gate(busy && busy !== "end" ? wait : null, "Send the exit request of the host to the session"),
                 onClick: () => coordinator.end(),
-                children: /* @__PURE__ */ jsx_runtime16.jsx("span", {
+                children: /* @__PURE__ */ jsx_runtime17.jsx("span", {
                   className: "label",
                   children: "End session"
                 })
               }),
-              /* @__PURE__ */ jsx_runtime16.jsxs(Button2, {
+              /* @__PURE__ */ jsx_runtime17.jsxs(Button2, {
                 type: "button",
                 variant: "quiet",
                 size: "action",
@@ -37005,10 +37058,10 @@ function CoordinatorPanel() {
                 hidden: !can("go") || !view.sessionId,
                 onClick: () => coordinator.go(),
                 children: [
-                  /* @__PURE__ */ jsx_runtime16.jsx(Icon, {
+                  /* @__PURE__ */ jsx_runtime17.jsx(Icon, {
                     name: "go"
                   }),
-                  /* @__PURE__ */ jsx_runtime16.jsx("span", {
+                  /* @__PURE__ */ jsx_runtime17.jsx("span", {
                     className: "label",
                     children: "Go"
                   })
@@ -37018,7 +37071,7 @@ function CoordinatorPanel() {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime16.jsx("p", {
+      /* @__PURE__ */ jsx_runtime17.jsx("p", {
         className: "m-0 flex-none border-b border-border bg-secondary px-5 py-2 text-[0.78125rem] text-foreground [overflow-wrap:anywhere] data-[tone=error]:shadow-[inset_3px_0_var(--danger)]",
         id: "coordinator-banner",
         role: "status",
@@ -37026,20 +37079,20 @@ function CoordinatorPanel() {
         hidden: banner === null,
         children: banner
       }),
-      /* @__PURE__ */ jsx_runtime16.jsx("div", {
+      /* @__PURE__ */ jsx_runtime17.jsx("div", {
         className: "relative flex min-h-0 flex-1",
-        children: /* @__PURE__ */ jsx_runtime16.jsx(CoordinatorLog, {})
+        children: /* @__PURE__ */ jsx_runtime17.jsx(CoordinatorLog, {})
       }),
-      /* @__PURE__ */ jsx_runtime16.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime17.jsxs("div", {
         className: "flex flex-none flex-col gap-2 px-[max(14px,calc((100%-104ch)/2-14px))] pb-3.5 font-mono text-[0.78125rem] leading-[1.5] font-normal phone:px-2.5 phone:pb-2.5",
         children: [
-          /* @__PURE__ */ jsx_runtime16.jsxs("form", {
+          /* @__PURE__ */ jsx_runtime17.jsxs("form", {
             className: "flex flex-col overflow-hidden rounded-xl border border-border-strong bg-card font-sans text-[0.8125rem] leading-[1.5] shadow-raise has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-solid has-[textarea:focus-visible]:outline-ring has-[textarea[aria-invalid=true]]:border-[color-mix(in_srgb,var(--danger)_55%,transparent)]",
             id: "coordinator-form",
             hidden: absent,
             onSubmit: submit,
             children: [
-              /* @__PURE__ */ jsx_runtime16.jsx(Textarea, {
+              /* @__PURE__ */ jsx_runtime17.jsx(Textarea, {
                 className: "w-auto",
                 id: "coordinator-field",
                 rows: 1,
@@ -37051,17 +37104,17 @@ function CoordinatorPanel() {
                 onChange: (event) => coordinator.setText(event.target.value),
                 onKeyDown: sendOnEnter
               }),
-              /* @__PURE__ */ jsx_runtime16.jsxs("div", {
+              /* @__PURE__ */ jsx_runtime17.jsxs("div", {
                 className: "flex items-center gap-2.5 pt-1 pr-2 pb-2 pl-3.5",
                 children: [
-                  /* @__PURE__ */ jsx_runtime16.jsx("p", {
+                  /* @__PURE__ */ jsx_runtime17.jsx("p", {
                     className: "m-0 flex-1 text-[0.75rem] text-muted-foreground [overflow-wrap:anywhere] whitespace-pre-line data-[tone=error]:text-destructive",
                     id: "coordinator-hint",
                     "data-tone": tone,
                     role: tone === "plain" ? undefined : tone === "error" ? "alert" : "status",
                     children: hint
                   }),
-                  /* @__PURE__ */ jsx_runtime16.jsx(Button2, {
+                  /* @__PURE__ */ jsx_runtime17.jsx(Button2, {
                     type: "submit",
                     variant: "primary",
                     size: "action",
@@ -37069,7 +37122,7 @@ function CoordinatorPanel() {
                     id: "coordinator-send",
                     "aria-busy": busy === "say",
                     ...gate(block, "Send the message (Enter)"),
-                    children: /* @__PURE__ */ jsx_runtime16.jsx("span", {
+                    children: /* @__PURE__ */ jsx_runtime17.jsx("span", {
                       className: "label",
                       children: busy === "say" ? "Sending" : "Send"
                     })
@@ -37078,19 +37131,19 @@ function CoordinatorPanel() {
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime16.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime17.jsxs("div", {
             className: "flex flex-wrap items-center gap-x-3 gap-y-2 font-sans text-[0.78125rem] leading-[1.5]",
             id: "coordinator-start-block",
             hidden: !(absent && view.actions.includes("open")),
             children: [
-              /* @__PURE__ */ jsx_runtime16.jsx("p", {
+              /* @__PURE__ */ jsx_runtime17.jsx("p", {
                 className: "m-0 flex-[1_1_100%] text-destructive [overflow-wrap:anywhere] whitespace-pre-line",
                 id: "coordinator-start-text",
                 role: startLine ? "alert" : undefined,
                 hidden: startLine === null,
                 children: startLine
               }),
-              /* @__PURE__ */ jsx_runtime16.jsx(Button2, {
+              /* @__PURE__ */ jsx_runtime17.jsx(Button2, {
                 type: "button",
                 variant: "primary",
                 size: "action",
@@ -37098,7 +37151,7 @@ function CoordinatorPanel() {
                 id: "coordinator-start",
                 ...gate(wait, "Start a coordinator session in a quiet tab of the Herdr app"),
                 onClick: () => coordinator.start(),
-                children: /* @__PURE__ */ jsx_runtime16.jsx("span", {
+                children: /* @__PURE__ */ jsx_runtime17.jsx("span", {
                   className: "label",
                   children: ended ? "Start a new session" : "Start a session"
                 })
@@ -37144,7 +37197,7 @@ function useFocusedKey(root, keyOf) {
 }
 
 // engine/board/page/queue/queue.tsx
-var jsx_runtime17 = __toESM(require_jsx_runtime());
+var jsx_runtime18 = __toESM(require_jsx_runtime());
 var DISABLED = "aria-disabled:cursor-default aria-disabled:opacity-50";
 var PHONE_TAP = "phone:min-h-11 phone:min-w-11";
 var PRESS = "active:scale-none active:[transform:scale(0.97)] aria-disabled:active:scale-none aria-disabled:active:[transform:none]";
@@ -37173,7 +37226,7 @@ function TextButton({
   isDisabled = false,
   action
 }) {
-  return /* @__PURE__ */ jsx_runtime17.jsx(Button2, {
+  return /* @__PURE__ */ jsx_runtime18.jsx(Button2, {
     variant: "secondary",
     size: "action",
     className: `${PHONE_TAP} ${DISABLED} ${PRESS}`,
@@ -37192,7 +37245,7 @@ function IconControl({
   isDisabled,
   action
 }) {
-  return /* @__PURE__ */ jsx_runtime17.jsx(Button2, {
+  return /* @__PURE__ */ jsx_runtime18.jsx(Button2, {
     variant: "icon",
     size: "icon",
     className: `size-[30px] p-1.5 ${PHONE_TAP} ${DISABLED} ${ICON_PRESS} ${className}`,
@@ -37204,7 +37257,7 @@ function IconControl({
       event.stopPropagation();
       pressed3(action)(event);
     },
-    children: /* @__PURE__ */ jsx_runtime17.jsx(Icon, {
+    children: /* @__PURE__ */ jsx_runtime18.jsx(Icon, {
       name
     })
   });
@@ -37219,35 +37272,35 @@ function Row({
   const next = submitted?.next;
   const step = next?.kind === "run" ? next.step : submitted?.record?.current?.step;
   const isLocked = isBusy || !isAuthoritative || !submitted?.actions.edit;
-  return /* @__PURE__ */ jsx_runtime17.jsxs("li", {
+  return /* @__PURE__ */ jsx_runtime18.jsxs("li", {
     className: `flex min-w-0 items-center gap-3 py-4${index > 1 ? " border-t border-t-border" : ""}`,
     "data-number": number,
     children: [
-      /* @__PURE__ */ jsx_runtime17.jsx("span", {
+      /* @__PURE__ */ jsx_runtime18.jsx("span", {
         className: `w-5 flex-[0_0_20px] text-center font-mono text-[0.75rem] leading-[normal] ${index === 0 ? TONE : "text-muted-foreground"}`,
         children: index + 1
       }),
-      /* @__PURE__ */ jsx_runtime17.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime18.jsxs("div", {
         className: "grid min-w-0 flex-1 grid-cols-[1fr] gap-1",
         children: [
-          /* @__PURE__ */ jsx_runtime17.jsx("span", {
+          /* @__PURE__ */ jsx_runtime18.jsx("span", {
             className: NUMBER,
             children: `#${number}`
           }),
-          /* @__PURE__ */ jsx_runtime17.jsx("span", {
+          /* @__PURE__ */ jsx_runtime18.jsx("span", {
             className: TITLE,
             children: queueStore.find(number)?.title ?? `Issue #${number}`
           }),
-          /* @__PURE__ */ jsx_runtime17.jsx("span", {
+          /* @__PURE__ */ jsx_runtime18.jsx("span", {
             className: `text-[0.6875rem] ${index === 0 ? TONE : "text-muted-foreground"}`,
             children: index === 0 ? `${state === "me-gate" ? "Waiting for approval" : state === "error" ? "Stopped" : state === "running" ? "Running" : "Saved · starting"}${step ? ` · ${step}` : ""}` : "Waiting"
           })
         ]
       }),
-      index > 0 && /* @__PURE__ */ jsx_runtime17.jsxs("div", {
+      index > 0 && /* @__PURE__ */ jsx_runtime18.jsxs("div", {
         className: "flex flex-none gap-0.5",
         children: [
-          ["up", "down"].map((direction) => /* @__PURE__ */ jsx_runtime17.jsx(IconControl, {
+          ["up", "down"].map((direction) => /* @__PURE__ */ jsx_runtime18.jsx(IconControl, {
             name: "chevron",
             label: `Move #${number} ${direction}`,
             control: `${direction}-${number}`,
@@ -37255,7 +37308,7 @@ function Row({
             isDisabled: isLocked || (direction === "up" ? index === 1 : index === numbers.length - 1),
             action: () => queueStore.act({ kind: "move", number, direction, expected: queueStore.expected() })
           }, direction)),
-          /* @__PURE__ */ jsx_runtime17.jsx(IconControl, {
+          /* @__PURE__ */ jsx_runtime18.jsx(IconControl, {
             name: "close",
             label: `Remove #${number} from queue`,
             control: `remove-${number}`,
@@ -37303,7 +37356,7 @@ function QueueBody() {
     target?.focus({ preventScroll: true });
   });
   if (!board)
-    return /* @__PURE__ */ jsx_runtime17.jsx("section", {
+    return /* @__PURE__ */ jsx_runtime18.jsx("section", {
       ref: root,
       className: SECTION,
       id: "queue"
@@ -37316,7 +37369,7 @@ function QueueBody() {
   const choices = [["", "Default order", true]];
   for (const host of Object.keys(board.registry))
     choices.push([host, board.registry[host].short, board.agents?.[host]?.available === true]);
-  return /* @__PURE__ */ jsx_runtime17.jsxs("section", {
+  return /* @__PURE__ */ jsx_runtime18.jsxs("section", {
     ref: root,
     className: SECTION,
     id: "queue",
@@ -37326,60 +37379,60 @@ function QueueBody() {
       scrollOffset = event.currentTarget.scrollTop;
     },
     children: [
-      /* @__PURE__ */ jsx_runtime17.jsx("header", {
+      /* @__PURE__ */ jsx_runtime18.jsx("header", {
         className: "flex flex-wrap items-center justify-between gap-2 px-4 pt-4",
-        children: /* @__PURE__ */ jsx_runtime17.jsxs("div", {
+        children: /* @__PURE__ */ jsx_runtime18.jsxs("div", {
           className: "flex min-w-0 items-baseline gap-2.5",
           children: [
-            /* @__PURE__ */ jsx_runtime17.jsx("h2", {
+            /* @__PURE__ */ jsx_runtime18.jsx("h2", {
               className: "text-[0.875rem] font-semibold",
               children: "Issue queue"
             }),
-            /* @__PURE__ */ jsx_runtime17.jsx("span", {
+            /* @__PURE__ */ jsx_runtime18.jsx("span", {
               className: "whitespace-nowrap text-muted-foreground tabular-nums",
               children: `${numbers.length} remaining`
             })
           ]
         })
       }),
-      /* @__PURE__ */ jsx_runtime17.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime18.jsxs("div", {
         className: "px-4 pt-4",
         children: [
-          /* @__PURE__ */ jsx_runtime17.jsx("h3", {
+          /* @__PURE__ */ jsx_runtime18.jsx("h3", {
             tabIndex: -1,
             "data-control": "heading",
             className: "text-[1.03125rem] font-semibold group-data-[state=error]/queue:text-destructive group-data-[state=me-gate]/queue:text-needs group-data-[state=running]/queue:text-working",
             children: headingText(queue)
           }),
-          /* @__PURE__ */ jsx_runtime17.jsx("p", {
+          /* @__PURE__ */ jsx_runtime18.jsx("p", {
             className: NOTE2,
             children: state === "starting" ? "Your issue is saved. Waiting for a verified session." : state === "me-gate" ? "Continue starts the displayed step. Later issues stay queued." : "Add issues at any time. Finished issues leave automatically."
           }),
-          warning && /* @__PURE__ */ jsx_runtime17.jsx("p", {
+          warning && /* @__PURE__ */ jsx_runtime18.jsx("p", {
             className: `${NOTE2} wrap-anywhere`,
             role: "alert",
             children: warning
           }),
-          record?.act && /* @__PURE__ */ jsx_runtime17.jsx("p", {
+          record?.act && /* @__PURE__ */ jsx_runtime18.jsx("p", {
             className: `${NOTE2} wrap-anywhere`,
             children: record.act
           }),
-          /* @__PURE__ */ jsx_runtime17.jsxs("section", {
+          /* @__PURE__ */ jsx_runtime18.jsxs("section", {
             className: "mt-6",
             children: [
-              /* @__PURE__ */ jsx_runtime17.jsx("h4", {
+              /* @__PURE__ */ jsx_runtime18.jsx("h4", {
                 className: SUBHEAD,
                 children: "Current issue"
               }),
-              first ? /* @__PURE__ */ jsx_runtime17.jsx("ol", {
+              first ? /* @__PURE__ */ jsx_runtime18.jsx("ol", {
                 className: `${LIST} p-0`,
-                children: /* @__PURE__ */ jsx_runtime17.jsx(Row, {
+                children: /* @__PURE__ */ jsx_runtime18.jsx(Row, {
                   number: first,
                   index: 0,
                   numbers,
                   queue
                 })
-              }) : /* @__PURE__ */ jsx_runtime17.jsx("p", {
+              }) : /* @__PURE__ */ jsx_runtime18.jsx("p", {
                 className: `${NOTE2} pt-4`,
                 children: "No issue is running."
               })
@@ -37387,20 +37440,20 @@ function QueueBody() {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime17.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime18.jsxs("div", {
         className: "flex flex-wrap items-center justify-between gap-3 p-4",
         children: [
-          /* @__PURE__ */ jsx_runtime17.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime18.jsxs("div", {
             className: "flex min-w-0 flex-wrap items-center gap-2 text-card-foreground phone:flex-col phone:items-start phone:gap-1.5",
             children: [
-              /* @__PURE__ */ jsx_runtime17.jsx("span", {
+              /* @__PURE__ */ jsx_runtime18.jsx("span", {
                 children: "Agent"
               }),
-              /* @__PURE__ */ jsx_runtime17.jsx("div", {
+              /* @__PURE__ */ jsx_runtime18.jsx("div", {
                 className: "inline-flex max-w-full gap-0.5 rounded-[9px] bg-secondary p-0.5",
                 role: "group",
                 "aria-label": "Queue agent",
-                children: choices.map(([value, text, isUsable]) => /* @__PURE__ */ jsx_runtime17.jsx("button", {
+                children: choices.map(([value, text, isUsable]) => /* @__PURE__ */ jsx_runtime18.jsx("button", {
                   type: "button",
                   className: SEGMENT,
                   "data-control": `agent-${value || "default"}`,
@@ -37412,12 +37465,12 @@ function QueueBody() {
               })
             ]
           }),
-          submitted?.actions.continue && next?.kind === "run" ? /* @__PURE__ */ jsx_runtime17.jsx(TextButton, {
+          submitted?.actions.continue && next?.kind === "run" ? /* @__PURE__ */ jsx_runtime18.jsx(TextButton, {
             text: "Continue queue",
             control: "continue",
             isDisabled: isBusy || !isAuthoritative,
             action: () => queueStore.act({ kind: "continue", step: next.step, expected: queueStore.expected() })
-          }) : submitted?.actions.retry ? /* @__PURE__ */ jsx_runtime17.jsx(TextButton, {
+          }) : submitted?.actions.retry ? /* @__PURE__ */ jsx_runtime18.jsx(TextButton, {
             text: "Try again",
             control: "retry",
             isDisabled: isBusy || !isAuthoritative,
@@ -37427,7 +37480,7 @@ function QueueBody() {
               expected: queueStore.expected()
             })
           }) : null,
-          isUncertain && /* @__PURE__ */ jsx_runtime17.jsx(TextButton, {
+          isUncertain && /* @__PURE__ */ jsx_runtime18.jsx(TextButton, {
             text: "Refresh queue",
             control: "refresh",
             isDisabled: isBusy,
@@ -37435,67 +37488,67 @@ function QueueBody() {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime17.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime18.jsxs("div", {
         className: "flex min-w-0 flex-col border-t border-t-border",
         children: [
-          /* @__PURE__ */ jsx_runtime17.jsxs("section", {
+          /* @__PURE__ */ jsx_runtime18.jsxs("section", {
             className: "pt-4",
             children: [
-              /* @__PURE__ */ jsx_runtime17.jsx("h3", {
+              /* @__PURE__ */ jsx_runtime18.jsx("h3", {
                 className: `px-4 ${SUBHEAD}`,
                 children: "Up next"
               }),
-              numbers.length > 1 ? /* @__PURE__ */ jsx_runtime17.jsx("ol", {
+              numbers.length > 1 ? /* @__PURE__ */ jsx_runtime18.jsx("ol", {
                 className: `${LIST} px-4 pb-4`,
                 "aria-label": "Waiting issues",
                 start: 2,
-                children: numbers.slice(1).map((number, index) => /* @__PURE__ */ jsx_runtime17.jsx(Row, {
+                children: numbers.slice(1).map((number, index) => /* @__PURE__ */ jsx_runtime18.jsx(Row, {
                   number,
                   index: index + 1,
                   numbers,
                   queue
                 }, number))
-              }) : /* @__PURE__ */ jsx_runtime17.jsx("p", {
+              }) : /* @__PURE__ */ jsx_runtime18.jsx("p", {
                 className: EMPTY3,
                 children: "No issue waits."
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime17.jsxs("section", {
+          /* @__PURE__ */ jsx_runtime18.jsxs("section", {
             className: "min-w-0 border-t border-t-border p-4",
             children: [
-              /* @__PURE__ */ jsx_runtime17.jsx("h3", {
+              /* @__PURE__ */ jsx_runtime18.jsx("h3", {
                 className: SUBHEAD,
                 children: "Add from the board"
               }),
-              /* @__PURE__ */ jsx_runtime17.jsx("p", {
+              /* @__PURE__ */ jsx_runtime18.jsx("p", {
                 className: PICKER_NOTE,
                 children: "Add puts the issue at the end of the queue, and starts the queue when it is empty."
               }),
               available.map((card) => {
                 const { number } = card;
                 const isSelected = numbers.includes(number);
-                return /* @__PURE__ */ jsx_runtime17.jsxs("div", {
+                return /* @__PURE__ */ jsx_runtime18.jsxs("div", {
                   className: "flex items-center gap-5 border-t border-t-border py-3.5",
                   children: [
-                    /* @__PURE__ */ jsx_runtime17.jsxs("div", {
+                    /* @__PURE__ */ jsx_runtime18.jsxs("div", {
                       className: "min-w-0 flex-1",
                       children: [
-                        /* @__PURE__ */ jsx_runtime17.jsx("span", {
+                        /* @__PURE__ */ jsx_runtime18.jsx("span", {
                           className: NUMBER,
                           children: `#${number}`
                         }),
-                        /* @__PURE__ */ jsx_runtime17.jsx("span", {
+                        /* @__PURE__ */ jsx_runtime18.jsx("span", {
                           className: `${TITLE} mt-1`,
                           children: card.title
                         }),
-                        /* @__PURE__ */ jsx_runtime17.jsx("span", {
+                        /* @__PURE__ */ jsx_runtime18.jsx("span", {
                           className: "mt-[3px] block font-mono text-[0.71875rem] leading-[1.2] text-muted-foreground",
                           children: `next ${card.step} · ${card.state ? stateLabel(card) : "ready"}`
                         })
                       ]
                     }),
-                    /* @__PURE__ */ jsx_runtime17.jsx(TextButton, {
+                    /* @__PURE__ */ jsx_runtime18.jsx(TextButton, {
                       text: isSelected ? "In queue" : "Add",
                       control: `add-${number}`,
                       label: `Add #${number} to queue`,
@@ -37505,7 +37558,7 @@ function QueueBody() {
                   ]
                 }, number);
               }),
-              !available.length && /* @__PURE__ */ jsx_runtime17.jsx("p", {
+              !available.length && /* @__PURE__ */ jsx_runtime18.jsx("p", {
                 className: PICKER_NOTE,
                 children: "No runnable issues are available."
               })
@@ -37518,13 +37571,13 @@ function QueueBody() {
 }
 function Queue() {
   const snapshot = useQueue((state) => state);
-  return /* @__PURE__ */ jsx_runtime17.jsx(ViewBoundary, {
+  return /* @__PURE__ */ jsx_runtime18.jsx(ViewBoundary, {
     snapshot,
-    fallback: /* @__PURE__ */ jsx_runtime17.jsx("section", {
+    fallback: /* @__PURE__ */ jsx_runtime18.jsx("section", {
       className: SECTION,
       id: "queue"
     }),
-    children: /* @__PURE__ */ jsx_runtime17.jsx(QueueBody, {})
+    children: /* @__PURE__ */ jsx_runtime18.jsx(QueueBody, {})
   });
 }
 
@@ -38512,30 +38565,30 @@ var TabsList = /* @__PURE__ */ React116.forwardRef(function TabsList(componentPr
 if (false)
   ;
 // engine/board/page/ui/tabs.tsx
-var jsx_runtime18 = __toESM(require_jsx_runtime());
+var jsx_runtime19 = __toESM(require_jsx_runtime());
 function Tabs({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime18.jsx(TabsRoot, {
+  return /* @__PURE__ */ jsx_runtime19.jsx(TabsRoot, {
     "data-slot": "tabs",
     className: cn("group/tabs flex", className),
     ...props
   });
 }
 function TabsList2({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime18.jsx(TabsList, {
+  return /* @__PURE__ */ jsx_runtime19.jsx(TabsList, {
     "data-slot": "tabs-list",
     className: cn("flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-[9px] border border-border bg-secondary p-0.5 phone:flex-1", className),
     ...props
   });
 }
 function TabsTrigger({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime18.jsx(TabsTab, {
+  return /* @__PURE__ */ jsx_runtime19.jsx(TabsTab, {
     "data-slot": "tabs-trigger",
     className: cn("inline-flex min-h-[26px] flex-none items-center gap-1.5 rounded-[7px] border-0 bg-transparent px-2.5 py-0 text-[0.78125rem] leading-none font-medium whitespace-nowrap text-muted-foreground focus-visible:-outline-offset-2 aria-selected:bg-card aria-selected:text-foreground aria-selected:shadow-raise [&:hover]:text-foreground phone:min-h-11 phone:flex-[1_0_auto] phone:justify-center", className),
     ...props
   });
 }
 function TabsContent(props) {
-  return /* @__PURE__ */ jsx_runtime18.jsx(TabsPanel, {
+  return /* @__PURE__ */ jsx_runtime19.jsx(TabsPanel, {
     "data-slot": "tabs-content",
     ...props
   });
@@ -38543,7 +38596,7 @@ function TabsContent(props) {
 
 // engine/board/page/operations/history.tsx
 var import_react24 = __toESM(require_react());
-var jsx_runtime19 = __toESM(require_jsx_runtime());
+var jsx_runtime20 = __toESM(require_jsx_runtime());
 var NOTE3 = "my-3.5 text-[0.75rem] text-muted-foreground";
 var ACTION2 = "w-7 p-0 [grid-area:action] phone:min-h-11 phone:min-w-11";
 var LINK = "[a&:hover]:underline [a&:hover]:underline-offset-[3px]";
@@ -38559,7 +38612,7 @@ function VisualControl({ entry, isPressed }) {
   const state = isPressed && entry.visual === "none" ? "starting" : entry.visual;
   if (state === "ready") {
     const name = `Open the visual of #${number}`;
-    return /* @__PURE__ */ jsx_runtime19.jsx("a", {
+    return /* @__PURE__ */ jsx_runtime20.jsx("a", {
       className: buttonVariants({ variant: "secondary", size: "action", className: ACTION2 }),
       href: `/visual/${entry.sha}`,
       target: "_blank",
@@ -38567,27 +38620,27 @@ function VisualControl({ entry, isPressed }) {
       "aria-label": name,
       title: name,
       "data-visual": number,
-      children: /* @__PURE__ */ jsx_runtime19.jsx(Icon, {
+      children: /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
         name: "open"
       })
     });
   }
   if (state === "making") {
     const name = `The visual of #${number} is in the making`;
-    return /* @__PURE__ */ jsx_runtime19.jsx("span", {
-      className: "inline-flex min-h-7 w-7 items-center justify-center gap-1.5 rounded-lg border phone:min-h-11 phone:min-w-11 border-[color-mix(in_srgb,var(--working)_30%,transparent)] bg-[color-mix(in_srgb,var(--working)_10%,transparent)] p-0 text-[0.78125rem] leading-none font-medium text-[color-mix(in_srgb,var(--working)_80%,var(--fg))] [grid-area:action] [&_.icon]:size-[13px] [&_.icon]:animate-[turn_0.9s_linear_infinite]",
+    return /* @__PURE__ */ jsx_runtime20.jsx("span", {
+      className: "inline-flex min-h-7 w-7 items-center justify-center gap-1.5 rounded-lg border phone:min-h-11 phone:min-w-11 border-[color-mix(in_srgb,var(--working)_30%,transparent)] bg-[color-mix(in_srgb,var(--working)_10%,transparent)] p-0 text-[0.78125rem] leading-none font-medium text-[color-mix(in_srgb,var(--working)_80%,var(--fg))] [grid-area:action] [&_.icon]:size-[13px] [&_.icon]:animate-turn",
       role: "status",
       tabIndex: -1,
       "aria-label": name,
       title: name,
       "data-visual": number,
-      children: /* @__PURE__ */ jsx_runtime19.jsx(Icon, {
+      children: /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
         name: "pending"
       })
     });
   }
   const name = state === "starting" ? `Starting the visual of #${number}` : `Make the visual of #${number}`;
-  return /* @__PURE__ */ jsx_runtime19.jsx(Button2, {
+  return /* @__PURE__ */ jsx_runtime20.jsx(Button2, {
     variant: "secondary",
     size: "action",
     className: ACTION2,
@@ -38596,7 +38649,7 @@ function VisualControl({ entry, isPressed }) {
     title: name,
     "data-visual": number,
     onClick: state === "starting" ? undefined : () => void makeVisual(number),
-    children: /* @__PURE__ */ jsx_runtime19.jsx(Icon, {
+    children: /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
       name: "diff"
     })
   });
@@ -38606,74 +38659,74 @@ function Landed({
   error,
   presses
 }) {
-  return /* @__PURE__ */ jsx_runtime19.jsxs(jsx_runtime19.Fragment, {
+  return /* @__PURE__ */ jsx_runtime20.jsxs(jsx_runtime20.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime19.jsx("div", {
+      /* @__PURE__ */ jsx_runtime20.jsx("div", {
         className: "flex min-h-12 flex-none items-center justify-between gap-3 py-2.5 pr-2.5 pl-4 phone:min-h-14",
-        children: /* @__PURE__ */ jsx_runtime19.jsx("h2", {
+        children: /* @__PURE__ */ jsx_runtime20.jsx("h2", {
           className: "m-0 text-[0.875rem] text-foreground [overflow-wrap:anywhere]",
           children: history ? `Landed on ${history.trunk}` : "Landed history"
         })
       }),
-      /* @__PURE__ */ jsx_runtime19.jsx("div", {
+      /* @__PURE__ */ jsx_runtime20.jsx("div", {
         className: "min-h-0 flex-1 overflow-y-auto px-[18px] pb-[18px] phone:scroll-pb-[calc(var(--dock)+8px)]",
-        children: !history ? /* @__PURE__ */ jsx_runtime19.jsx("p", {
+        children: !history ? /* @__PURE__ */ jsx_runtime20.jsx("p", {
           className: NOTE3,
           children: error ? `Cannot read history: ${error}` : "Loading landed history…"
-        }) : /* @__PURE__ */ jsx_runtime19.jsxs(jsx_runtime19.Fragment, {
+        }) : /* @__PURE__ */ jsx_runtime20.jsxs(jsx_runtime20.Fragment, {
           children: [
-            error && /* @__PURE__ */ jsx_runtime19.jsx("p", {
-              className: "warning",
+            error && /* @__PURE__ */ jsx_runtime20.jsx("p", {
+              className: WARNING,
               role: "status",
               children: `${error}. History shows the last good read.`
             }),
-            /* @__PURE__ */ jsx_runtime19.jsx("p", {
+            /* @__PURE__ */ jsx_runtime20.jsx("p", {
               className: NOTE3,
               children: "Latest 20 issues."
             }),
-            history.entries.length ? /* @__PURE__ */ jsx_runtime19.jsx("ol", {
+            history.entries.length ? /* @__PURE__ */ jsx_runtime20.jsx("ol", {
               className: "m-0 list-none p-0",
-              children: history.entries.map((entry) => /* @__PURE__ */ jsx_runtime19.jsxs("li", {
+              children: history.entries.map((entry) => /* @__PURE__ */ jsx_runtime20.jsxs("li", {
                 className: "grid grid-cols-[46px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-1.5 border-b border-border py-4 text-[0.8125rem] [grid-template-areas:'number_title_action''number_meta_action'] [&:hover]:bg-secondary",
                 children: [
-                  /* @__PURE__ */ jsx_runtime19.jsx(Link, {
+                  /* @__PURE__ */ jsx_runtime20.jsx(Link, {
                     className: cn("font-mono text-[0.75rem] text-muted-foreground [align-self:start] [grid-area:number]", LINK),
                     url: entry.url,
                     children: `#${entry.number}`
                   }),
-                  /* @__PURE__ */ jsx_runtime19.jsx(Link, {
+                  /* @__PURE__ */ jsx_runtime20.jsx(Link, {
                     className: cn("text-foreground [align-self:end] [overflow-wrap:anywhere] [grid-area:title]", LINK),
                     url: entry.url,
                     children: entry.title
                   }),
-                  /* @__PURE__ */ jsx_runtime19.jsxs("span", {
+                  /* @__PURE__ */ jsx_runtime20.jsxs("span", {
                     className: "flex items-baseline gap-1.5 text-[0.75rem] text-muted-foreground [align-self:start] [grid-area:meta]",
                     children: [
-                      /* @__PURE__ */ jsx_runtime19.jsx(CommitLink, {
+                      /* @__PURE__ */ jsx_runtime20.jsx(CommitLink, {
                         entry
                       }),
-                      /* @__PURE__ */ jsx_runtime19.jsx("span", {
+                      /* @__PURE__ */ jsx_runtime20.jsx("span", {
                         "aria-hidden": "true",
                         children: "·"
                       }),
-                      /* @__PURE__ */ jsx_runtime19.jsx("time", {
+                      /* @__PURE__ */ jsx_runtime20.jsx("time", {
                         dateTime: entry.committedAt,
                         title: `Commit time: ${clock(entry.committedAt, true)}`,
                         children: clock(entry.committedAt, true)
                       })
                     ]
                   }),
-                  /* @__PURE__ */ jsx_runtime19.jsx(VisualControl, {
+                  /* @__PURE__ */ jsx_runtime20.jsx(VisualControl, {
                     entry,
                     isPressed: presses.has(entry.number)
                   })
                 ]
               }, entry.number))
-            }) : /* @__PURE__ */ jsx_runtime19.jsx("p", {
+            }) : /* @__PURE__ */ jsx_runtime20.jsx("p", {
               className: NOTE3,
               children: grammar().kind === "local" ? "The local tracker does not list landed issues." : `No landed issues found on ${history.trunk}.`
             }),
-            history.url && /* @__PURE__ */ jsx_runtime19.jsx(Link, {
+            history.url && /* @__PURE__ */ jsx_runtime20.jsx(Link, {
               className: "mt-4 inline-block text-card-foreground underline underline-offset-[3px] [overflow-wrap:anywhere]",
               url: history.url,
               children: `View ${history.trunk}`
@@ -38685,7 +38738,7 @@ function Landed({
   });
 }
 function CommitLink({ entry }) {
-  return /* @__PURE__ */ jsx_runtime19.jsx(Link, {
+  return /* @__PURE__ */ jsx_runtime20.jsx(Link, {
     className: cn("font-mono text-[0.75rem] text-muted-foreground", LINK),
     url: entry.commitUrl,
     label: `Commit ${entry.sha}`,
@@ -38710,16 +38763,16 @@ function History() {
     return match ?? box.querySelector("button");
   });
   useKeptScroll(() => [...kept.ref.current?.querySelectorAll(".overflow-y-auto") ?? []], history);
-  return /* @__PURE__ */ jsx_runtime19.jsx(TabsContent, {
+  return /* @__PURE__ */ jsx_runtime20.jsx(TabsContent, {
     ...kept,
     value: "history",
     keepMounted: true,
-    render: /* @__PURE__ */ jsx_runtime19.jsx("section", {}),
+    render: /* @__PURE__ */ jsx_runtime20.jsx("section", {}),
     className: "flex min-h-0 flex-1 flex-col",
     id: "history-pane",
     tabIndex: undefined,
     "data-state": wasShown ? "history" : undefined,
-    children: wasShown && /* @__PURE__ */ jsx_runtime19.jsx(Landed, {
+    children: wasShown && /* @__PURE__ */ jsx_runtime20.jsx(Landed, {
       history,
       error: isError ? SERVER_DOWN : sourceError,
       presses
@@ -38757,9 +38810,9 @@ var Separator = /* @__PURE__ */ React117.forwardRef(function SeparatorComponent(
 if (false)
   ;
 // engine/board/page/ui/separator.tsx
-var jsx_runtime20 = __toESM(require_jsx_runtime());
+var jsx_runtime21 = __toESM(require_jsx_runtime());
 function Separator2({ className, orientation = "horizontal", ...props }) {
-  return /* @__PURE__ */ jsx_runtime20.jsx(Separator, {
+  return /* @__PURE__ */ jsx_runtime21.jsx(Separator, {
     "data-slot": "separator",
     orientation,
     className: cn("shrink-0 bg-border data-horizontal:h-px data-horizontal:w-full data-vertical:w-px data-vertical:self-stretch", className),
@@ -38768,7 +38821,7 @@ function Separator2({ className, orientation = "horizontal", ...props }) {
 }
 
 // engine/board/page/operations/panel.tsx
-var jsx_runtime21 = __toESM(require_jsx_runtime());
+var jsx_runtime22 = __toESM(require_jsx_runtime());
 var SECTION_LABEL = "sec-label flex items-center gap-[7px] text-[0.6875rem] leading-none font-semibold tracking-[0.07em] text-muted-foreground uppercase";
 var MONO_ASIDE = "font-mono text-[0.71875rem] leading-none font-normal normal-nums";
 var TONES = {
@@ -38805,14 +38858,14 @@ var ASKS = {
 };
 var COPIES = { "no-progress": "command", "set-aside": "command", "dirty-tree": "path" };
 function Section({ title, aside = null, children }) {
-  return /* @__PURE__ */ jsx_runtime21.jsxs("section", {
+  return /* @__PURE__ */ jsx_runtime22.jsxs("section", {
     className: "flex flex-col gap-2",
     children: [
-      /* @__PURE__ */ jsx_runtime21.jsxs("h3", {
+      /* @__PURE__ */ jsx_runtime22.jsxs("h3", {
         className: SECTION_LABEL,
         children: [
           title,
-          aside && /* @__PURE__ */ jsx_runtime21.jsx("span", {
+          aside && /* @__PURE__ */ jsx_runtime22.jsx("span", {
             className: cn(MONO_ASIDE, "ml-auto tracking-[0] normal-case"),
             children: aside
           })
@@ -38822,30 +38875,30 @@ function Section({ title, aside = null, children }) {
     ]
   });
 }
-var Screen = ({ card }) => card.screen?.length ? /* @__PURE__ */ jsx_runtime21.jsx("pre", {
+var Screen = ({ card }) => card.screen?.length ? /* @__PURE__ */ jsx_runtime22.jsx("pre", {
   className: "m-0 rounded-lg border border-border bg-secondary px-3 py-2.5 font-mono text-[0.71875rem] leading-[1.55] font-normal [overflow-wrap:anywhere] whitespace-pre-wrap text-foreground",
   children: card.screen.join(`
 `)
 }) : null;
 function Ask2({ card, actions, registry }) {
   const [glyph, verb] = ASKS[card.waitFor] ?? ["target", "waits for your answer"];
-  return /* @__PURE__ */ jsx_runtime21.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime22.jsxs("div", {
     className: "flex flex-col gap-2.5 rounded-xl border border-[color-mix(in_srgb,var(--needs-tint)_34%,transparent)] bg-[color-mix(in_srgb,var(--needs-tint)_6%,var(--card))] px-3.5 py-3",
     children: [
-      /* @__PURE__ */ jsx_runtime21.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime22.jsxs("div", {
         className: "flex items-center gap-2 text-[0.75rem] text-muted-foreground [&_.icon]:size-3.5 [&_.icon]:text-needs",
         children: [
-          /* @__PURE__ */ jsx_runtime21.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime22.jsx(Icon, {
             name: glyph
           }),
-          /* @__PURE__ */ jsx_runtime21.jsx("b", {
+          /* @__PURE__ */ jsx_runtime22.jsx("b", {
             className: "font-medium text-card-foreground",
             children: agentOf(card, registry)?.name ?? "The agent"
           }),
-          /* @__PURE__ */ jsx_runtime21.jsx("span", {
+          /* @__PURE__ */ jsx_runtime22.jsx("span", {
             children: verb
           }),
-          /* @__PURE__ */ jsx_runtime21.jsx(Timed, {
+          /* @__PURE__ */ jsx_runtime22.jsx(Timed, {
             iso: card.since,
             isFine: LIVE.has(card.state),
             suffix: " ago",
@@ -38853,17 +38906,17 @@ function Ask2({ card, actions, registry }) {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime21.jsx(Screen, {
+      /* @__PURE__ */ jsx_runtime22.jsx(Screen, {
         card
       }),
-      /* @__PURE__ */ jsx_runtime21.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime22.jsxs("div", {
         className: "flex items-center justify-between gap-2",
         children: [
-          /* @__PURE__ */ jsx_runtime21.jsx("span", {
-            className: "hint text-[0.75rem] text-muted-foreground",
+          /* @__PURE__ */ jsx_runtime22.jsx("span", {
+            className: "inline-flex items-center gap-1.5 text-[0.75rem] text-muted-foreground",
             children: "Answer it in the terminal pane."
           }),
-          actions.slice(0, 1).map((action) => /* @__PURE__ */ jsx_runtime21.jsx(ActionButton, {
+          actions.slice(0, 1).map((action) => /* @__PURE__ */ jsx_runtime22.jsx(ActionButton, {
             card,
             action,
             className: "phone:min-h-11"
@@ -38877,66 +38930,66 @@ function Steps({ card, flow, auto }) {
   const track = laneTrack(card, flow);
   if (!track)
     return null;
-  return /* @__PURE__ */ jsx_runtime21.jsx(Section, {
+  return /* @__PURE__ */ jsx_runtime22.jsx(Section, {
     title: "Lane",
     aside: `${card.type} · step ${track.findIndex((step) => step.state === "now") + 1} of ${track.length}`,
-    children: /* @__PURE__ */ jsx_runtime21.jsx("ol", {
+    children: /* @__PURE__ */ jsx_runtime22.jsx("ol", {
       className: "m-0 grid list-none grid-cols-[16px_1fr_auto_auto] gap-x-2.5 py-0 pr-1 pl-0.5",
       "aria-label": `Steps of the lane ${card.type}`,
-      children: track.map((step) => /* @__PURE__ */ jsx_runtime21.jsxs("li", {
+      children: track.map((step) => /* @__PURE__ */ jsx_runtime22.jsxs("li", {
         "aria-current": step.state === "now" ? "step" : undefined,
         className: "relative col-span-full grid min-h-8 grid-cols-subgrid items-center gap-2.5 not-last:after:absolute not-last:after:top-[23px] not-last:after:left-[7.5px] not-last:after:h-[18px] not-last:after:w-px not-last:after:bg-border-strong not-last:after:content-['']",
         children: [
-          /* @__PURE__ */ jsx_runtime21.jsx("span", {
+          /* @__PURE__ */ jsx_runtime22.jsx("span", {
             className: cn("grid size-4 place-items-center text-muted-foreground [&_.icon]:size-3.5", step.state === "done" && "rounded-[50%] bg-accent text-card-foreground [&_.icon]:size-[11px] [&_.icon]:stroke-2", step.state === "now" && cn("text-foreground", NODE_TONES[card.state])),
-            children: /* @__PURE__ */ jsx_runtime21.jsx(Icon, {
+            children: /* @__PURE__ */ jsx_runtime22.jsx(Icon, {
               name: step.state === "done" ? "check" : step.state === "now" ? PILL_ICONS[card.state] ?? "pending" : "pending"
             })
           }),
-          /* @__PURE__ */ jsx_runtime21.jsx("span", {
+          /* @__PURE__ */ jsx_runtime22.jsx("span", {
             className: cn("font-mono text-[0.78125rem] leading-none font-normal text-card-foreground", step.state === "now" && "font-medium text-foreground", step.state === "next" && "text-muted-foreground"),
             children: step.name
           }),
-          /* @__PURE__ */ jsx_runtime21.jsxs("span", {
+          /* @__PURE__ */ jsx_runtime22.jsxs("span", {
             className: cn("justify-self-end text-[0.75rem] text-muted-foreground", step.state === "now" && "first-letter:uppercase"),
             children: [
               step.state === "done" ? "done" : step.state === "now" ? card.state ? stateLabel(card) : "next" : "",
-              step.state === "next" && /* @__PURE__ */ jsx_runtime21.jsx("span", {
+              step.state === "next" && /* @__PURE__ */ jsx_runtime22.jsx("span", {
                 className: "sr-only",
                 children: "not started"
               })
             ]
           }),
-          gateOf(flow, card.type, step.name) === "auto" ? /* @__PURE__ */ jsx_runtime21.jsx(GateLabel, {
+          gateOf(flow, card.type, step.name) === "auto" ? /* @__PURE__ */ jsx_runtime22.jsx(GateLabel, {
             mode: auto,
             className: "cursor-default"
-          }) : /* @__PURE__ */ jsx_runtime21.jsx("span", {})
+          }) : /* @__PURE__ */ jsx_runtime22.jsx("span", {})
         ]
       }, step.name))
     })
   });
 }
 function Facts({ rows }) {
-  return /* @__PURE__ */ jsx_runtime21.jsx("dl", {
+  return /* @__PURE__ */ jsx_runtime22.jsx("dl", {
     className: "m-0 grid grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0.5",
     children: rows.filter((row) => Boolean(row)).map(([term, value, copyable]) => {
       const isText = typeof value === "string";
-      return /* @__PURE__ */ jsx_runtime21.jsxs(import_react25.Fragment, {
+      return /* @__PURE__ */ jsx_runtime22.jsxs(import_react25.Fragment, {
         children: [
-          /* @__PURE__ */ jsx_runtime21.jsx("dt", {
+          /* @__PURE__ */ jsx_runtime22.jsx("dt", {
             className: cn("text-[0.78125rem] leading-[1.875rem] text-muted-foreground", !isText && "[align-self:start]"),
             children: term
           }),
-          /* @__PURE__ */ jsx_runtime21.jsx("dd", {
+          /* @__PURE__ */ jsx_runtime22.jsx("dd", {
             className: cn("m-0 min-w-0 [overflow-wrap:anywhere] whitespace-normal text-foreground", isText ? "py-1.5 font-mono text-[0.75rem] leading-normal font-normal" : "py-0 font-sans text-[0.78125rem] leading-normal font-normal"),
             children: value
           }),
-          copyable ? /* @__PURE__ */ jsx_runtime21.jsx(IconButton, {
+          copyable ? /* @__PURE__ */ jsx_runtime22.jsx(IconButton, {
             name: "copy",
             label: `Copy the ${copyable[1]}`,
             press: () => copy(copyable[0], copyable[1]),
             className: "size-6 [&_.icon]:size-[13px]"
-          }) : /* @__PURE__ */ jsx_runtime21.jsx("span", {})
+          }) : /* @__PURE__ */ jsx_runtime22.jsx("span", {})
         ]
       }, term);
     })
@@ -38953,7 +39006,7 @@ var effortFacts = (pair) => pair ? [
   ["Effort", `${pair.level} · ${levelSource(pair)}`],
   [
     "Why",
-    /* @__PURE__ */ jsx_runtime21.jsx("span", {
+    /* @__PURE__ */ jsx_runtime22.jsx("span", {
       className: "block py-1.5 leading-[1.125rem] [overflow-wrap:anywhere] whitespace-normal",
       children: whyOf(pair)
     })
@@ -38986,41 +39039,40 @@ function Details({ card }) {
     ...effortFacts(card.effort),
     ["Updated", clock(card.since)]
   ];
-  return /* @__PURE__ */ jsx_runtime21.jsxs(jsx_runtime21.Fragment, {
+  return /* @__PURE__ */ jsx_runtime22.jsxs(jsx_runtime22.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime21.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime22.jsxs("div", {
         className: "relative flex min-h-12 flex-none items-center gap-1 pr-2.5 pb-px pl-4 phone:min-h-14",
         children: [
-          /* @__PURE__ */ jsx_runtime21.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime22.jsxs("div", {
             className: "flex min-w-0 flex-1 items-center gap-[7px] overflow-hidden font-mono text-[0.71875rem] leading-none font-normal whitespace-nowrap text-muted-foreground phone:[&_a]:inline-flex phone:[&_a]:min-h-11 phone:[&_a]:items-center",
             children: [
-              /* @__PURE__ */ jsx_runtime21.jsx(Mark, {
+              /* @__PURE__ */ jsx_runtime22.jsx(Mark, {
                 card,
                 registry,
                 identifiedByText: true
               }),
-              card.number === null ? /* @__PURE__ */ jsx_runtime21.jsx("span", {
-                className: "num none",
+              card.number === null ? /* @__PURE__ */ jsx_runtime22.jsx("span", {
+                className: "font-sans whitespace-nowrap text-muted-foreground tabular-nums",
                 children: "human session"
-              }) : /* @__PURE__ */ jsx_runtime21.jsx(Link, {
-                className: "num",
+              }) : /* @__PURE__ */ jsx_runtime22.jsx(Num, {
                 url: card.url,
                 children: `#${card.number}`
               }),
-              [card.type, card.step === card.type ? null : card.step].map((part, at) => part && /* @__PURE__ */ jsx_runtime21.jsxs(import_react25.Fragment, {
+              [card.type, card.step === card.type ? null : card.step].map((part, at) => part && /* @__PURE__ */ jsx_runtime22.jsxs(import_react25.Fragment, {
                 children: [
-                  /* @__PURE__ */ jsx_runtime21.jsx("span", {
-                    className: "sep",
+                  /* @__PURE__ */ jsx_runtime22.jsx("span", {
+                    className: "opacity-60",
                     children: "·"
                   }),
-                  /* @__PURE__ */ jsx_runtime21.jsx("span", {
+                  /* @__PURE__ */ jsx_runtime22.jsx("span", {
                     children: part
                   })
                 ]
               }, at))
             ]
           }),
-          open && /* @__PURE__ */ jsx_runtime21.jsx("a", {
+          open && /* @__PURE__ */ jsx_runtime22.jsx("a", {
             "data-slot": "button",
             className: buttonVariants({ variant: "icon", size: "icon", className: "phone:size-11" }),
             href: open,
@@ -39028,52 +39080,52 @@ function Details({ card }) {
             rel: "noreferrer",
             title: `Open the issue${on} (o)`,
             "aria-label": `Open the issue${on}`,
-            children: /* @__PURE__ */ jsx_runtime21.jsx(Icon, {
+            children: /* @__PURE__ */ jsx_runtime22.jsx(Icon, {
               name: "open"
             })
           }),
-          /* @__PURE__ */ jsx_runtime21.jsx(IconButton, {
+          /* @__PURE__ */ jsx_runtime22.jsx(IconButton, {
             name: "close",
             label: "Close the details (Esc)",
             press: () => closeDetails(true),
             className: "phone:size-11"
           }),
-          /* @__PURE__ */ jsx_runtime21.jsx(Separator2, {
+          /* @__PURE__ */ jsx_runtime22.jsx(Separator2, {
             className: "absolute inset-x-0 bottom-0"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime21.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime22.jsxs("div", {
         className: "flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pt-4 pb-[22px] phone:scroll-pb-[calc(var(--dock)+8px)]",
         children: [
-          /* @__PURE__ */ jsx_runtime21.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime22.jsxs("div", {
             children: [
-              /* @__PURE__ */ jsx_runtime21.jsx("h2", {
+              /* @__PURE__ */ jsx_runtime22.jsx("h2", {
                 className: "m-0 text-[1.03125rem] leading-[1.4] font-semibold tracking-[-0.016em] text-pretty text-foreground [overflow-wrap:anywhere]",
                 id: "panel-title",
                 children: card.title || (card.number === null ? "A session" : `Issue #${card.number}`)
               }),
-              /* @__PURE__ */ jsx_runtime21.jsxs("div", {
+              /* @__PURE__ */ jsx_runtime22.jsxs("div", {
                 className: "mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[0.78125rem] text-muted-foreground",
                 children: [
-                  /* @__PURE__ */ jsx_runtime21.jsxs("span", {
-                    className: cn("inline-flex min-h-6 items-center gap-1.5 rounded-[7px] py-1 pr-[9px] pl-[7px] text-[0.75rem] leading-[1.25] font-medium [&_.icon]:size-[13px]", (state && (state !== "waits" || asks) ? TONES[state] : undefined) ?? MUTED_TONE, state === "starts" && "[&_.icon]:animate-[turn_0.9s_linear_infinite] [&_.icon]:text-working"),
+                  /* @__PURE__ */ jsx_runtime22.jsxs("span", {
+                    className: cn("inline-flex min-h-6 items-center gap-1.5 rounded-[7px] py-1 pr-[9px] pl-[7px] text-[0.75rem] leading-[1.25] font-medium [&_.icon]:size-[13px]", (state && (state !== "waits" || asks) ? TONES[state] : undefined) ?? MUTED_TONE, state === "starts" && "[&_.icon]:animate-turn [&_.icon]:text-working"),
                     children: [
-                      /* @__PURE__ */ jsx_runtime21.jsx(Icon, {
+                      /* @__PURE__ */ jsx_runtime22.jsx(Icon, {
                         name: state ? PILL_ICONS[state] ?? "pending" : "pending"
                       }),
-                      /* @__PURE__ */ jsx_runtime21.jsx("span", {
+                      /* @__PURE__ */ jsx_runtime22.jsx("span", {
                         className: "[overflow-wrap:anywhere] whitespace-normal first-letter:uppercase",
                         children: state ? stateLabel(card) : `next: ${card.step}`
                       })
                     ]
                   }),
-                  card.state !== "starts" && /* @__PURE__ */ jsx_runtime21.jsxs(jsx_runtime21.Fragment, {
+                  card.state !== "starts" && /* @__PURE__ */ jsx_runtime22.jsxs(jsx_runtime22.Fragment, {
                     children: [
-                      /* @__PURE__ */ jsx_runtime21.jsx("span", {
+                      /* @__PURE__ */ jsx_runtime22.jsx("span", {
                         children: "since"
                       }),
-                      /* @__PURE__ */ jsx_runtime21.jsx(Timed, {
+                      /* @__PURE__ */ jsx_runtime22.jsx(Timed, {
                         iso: card.since,
                         isFine: Boolean(card.sessionId) && LIVE.has(card.state),
                         className: "font-mono text-[0.75rem] leading-none font-normal normal-nums"
@@ -39082,57 +39134,57 @@ function Details({ card }) {
                   })
                 ]
               }),
-              card.warning && /* @__PURE__ */ jsx_runtime21.jsx("p", {
-                className: "warning",
+              card.warning && /* @__PURE__ */ jsx_runtime22.jsx("p", {
+                className: WARNING,
                 children: card.warning
               })
             ]
           }),
-          asks ? /* @__PURE__ */ jsx_runtime21.jsx(Ask2, {
+          asks ? /* @__PURE__ */ jsx_runtime22.jsx(Ask2, {
             card,
             actions,
             registry
-          }) : actions.length ? /* @__PURE__ */ jsx_runtime21.jsx("div", {
+          }) : actions.length ? /* @__PURE__ */ jsx_runtime22.jsx("div", {
             className: cn("flex flex-wrap gap-2", hasHelp && "grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1.5"),
-            children: actions.map((action, index) => /* @__PURE__ */ jsx_runtime21.jsxs(import_react25.Fragment, {
+            children: actions.map((action, index) => /* @__PURE__ */ jsx_runtime22.jsxs(import_react25.Fragment, {
               children: [
-                action.group && action.group !== actions[index - 1]?.group && /* @__PURE__ */ jsx_runtime21.jsx("span", {
+                action.group && action.group !== actions[index - 1]?.group && /* @__PURE__ */ jsx_runtime22.jsx("span", {
                   className: cn("mt-1 basis-full text-[0.6875rem] leading-none font-semibold tracking-[0.07em] text-muted-foreground uppercase", hasHelp && "[grid-column:1/-1]"),
                   children: action.group
                 }),
-                /* @__PURE__ */ jsx_runtime21.jsx(ActionButton, {
+                /* @__PURE__ */ jsx_runtime22.jsx(ActionButton, {
                   card,
                   action,
                   className: cn("phone:min-h-11", hasHelp && firstGroup !== -1 && index >= firstGroup && "justify-self-start [grid-column:1/-1]")
                 }),
-                action.help && /* @__PURE__ */ jsx_runtime21.jsx("span", {
+                action.help && /* @__PURE__ */ jsx_runtime22.jsx("span", {
                   className: "self-center text-[0.75rem] text-muted-foreground",
                   children: action.help
                 })
               ]
             }, action.id))
           }) : null,
-          prFacts(card.pr).length > 0 && /* @__PURE__ */ jsx_runtime21.jsx(Section, {
+          prFacts(card.pr).length > 0 && /* @__PURE__ */ jsx_runtime22.jsx(Section, {
             title: "Pull request",
-            children: /* @__PURE__ */ jsx_runtime21.jsx(PrChips, {
+            children: /* @__PURE__ */ jsx_runtime22.jsx(PrChips, {
               pr: card.pr
             })
           }),
-          /* @__PURE__ */ jsx_runtime21.jsx(Steps, {
+          /* @__PURE__ */ jsx_runtime22.jsx(Steps, {
             card,
             flow,
             auto: daemon.auto
           }),
-          /* @__PURE__ */ jsx_runtime21.jsx(Section, {
+          /* @__PURE__ */ jsx_runtime22.jsx(Section, {
             title: isSession ? "Session" : "Issue",
-            children: /* @__PURE__ */ jsx_runtime21.jsx(Facts, {
+            children: /* @__PURE__ */ jsx_runtime22.jsx(Facts, {
               rows: facts
             })
           }),
-          isSession && !asks && card.screen?.length ? /* @__PURE__ */ jsx_runtime21.jsx(Section, {
+          isSession && !asks && card.screen?.length ? /* @__PURE__ */ jsx_runtime22.jsx(Section, {
             title: "Screen",
             aside: "the last lines of its pane",
-            children: /* @__PURE__ */ jsx_runtime21.jsx(Screen, {
+            children: /* @__PURE__ */ jsx_runtime22.jsx(Screen, {
               card
             })
           }) : null
@@ -39155,9 +39207,9 @@ function Panel() {
       return null;
     return box.querySelector(`[aria-label="${CSS.escape(label)}"]`) ?? box.querySelector('[aria-label^="Close the details"]');
   });
-  return /* @__PURE__ */ jsx_runtime21.jsx("section", {
+  return /* @__PURE__ */ jsx_runtime22.jsx("section", {
     ...kept,
-    className: "flex min-h-0 min-w-0 flex-1 animate-[panel-in_0.18s_cubic-bezier(0.2,0.8,0.2,1)] flex-col overflow-hidden rounded-3xl border border-border-strong bg-panel phone:scroll-pb-[calc(var(--dock)+8px)] min-[720px]:group-data-[tab=pipeline]/ops:flex-[0_1_auto] min-[720px]:group-data-[tab=pipeline]/ops:[grid-area:1/2]",
+    className: "flex min-h-0 min-w-0 flex-1 animate-panel-in flex-col overflow-hidden rounded-3xl border border-border-strong bg-panel phone:scroll-pb-[calc(var(--dock)+8px)] min-[720px]:group-data-[tab=pipeline]/ops:flex-[0_1_auto] min-[720px]:group-data-[tab=pipeline]/ops:[grid-area:1/2]",
     id: "panel",
     "aria-label": "Card details",
     tabIndex: -1,
@@ -39165,7 +39217,7 @@ function Panel() {
     "aria-labelledby": card ? "panel-title" : undefined,
     "data-state": card ? card.state ?? "next" : undefined,
     "data-key": card ? details ?? undefined : undefined,
-    children: card && /* @__PURE__ */ jsx_runtime21.jsx(Details, {
+    children: card && /* @__PURE__ */ jsx_runtime22.jsx(Details, {
       card
     }, details)
   });
@@ -39178,7 +39230,7 @@ var import_react28 = __toESM(require_react());
 var import_react27 = __toESM(require_react());
 
 // engine/board/page/ui/card.tsx
-var jsx_runtime22 = __toESM(require_jsx_runtime());
+var jsx_runtime23 = __toESM(require_jsx_runtime());
 var cardVariants = cva("group/card rounded-xl border border-border bg-card text-card-foreground", {
   variants: { inset: { default: "min-w-0 p-5 shadow-raise phone:p-4", none: "" } },
   defaultVariants: { inset: "default" }
@@ -39197,14 +39249,14 @@ function Card({
   });
 }
 function CardTitle({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime22.jsx("h3", {
+  return /* @__PURE__ */ jsx_runtime23.jsx("h3", {
     "data-slot": "card-title",
     className: cn("text-sm leading-[1.4] font-semibold text-foreground", className),
     ...props
   });
 }
 function CardDescription({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime22.jsx("p", {
+  return /* @__PURE__ */ jsx_runtime23.jsx("p", {
     "data-slot": "card-description",
     className: cn("mt-2 mb-0 text-[0.78125rem] leading-normal text-pretty text-muted-foreground", className),
     ...props
@@ -41028,15 +41080,15 @@ function useMenuParent() {
   return parent;
 }
 // engine/board/page/ui/dropdown-menu.tsx
-var jsx_runtime23 = __toESM(require_jsx_runtime());
+var jsx_runtime24 = __toESM(require_jsx_runtime());
 function DropdownMenu(props) {
-  return /* @__PURE__ */ jsx_runtime23.jsx(MenuRoot, {
+  return /* @__PURE__ */ jsx_runtime24.jsx(MenuRoot, {
     "data-slot": "dropdown-menu",
     ...props
   });
 }
 function DropdownMenuTrigger(props) {
-  return /* @__PURE__ */ jsx_runtime23.jsx(MenuTrigger, {
+  return /* @__PURE__ */ jsx_runtime24.jsx(MenuTrigger, {
     "data-slot": "dropdown-menu-trigger",
     ...props
   });
@@ -41050,15 +41102,15 @@ function DropdownMenuContent({
   className,
   ...props
 }) {
-  return /* @__PURE__ */ jsx_runtime23.jsx(MenuPortal, {
-    children: /* @__PURE__ */ jsx_runtime23.jsx(MenuPositioner, {
+  return /* @__PURE__ */ jsx_runtime24.jsx(MenuPortal, {
+    children: /* @__PURE__ */ jsx_runtime24.jsx(MenuPositioner, {
       className: cn("isolate z-50 outline-none", positionerClassName),
       anchor,
       align,
       side,
       sideOffset,
       collisionPadding: 12,
-      children: /* @__PURE__ */ jsx_runtime23.jsx(MenuPopup, {
+      children: /* @__PURE__ */ jsx_runtime24.jsx(MenuPopup, {
         "data-slot": "dropdown-menu-content",
         className: cn("max-h-(--available-height) w-max min-w-60 max-w-[min(340px,calc(100vw-16px))] overflow-auto rounded-xl bg-popover p-[5px] text-popover-foreground shadow-float outline-none phone:max-w-[calc(100vw-24px)]", className),
         ...props
@@ -41067,14 +41119,14 @@ function DropdownMenuContent({
   });
 }
 function DropdownMenuItem({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime23.jsx(MenuItem, {
+  return /* @__PURE__ */ jsx_runtime24.jsx(MenuItem, {
     "data-slot": "dropdown-menu-item",
     className: cn("grid min-h-8 w-full cursor-pointer grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[7px] px-[9px] py-1.5 text-left text-[0.8125rem] outline-none [&:hover]:bg-accent focus-visible:bg-accent focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-ring aria-disabled:cursor-not-allowed aria-disabled:opacity-45 phone:min-h-11 [&_.icon]:size-3.5 [&_.icon]:text-muted-foreground [&_kbd]:min-h-5 [&_kbd]:min-w-5 [&_kbd]:text-[0.6875rem] [&_kbd]:text-card-foreground pointer-coarse:[&_kbd]:hidden phone:[&_kbd]:hidden", className),
     ...props
   });
 }
 function DropdownMenuSeparator({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime23.jsx(Separator, {
+  return /* @__PURE__ */ jsx_runtime24.jsx(Separator, {
     "data-slot": "dropdown-menu-separator",
     className: cn("mx-1 my-[5px] h-px bg-border", className),
     ...props
@@ -41083,9 +41135,9 @@ function DropdownMenuSeparator({ className, ...props }) {
 
 // engine/board/page/ui/menu-entries.tsx
 var import_react26 = __toESM(require_react());
-var jsx_runtime24 = __toESM(require_jsx_runtime());
+var jsx_runtime25 = __toESM(require_jsx_runtime());
 function Entries2({ list, close }) {
-  return list().map((entry, at) => entry === "rule" ? /* @__PURE__ */ jsx_runtime24.jsx(DropdownMenuSeparator, {}, `rule-${at}`) : /* @__PURE__ */ jsx_runtime24.jsxs(DropdownMenuItem, {
+  return list().map((entry, at) => entry === "rule" ? /* @__PURE__ */ jsx_runtime25.jsx(DropdownMenuSeparator, {}, `rule-${at}`) : /* @__PURE__ */ jsx_runtime25.jsxs(DropdownMenuItem, {
     title: entry.title,
     "aria-disabled": entry.isDisabled ? "true" : undefined,
     closeOnClick: false,
@@ -41094,31 +41146,31 @@ function Entries2({ list, close }) {
       queueMicrotask(entry.run);
     },
     children: [
-      entry.host ? /* @__PURE__ */ jsx_runtime24.jsx("span", {
+      entry.host ? /* @__PURE__ */ jsx_runtime25.jsx("span", {
         className: "grid size-4 place-items-center",
-        children: /* @__PURE__ */ jsx_runtime24.jsx("img", {
+        children: /* @__PURE__ */ jsx_runtime25.jsx("img", {
           className: "block size-4",
           src: AGENT_ICONS[entry.host],
           alt: ""
         })
-      }) : /* @__PURE__ */ jsx_runtime24.jsx(Icon, {
+      }) : /* @__PURE__ */ jsx_runtime25.jsx(Icon, {
         name: entry.icon
       }),
-      /* @__PURE__ */ jsx_runtime24.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime25.jsxs("div", {
         className: "flex min-w-0 items-center gap-2",
         children: [
-          /* @__PURE__ */ jsx_runtime24.jsx("span", {
+          /* @__PURE__ */ jsx_runtime25.jsx("span", {
             children: entry.label
           }),
-          entry.tag && /* @__PURE__ */ jsx_runtime24.jsx("em", {
+          entry.tag && /* @__PURE__ */ jsx_runtime25.jsx("em", {
             className: "flex-none rounded-full bg-accent px-[7px] py-px text-[0.6875rem] text-foreground not-italic",
             children: entry.tag
           })
         ]
       }),
-      entry.key ? /* @__PURE__ */ jsx_runtime24.jsx("kbd", {
+      entry.key ? /* @__PURE__ */ jsx_runtime25.jsx(Kbd, {
         children: entry.key
-      }) : /* @__PURE__ */ jsx_runtime24.jsx("span", {})
+      }) : /* @__PURE__ */ jsx_runtime25.jsx("span", {})
     ]
   }, entry.label));
 }
@@ -41127,14 +41179,14 @@ function FirstFocus() {
   import_react26.useEffect(() => {
     ref.current?.parentElement?.querySelector('[role="menuitem"]')?.focus({ preventScroll: true });
   }, []);
-  return /* @__PURE__ */ jsx_runtime24.jsx("span", {
+  return /* @__PURE__ */ jsx_runtime25.jsx("span", {
     ref,
     hidden: true
   });
 }
 
 // engine/board/page/operations/card.tsx
-var jsx_runtime25 = __toESM(require_jsx_runtime());
+var jsx_runtime26 = __toESM(require_jsx_runtime());
 var STATUS_ICONS = {
   works: "works",
   starts: "works",
@@ -41146,17 +41198,17 @@ var STATUS_ICONS = {
   "quota-wait": "clock"
 };
 function UnseenDot({ className }) {
-  return /* @__PURE__ */ jsx_runtime25.jsx("i", {
+  return /* @__PURE__ */ jsx_runtime26.jsx("i", {
     className: cn("size-[7px] flex-none rounded-[50%] bg-foreground shadow-[0_0_0_3px_color-mix(in_srgb,var(--fg)_14%,transparent)]", className),
     title: "Changed since you last looked",
-    children: /* @__PURE__ */ jsx_runtime25.jsx("span", {
+    children: /* @__PURE__ */ jsx_runtime26.jsx("span", {
       className: "sr-only",
       children: "Changed since you last looked"
     })
   });
 }
 var SEG_NOW = {
-  works: "animate-[flow_1.6s_linear_infinite] [background:linear-gradient(90deg,var(--working)_30%,color-mix(in_srgb,var(--working)_75%,var(--card))_50%,var(--working)_70%)_0_0/300%_100%] [box-shadow:none]",
+  works: "animate-flow [background:linear-gradient(90deg,var(--working)_30%,color-mix(in_srgb,var(--working)_75%,var(--card))_50%,var(--working)_70%)_0_0/300%_100%] [box-shadow:none]",
   waits: "bg-needs [box-shadow:none]",
   blocked: "bg-needs [box-shadow:none]",
   "no-progress": "bg-destructive [box-shadow:none]",
@@ -41169,20 +41221,20 @@ function Track({ card, flow }) {
   if (!steps)
     return null;
   const at = steps.findIndex((step) => step.state === "now");
-  return /* @__PURE__ */ jsx_runtime25.jsx("span", {
+  return /* @__PURE__ */ jsx_runtime26.jsx("span", {
     className: "ml-auto inline-flex flex-none items-center gap-[3px] pl-2",
     "data-track": "",
     role: "img",
     "aria-label": `Step ${at + 1} of ${steps.length}: ${steps[at]?.name}`,
     title: steps.map((step) => step.state === "next" ? step.name : `${step.name} (${step.state === "now" ? "now" : "done"})`).join(" · "),
-    children: steps.map((step) => /* @__PURE__ */ jsx_runtime25.jsx("i", {
+    children: steps.map((step) => /* @__PURE__ */ jsx_runtime26.jsx("i", {
       className: `h-1.5 rounded-[3px] ${segOf(step.state, card.state)}`
     }, step.name))
   });
 }
 function StartLabel({ pair }) {
   const name = startName(pair);
-  return /* @__PURE__ */ jsx_runtime25.jsx("span", {
+  return /* @__PURE__ */ jsx_runtime26.jsx("span", {
     className: "inline-flex min-h-[18px] cursor-help items-stretch font-mono text-[0.6875rem] leading-none font-medium whitespace-nowrap text-card-foreground",
     title: name,
     role: "img",
@@ -41190,15 +41242,15 @@ function StartLabel({ pair }) {
     children: ["model", "level"].map((part) => {
       const isDefault = pair.source[part] === "default";
       const bothDefault = pair.source.model === "default" && pair.source.level === "default";
-      return /* @__PURE__ */ jsx_runtime25.jsxs("span", {
+      return /* @__PURE__ */ jsx_runtime26.jsxs("span", {
         className: cn("inline-flex items-center gap-[3px] px-[7px] text-foreground [&_svg.icon]:size-[9px]", part === "model" ? "rounded-l-[9px] bg-[color-mix(in_srgb,var(--fg)_17%,transparent)]" : "rounded-r-[9px] bg-accent text-card-foreground", part === "level" && pair.source.model !== "default" && !isDefault && "ml-px", isDefault && "border border-dashed border-current bg-transparent px-1.5 text-muted-foreground", isDefault && part === "level" && bothDefault && "border-l-0 pl-[7px]"),
         "data-part": part,
         "data-source": pair.source[part],
         children: [
-          pair.source[part] === "pinned" && /* @__PURE__ */ jsx_runtime25.jsx(Icon, {
+          pair.source[part] === "pinned" && /* @__PURE__ */ jsx_runtime26.jsx(Icon, {
             name: "pin"
           }),
-          /* @__PURE__ */ jsx_runtime25.jsx("span", {
+          /* @__PURE__ */ jsx_runtime26.jsx("span", {
             children: pair[part]
           })
         ]
@@ -41214,6 +41266,7 @@ var STATE_TEXT = {
   "no-progress": "text-destructive"
 };
 var STATUS = "inline-flex items-center overflow-hidden font-sans text-[0.75rem] leading-[1.2] font-medium [&>*]:flex-none [&>*]:whitespace-nowrap [&>:last-child]:min-w-0 [&>:last-child]:text-ellipsis [&_.icon]:size-[13px]";
+var STEP = "font-mono text-[0.95em]";
 var DETAIL2 = "font-normal text-muted-foreground before:mr-[7px] before:opacity-70 before:content-['·'_/_'']";
 function Status({
   card,
@@ -41224,67 +41277,67 @@ function Status({
 }) {
   const quiet = isShort ? "text-muted-foreground" : "text-card-foreground";
   if (card.state === "set-aside")
-    return /* @__PURE__ */ jsx_runtime25.jsxs("span", {
+    return /* @__PURE__ */ jsx_runtime26.jsxs("span", {
       className: cn(STATUS, "min-w-0 gap-1 rounded-[999px] border border-dashed border-border-strong py-px pr-[7px] pl-[5px] text-card-foreground [&>:last-child]:flex-[0_1_auto] [&>:last-child]:overflow-hidden [&_.icon]:size-3", className),
       children: [
-        /* @__PURE__ */ jsx_runtime25.jsx(Icon, {
+        /* @__PURE__ */ jsx_runtime26.jsx(Icon, {
           name: "aside"
         }),
-        /* @__PURE__ */ jsx_runtime25.jsx("span", {
+        /* @__PURE__ */ jsx_runtime26.jsx("span", {
           className: "font-semibold text-foreground first-letter:uppercase",
           children: stateLabel(card)
         }),
-        card.step && /* @__PURE__ */ jsx_runtime25.jsx("span", {
-          className: cn(DETAIL2, "mono cq-300:hidden"),
+        card.step && /* @__PURE__ */ jsx_runtime26.jsx("span", {
+          className: cn(DETAIL2, STEP, "cq-300:hidden"),
           children: card.step
         })
       ]
     });
   if (card.state) {
     const agent = isShort ? null : agentOf(card, env.registry);
-    return /* @__PURE__ */ jsx_runtime25.jsxs("span", {
-      className: cn(STATUS, "min-w-0 gap-[7px] [&>:last-child]:flex-[0_1_auto] [&>:last-child]:overflow-hidden", STATE_TEXT[card.state] ?? quiet, card.state === "starts" && "[&_.icon]:animate-[turn_0.9s_linear_infinite] [&_.icon]:text-working", className),
+    return /* @__PURE__ */ jsx_runtime26.jsxs("span", {
+      className: cn(STATUS, "min-w-0 gap-[7px] [&>:last-child]:flex-[0_1_auto] [&>:last-child]:overflow-hidden", STATE_TEXT[card.state] ?? quiet, card.state === "starts" && "[&_.icon]:animate-turn [&_.icon]:text-working", className),
       children: [
-        hasGlyph && /* @__PURE__ */ jsx_runtime25.jsx(Icon, {
+        hasGlyph && /* @__PURE__ */ jsx_runtime26.jsx(Icon, {
           name: STATUS_ICONS[card.state] ?? "pending"
         }),
-        /* @__PURE__ */ jsx_runtime25.jsx("span", {
+        /* @__PURE__ */ jsx_runtime26.jsx("span", {
           className: "first-letter:uppercase",
           children: stateLabel(card)
         }),
-        agent && /* @__PURE__ */ jsx_runtime25.jsx("span", {
+        agent && /* @__PURE__ */ jsx_runtime26.jsx("span", {
           className: cn(DETAIL2, "cq-360:absolute cq-360:-m-px cq-360:size-px cq-360:overflow-hidden cq-360:[clip:rect(0_0_0_0)] cq-360:whitespace-nowrap"),
           children: agent.name
         }),
-        !isShort && card.step && card.step !== card.type && /* @__PURE__ */ jsx_runtime25.jsx("span", {
-          className: cn(DETAIL2, "mono cq-300:hidden"),
+        !isShort && card.step && card.step !== card.type && /* @__PURE__ */ jsx_runtime26.jsx("span", {
+          className: cn(DETAIL2, STEP, "cq-300:hidden"),
           children: card.step
         })
       ]
     });
   }
   if (!card.step)
-    return /* @__PURE__ */ jsx_runtime25.jsx("span", {
+    return /* @__PURE__ */ jsx_runtime26.jsx("span", {
       className: cn(STATUS, "min-w-0 gap-[7px] [&>:last-child]:overflow-hidden", quiet, className)
     });
-  return /* @__PURE__ */ jsx_runtime25.jsxs("span", {
+  return /* @__PURE__ */ jsx_runtime26.jsxs("span", {
     className: cn(STATUS, "min-w-[auto] gap-1 overflow-visible [&>:last-child]:flex-none [&>:last-child]:overflow-visible [&_.icon]:text-muted-foreground", isShort && "flex-wrap gap-y-1", quiet, className),
     children: [
-      hasGlyph && /* @__PURE__ */ jsx_runtime25.jsx(Icon, {
+      hasGlyph && /* @__PURE__ */ jsx_runtime26.jsx(Icon, {
         name: "pending"
       }),
-      /* @__PURE__ */ jsx_runtime25.jsx("span", {
+      /* @__PURE__ */ jsx_runtime26.jsx("span", {
         className: "font-normal text-muted-foreground",
         children: "next"
       }),
-      /* @__PURE__ */ jsx_runtime25.jsx("span", {
-        className: "mono font-normal text-foreground",
+      /* @__PURE__ */ jsx_runtime26.jsx("span", {
+        className: cn(STEP, "font-normal text-foreground"),
         children: card.step
       }),
-      card.effort && /* @__PURE__ */ jsx_runtime25.jsx(StartLabel, {
+      card.effort && /* @__PURE__ */ jsx_runtime26.jsx(StartLabel, {
         pair: card.effort
       }),
-      card.gate === "auto" && /* @__PURE__ */ jsx_runtime25.jsx(GateLabel, {
+      card.gate === "auto" && /* @__PURE__ */ jsx_runtime26.jsx(GateLabel, {
         mode: env.auto
       })
     ]
@@ -41293,21 +41346,21 @@ function Status({
 function LiveLine({ card }) {
   if (!card.diff)
     return null;
-  return /* @__PURE__ */ jsx_runtime25.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime26.jsxs("div", {
     className: "flex min-h-[18px] min-w-0 items-center gap-2 font-mono text-[0.75rem] leading-none font-normal text-card-foreground [&_.icon]:size-[13px] [&_.icon]:text-working",
     title: "Changed since the branch left its base",
     children: [
-      /* @__PURE__ */ jsx_runtime25.jsx(Icon, {
+      /* @__PURE__ */ jsx_runtime26.jsx(Icon, {
         name: "diff"
       }),
-      /* @__PURE__ */ jsx_runtime25.jsx("span", {
+      /* @__PURE__ */ jsx_runtime26.jsx("span", {
         className: "min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap",
         children: `${card.diff.files} ${card.diff.files === 1 ? "file" : "files"} changed`
       }),
-      /* @__PURE__ */ jsx_runtime25.jsxs("span", {
+      /* @__PURE__ */ jsx_runtime26.jsxs("span", {
         className: "ml-auto flex-none text-muted-foreground tabular-nums",
         children: [
-          /* @__PURE__ */ jsx_runtime25.jsx("i", {
+          /* @__PURE__ */ jsx_runtime26.jsx("i", {
             className: "text-card-foreground not-italic",
             children: `+${card.diff.added}`
           }),
@@ -41322,21 +41375,21 @@ function ActLine({ card }) {
   const what = copyWhat(card);
   const act = card.act;
   if (!what)
-    return /* @__PURE__ */ jsx_runtime25.jsx("p", {
+    return /* @__PURE__ */ jsx_runtime26.jsx("p", {
       className: ACT,
       children: card.act
     });
-  return /* @__PURE__ */ jsx_runtime25.jsxs("p", {
+  return /* @__PURE__ */ jsx_runtime26.jsxs("p", {
     className: cn(ACT, "flex items-center gap-1.5 border-border bg-secondary py-[3px] pr-[3px] pl-2.5"),
     children: [
-      /* @__PURE__ */ jsx_runtime25.jsx("code", {
+      /* @__PURE__ */ jsx_runtime26.jsx("code", {
         className: "min-w-0 flex-1 font-mono text-[0.71875rem] leading-normal font-normal text-foreground [overflow-wrap:normal]",
         title: act,
-        children: shortPath(act).split("/").map((part, index) => /* @__PURE__ */ jsx_runtime25.jsx(import_react27.Fragment, {
-          children: index ? [/* @__PURE__ */ jsx_runtime25.jsx("wbr", {}, "w"), `/${part}`] : part
+        children: shortPath(act).split("/").map((part, index) => /* @__PURE__ */ jsx_runtime26.jsx(import_react27.Fragment, {
+          children: index ? [/* @__PURE__ */ jsx_runtime26.jsx("wbr", {}, "w"), `/${part}`] : part
         }, index))
       }),
-      /* @__PURE__ */ jsx_runtime25.jsx(IconButton, {
+      /* @__PURE__ */ jsx_runtime26.jsx(IconButton, {
         name: "copy",
         label: `Copy the ${what}`,
         title: `Copy the ${what} (c)`,
@@ -41354,7 +41407,7 @@ function StartLine({ number, launch, isCompact }) {
     if (isSlow)
       screen.announceStart(number);
   }, [isSlow, number]);
-  return /* @__PURE__ */ jsx_runtime25.jsx("p", {
+  return /* @__PURE__ */ jsx_runtime26.jsx("p", {
     className: cn(NOTE4, "text-card-foreground", isCompact && "col-[2/-1]"),
     "data-number": number,
     hidden: !isSlow,
@@ -41368,13 +41421,13 @@ function StartNote({
   isCompact
 }) {
   if (failure !== undefined)
-    return /* @__PURE__ */ jsx_runtime25.jsx("p", {
+    return /* @__PURE__ */ jsx_runtime26.jsx("p", {
       className: cn(NOTE4, "text-destructive", isCompact && "col-[2/-1]"),
       children: `Last start failed: ${failure}`
     });
   if (card.state !== "starts" || card.number === null || launch?.phase !== "pending")
     return null;
-  return /* @__PURE__ */ jsx_runtime25.jsx(StartLine, {
+  return /* @__PURE__ */ jsx_runtime26.jsx(StartLine, {
     number: card.number,
     launch,
     isCompact
@@ -41382,7 +41435,7 @@ function StartNote({
 }
 function AsideChip({ action }) {
   const isOpen = action.isBusy;
-  return /* @__PURE__ */ jsx_runtime25.jsxs("button", {
+  return /* @__PURE__ */ jsx_runtime26.jsxs("button", {
     type: "button",
     className: cn('group/chip ml-1 inline-flex [&_.icon]:size-[13px] h-[26px] min-w-[26px] shrink-0 cursor-pointer items-center gap-0 py-0 rounded-[7px] border border-transparent bg-transparent px-1.5 text-[0.75rem] font-medium text-muted-foreground transition-[background,border-color,color,gap] duration-150 ease-[ease] group-focus-within/card:text-card-foreground group-[:hover]/card:text-card-foreground focus-visible:gap-[5px] focus-visible:border-border focus-visible:bg-accent focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-ring no-hover:gap-[5px] phone:relative phone:before:absolute phone:before:top-1/2 phone:before:left-1/2 phone:before:h-[max(100%,44px)] phone:before:w-[max(100%,44px)] phone:before:content-[""] phone:before:[transform:translate(-50%,-50%)]', !action.isDisabled && "[&:hover]:gap-[5px] [&:hover]:border-border [&:hover]:bg-accent [&:hover]:text-foreground", action.isDisabled && "cursor-not-allowed opacity-[0.42]", isOpen && "cursor-not-allowed gap-[5px] opacity-70"),
     title: action.title,
@@ -41391,10 +41444,10 @@ function AsideChip({ action }) {
     "aria-busy": action.isBusy ? "true" : undefined,
     onClick: () => void action.run?.(),
     children: [
-      /* @__PURE__ */ jsx_runtime25.jsx(Icon, {
+      /* @__PURE__ */ jsx_runtime26.jsx(Icon, {
         name: action.icon
       }),
-      /* @__PURE__ */ jsx_runtime25.jsx("span", {
+      /* @__PURE__ */ jsx_runtime26.jsx("span", {
         className: cn("max-w-0 overflow-hidden whitespace-nowrap transition-[max-width] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-focus-visible/chip:max-w-[80px] no-hover:max-w-[80px]", !action.isDisabled && "group-[:hover]/chip:max-w-[80px]", isOpen && "max-w-[100px] group-focus-visible/chip:max-w-[100px] group-[:hover]/chip:max-w-[100px] no-hover:max-w-[100px]"),
         children: action.label
       })
@@ -41422,19 +41475,19 @@ function CardMenu({
   children
 }) {
   const close = () => screen.closeMenu(cardKey, kind);
-  return /* @__PURE__ */ jsx_runtime25.jsxs(DropdownMenu, {
+  return /* @__PURE__ */ jsx_runtime26.jsxs(DropdownMenu, {
     open: menu === kind,
     modal: false,
     onOpenChange: (isOpen) => isOpen ? screen.openMenu(cardKey, kind, isCompact) : close(),
     children: [
       children,
-      /* @__PURE__ */ jsx_runtime25.jsxs(DropdownMenuContent, {
+      /* @__PURE__ */ jsx_runtime26.jsxs(DropdownMenuContent, {
         anchor,
         "aria-label": menuName(card, kind === "actions" ? "Actions of" : "Run options of"),
         finalFocus: finalFocus(trigger, cardKey, column),
         children: [
-          /* @__PURE__ */ jsx_runtime25.jsx(FirstFocus, {}),
-          /* @__PURE__ */ jsx_runtime25.jsx(Entries2, {
+          /* @__PURE__ */ jsx_runtime26.jsx(FirstFocus, {}),
+          /* @__PURE__ */ jsx_runtime26.jsx(Entries2, {
             list,
             close
           })
@@ -41455,7 +41508,7 @@ var RINGS = {
     needs: "[box-shadow:inset_3px_0_0_var(--needs-tint),0_0_0_1px_color-mix(in_srgb,var(--needs)_80%,transparent),var(--raise)]"
   }
 };
-var lookOf = (isSelected, isWaits, isStripe) => cn(isSelected ? isWaits ? "border-[color-mix(in_srgb,var(--needs)_80%,transparent)]" : "border-[color-mix(in_srgb,var(--fg3)_80%,transparent)]" : isWaits ? "border-[color-mix(in_srgb,var(--needs-tint)_55%,transparent)]" : "[&:hover]:border-border-strong", isWaits ? "isolate bg-[color-mix(in_srgb,var(--needs-tint)_6%,var(--card))] [--fg3:var(--fg2)] before:pointer-events-none before:absolute before:inset-0 before:z-[-1] before:animate-[attention_3s_cubic-bezier(0.45,0,0.55,1)_infinite] before:rounded-[inherit] before:bg-[color-mix(in_srgb,var(--needs-tint)_10%,transparent)] before:content-[''] motion-reduce:before:opacity-70" : "[&:hover]:bg-card-hover", RINGS[isStripe ? "stripe" : "plain"][isSelected ? isWaits ? "needs" : "fg" : "none"]);
+var lookOf = (isSelected, isWaits, isStripe) => cn(isSelected ? isWaits ? "border-[color-mix(in_srgb,var(--needs)_80%,transparent)]" : "border-[color-mix(in_srgb,var(--fg3)_80%,transparent)]" : isWaits ? "border-[color-mix(in_srgb,var(--needs-tint)_55%,transparent)]" : "[&:hover]:border-border-strong", isWaits ? "isolate bg-[color-mix(in_srgb,var(--needs-tint)_6%,var(--card))] [--fg3:var(--fg2)] before:pointer-events-none before:absolute before:inset-0 before:z-[-1] before:animate-attention before:rounded-[inherit] before:bg-[color-mix(in_srgb,var(--needs-tint)_10%,transparent)] before:content-[''] motion-reduce:before:opacity-70" : "[&:hover]:bg-card-hover", RINGS[isStripe ? "stripe" : "plain"][isSelected ? isWaits ? "needs" : "fg" : "none"]);
 var OPEN = {
   stop: { idle: "open-288:hidden open-304:hidden", busy: "open-317:hidden open-333:hidden" },
   aside: { idle: "open-324:hidden open-340:hidden", busy: "open-353:hidden open-369:hidden" }
@@ -41491,18 +41544,18 @@ var Card2 = import_react27.memo(function Card2({
   const isQuiet = column !== "needs";
   const text = card.title || `Issue #${card.number}`;
   const Heading = level;
-  const title = /* @__PURE__ */ jsx_runtime25.jsx(Heading, {
+  const title = /* @__PURE__ */ jsx_runtime26.jsx(Heading, {
     className: cn("m-0 line-clamp-2 min-w-0 font-sans text-[0.875rem] leading-[1.38] font-semibold tracking-[-0.012em] text-pretty text-foreground [&_a:hover]:underline [&_a:hover]:decoration-border-strong [&_a:hover]:underline-offset-3", isCompact && "text-[0.8125rem] leading-[1.125rem] font-medium"),
     id: `t-${cardKey}`,
     title: text,
-    children: /* @__PURE__ */ jsx_runtime25.jsx(Link, {
+    children: /* @__PURE__ */ jsx_runtime26.jsx(Link, {
       className: "",
       url: card.url,
       children: text
     })
   });
-  const number = /* @__PURE__ */ jsx_runtime25.jsx(Link, {
-    className: isCompact ? "num flex-none whitespace-nowrap" : "num",
+  const number = /* @__PURE__ */ jsx_runtime26.jsx(Num, {
+    className: isCompact ? "flex-none" : undefined,
     url: card.url,
     children: `#${card.number}`
   });
@@ -41513,7 +41566,7 @@ var Card2 = import_react27.memo(function Card2({
     if (menu !== null && !hasTrigger)
       screen.closeMenu(cardKey, menu.kind);
   });
-  const runMenu = runs.length === 0 ? null : /* @__PURE__ */ jsx_runtime25.jsx(CardMenu, {
+  const runMenu = runs.length === 0 ? null : /* @__PURE__ */ jsx_runtime26.jsx(CardMenu, {
     kind: "run",
     card,
     cardKey,
@@ -41523,7 +41576,7 @@ var Card2 = import_react27.memo(function Card2({
     trigger: runWith,
     column: columnOf,
     list: () => runEntries(card),
-    children: /* @__PURE__ */ jsx_runtime25.jsx(DropdownMenuTrigger, {
+    children: /* @__PURE__ */ jsx_runtime26.jsx(DropdownMenuTrigger, {
       ref: runWith,
       className: buttonVariants({
         variant: "icon",
@@ -41532,13 +41585,13 @@ var Card2 = import_react27.memo(function Card2({
       }),
       "aria-label": runs.includes("rule") ? "Run with another agent or at another level" : "Run with another agent",
       title: runs.includes("rule") ? "Run with another agent or at another level" : "Run with another agent",
-      children: /* @__PURE__ */ jsx_runtime25.jsx(Icon, {
+      children: /* @__PURE__ */ jsx_runtime26.jsx(Icon, {
         name: "chevron"
       })
     })
   });
   const isIconOnly = isPipeline && isCompact && main !== undefined && !main.isMain;
-  const mainButton = main ? /* @__PURE__ */ jsx_runtime25.jsx(ActionButton, {
+  const mainButton = main ? /* @__PURE__ */ jsx_runtime26.jsx(ActionButton, {
     card,
     action: main,
     isQuiet,
@@ -41551,36 +41604,36 @@ var Card2 = import_react27.memo(function Card2({
   const isWaits = card.state === "waits";
   const isNext = !card.state && Boolean(card.step);
   const className = cn("@container cursor-default", isCompact ? "compact flex-col grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-[5px] py-2.5 pr-2.5 pl-3" : "flex flex-col gap-2 px-3.5 py-3", "relative flex-none transition-[border-color,background-color] duration-150 ease-[ease]", lookOf(isSelected, isWaits, isPipeline && column === "needs"), isHold && "w-[340px] phone:w-auto", isSelected && "is-selected", isUnseen && "is-unseen", column === "needs" && "is-needs");
-  const warning = isCompact ? "warning col-[2/-1] mt-1.5 px-2 py-[5px]" : "warning";
-  const body = isCompact ? /* @__PURE__ */ jsx_runtime25.jsxs(jsx_runtime25.Fragment, {
+  const warning = isCompact ? cn(WARNING, "col-[2/-1] mt-1.5 px-2 py-[5px]") : WARNING;
+  const body = isCompact ? /* @__PURE__ */ jsx_runtime26.jsxs(jsx_runtime26.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime25.jsx(Mark, {
+      /* @__PURE__ */ jsx_runtime26.jsx(Mark, {
         card,
         registry: env.registry
       }),
-      /* @__PURE__ */ jsx_runtime25.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime26.jsxs("div", {
         className: "contents",
         children: [
           title,
-          /* @__PURE__ */ jsx_runtime25.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime26.jsxs("div", {
             className: "col-[2/-1] flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 overflow-hidden font-mono text-[0.75rem] leading-[1.3] font-normal text-muted-foreground",
             children: [
               number,
-              card.type && card.type !== card.step && /* @__PURE__ */ jsx_runtime25.jsxs("span", {
+              card.type && card.type !== card.step && /* @__PURE__ */ jsx_runtime26.jsxs("span", {
                 className: "inline-flex flex-none gap-1.5 whitespace-nowrap cq-340:hidden",
                 children: [
-                  /* @__PURE__ */ jsx_runtime25.jsx("span", {
-                    className: "sep",
+                  /* @__PURE__ */ jsx_runtime26.jsx("span", {
+                    className: "opacity-60",
                     children: "·"
                   }),
                   card.type
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime25.jsx("span", {
-                className: isNext ? "sep hidden flex-none whitespace-nowrap" : "sep flex-none whitespace-nowrap",
+              /* @__PURE__ */ jsx_runtime26.jsx("span", {
+                className: isNext ? "hidden flex-none whitespace-nowrap opacity-60" : "flex-none whitespace-nowrap opacity-60",
                 children: "·"
               }),
-              /* @__PURE__ */ jsx_runtime25.jsx(Status, {
+              /* @__PURE__ */ jsx_runtime26.jsx(Status, {
                 card,
                 env,
                 hasGlyph: card.state === "starts",
@@ -41589,65 +41642,65 @@ var Card2 = import_react27.memo(function Card2({
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime25.jsx(StartNote, {
+          /* @__PURE__ */ jsx_runtime26.jsx(StartNote, {
             card,
             failure,
             launch,
             isCompact: true
           }),
-          card.warning && /* @__PURE__ */ jsx_runtime25.jsx("p", {
+          card.warning && /* @__PURE__ */ jsx_runtime26.jsx("p", {
             className: warning,
             children: card.warning
           }),
-          aside && /* @__PURE__ */ jsx_runtime25.jsx("p", {
+          aside && /* @__PURE__ */ jsx_runtime26.jsx("p", {
             className: warning,
             children: aside
           })
         ]
       }),
-      mainButton && (runMenu ? /* @__PURE__ */ jsx_runtime25.jsxs("div", {
+      mainButton && (runMenu ? /* @__PURE__ */ jsx_runtime26.jsxs("div", {
         className: "inline-flex items-center gap-1.5 [grid-area:1/3] cq-259:justify-self-start cq-259:[grid-area:3/2]",
         children: [
           mainButton,
           runMenu
         ]
       }) : mainButton),
-      isUnseen && /* @__PURE__ */ jsx_runtime25.jsx(UnseenDot, {
+      isUnseen && /* @__PURE__ */ jsx_runtime26.jsx(UnseenDot, {
         className: "absolute top-[9px] left-[5px]"
       })
     ]
-  }) : /* @__PURE__ */ jsx_runtime25.jsxs(jsx_runtime25.Fragment, {
+  }) : /* @__PURE__ */ jsx_runtime26.jsxs(jsx_runtime26.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime25.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime26.jsxs("div", {
         className: "flex h-[18px] min-w-0 items-center gap-[7px] [&:not(:has(>[data-track]))>button:first-of-type]:ml-auto font-mono text-[0.71875rem] leading-none font-normal text-muted-foreground phone:min-h-8",
         children: [
-          isUnseen && /* @__PURE__ */ jsx_runtime25.jsx(UnseenDot, {}),
-          /* @__PURE__ */ jsx_runtime25.jsx(Mark, {
+          isUnseen && /* @__PURE__ */ jsx_runtime26.jsx(UnseenDot, {}),
+          /* @__PURE__ */ jsx_runtime26.jsx(Mark, {
             card,
             registry: env.registry,
             identifiedByText: Boolean(card.state)
           }),
           number,
-          card.type && /* @__PURE__ */ jsx_runtime25.jsxs(jsx_runtime25.Fragment, {
+          card.type && /* @__PURE__ */ jsx_runtime26.jsxs(jsx_runtime26.Fragment, {
             children: [
-              /* @__PURE__ */ jsx_runtime25.jsx("span", {
-                className: cn("sep", hideOnOpen),
+              /* @__PURE__ */ jsx_runtime26.jsx("span", {
+                className: cn("opacity-60", hideOnOpen),
                 children: "·"
               }),
-              /* @__PURE__ */ jsx_runtime25.jsx("span", {
+              /* @__PURE__ */ jsx_runtime26.jsx("span", {
                 className: cn("min-w-0 overflow-hidden text-ellipsis whitespace-nowrap", hideOnOpen),
                 children: card.type
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime25.jsx(Track, {
+          /* @__PURE__ */ jsx_runtime26.jsx(Track, {
             card,
             flow: env.flow
           }),
-          headAct && /* @__PURE__ */ jsx_runtime25.jsx(AsideChip, {
+          headAct && /* @__PURE__ */ jsx_runtime26.jsx(AsideChip, {
             action: headAct
           }),
-          /* @__PURE__ */ jsx_runtime25.jsx(DropdownMenuTrigger, {
+          /* @__PURE__ */ jsx_runtime26.jsx(DropdownMenuTrigger, {
             ref: more,
             className: buttonVariants({
               variant: "icon",
@@ -41656,47 +41709,47 @@ var Card2 = import_react27.memo(function Card2({
             }),
             "aria-label": "More actions (m)",
             title: "More actions (m)",
-            children: /* @__PURE__ */ jsx_runtime25.jsx(Icon, {
+            children: /* @__PURE__ */ jsx_runtime26.jsx(Icon, {
               name: "dots"
             })
           })
         ]
       }),
       title,
-      /* @__PURE__ */ jsx_runtime25.jsx(StartNote, {
+      /* @__PURE__ */ jsx_runtime26.jsx(StartNote, {
         card,
         failure,
         launch,
         isCompact: false
       }),
-      card.state === "works" && /* @__PURE__ */ jsx_runtime25.jsx(LiveLine, {
+      card.state === "works" && /* @__PURE__ */ jsx_runtime26.jsx(LiveLine, {
         card
       }),
-      /* @__PURE__ */ jsx_runtime25.jsx(PrChips, {
+      /* @__PURE__ */ jsx_runtime26.jsx(PrChips, {
         pr: card.pr
       }),
-      card.act && card.state !== "no-progress" && /* @__PURE__ */ jsx_runtime25.jsx(ActLine, {
+      card.act && card.state !== "no-progress" && /* @__PURE__ */ jsx_runtime26.jsx(ActLine, {
         card
       }),
-      card.warning && /* @__PURE__ */ jsx_runtime25.jsx("p", {
+      card.warning && /* @__PURE__ */ jsx_runtime26.jsx("p", {
         className: warning,
         children: card.warning
       }),
-      refusal && /* @__PURE__ */ jsx_runtime25.jsx("p", {
+      refusal && /* @__PURE__ */ jsx_runtime26.jsx("p", {
         className: warning,
         children: refusal
       }),
-      /* @__PURE__ */ jsx_runtime25.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime26.jsxs("div", {
         className: "flex min-h-7 items-center justify-between gap-2.5 cq-360:flex-col cq-360:items-stretch",
         children: [
-          /* @__PURE__ */ jsx_runtime25.jsx(Status, {
+          /* @__PURE__ */ jsx_runtime26.jsx(Status, {
             card,
             env
           }),
-          /* @__PURE__ */ jsx_runtime25.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime26.jsxs("div", {
             className: "flex flex-none items-center gap-2 cq-360:justify-end",
             children: [
-              card.state !== "starts" && /* @__PURE__ */ jsx_runtime25.jsx(Timed, {
+              card.state !== "starts" && /* @__PURE__ */ jsx_runtime26.jsx(Timed, {
                 iso: card.since,
                 isFine: Boolean(card.sessionId) && LIVE.has(card.state),
                 className: "mr-0.5 font-mono text-[0.71875rem] leading-none font-normal text-muted-foreground normal-nums cq-360:mr-auto"
@@ -41709,7 +41762,7 @@ var Card2 = import_react27.memo(function Card2({
       })
     ]
   });
-  return /* @__PURE__ */ jsx_runtime25.jsx(CardMenu, {
+  return /* @__PURE__ */ jsx_runtime26.jsx(CardMenu, {
     kind: "actions",
     card,
     cardKey,
@@ -41719,9 +41772,9 @@ var Card2 = import_react27.memo(function Card2({
     trigger: isCompact ? node : more,
     column: columnOf,
     list: () => menuOf(card, cardKey),
-    children: /* @__PURE__ */ jsx_runtime25.jsx(Card, {
+    children: /* @__PURE__ */ jsx_runtime26.jsx(Card, {
       inset: "none",
-      render: /* @__PURE__ */ jsx_runtime25.jsx("article", {}),
+      render: /* @__PURE__ */ jsx_runtime26.jsx("article", {}),
       ref: node,
       className: `card ${className}`,
       "data-state": card.state ?? "next",
@@ -41736,7 +41789,7 @@ var Card2 = import_react27.memo(function Card2({
 });
 
 // engine/board/page/operations/views.tsx
-var jsx_runtime26 = __toESM(require_jsx_runtime());
+var jsx_runtime27 = __toESM(require_jsx_runtime());
 var MENU = '[data-slot="dropdown-menu-content"]';
 document.documentElement.style.viewTransitionName = "root";
 var markOf = (active, menu) => {
@@ -41889,31 +41942,31 @@ var BODY = {
 };
 var COL_NAME = "min-w-0 flex-1 font-sans text-[0.84375rem] leading-[1.125rem] font-semibold tracking-[-0.01em] text-foreground";
 var GHOSTS = ["h-[116px]", "h-[92px]", "h-[76px] opacity-60"];
-var glyph = (key, hasWaits = false) => /* @__PURE__ */ jsx_runtime26.jsx("span", {
-  className: cn("grid size-[18px] flex-none place-items-center", GLYPH[key], hasWaits && "[&_.core]:origin-[8px_8px] [&_.core]:animate-[breathe_2.4s_cubic-bezier(0.45,0,0.55,1)_infinite]"),
-  children: /* @__PURE__ */ jsx_runtime26.jsx(Icon, {
+var glyph = (key, hasWaits = false) => /* @__PURE__ */ jsx_runtime27.jsx("span", {
+  className: cn("grid size-[18px] flex-none place-items-center", GLYPH[key], hasWaits && "[&_.core]:origin-[8px_8px] [&_.core]:animate-breathe"),
+  children: /* @__PURE__ */ jsx_runtime27.jsx(Icon, {
     name: `col-${key}`
   })
 });
 function Skeleton({ isPipeline }) {
   const at = isPipeline ? "pipeline" : "now";
-  return COLUMNS.map(({ key, name }) => /* @__PURE__ */ jsx_runtime26.jsxs("section", {
+  return COLUMNS.map(({ key, name }) => /* @__PURE__ */ jsx_runtime27.jsxs("section", {
     className: `col col-${key} ${COL[at]}`,
     children: [
-      /* @__PURE__ */ jsx_runtime26.jsxs("header", {
+      /* @__PURE__ */ jsx_runtime27.jsxs("header", {
         className: HEAD[at],
         children: [
           glyph(key),
-          /* @__PURE__ */ jsx_runtime26.jsx("h2", {
+          /* @__PURE__ */ jsx_runtime27.jsx("h2", {
             className: COL_NAME,
             children: name
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime26.jsx("div", {
+      /* @__PURE__ */ jsx_runtime27.jsx("div", {
         className: BODY[at],
-        children: GHOSTS.map((size) => /* @__PURE__ */ jsx_runtime26.jsx("div", {
-          className: `card @container relative flex flex-none animate-[flow_1.4s_linear_infinite] cursor-default flex-col gap-2 rounded-xl border border-transparent px-3.5 py-3 transition-[border-color,background-color] duration-150 ease-[ease] [background:linear-gradient(100deg,var(--card)_40%,var(--card-hover)_50%,var(--card)_60%)_0_0/300%_100%] [box-shadow:none] ${size}`
+        children: GHOSTS.map((size) => /* @__PURE__ */ jsx_runtime27.jsx("div", {
+          className: `card @container relative flex flex-none animate-flow-fast cursor-default flex-col gap-2 rounded-xl border border-transparent px-3.5 py-3 transition-[border-color,background-color] duration-150 ease-[ease] [background:linear-gradient(100deg,var(--card)_40%,var(--card-hover)_50%,var(--card)_60%)_0_0/300%_100%] [box-shadow:none] ${size}`
         }, size))
       })
     ]
@@ -41929,42 +41982,42 @@ function HumanPill({
   const [go] = actionsOf(card);
   const isDialog = card.waitFor === "dialog";
   const isAlert = isTurn || isDialog;
-  return /* @__PURE__ */ jsx_runtime26.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime27.jsxs("div", {
     className: cn("human-pill inline-flex min-h-7 max-w-full min-w-0 items-center rounded-lg border shadow-raise phone:min-h-[46px]", isSelected ? "border-[color-mix(in_srgb,var(--focus)_70%,transparent)]" : isDialog ? "border-[color-mix(in_srgb,var(--needs-tint)_55%,transparent)]" : "border-border", isDialog ? "bg-[color-mix(in_srgb,var(--needs-tint)_8%,var(--card))]" : "bg-card [&:hover]:bg-card-hover"),
     "data-state": card.state ?? "",
     "data-wait": card.waitFor ?? "",
     "data-your-turn": isTurn ? "" : undefined,
     children: [
-      /* @__PURE__ */ jsx_runtime26.jsxs("button", {
+      /* @__PURE__ */ jsx_runtime27.jsxs("button", {
         type: "button",
         className: cn("inline-flex min-w-0 items-center gap-2 self-stretch rounded-l-lg border-0 bg-transparent py-0 pr-2 pl-[7px] font-sans text-[0.78125rem] leading-none font-medium whitespace-nowrap text-muted-foreground", isSelected && "is-selected"),
         "data-key": cardKey,
         title: "Show the details and the screen of this session",
         onClick: () => isSelected ? closeDetails(true) : openDetails(cardKey),
         children: [
-          /* @__PURE__ */ jsx_runtime26.jsx(Mark, {
+          /* @__PURE__ */ jsx_runtime27.jsx(Mark, {
             card,
             registry
           }),
-          /* @__PURE__ */ jsx_runtime26.jsx("span", {
+          /* @__PURE__ */ jsx_runtime27.jsx("span", {
             className: cn("max-w-[14em] shrink-0 overflow-hidden leading-[1.3] text-ellipsis text-foreground phone:min-w-0 phone:shrink", isTurn && "font-semibold"),
             children: card.title || "A session"
           }),
-          /* @__PURE__ */ jsx_runtime26.jsx("i", {
+          /* @__PURE__ */ jsx_runtime27.jsx("i", {
             className: cn("size-1.5 flex-none rounded-[50%]", isAlert ? "bg-needs" : card.state === "works" ? "bg-working" : "bg-muted-foreground")
           }),
-          /* @__PURE__ */ jsx_runtime26.jsx("span", {
+          /* @__PURE__ */ jsx_runtime27.jsx("span", {
             className: cn("min-w-0 flex-[0_100_auto] overflow-hidden text-ellipsis phone:flex-none", isAlert ? "text-needs" : card.state === "works" && "text-working"),
             children: isTurn ? "your turn" : stateLabel(card)
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime26.jsx(Timed, {
+      /* @__PURE__ */ jsx_runtime27.jsx(Timed, {
         iso: card.since,
         isFine: LIVE.has(card.state),
         className: "mr-1.5 flex-none font-mono text-[0.71875rem] leading-none font-normal text-muted-foreground normal-nums"
       }),
-      go && /* @__PURE__ */ jsx_runtime26.jsx(IconButton, {
+      go && /* @__PURE__ */ jsx_runtime27.jsx(IconButton, {
         name: "go",
         label: go.name,
         press: () => go.run?.(),
@@ -42084,20 +42137,20 @@ function Board() {
   const boardCls = isPipeline ? "grid min-h-0 flex-1 grid-cols-[repeat(var(--stages),minmax(200px,1fr))] grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-x-auto px-2 [scroll-padding-inline:8px_56px] data-[fade]:[mask-image:linear-gradient(to_right,#000_calc(100%-56px),transparent)] phone:flex phone:gap-2.5" : "flex min-h-0 flex-none flex-col gap-1.5 overflow-visible";
   const humanCls = "flex flex-none flex-wrap items-center gap-1.5 rounded-xl border border-border bg-panel py-1.5 pr-2 pl-3 phone:p-2";
   if (!board || !env)
-    return /* @__PURE__ */ jsx_runtime26.jsxs(jsx_runtime26.Fragment, {
+    return /* @__PURE__ */ jsx_runtime27.jsxs(jsx_runtime27.Fragment, {
       children: [
-        /* @__PURE__ */ jsx_runtime26.jsx("section", {
+        /* @__PURE__ */ jsx_runtime27.jsx("section", {
           className: humanCls,
           id: "human",
           "aria-labelledby": "human-title",
           hidden: true
         }),
-        /* @__PURE__ */ jsx_runtime26.jsx("div", {
+        /* @__PURE__ */ jsx_runtime27.jsx("div", {
           ref: columns,
           className: boardCls,
           id: "columns",
           "aria-busy": "true",
-          children: /* @__PURE__ */ jsx_runtime26.jsx(Skeleton, {
+          children: /* @__PURE__ */ jsx_runtime27.jsx(Skeleton, {
             isPipeline
           })
         })
@@ -42114,10 +42167,10 @@ function Board() {
     const key = keyFor(card);
     const number = card.number;
     const has = (pressed) => pressed.has(number);
-    return /* @__PURE__ */ jsx_runtime26.jsx(import_react28.ViewTransition, {
+    return /* @__PURE__ */ jsx_runtime27.jsx(import_react28.ViewTransition, {
       name: key,
       default: isCalm ? "none" : "auto",
-      children: /* @__PURE__ */ jsx_runtime26.jsx(Card2, {
+      children: /* @__PURE__ */ jsx_runtime27.jsx(Card2, {
         card,
         cardKey: key,
         ...place,
@@ -42150,11 +42203,11 @@ function Board() {
     const isOpen = openEpics.has(epic.number);
     const hasHiddenUnseen = !isOpen && cards.some((card) => screen.isUnseen(keyFor(card)));
     const EPIC_MONO = "flex-none font-mono text-[0.75rem] leading-[1.125rem] font-normal text-muted-foreground";
-    return /* @__PURE__ */ jsx_runtime26.jsxs("div", {
+    return /* @__PURE__ */ jsx_runtime27.jsxs("div", {
       className: "epic-group flex flex-none flex-col gap-2",
       "data-epic": epic.number,
       children: [
-        /* @__PURE__ */ jsx_runtime26.jsxs("button", {
+        /* @__PURE__ */ jsx_runtime27.jsxs("button", {
           type: "button",
           className: cn("epic-row flex min-h-10 phone:min-h-11 w-full cursor-pointer items-start gap-2 rounded-xl border border-border bg-secondary px-3 py-2.5 text-left font-sans text-[0.8125rem] leading-[1.125rem] font-medium text-foreground transition-[border-color,background-color] duration-150 ease-[ease] [&:hover]:border-border-strong [&:hover]:bg-accent [&_.icon]:mt-px [&_.icon]:flex-none [&_.icon]:text-card-foreground [&_.icon]:[transition:transform_0.15s]", isOpen && "[&_.icon]:[transform:rotate(90deg)]"),
           tabIndex: group === stop ? 0 : -1,
@@ -42165,33 +42218,33 @@ function Board() {
           "aria-controls": id,
           onClick: () => screen.setEpicOpen(epic.number, !isOpen),
           children: [
-            /* @__PURE__ */ jsx_runtime26.jsx(Icon, {
+            /* @__PURE__ */ jsx_runtime27.jsx(Icon, {
               name: "chevron"
             }),
-            /* @__PURE__ */ jsx_runtime26.jsx("span", {
+            /* @__PURE__ */ jsx_runtime27.jsx("span", {
               className: EPIC_MONO,
               children: `#${epic.number}`
             }),
-            /* @__PURE__ */ jsx_runtime26.jsx("span", {
+            /* @__PURE__ */ jsx_runtime27.jsx("span", {
               className: "min-w-0 flex-1 [overflow-wrap:anywhere]",
               children: epic.title
             }),
-            /* @__PURE__ */ jsx_runtime26.jsxs("span", {
+            /* @__PURE__ */ jsx_runtime27.jsxs("span", {
               className: EPIC_MONO,
               children: [
                 cards.length,
-                /* @__PURE__ */ jsx_runtime26.jsx("span", {
+                /* @__PURE__ */ jsx_runtime27.jsx("span", {
                   className: "sr-only",
                   children: cards.length === 1 ? " issue" : " issues"
                 })
               ]
             }),
-            /* @__PURE__ */ jsx_runtime26.jsx(UnseenDot, {
+            /* @__PURE__ */ jsx_runtime27.jsx(UnseenDot, {
               className: hasHiddenUnseen ? "mt-[5px]" : "mt-[5px] hidden"
             })
           ]
         }),
-        /* @__PURE__ */ jsx_runtime26.jsx("div", {
+        /* @__PURE__ */ jsx_runtime27.jsx("div", {
           className: "epic-children ml-1.5 flex flex-col gap-2 border-l border-l-border-strong pl-3",
           id,
           hidden: !isOpen,
@@ -42219,62 +42272,62 @@ function Board() {
       place: { column: key, isCompact: true, level: "h3" }
     } : { kind: "card", card: item.card, place: { column: key, isCompact: true, level: "h3" } }) : cards.map((card) => ({ kind: "card", card, place: { column: key, isCompact: false, level: "h3" } }));
     const stop = stopOf(id, items);
-    return /* @__PURE__ */ jsx_runtime26.jsxs("section", {
+    return /* @__PURE__ */ jsx_runtime27.jsxs("section", {
       className: `col col-${key} ${COL.now}`,
       id,
       "aria-labelledby": `h-${key}`,
       children: [
-        /* @__PURE__ */ jsx_runtime26.jsxs("header", {
+        /* @__PURE__ */ jsx_runtime27.jsxs("header", {
           className: HEAD.now,
           title: note,
           children: [
             glyph(key, key === "needs" && cards.some((card) => card.state === "waits")),
-            /* @__PURE__ */ jsx_runtime26.jsx("h2", {
+            /* @__PURE__ */ jsx_runtime27.jsx("h2", {
               className: COL_NAME,
               id: `h-${key}`,
               children: name
             }),
-            /* @__PURE__ */ jsx_runtime26.jsx(Badge, {
+            /* @__PURE__ */ jsx_runtime27.jsx(Badge, {
               variant: "column",
               children: cards.length
             })
           ]
         }),
-        /* @__PURE__ */ jsx_runtime26.jsx("div", {
+        /* @__PURE__ */ jsx_runtime27.jsx("div", {
           className: `col-body ${BODY.now}`,
-          children: cards.length === 0 ? /* @__PURE__ */ jsx_runtime26.jsxs("div", {
+          children: cards.length === 0 ? /* @__PURE__ */ jsx_runtime27.jsxs("div", {
             className: cn("empty mt-1 flex flex-col items-center gap-1 rounded-xl border px-5 py-8 text-center", key === "needs" ? "border-solid border-[color-mix(in_srgb,var(--ready)_25%,transparent)] bg-[color-mix(in_srgb,var(--ready)_5%,transparent)] [&_.icon]:text-ready" : "border-dashed border-border-strong [&_.icon]:text-muted-foreground", "[&_.icon]:mb-1.5 [&_.icon]:size-[22px]"),
             tabIndex: -1,
             children: [
-              /* @__PURE__ */ jsx_runtime26.jsx(Icon, {
+              /* @__PURE__ */ jsx_runtime27.jsx(Icon, {
                 name: key === "needs" ? "clear" : `col-${key}`
               }),
-              /* @__PURE__ */ jsx_runtime26.jsx("p", {
+              /* @__PURE__ */ jsx_runtime27.jsx("p", {
                 className: "m-0 font-sans text-[0.8125rem] leading-[1.4] font-semibold text-foreground",
                 children: emptyTitle
               }),
-              /* @__PURE__ */ jsx_runtime26.jsx("p", {
+              /* @__PURE__ */ jsx_runtime27.jsx("p", {
                 className: "m-0 max-w-[32ch] text-[0.75rem] leading-normal text-balance text-muted-foreground",
                 children: emptyText
               })
             ]
-          }) : key === "needs" ? /* @__PURE__ */ jsx_runtime26.jsxs(jsx_runtime26.Fragment, {
+          }) : key === "needs" ? /* @__PURE__ */ jsx_runtime27.jsxs(jsx_runtime27.Fragment, {
             children: [
-              groups.map((each, at) => /* @__PURE__ */ jsx_runtime26.jsxs("div", {
+              groups.map((each, at) => /* @__PURE__ */ jsx_runtime27.jsxs("div", {
                 className: cn("group flex flex-col gap-2", at > 0 && "mt-0.5"),
                 "data-group": each.key,
                 "data-short": each.short,
                 role: "group",
                 "aria-labelledby": `g-${each.key}`,
                 children: [
-                  /* @__PURE__ */ jsx_runtime26.jsxs("h3", {
+                  /* @__PURE__ */ jsx_runtime27.jsxs("h3", {
                     className: cn("sticky top-[30px] z-3 -mx-3 flex items-center gap-[7px] bg-panel px-4 pt-2.5 pb-2 text-[0.6875rem] leading-none font-semibold tracking-[0.07em] uppercase", each.key === "answer" ? "text-needs" : "text-muted-foreground"),
                     id: `g-${each.key}`,
                     children: [
-                      /* @__PURE__ */ jsx_runtime26.jsx("span", {
+                      /* @__PURE__ */ jsx_runtime27.jsx("span", {
                         children: each.label
                       }),
-                      /* @__PURE__ */ jsx_runtime26.jsx("span", {
+                      /* @__PURE__ */ jsx_runtime27.jsx("span", {
                         className: "font-medium tracking-[0] tabular-nums",
                         children: each.cards.length
                       })
@@ -42283,10 +42336,10 @@ function Board() {
                   each.cards.map((card) => cardOf(card, { column: "needs", isCompact: each.isCompact, level: "h4" }, stop))
                 ]
               }, each.key)),
-              /* @__PURE__ */ jsx_runtime26.jsx("div", {
+              /* @__PURE__ */ jsx_runtime27.jsx("div", {
                 className: "tail-wrap sticky bottom-0 z-3 -mx-3 bg-[linear-gradient(to_bottom,transparent,var(--panel)_35%)] px-3 pt-2.5 pb-3",
                 hidden: measure.text === "",
-                children: /* @__PURE__ */ jsx_runtime26.jsxs("button", {
+                children: /* @__PURE__ */ jsx_runtime27.jsxs("button", {
                   type: "button",
                   className: "tail flex min-h-[34px] w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-card font-sans text-[0.78125rem] leading-none font-medium text-card-foreground shadow-raise [&:hover]:border-[color-mix(in_srgb,var(--fg3)_60%,transparent)] [&:hover]:text-foreground [&_.icon]:size-[13px] [&_.icon]:[transform:rotate(90deg)]",
                   onClick: () => {
@@ -42298,10 +42351,10 @@ function Board() {
                     first?.focus({ preventScroll: true });
                   },
                   children: [
-                    /* @__PURE__ */ jsx_runtime26.jsx(Icon, {
+                    /* @__PURE__ */ jsx_runtime27.jsx(Icon, {
                       name: "chevron"
                     }),
-                    /* @__PURE__ */ jsx_runtime26.jsx("span", {
+                    /* @__PURE__ */ jsx_runtime27.jsx("span", {
                       children: measure.text
                     })
                   ]
@@ -42328,16 +42381,16 @@ function Board() {
     }));
     const holdStop = stopOf("hold-title", holdItems);
     return [
-      hold.length > 0 && /* @__PURE__ */ jsx_runtime26.jsxs("section", {
+      hold.length > 0 && /* @__PURE__ */ jsx_runtime27.jsxs("section", {
         className: "col col-span-full flex min-h-0 min-w-0 flex-row items-center gap-3 rounded-3xl border border-border bg-panel py-2 pr-2.5 pl-4 phone:w-[min(300px,80vw)] phone:flex-none phone:flex-col phone:items-stretch",
         "aria-labelledby": "hold-title",
         children: [
-          /* @__PURE__ */ jsx_runtime26.jsx("h2", {
+          /* @__PURE__ */ jsx_runtime27.jsx("h2", {
             className: HOLD_LABEL,
             id: "hold-title",
             children: "Not in a step"
           }),
-          /* @__PURE__ */ jsx_runtime26.jsx("div", {
+          /* @__PURE__ */ jsx_runtime27.jsx("div", {
             className: "flex min-w-0 gap-2 overflow-x-auto p-0.5 phone:flex-col phone:overflow-x-hidden phone:overflow-y-auto",
             children: holdItems.map((item) => itemOf(item, holdStop))
           })
@@ -42352,28 +42405,28 @@ function Board() {
           place: placeOf(item.cards[0])
         } : { kind: "card", card: item.card, place: placeOf(item.card) });
         const stop = stopOf(`s-${stage.key}`, items);
-        return /* @__PURE__ */ jsx_runtime26.jsxs("section", {
+        return /* @__PURE__ */ jsx_runtime27.jsxs("section", {
           className: `col ${COL.pipeline}`,
           "aria-labelledby": `s-${stage.key}`,
           children: [
-            /* @__PURE__ */ jsx_runtime26.jsxs("header", {
+            /* @__PURE__ */ jsx_runtime27.jsxs("header", {
               className: HEAD.pipeline,
               title: stage.steps.join(", "),
               children: [
-                /* @__PURE__ */ jsx_runtime26.jsx("h2", {
+                /* @__PURE__ */ jsx_runtime27.jsx("h2", {
                   className: COL_NAME,
                   id: `s-${stage.key}`,
                   children: stage.name
                 }),
-                /* @__PURE__ */ jsx_runtime26.jsx(Badge, {
+                /* @__PURE__ */ jsx_runtime27.jsx(Badge, {
                   variant: "column",
                   children: stage.cards.length
                 })
               ]
             }),
-            /* @__PURE__ */ jsx_runtime26.jsx("div", {
+            /* @__PURE__ */ jsx_runtime27.jsx("div", {
               className: `col-body ${BODY.pipeline}`,
-              children: stage.cards.length ? items.map((item) => itemOf(item, stop)) : /* @__PURE__ */ jsx_runtime26.jsx("p", {
+              children: stage.cards.length ? items.map((item) => itemOf(item, stop)) : /* @__PURE__ */ jsx_runtime27.jsx("p", {
                 className: "mx-0.5 my-1 rounded-xl border border-dashed border-border-strong p-3.5 text-center text-[0.75rem] text-muted-foreground",
                 children: "No issue at this step"
               })
@@ -42383,22 +42436,22 @@ function Board() {
       })
     ];
   };
-  return /* @__PURE__ */ jsx_runtime26.jsxs(jsx_runtime26.Fragment, {
+  return /* @__PURE__ */ jsx_runtime27.jsxs(jsx_runtime27.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime26.jsxs("section", {
+      /* @__PURE__ */ jsx_runtime27.jsxs("section", {
         className: humanCls,
         id: "human",
         "aria-labelledby": "human-title",
         hidden: human.length === 0,
         children: [
-          human.length > 0 && /* @__PURE__ */ jsx_runtime26.jsx("h2", {
+          human.length > 0 && /* @__PURE__ */ jsx_runtime27.jsx("h2", {
             className: `${HOLD_LABEL} mr-1.5 phone:my-0.5 phone:mr-0 phone:ml-1.5 phone:basis-full`,
             id: "human-title",
             children: "Human sessions"
           }),
           human.map((card) => {
             const key = keyFor(card);
-            return /* @__PURE__ */ jsx_runtime26.jsx(HumanPill, {
+            return /* @__PURE__ */ jsx_runtime27.jsx(HumanPill, {
               card,
               cardKey: key,
               isSelected: key === shell.details,
@@ -42407,7 +42460,7 @@ function Board() {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime26.jsx("div", {
+      /* @__PURE__ */ jsx_runtime27.jsx("div", {
         ref: columns,
         className: boardCls,
         id: "columns",
@@ -42422,7 +42475,7 @@ function Board() {
 }
 
 // engine/board/page/operations/operations.tsx
-var jsx_runtime27 = __toESM(require_jsx_runtime());
+var jsx_runtime28 = __toESM(require_jsx_runtime());
 var NAMES = { agents: "Agents", pipeline: "Pipeline", queue: "Queue", history: "History" };
 var CONTROLS = { agents: "tp-board", pipeline: "tp-board", history: "history-pane" };
 function Operations() {
@@ -42430,48 +42483,48 @@ function Operations() {
   const isPhone = useShellStore((state) => state.isPhone);
   const agents = useShellStore((state) => state.inputs.badges.agents);
   const queueCount = useShellStore((state) => state.inputs.queueCount);
-  return /* @__PURE__ */ jsx_runtime27.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime28.jsxs("div", {
     className: "group/ops grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_clamp(360px,30vw,452px)] grid-rows-[minmax(0,1fr)] gap-3.5 phone:grid-cols-[minmax(0,1fr)] min-[720px]:data-[tab=pipeline]:grid-cols-[minmax(0,1fr)] min-[720px]:data-[tab=pipeline]:data-[details]:grid-cols-[minmax(0,1fr)_clamp(360px,30vw,452px)]",
     id: "area-operations",
     "data-tab": tab,
     "data-pane": pane,
     "data-details": details === null ? undefined : "",
     children: [
-      /* @__PURE__ */ jsx_runtime27.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime28.jsxs("div", {
         className: "flex min-h-0 min-w-0 flex-col phone:group-data-[pane=agents]/ops:hidden min-[720px]:group-data-[tab=pipeline]/ops:contents min-[720px]:group-data-[tab=pipeline]/ops:[&>.coordinator]:hidden [&>.coordinator]:flex-1",
         id: "center",
         children: [
-          /* @__PURE__ */ jsx_runtime27.jsx(CoordinatorPanel, {}),
-          /* @__PURE__ */ jsx_runtime27.jsx(Panel, {})
+          /* @__PURE__ */ jsx_runtime28.jsx(CoordinatorPanel, {}),
+          /* @__PURE__ */ jsx_runtime28.jsx(Panel, {})
         ]
       }),
-      /* @__PURE__ */ jsx_runtime27.jsxs(Tabs, {
+      /* @__PURE__ */ jsx_runtime28.jsxs(Tabs, {
         value: tab,
         onValueChange: (value) => {
           const next = TABS.find((each) => each === value);
           if (next)
             setTab(next);
         },
-        render: /* @__PURE__ */ jsx_runtime27.jsx("section", {}),
+        render: /* @__PURE__ */ jsx_runtime28.jsx("section", {}),
         className: "min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-border bg-panel phone:group-data-[pane=chat]/ops:hidden min-[720px]:group-data-[tab=pipeline]/ops:[grid-area:1/1]",
         id: "pane",
         "aria-label": "Work views",
         tabIndex: -1,
         children: [
-          /* @__PURE__ */ jsx_runtime27.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime28.jsxs("div", {
             className: "flex min-h-12 flex-none items-center gap-2 border-b border-border px-2.5 py-2 phone:p-1.5",
             children: [
-              /* @__PURE__ */ jsx_runtime27.jsx("div", {
+              /* @__PURE__ */ jsx_runtime28.jsx("div", {
                 className: "contents",
                 hidden: tab !== "pipeline" || isPhone,
-                children: /* @__PURE__ */ jsx_runtime27.jsx(ChatButton, {})
+                children: /* @__PURE__ */ jsx_runtime28.jsx(ChatButton, {})
               }),
-              /* @__PURE__ */ jsx_runtime27.jsx(TabsList2, {
+              /* @__PURE__ */ jsx_runtime28.jsx(TabsList2, {
                 activateOnFocus: true,
                 loopFocus: true,
                 id: "tabs",
                 "aria-label": "Work views",
-                children: TABS.map((each) => /* @__PURE__ */ jsx_runtime27.jsxs(TabsTrigger, {
+                children: TABS.map((each) => /* @__PURE__ */ jsx_runtime28.jsxs(TabsTrigger, {
                   value: each,
                   id: `tab-${each}`,
                   "data-tab": each,
@@ -42479,11 +42532,11 @@ function Operations() {
                   ...CONTROLS[each] ? { "aria-controls": CONTROLS[each] } : {},
                   "aria-label": each === "agents" ? agents === 0 ? "Agents" : `Agents, ${agents} need you` : undefined,
                   children: [
-                    /* @__PURE__ */ jsx_runtime27.jsx("span", {
+                    /* @__PURE__ */ jsx_runtime28.jsx("span", {
                       className: "label",
                       children: each === "queue" && queueCount > 0 ? `Queue ${queueCount}` : NAMES[each]
                     }),
-                    each === "agents" && /* @__PURE__ */ jsx_runtime27.jsx(Badge, {
+                    each === "agents" && /* @__PURE__ */ jsx_runtime28.jsx(Badge, {
                       variant: "tab",
                       id: "agents-badge",
                       hidden: agents === 0,
@@ -42494,20 +42547,20 @@ function Operations() {
               })
             ]
           }),
-          (tab === "agents" || tab === "pipeline") && /* @__PURE__ */ jsx_runtime27.jsx("div", {
+          (tab === "agents" || tab === "pipeline") && /* @__PURE__ */ jsx_runtime28.jsx("div", {
             className: `flex min-h-0 flex-1 flex-col gap-2.5 px-2.5 pt-2.5 phone:scroll-pb-[calc(var(--dock)+8px)] ${tab === "pipeline" ? "overflow-hidden pb-2.5" : "overflow-y-auto pb-0"}`,
             id: "tp-board",
             role: "tabpanel",
             "aria-labelledby": `tab-${tab}`,
-            children: /* @__PURE__ */ jsx_runtime27.jsx(Board, {})
+            children: /* @__PURE__ */ jsx_runtime28.jsx(Board, {})
           }, tab),
-          /* @__PURE__ */ jsx_runtime27.jsx(TabsContent, {
+          /* @__PURE__ */ jsx_runtime28.jsx(TabsContent, {
             value: "queue",
             tabIndex: undefined,
             className: "flex min-h-0 flex-1 flex-col",
-            children: /* @__PURE__ */ jsx_runtime27.jsx(Queue, {})
+            children: /* @__PURE__ */ jsx_runtime28.jsx(Queue, {})
           }),
-          /* @__PURE__ */ jsx_runtime27.jsx(History, {})
+          /* @__PURE__ */ jsx_runtime28.jsx(History, {})
         ]
       })
     ]
@@ -42515,37 +42568,37 @@ function Operations() {
 }
 
 // engine/board/page/ui/sidebar.tsx
-var jsx_runtime28 = __toESM(require_jsx_runtime());
+var jsx_runtime29 = __toESM(require_jsx_runtime());
 function Sidebar({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime28.jsx("nav", {
+  return /* @__PURE__ */ jsx_runtime29.jsx("nav", {
     "data-slot": "sidebar",
     className: cn("col-start-1 row-start-1 flex min-h-0 flex-col gap-1.5 overflow-y-auto border-r border-border bg-background px-2.5 pt-3 pb-2.5", "rail:px-2 rail:pt-2.5 rail:pb-2", "phone:min-h-14 phone:flex-row phone:items-center phone:gap-2 phone:overflow-visible phone:border-r-0 phone:border-b phone:px-4 phone:py-1.5", className),
     ...props
   });
 }
 function SidebarHeader({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime28.jsx("div", {
+  return /* @__PURE__ */ jsx_runtime29.jsx("div", {
     "data-slot": "sidebar-header",
     className: cn("mb-1.5 flex min-h-9 min-w-0 items-center gap-2.5 px-1.5", "rail:min-h-0 rail:flex-col rail:gap-1.5 rail:px-0 rail:pt-0.5 rail:pb-1", "phone:m-0 phone:min-h-0 phone:flex-1 phone:p-0", className),
     ...props
   });
 }
 function SidebarFooter({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime28.jsx("div", {
+  return /* @__PURE__ */ jsx_runtime29.jsx("div", {
     "data-slot": "sidebar-footer",
     className: cn("mt-auto flex flex-col items-stretch gap-0.5 border-t border-border px-0.5 pt-2.5 text-xs text-muted-foreground rail:hidden phone:hidden", className),
     ...props
   });
 }
 function SidebarMenu({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime28.jsx("ul", {
+  return /* @__PURE__ */ jsx_runtime29.jsx("ul", {
     "data-slot": "sidebar-menu",
     className: cn("m-0 mt-2 flex min-h-[calc(11px+2*34px+2px)] list-none flex-col gap-0.5 overflow-y-auto border-t border-border p-0 pt-2.5", "rail:min-h-[calc(11px+2*50px+2px)] phone:hidden", className),
     ...props
   });
 }
 function SidebarMenuItem({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime28.jsx("li", {
+  return /* @__PURE__ */ jsx_runtime29.jsx("li", {
     "data-slot": "sidebar-menu-item",
     className: cn("relative", className),
     ...props
@@ -42561,6 +42614,9 @@ function SidebarMenuButton({ className, render, ...props }) {
     state: { slot: "sidebar-menu-button" }
   });
 }
+
+// engine/board/page/app/area.ts
+var AREA_SCREEN = "min-h-0 flex-1 grid rounded-3xl border border-border bg-panel";
 
 // engine/board/page/app/control.tsx
 var import_react31 = __toESM(require_react());
@@ -42711,7 +42767,7 @@ function useHandleDrag({
 }
 
 // engine/board/page/agents/agents.tsx
-var jsx_runtime29 = __toESM(require_jsx_runtime());
+var jsx_runtime30 = __toESM(require_jsx_runtime());
 var ROOT2 = "group/order relative font-sans text-[0.8125rem] leading-[1.4] font-normal whitespace-normal text-foreground data-[dragging]:cursor-grabbing";
 var HANDLE = "grid h-7 w-6 flex-none cursor-grab touch-none place-items-center rounded-sm border-0 bg-transparent text-muted-foreground group-data-[dragging]/order:cursor-grabbing aria-disabled:cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring phone:min-h-11 phone:min-w-11 [&:hover]:bg-accent [&:hover]:text-foreground";
 var ROW3 = "flex min-h-10 items-center gap-2.5 rounded-lg py-1 pr-2 pl-1 select-none phone:min-h-12";
@@ -42724,11 +42780,11 @@ var keyOf2 = (node) => {
   return node.dataset.wait ? `wait:${node.dataset.wait}` : null;
 };
 var handleOf = (root, host) => host ? root?.querySelector(`[data-host="${host}"] [data-handle]`) ?? null : null;
-var Grip = () => /* @__PURE__ */ jsx_runtime29.jsx("svg", {
+var Grip = () => /* @__PURE__ */ jsx_runtime30.jsx("svg", {
   className: "h-3.5 w-2.5",
   viewBox: "0 0 10 14",
   "aria-hidden": "true",
-  children: GRIP.map(({ cx, cy }) => /* @__PURE__ */ jsx_runtime29.jsx("circle", {
+  children: GRIP.map(({ cx, cy }) => /* @__PURE__ */ jsx_runtime30.jsx("circle", {
     cx,
     cy,
     r: "1.3",
@@ -42736,32 +42792,32 @@ var Grip = () => /* @__PURE__ */ jsx_runtime29.jsx("svg", {
   }, `${cx}-${cy}`))
 });
 function RowBody({ host, rank, name, detail }) {
-  return /* @__PURE__ */ jsx_runtime29.jsxs(jsx_runtime29.Fragment, {
+  return /* @__PURE__ */ jsx_runtime30.jsxs(jsx_runtime30.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime29.jsx("span", {
+      /* @__PURE__ */ jsx_runtime30.jsx("span", {
         className: "w-3.5 text-right text-[0.75rem] text-muted-foreground tabular-nums",
         children: rank === null ? "–" : rank
       }),
-      /* @__PURE__ */ jsx_runtime29.jsx("span", {
+      /* @__PURE__ */ jsx_runtime30.jsx("span", {
         className: "relative grid size-[18px] flex-none place-items-center rounded-[50%] bg-panel [box-shadow:0_0_0_2px_transparent] group-data-[excluded]/row:grayscale",
-        children: /* @__PURE__ */ jsx_runtime29.jsx("img", {
+        children: /* @__PURE__ */ jsx_runtime30.jsx("img", {
           className: "block size-3",
           src: AGENT_ICONS[host],
           alt: ""
         })
       }),
-      /* @__PURE__ */ jsx_runtime29.jsxs("span", {
+      /* @__PURE__ */ jsx_runtime30.jsxs("span", {
         className: "min-w-0 flex-1 group-data-[excluded]/row:text-card-foreground",
         children: [
           name,
-          /* @__PURE__ */ jsx_runtime29.jsx("small", {
+          /* @__PURE__ */ jsx_runtime30.jsx("small", {
             className: "line-clamp-2 text-[0.75rem] leading-[1.25] wrap-anywhere text-muted-foreground",
             title: detail,
             children: detail
           })
         ]
       }),
-      rank === 1 && /* @__PURE__ */ jsx_runtime29.jsx("span", {
+      rank === 1 && /* @__PURE__ */ jsx_runtime30.jsx("span", {
         className: "flex-none rounded-[999px] bg-accent px-[7px] py-px text-[0.6875rem] text-card-foreground",
         children: "First"
       })
@@ -42769,14 +42825,14 @@ function RowBody({ host, rank, name, detail }) {
   });
 }
 function WaitLine({ wait, isBusy }) {
-  return /* @__PURE__ */ jsx_runtime29.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime30.jsxs("div", {
     className: "mx-2.5 my-1.5",
     children: [
-      /* @__PURE__ */ jsx_runtime29.jsx("p", {
+      /* @__PURE__ */ jsx_runtime30.jsx("p", {
         className: "mx-0 mt-0 mb-1.5 text-[0.75rem] text-card-foreground",
         children: `#${wait.number} is paused: every included agent reached a usage limit. ${wait.nextResetAt === null ? "No reset time is known." : `It tries again at ${agentStore.resetText(wait.nextResetAt).replace("resets ", "")}.`}`
       }),
-      /* @__PURE__ */ jsx_runtime29.jsx(Button2, {
+      /* @__PURE__ */ jsx_runtime30.jsx(Button2, {
         variant: "secondary",
         size: "action",
         className: "phone:min-h-11 active:scale-none active:[transform:scale(0.97)]",
@@ -42907,29 +42963,29 @@ function AgentOrderBody() {
     import_react_dom6.flushSync(() => agentStore.closeMenu());
     handle?.focus();
   };
-  return /* @__PURE__ */ jsx_runtime29.jsxs(jsx_runtime29.Fragment, {
+  return /* @__PURE__ */ jsx_runtime30.jsxs(jsx_runtime30.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime29.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime30.jsxs("div", {
         ref: root,
         className: ROOT2,
         "data-dragging": drag.dragging ? "" : undefined,
         id: "agent-picker",
         onKeyDown: onRootKey,
         children: [
-          shown ? /* @__PURE__ */ jsx_runtime29.jsxs(jsx_runtime29.Fragment, {
+          shown ? /* @__PURE__ */ jsx_runtime30.jsxs(jsx_runtime30.Fragment, {
             children: [
-              /* @__PURE__ */ jsx_runtime29.jsx("ol", {
+              /* @__PURE__ */ jsx_runtime30.jsx("ol", {
                 ref: list,
                 className: "relative m-0 list-none px-0 py-0.5",
                 "aria-label": "Agents in priority order",
                 "aria-busy": shown.isSaving,
-                children: rows.map(({ host, rank, name, detail }, index) => /* @__PURE__ */ jsx_runtime29.jsxs("li", {
+                children: rows.map(({ host, rank, name, detail }, index) => /* @__PURE__ */ jsx_runtime30.jsxs("li", {
                   className: `${index > 0 ? "mt-0.5" : ""} group/row relative ${ROW3} [&:hover]:bg-secondary data-[dragging]:opacity-40`,
                   "data-host": host,
                   "data-excluded": rank === null ? "" : undefined,
                   "data-dragging": drag.dragging === host ? "" : undefined,
                   children: [
-                    /* @__PURE__ */ jsx_runtime29.jsx("button", {
+                    /* @__PURE__ */ jsx_runtime30.jsx("button", {
                       type: "button",
                       className: HANDLE,
                       "data-handle": "",
@@ -42940,9 +42996,9 @@ function AgentOrderBody() {
                       onClick: (event) => onClick(event, host),
                       onKeyDown: (event) => onHandleKey(event, host),
                       ...rank === null ? {} : drag.handlers(host),
-                      children: /* @__PURE__ */ jsx_runtime29.jsx(Grip, {})
+                      children: /* @__PURE__ */ jsx_runtime30.jsx(Grip, {})
                     }),
-                    /* @__PURE__ */ jsx_runtime29.jsx(RowBody, {
+                    /* @__PURE__ */ jsx_runtime30.jsx(RowBody, {
                       host,
                       rank,
                       name,
@@ -42951,49 +43007,49 @@ function AgentOrderBody() {
                   ]
                 }, host))
               }),
-              /* @__PURE__ */ jsx_runtime29.jsx("div", {
+              /* @__PURE__ */ jsx_runtime30.jsx("div", {
                 ref: marker,
                 className: "pointer-events-none absolute right-3.5 left-3.5 h-0.5 rounded-[1px] bg-ring before:absolute before:-top-[3px] before:-left-2 before:box-border before:h-2 before:w-2 before:rounded-[50%] before:border-2 before:border-solid before:border-ring before:content-['']",
                 hidden: true
               }),
-              /* @__PURE__ */ jsx_runtime29.jsx("p", {
+              /* @__PURE__ */ jsx_runtime30.jsx("p", {
                 className: NOTICE,
                 hidden: !shown.status,
                 children: shown.status
               }),
-              /* @__PURE__ */ jsx_runtime29.jsx("div", {
-                children: shown.view.waits.map((wait) => /* @__PURE__ */ jsx_runtime29.jsx(WaitLine, {
+              /* @__PURE__ */ jsx_runtime30.jsx("div", {
+                children: shown.view.waits.map((wait) => /* @__PURE__ */ jsx_runtime30.jsx(WaitLine, {
                   wait,
                   isBusy: shown.retrying.has(wait.waitId)
                 }, wait.waitId))
               })
             ]
-          }) : /* @__PURE__ */ jsx_runtime29.jsx("p", {
+          }) : /* @__PURE__ */ jsx_runtime30.jsx("p", {
             className: NOTICE,
             children: "The agent order is not read yet."
           }),
-          /* @__PURE__ */ jsx_runtime29.jsx("p", {
+          /* @__PURE__ */ jsx_runtime30.jsx("p", {
             className: "sr-only",
             "aria-live": "polite",
             children: live
           }),
-          ghost && /* @__PURE__ */ jsx_runtime29.jsxs("div", {
+          ghost && /* @__PURE__ */ jsx_runtime30.jsxs("div", {
             ref: preview,
             className: `fixed z-50 ${ROW3} bg-card opacity-95 pointer-events-none [box-shadow:var(--float)]`,
             "aria-hidden": "true",
             children: [
-              /* @__PURE__ */ jsx_runtime29.jsx("span", {
+              /* @__PURE__ */ jsx_runtime30.jsx("span", {
                 className: `${HANDLE} px-1.5 py-px text-center`,
-                children: /* @__PURE__ */ jsx_runtime29.jsx(Grip, {})
+                children: /* @__PURE__ */ jsx_runtime30.jsx(Grip, {})
               }),
-              /* @__PURE__ */ jsx_runtime29.jsx(RowBody, {
+              /* @__PURE__ */ jsx_runtime30.jsx(RowBody, {
                 ...ghost
               })
             ]
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime29.jsx(DropdownMenu, {
+      /* @__PURE__ */ jsx_runtime30.jsx(DropdownMenu, {
         modal: false,
         open: menuFor !== null,
         onOpenChange: (isOpen, details) => {
@@ -43002,7 +43058,7 @@ function AgentOrderBody() {
           wasOutsidePress.current = details.reason === "outside-press";
           agentStore.closeMenu();
         },
-        children: /* @__PURE__ */ jsx_runtime29.jsxs(DropdownMenuContent, {
+        children: /* @__PURE__ */ jsx_runtime30.jsxs(DropdownMenuContent, {
           anchor,
           align: "start",
           "aria-label": menuFor ? `${shown?.registry[menuFor]?.name ?? menuFor} actions` : undefined,
@@ -43010,8 +43066,8 @@ function AgentOrderBody() {
           finalFocus,
           onKeyDown: onPopupKey,
           children: [
-            menuFor && /* @__PURE__ */ jsx_runtime29.jsx(FirstFocus, {}, menuFor),
-            menuFor && /* @__PURE__ */ jsx_runtime29.jsx(Entries2, {
+            menuFor && /* @__PURE__ */ jsx_runtime30.jsx(FirstFocus, {}, menuFor),
+            menuFor && /* @__PURE__ */ jsx_runtime30.jsx(Entries2, {
               list: () => agentStore.entries(menuFor),
               close: agentStore.closeMenu
             })
@@ -43023,14 +43079,14 @@ function AgentOrderBody() {
 }
 function AgentOrder() {
   const shown = useAgents((state) => state.shown);
-  return /* @__PURE__ */ jsx_runtime29.jsx(ViewBoundary, {
+  return /* @__PURE__ */ jsx_runtime30.jsx(ViewBoundary, {
     snapshot: shown,
-    fallback: /* @__PURE__ */ jsx_runtime29.jsx("div", {
+    fallback: /* @__PURE__ */ jsx_runtime30.jsx("div", {
       className: ROOT2,
       id: "agent-picker"
     }),
     onFail: agentStore.closeMenu,
-    children: /* @__PURE__ */ jsx_runtime29.jsx(AgentOrderBody, {})
+    children: /* @__PURE__ */ jsx_runtime30.jsx(AgentOrderBody, {})
   });
 }
 
@@ -43133,7 +43189,7 @@ var Toggle = /* @__PURE__ */ React141.forwardRef(function Toggle(componentProps,
 if (false)
   ;
 // engine/board/page/ui/toggle.tsx
-var jsx_runtime30 = __toESM(require_jsx_runtime());
+var jsx_runtime31 = __toESM(require_jsx_runtime());
 var toggleVariants = cva("group/toggle inline-flex shrink-0 select-none items-center justify-center py-0 text-[0.78125rem] leading-none font-medium whitespace-nowrap transition-[background-color,border-color,box-shadow,opacity,transform] duration-150 outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-[0.97] aria-busy:cursor-progress aria-busy:opacity-70 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0", {
   variants: {
     variant: {
@@ -43156,7 +43212,7 @@ function Toggle2({
   size = "default",
   ...props
 }) {
-  return /* @__PURE__ */ jsx_runtime30.jsx(Toggle, {
+  return /* @__PURE__ */ jsx_runtime31.jsx(Toggle, {
     "data-slot": "toggle",
     className: cn(toggleVariants({ variant, size, className })),
     ...props
@@ -43164,7 +43220,7 @@ function Toggle2({
 }
 
 // engine/board/page/app/control.tsx
-var jsx_runtime31 = __toESM(require_jsx_runtime());
+var jsx_runtime32 = __toESM(require_jsx_runtime());
 var AUTO = {
   on: { tone: "ok", title: "Auto mode starts each auto step.", words: "Auto mode is on." },
   off: { tone: "off", title: "Auto mode is off: auto steps wait.", words: "Auto mode is off." },
@@ -43172,27 +43228,27 @@ var AUTO = {
 };
 var SMALL = "h-6 gap-[7px] rounded-sm border-0 px-2 transition-all duration-0 text-xs font-normal phone:min-h-11 phone:min-w-11";
 function Code({ children }) {
-  return /* @__PURE__ */ jsx_runtime31.jsx("code", {
+  return /* @__PURE__ */ jsx_runtime32.jsx("code", {
     className: "font-mono text-xs leading-none",
     children
   });
 }
 function Row2({ isFirst = false, children }) {
-  return /* @__PURE__ */ jsx_runtime31.jsx("div", {
+  return /* @__PURE__ */ jsx_runtime32.jsx("div", {
     className: cn("mt-3.5 flex flex-wrap items-center justify-end gap-x-4 gap-y-2.5 phone:justify-start", !isFirst && "border-t border-border pt-3.5"),
     children
   });
 }
 function RowText({ id, label, help }) {
-  return /* @__PURE__ */ jsx_runtime31.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime32.jsxs("div", {
     className: "min-w-0 flex-[1_1_280px] phone:basis-full",
     children: [
-      /* @__PURE__ */ jsx_runtime31.jsx("span", {
+      /* @__PURE__ */ jsx_runtime32.jsx("span", {
         className: "text-[0.8125rem] font-medium text-foreground",
         id: `${id}-label`,
         children: label
       }),
-      /* @__PURE__ */ jsx_runtime31.jsx("p", {
+      /* @__PURE__ */ jsx_runtime32.jsx("p", {
         className: "mt-0.5 mb-0 text-xs leading-[1.45] text-pretty text-muted-foreground",
         id: `${id}-help`,
         children: help
@@ -43202,37 +43258,37 @@ function RowText({ id, label, help }) {
 }
 function Automation({ daemon, isDown }) {
   const auto = isDown ? null : daemon?.auto ?? null;
-  return /* @__PURE__ */ jsx_runtime31.jsxs(Card, {
+  return /* @__PURE__ */ jsx_runtime32.jsxs(Card, {
     id: "ctl-auto",
     "aria-labelledby": "ctl-auto-title",
     children: [
-      /* @__PURE__ */ jsx_runtime31.jsx(CardTitle, {
+      /* @__PURE__ */ jsx_runtime32.jsx(CardTitle, {
         id: "ctl-auto-title",
         children: "Automation"
       }),
-      /* @__PURE__ */ jsx_runtime31.jsx(CardDescription, {
+      /* @__PURE__ */ jsx_runtime32.jsx(CardDescription, {
         children: "Auto mode of the daemon starts each auto step by itself. The board shows its state only."
       }),
-      /* @__PURE__ */ jsx_runtime31.jsx("p", {
+      /* @__PURE__ */ jsx_runtime32.jsx("p", {
         className: "mt-3 mb-0 text-[0.8125rem] text-card-foreground",
         id: "ctl-auto-state",
-        children: isDown ? /* @__PURE__ */ jsx_runtime31.jsxs(jsx_runtime31.Fragment, {
+        children: isDown ? /* @__PURE__ */ jsx_runtime32.jsxs(jsx_runtime32.Fragment, {
           children: [
             "No daemon answers. Start it in a terminal: ",
-            /* @__PURE__ */ jsx_runtime31.jsx(Code, {
+            /* @__PURE__ */ jsx_runtime32.jsx(Code, {
               children: "celetis daemon start"
             })
           ]
         }) : auto ? AUTO[auto].words : "The daemon state is not read yet."
       }),
-      /* @__PURE__ */ jsx_runtime31.jsx("p", {
+      /* @__PURE__ */ jsx_runtime32.jsx("p", {
         className: "mt-3 mb-0 text-[0.8125rem] text-card-foreground",
         id: "ctl-auto-command",
         hidden: auto === null,
-        children: auto && /* @__PURE__ */ jsx_runtime31.jsxs(jsx_runtime31.Fragment, {
+        children: auto && /* @__PURE__ */ jsx_runtime32.jsxs(jsx_runtime32.Fragment, {
           children: [
             "Change it in a terminal: ",
-            /* @__PURE__ */ jsx_runtime31.jsx(Code, {
+            /* @__PURE__ */ jsx_runtime32.jsx(Code, {
               children: `celetis daemon auto ${auto === "on" ? "off" : "on"}`
             })
           ]
@@ -43254,20 +43310,20 @@ function StatusRow({
   name,
   children
 }) {
-  return /* @__PURE__ */ jsx_runtime31.jsxs("span", {
+  return /* @__PURE__ */ jsx_runtime32.jsxs("span", {
     className: "mt-3 flex min-h-7 min-w-0 items-center gap-[7px] text-[0.8125rem] tabular-nums",
     id,
     "data-tone": tone,
     title: title || undefined,
     children: [
-      /* @__PURE__ */ jsx_runtime31.jsx("i", {
+      /* @__PURE__ */ jsx_runtime32.jsx("i", {
         className: cn("size-1.5 flex-none rounded-full", DOT[tone])
       }),
-      /* @__PURE__ */ jsx_runtime31.jsx("span", {
+      /* @__PURE__ */ jsx_runtime32.jsx("span", {
         className: "text-muted-foreground",
         children: name
       }),
-      /* @__PURE__ */ jsx_runtime31.jsx("span", {
+      /* @__PURE__ */ jsx_runtime32.jsx("span", {
         className: cn("min-w-0 font-medium wrap-anywhere", tone === "fail" ? "text-caution" : "text-card-foreground"),
         children
       })
@@ -43298,28 +43354,28 @@ function Status2({ data, isDown }) {
     tone: AUTO[daemon.auto].tone,
     title: `The daemon PID ${daemon.pid} runs. ${AUTO[daemon.auto].title}`
   } : { text: "checking", tone: "wait", title: "" };
-  return /* @__PURE__ */ jsx_runtime31.jsxs(Card, {
+  return /* @__PURE__ */ jsx_runtime32.jsxs(Card, {
     id: "ctl-status",
     "aria-labelledby": "ctl-status-title",
     children: [
-      /* @__PURE__ */ jsx_runtime31.jsx(CardTitle, {
+      /* @__PURE__ */ jsx_runtime32.jsx(CardTitle, {
         id: "ctl-status-title",
         children: "Board status"
       }),
-      /* @__PURE__ */ jsx_runtime31.jsx(CardDescription, {
+      /* @__PURE__ */ jsx_runtime32.jsx(CardDescription, {
         children: "What the board reads, and the parts that Run and Go use."
       }),
-      /* @__PURE__ */ jsx_runtime31.jsx(StatusRow, {
+      /* @__PURE__ */ jsx_runtime32.jsx(StatusRow, {
         id: "fresh",
         tone: freshTone,
         title: freshTitle,
         name,
-        children: isDown ? SERVER_DOWN : source.error ? `cannot read: ${source.error}` : source.readAt ? /* @__PURE__ */ jsx_runtime31.jsxs(jsx_runtime31.Fragment, {
+        children: isDown ? SERVER_DOWN : source.error ? `cannot read: ${source.error}` : source.readAt ? /* @__PURE__ */ jsx_runtime32.jsxs(jsx_runtime32.Fragment, {
           children: [
             "read",
             " ",
-            /* @__PURE__ */ jsx_runtime31.jsxs("time", {
-              className: "time",
+            /* @__PURE__ */ jsx_runtime32.jsxs("time", {
+              className: "time tabular-nums",
               dateTime: source.readAt,
               title: clock(source.readAt, true),
               children: [
@@ -43330,21 +43386,21 @@ function Status2({ data, isDown }) {
           ]
         }) : "no data yet"
       }),
-      /* @__PURE__ */ jsx_runtime31.jsx(StatusRow, {
+      /* @__PURE__ */ jsx_runtime32.jsx(StatusRow, {
         id: "terminal",
         tone: terminalTone,
         title: terminal?.error ? `herdr: ${terminal.error}` : "Run and Go use herdr",
         name: "herdr",
         children: terminal?.ok === true ? "up" : terminal?.ok === false ? "down" : "checking"
       }),
-      /* @__PURE__ */ jsx_runtime31.jsx(StatusRow, {
+      /* @__PURE__ */ jsx_runtime32.jsx(StatusRow, {
         id: "daemon",
         tone: daemonItem.tone,
         title: daemonItem.title,
         name: "Daemon",
         children: daemonItem.text
       }),
-      /* @__PURE__ */ jsx_runtime31.jsxs(Button2, {
+      /* @__PURE__ */ jsx_runtime32.jsxs(Button2, {
         variant: "outline",
         id: "refresh",
         className: "mt-3 phone:min-h-11 phone:min-w-11 data-done:[&_.icon]:text-ready",
@@ -43353,10 +43409,10 @@ function Status2({ data, isDown }) {
         title: control.refresh === "done" ? `${readAgain}: done` : `${readAgain} (r)`,
         onClick: () => void shellStore.refresh(),
         children: [
-          /* @__PURE__ */ jsx_runtime31.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime32.jsx(Icon, {
             name: "refresh"
           }),
-          /* @__PURE__ */ jsx_runtime31.jsx("span", {
+          /* @__PURE__ */ jsx_runtime32.jsx("span", {
             className: "label",
             children: "Refresh"
           })
@@ -43371,26 +43427,26 @@ function Preferences() {
   const isBlocked = "Notification" in window && Notification.permission === "denied";
   const isOn = notify && !isBlocked;
   const themeLabel = `Theme: ${THEME_WORDS[theme]}. Press to change`;
-  return /* @__PURE__ */ jsx_runtime31.jsxs(Card, {
+  return /* @__PURE__ */ jsx_runtime32.jsxs(Card, {
     id: "ctl-prefs",
     "aria-labelledby": "ctl-prefs-title",
     children: [
-      /* @__PURE__ */ jsx_runtime31.jsx(CardTitle, {
+      /* @__PURE__ */ jsx_runtime32.jsx(CardTitle, {
         id: "ctl-prefs-title",
         children: "Notifications, keys, and theme"
       }),
-      /* @__PURE__ */ jsx_runtime31.jsx(CardDescription, {
+      /* @__PURE__ */ jsx_runtime32.jsx(CardDescription, {
         children: "Settings of this browser. A change takes effect at once."
       }),
-      /* @__PURE__ */ jsx_runtime31.jsxs(Row2, {
+      /* @__PURE__ */ jsx_runtime32.jsxs(Row2, {
         isFirst: true,
         children: [
-          /* @__PURE__ */ jsx_runtime31.jsx(RowText, {
+          /* @__PURE__ */ jsx_runtime32.jsx(RowText, {
             id: "notify",
             label: "Notify",
             help: "A system notification shows when a card needs you and the board is not in front."
           }),
-          /* @__PURE__ */ jsx_runtime31.jsxs(Toggle2, {
+          /* @__PURE__ */ jsx_runtime32.jsxs(Toggle2, {
             variant: "default",
             size: "sm",
             id: "notify",
@@ -43400,14 +43456,14 @@ function Preferences() {
             title: isBlocked ? "The browser blocks notifications for this page" : isOn ? "A system notification shows when a card needs you" : "Show a system notification when a card needs you",
             onPressedChange: () => void shellStore.toggleNotify(),
             children: [
-              /* @__PURE__ */ jsx_runtime31.jsx(Icon, {
+              /* @__PURE__ */ jsx_runtime32.jsx(Icon, {
                 name: isOn ? "bell" : "bell-off"
               }),
-              /* @__PURE__ */ jsx_runtime31.jsx("span", {
+              /* @__PURE__ */ jsx_runtime32.jsx("span", {
                 className: "text-muted-foreground",
                 children: "Notify"
               }),
-              /* @__PURE__ */ jsx_runtime31.jsx("b", {
+              /* @__PURE__ */ jsx_runtime32.jsx("b", {
                 className: "font-medium text-card-foreground",
                 children: isBlocked ? "blocked" : isOn ? "on" : "off"
               })
@@ -43415,14 +43471,14 @@ function Preferences() {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime31.jsxs(Row2, {
+      /* @__PURE__ */ jsx_runtime32.jsxs(Row2, {
         children: [
-          /* @__PURE__ */ jsx_runtime31.jsx(RowText, {
+          /* @__PURE__ */ jsx_runtime32.jsx(RowText, {
             id: "keys",
             label: "Single-key shortcuts",
             help: "j k h l v d r / ?. The keys of a focused card always work."
           }),
-          /* @__PURE__ */ jsx_runtime31.jsx(Toggle2, {
+          /* @__PURE__ */ jsx_runtime32.jsx(Toggle2, {
             id: "keys-switch",
             className: "phone:min-h-11 phone:min-w-11",
             pressed: keys,
@@ -43431,43 +43487,43 @@ function Preferences() {
             onPressedChange: (next) => shellStore.setKeys(next),
             children: keys ? "On" : "Off"
           }),
-          /* @__PURE__ */ jsx_runtime31.jsxs(Button2, {
+          /* @__PURE__ */ jsx_runtime32.jsxs(Button2, {
             variant: "ghost",
             id: "keys-open",
             className: SMALL,
             title: "Keyboard shortcuts (?)",
             onClick: openShortcuts,
             children: [
-              /* @__PURE__ */ jsx_runtime31.jsx(Icon, {
+              /* @__PURE__ */ jsx_runtime32.jsx(Icon, {
                 name: "keyboard"
               }),
-              /* @__PURE__ */ jsx_runtime31.jsx("span", {
+              /* @__PURE__ */ jsx_runtime32.jsx("span", {
                 children: "Keys"
               })
             ]
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime31.jsxs(Row2, {
+      /* @__PURE__ */ jsx_runtime32.jsxs(Row2, {
         children: [
-          /* @__PURE__ */ jsx_runtime31.jsx(RowText, {
+          /* @__PURE__ */ jsx_runtime32.jsx(RowText, {
             id: "theme",
             label: "Theme",
             help: "System follows the setting of the device."
           }),
-          /* @__PURE__ */ jsx_runtime31.jsx("span", {
+          /* @__PURE__ */ jsx_runtime32.jsx("span", {
             className: "text-[0.78125rem] text-card-foreground",
             id: "theme-words",
             children: THEME_WORDS[theme]
           }),
-          /* @__PURE__ */ jsx_runtime31.jsx(Button2, {
+          /* @__PURE__ */ jsx_runtime32.jsx(Button2, {
             variant: "ghost",
             id: "theme",
             className: "size-6 gap-0 rounded-sm p-0 transition-all duration-0 phone:size-11 [&_.icon]:size-3.5",
             "aria-label": themeLabel,
             title: themeLabel,
             onClick: () => shellStore.cycleTheme(),
-            children: /* @__PURE__ */ jsx_runtime31.jsx(Icon, {
+            children: /* @__PURE__ */ jsx_runtime32.jsx(Icon, {
               name: `theme-${theme}`
             })
           })
@@ -43478,57 +43534,57 @@ function Preferences() {
 }
 function Control() {
   const { data, isError } = useQuery(viewOptions);
-  return /* @__PURE__ */ jsx_runtime31.jsxs("section", {
-    className: "area-screen content-start items-start justify-center justify-items-stretch gap-3.5 overflow-auto grid-cols-[minmax(0,min(100%,720px))] p-5 phone:scroll-pb-[calc(var(--dock)+8px)] phone:p-3",
+  return /* @__PURE__ */ jsx_runtime32.jsxs("section", {
+    className: cn(AREA_SCREEN, "content-start items-start justify-center justify-items-stretch gap-3.5 overflow-auto grid-cols-[minmax(0,min(100%,720px))] p-5 phone:scroll-pb-[calc(var(--dock)+8px)] phone:p-3"),
     id: "area-control",
     "aria-labelledby": "area-control-title",
     children: [
-      /* @__PURE__ */ jsx_runtime31.jsx("h2", {
+      /* @__PURE__ */ jsx_runtime32.jsx("h2", {
         className: "text-sm leading-[1.38] font-semibold tracking-[-0.012em] text-foreground",
         id: "area-control-title",
         children: "Control"
       }),
-      /* @__PURE__ */ jsx_runtime31.jsxs(Card, {
+      /* @__PURE__ */ jsx_runtime32.jsxs(Card, {
         id: "ctl-agents",
         tabIndex: -1,
         "aria-labelledby": "ctl-agents-title",
         children: [
-          /* @__PURE__ */ jsx_runtime31.jsx(CardTitle, {
+          /* @__PURE__ */ jsx_runtime32.jsx(CardTitle, {
             id: "ctl-agents-title",
             children: "Agents"
           }),
-          /* @__PURE__ */ jsx_runtime31.jsx(CardDescription, {
+          /* @__PURE__ */ jsx_runtime32.jsx(CardDescription, {
             children: "New default work uses the first available agent. Drag a handle, or press it for the move actions."
           }),
-          /* @__PURE__ */ jsx_runtime31.jsx("div", {
+          /* @__PURE__ */ jsx_runtime32.jsx("div", {
             className: "mt-3",
-            children: /* @__PURE__ */ jsx_runtime31.jsx(AgentOrder, {})
+            children: /* @__PURE__ */ jsx_runtime32.jsx(AgentOrder, {})
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime31.jsx(Automation, {
+      /* @__PURE__ */ jsx_runtime32.jsx(Automation, {
         daemon: data?.daemon ?? null,
         isDown: isError
       }),
-      /* @__PURE__ */ jsx_runtime31.jsxs(Card, {
+      /* @__PURE__ */ jsx_runtime32.jsxs(Card, {
         id: "ctl-updates",
         "aria-labelledby": "ctl-updates-title",
         children: [
-          /* @__PURE__ */ jsx_runtime31.jsx(CardTitle, {
+          /* @__PURE__ */ jsx_runtime32.jsx(CardTitle, {
             id: "ctl-updates-title",
             children: "Updates"
           }),
-          /* @__PURE__ */ jsx_runtime31.jsx(CardDescription, {
+          /* @__PURE__ */ jsx_runtime32.jsx(CardDescription, {
             children: "The installed engine and plugins of Celetis. Update and restart needs your click, and the daemon restarts after it."
           }),
-          /* @__PURE__ */ jsx_runtime31.jsx("div", {
+          /* @__PURE__ */ jsx_runtime32.jsx("div", {
             className: "mt-3",
-            children: /* @__PURE__ */ jsx_runtime31.jsx(UpdateControl, {})
+            children: /* @__PURE__ */ jsx_runtime32.jsx(UpdateControl, {})
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime31.jsx(Preferences, {}),
-      /* @__PURE__ */ jsx_runtime31.jsx(Status2, {
+      /* @__PURE__ */ jsx_runtime32.jsx(Preferences, {}),
+      /* @__PURE__ */ jsx_runtime32.jsx(Status2, {
         data,
         isDown: isError
       })
@@ -43644,7 +43700,7 @@ var tileOf = (kind, board) => {
 };
 
 // engine/board/page/app/home.tsx
-var jsx_runtime32 = __toESM(require_jsx_runtime());
+var jsx_runtime33 = __toESM(require_jsx_runtime());
 var KINDS = ["needs", "working", "landed", "median"];
 var PAD = "p-[12px_14px] [box-shadow:var(--raise)] phone:p-[12px_14px]";
 var LIST2 = "mt-2 mb-0 list-none p-0 [&>li+li]:border-t [&>li+li]:border-t-border";
@@ -43659,36 +43715,36 @@ var rowOf = (event) => {
 };
 function TileCard({ tile }) {
   const spark = tile.state.kind === "line" ? sparkPath(tile.state.points) : null;
-  return /* @__PURE__ */ jsx_runtime32.jsxs(Card, {
+  return /* @__PURE__ */ jsx_runtime33.jsxs(Card, {
     className: PAD,
     role: "group",
     "aria-label": tile.name,
     children: [
-      /* @__PURE__ */ jsx_runtime32.jsx(CardTitle, {
+      /* @__PURE__ */ jsx_runtime33.jsx(CardTitle, {
         children: tile.label
       }),
-      /* @__PURE__ */ jsx_runtime32.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime33.jsxs("div", {
         className: "mt-2 flex flex-wrap items-center gap-x-3 gap-y-1",
         children: [
-          /* @__PURE__ */ jsx_runtime32.jsx("p", {
+          /* @__PURE__ */ jsx_runtime33.jsx("p", {
             className: "my-0 mr-auto ml-0 font-mono text-[1.5rem] leading-8 font-semibold text-foreground",
             children: tile.value
           }),
-          tile.state.kind !== "line" && /* @__PURE__ */ jsx_runtime32.jsx("p", {
+          tile.state.kind !== "line" && /* @__PURE__ */ jsx_runtime33.jsx("p", {
             className: "m-0 text-[0.8125rem] leading-[1.4] text-muted-foreground",
             children: tile.state.text
           }),
-          spark && /* @__PURE__ */ jsx_runtime32.jsxs(jsx_runtime32.Fragment, {
+          spark && /* @__PURE__ */ jsx_runtime33.jsxs(jsx_runtime33.Fragment, {
             children: [
-              /* @__PURE__ */ jsx_runtime32.jsxs("svg", {
+              /* @__PURE__ */ jsx_runtime33.jsxs("svg", {
                 className: "h-8 w-24 flex-none fill-none stroke-card-foreground stroke-[1.5] [stroke-linecap:round] [stroke-linejoin:round]",
                 viewBox: "0 0 96 32",
                 "aria-hidden": "true",
                 children: [
-                  /* @__PURE__ */ jsx_runtime32.jsx("path", {
+                  /* @__PURE__ */ jsx_runtime33.jsx("path", {
                     d: spark.d
                   }),
-                  /* @__PURE__ */ jsx_runtime32.jsx("circle", {
+                  /* @__PURE__ */ jsx_runtime33.jsx("circle", {
                     className: "fill-foreground stroke-none",
                     cx: String(spark.dot.x),
                     cy: String(spark.dot.y),
@@ -43696,7 +43752,7 @@ function TileCard({ tile }) {
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime32.jsx("span", {
+              /* @__PURE__ */ jsx_runtime33.jsx("span", {
                 className: "font-mono text-[0.6875rem] leading-none font-normal text-card-foreground",
                 "aria-hidden": "true",
                 children: spark.last % 1 ? spark.last.toFixed(1) : String(spark.last)
@@ -43705,22 +43761,22 @@ function TileCard({ tile }) {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime32.jsx("p", {
+      /* @__PURE__ */ jsx_runtime33.jsx("p", {
         className: "mt-1 mb-0 text-[0.75rem] leading-normal text-card-foreground",
         children: tile.unit
       }),
-      tile.change && /* @__PURE__ */ jsx_runtime32.jsxs("p", {
+      tile.change && /* @__PURE__ */ jsx_runtime33.jsxs("p", {
         className: `${SMALL2} flex items-center gap-1 text-card-foreground`,
         children: [
-          tile.change.dir && /* @__PURE__ */ jsx_runtime32.jsx(Icon, {
+          tile.change.dir && /* @__PURE__ */ jsx_runtime33.jsx(Icon, {
             name: tile.change.dir === "up" ? "trend-up" : "trend-down"
           }),
-          /* @__PURE__ */ jsx_runtime32.jsx("span", {
+          /* @__PURE__ */ jsx_runtime33.jsx("span", {
             children: tile.change.text
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime32.jsx("p", {
+      /* @__PURE__ */ jsx_runtime33.jsx("p", {
         className: `${SMALL2} text-muted-foreground`,
         children: tile.window
       })
@@ -43729,24 +43785,24 @@ function TileCard({ tile }) {
 }
 function NeedsRow({ card }) {
   const meta = stateLabel(card) ?? card.reason ?? "";
-  return /* @__PURE__ */ jsx_runtime32.jsxs("li", {
+  return /* @__PURE__ */ jsx_runtime33.jsxs("li", {
     className: "flex min-h-11 items-center gap-3 py-2",
     "data-key": keyOf(card),
     children: [
-      /* @__PURE__ */ jsx_runtime32.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime33.jsxs("div", {
         className: "min-w-0 flex-1",
         children: [
-          /* @__PURE__ */ jsx_runtime32.jsx("p", {
+          /* @__PURE__ */ jsx_runtime33.jsx("p", {
             className: TITLE2,
             children: card.title
           }),
-          /* @__PURE__ */ jsx_runtime32.jsx("p", {
+          /* @__PURE__ */ jsx_runtime33.jsx("p", {
             className: `${META} text-needs`,
             children: card.number === null ? meta : `#${card.number} · ${meta}`
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime32.jsx(Button2, {
+      /* @__PURE__ */ jsx_runtime33.jsx(Button2, {
         className: "min-h-7 hover:opacity-[0.88] [&:hover]:opacity-[0.88] phone:h-11 phone:min-h-11 phone:min-w-11",
         "aria-label": `Open #${card.number} ${card.title}`,
         onClick: () => open5(card),
@@ -43757,18 +43813,18 @@ function NeedsRow({ card }) {
 }
 function AgentRow({ card, board }) {
   const meta = [card.step, agentOf(card, board.registry)?.name, stateLabel(card)].filter(Boolean).join(" · ");
-  return /* @__PURE__ */ jsx_runtime32.jsx("li", {
+  return /* @__PURE__ */ jsx_runtime33.jsx("li", {
     "data-key": keyOf(card),
-    children: /* @__PURE__ */ jsx_runtime32.jsxs("button", {
+    children: /* @__PURE__ */ jsx_runtime33.jsxs("button", {
       type: "button",
       className: "flex min-h-11 w-full flex-col items-start justify-center gap-0.5 [border:0] bg-transparent px-0 py-2 text-start",
       onClick: () => open5(card),
       children: [
-        /* @__PURE__ */ jsx_runtime32.jsx("span", {
+        /* @__PURE__ */ jsx_runtime33.jsx("span", {
           className: `${TITLE2} [button:hover>&]:underline`,
           children: `#${card.number} ${card.title}`
         }),
-        /* @__PURE__ */ jsx_runtime32.jsx("span", {
+        /* @__PURE__ */ jsx_runtime33.jsx("span", {
           className: `${META} text-working`,
           children: meta
         })
@@ -43810,47 +43866,47 @@ function Home() {
     const row = mine.find((each) => each.dataset.key === was.key) ?? mine[Math.min(was.index, mine.length - 1)] ?? rows(was.list === "home-needs" ? "home-agents" : "home-needs")[0];
     (row?.querySelector("button") ?? document.getElementById("work"))?.focus({ preventScroll: true });
   }, [board]);
-  return /* @__PURE__ */ jsx_runtime32.jsxs("section", {
-    className: "area-screen flex flex-col place-items-stretch gap-3 overflow-auto p-5 phone:scroll-pb-[calc(var(--dock)+8px)] phone:p-3",
+  return /* @__PURE__ */ jsx_runtime33.jsxs("section", {
+    className: cn(AREA_SCREEN, "flex flex-col place-items-stretch gap-3 overflow-auto p-5 phone:scroll-pb-[calc(var(--dock)+8px)] phone:p-3"),
     id: "area-home",
     "aria-labelledby": "area-home-title",
     children: [
-      /* @__PURE__ */ jsx_runtime32.jsx("h2", {
+      /* @__PURE__ */ jsx_runtime33.jsx("h2", {
         className: "text-sm leading-[1.38] font-semibold tracking-[-0.012em] text-foreground",
         id: "area-home-title",
         children: "Home"
       }),
-      /* @__PURE__ */ jsx_runtime32.jsx("div", {
+      /* @__PURE__ */ jsx_runtime33.jsx("div", {
         className: "grid grid-cols-[minmax(0,1fr)] gap-3 empty:hidden min-[720px]:grid-cols-2 min-[1200px]:grid-cols-4 phone:order-2",
         id: "home-tiles",
-        children: board && KINDS.map((kind) => /* @__PURE__ */ jsx_runtime32.jsx(TileCard, {
+        children: board && KINDS.map((kind) => /* @__PURE__ */ jsx_runtime33.jsx(TileCard, {
           tile: tileOf(kind, board)
         }, kind))
       }),
-      /* @__PURE__ */ jsx_runtime32.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime33.jsxs("div", {
         className: "grid grid-cols-[minmax(0,1fr)] gap-3 [align-items:start] wide:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] phone:contents",
         children: [
-          /* @__PURE__ */ jsx_runtime32.jsxs(Card, {
+          /* @__PURE__ */ jsx_runtime33.jsxs(Card, {
             className: `${PAD} phone:order-1`,
             id: "home-needs",
             "aria-labelledby": "home-needs-title",
             children: [
-              /* @__PURE__ */ jsx_runtime32.jsx(CardTitle, {
+              /* @__PURE__ */ jsx_runtime33.jsx(CardTitle, {
                 id: "home-needs-title",
                 children: "Needs you"
               }),
-              /* @__PURE__ */ jsx_runtime32.jsx("ul", {
+              /* @__PURE__ */ jsx_runtime33.jsx("ul", {
                 className: LIST2,
                 id: "home-needs-list",
                 hidden: board !== null && needs.length === 0,
                 ref: lists["home-needs"],
                 onFocus: focusIn("home-needs"),
                 onBlur: focusOut,
-                children: needs.map((card) => /* @__PURE__ */ jsx_runtime32.jsx(NeedsRow, {
+                children: needs.map((card) => /* @__PURE__ */ jsx_runtime33.jsx(NeedsRow, {
                   card
                 }, keyOf(card)))
               }),
-              /* @__PURE__ */ jsx_runtime32.jsx("p", {
+              /* @__PURE__ */ jsx_runtime33.jsx("p", {
                 className: EMPTY4,
                 id: "home-needs-empty",
                 hidden: board === null || needs.length > 0,
@@ -43858,31 +43914,31 @@ function Home() {
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime32.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime33.jsxs("div", {
             className: "grid min-w-0 gap-3 phone:order-3",
             children: [
-              /* @__PURE__ */ jsx_runtime32.jsxs(Card, {
+              /* @__PURE__ */ jsx_runtime33.jsxs(Card, {
                 className: PAD,
                 id: "home-agents",
                 "aria-labelledby": "home-agents-title",
                 children: [
-                  /* @__PURE__ */ jsx_runtime32.jsx(CardTitle, {
+                  /* @__PURE__ */ jsx_runtime33.jsx(CardTitle, {
                     id: "home-agents-title",
                     children: "Agents now"
                   }),
-                  /* @__PURE__ */ jsx_runtime32.jsx("ul", {
+                  /* @__PURE__ */ jsx_runtime33.jsx("ul", {
                     className: LIST2,
                     id: "home-agents-list",
                     hidden: board !== null && running.length === 0,
                     ref: lists["home-agents"],
                     onFocus: focusIn("home-agents"),
                     onBlur: focusOut,
-                    children: board && running.map((card) => /* @__PURE__ */ jsx_runtime32.jsx(AgentRow, {
+                    children: board && running.map((card) => /* @__PURE__ */ jsx_runtime33.jsx(AgentRow, {
                       card,
                       board
                     }, keyOf(card)))
                   }),
-                  /* @__PURE__ */ jsx_runtime32.jsx("p", {
+                  /* @__PURE__ */ jsx_runtime33.jsx("p", {
                     className: EMPTY4,
                     id: "home-agents-empty",
                     hidden: board === null || running.length > 0,
@@ -43890,26 +43946,26 @@ function Home() {
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime32.jsxs(Card, {
+              /* @__PURE__ */ jsx_runtime33.jsxs(Card, {
                 className: PAD,
                 id: "home-system",
                 "aria-labelledby": "home-system-title",
                 children: [
-                  /* @__PURE__ */ jsx_runtime32.jsx(CardTitle, {
+                  /* @__PURE__ */ jsx_runtime33.jsx(CardTitle, {
                     id: "home-system-title",
                     children: "System"
                   }),
-                  /* @__PURE__ */ jsx_runtime32.jsx("dl", {
+                  /* @__PURE__ */ jsx_runtime33.jsx("dl", {
                     className: "mt-2 mb-0",
                     id: "home-system-facts",
-                    children: board && facts(board).map(([name, value]) => /* @__PURE__ */ jsx_runtime32.jsxs("div", {
+                    children: board && facts(board).map(([name, value]) => /* @__PURE__ */ jsx_runtime33.jsxs("div", {
                       className: "flex min-h-7 items-center justify-between gap-3 text-[0.8125rem]",
                       children: [
-                        /* @__PURE__ */ jsx_runtime32.jsx("dt", {
+                        /* @__PURE__ */ jsx_runtime33.jsx("dt", {
                           className: "text-muted-foreground",
                           children: name
                         }),
-                        /* @__PURE__ */ jsx_runtime32.jsx("dd", {
+                        /* @__PURE__ */ jsx_runtime33.jsx("dd", {
                           className: "m-0 text-end text-foreground wrap-anywhere",
                           children: value
                         })
@@ -43927,7 +43983,7 @@ function Home() {
 }
 
 // engine/board/page/app/shell.tsx
-var jsx_runtime33 = __toESM(require_jsx_runtime());
+var jsx_runtime34 = __toESM(require_jsx_runtime());
 var SKIP = "absolute -top-[60px] left-2 z-[200] inline-flex min-h-8 items-center rounded-lg border border-border-strong bg-card px-3 text-[0.78125rem] leading-none font-medium text-foreground focus:top-2 focus:shadow-float phone:min-h-11";
 var BANNER = "banner m-0 flex items-center gap-2.5 rounded-xl border border-border-strong bg-secondary px-3.5 py-[9px] text-[0.78125rem] text-foreground [overflow-wrap:anywhere] before:size-[7px] before:flex-none before:rounded-full before:bg-muted-foreground before:content-['']";
 var WARN = "border-[color-mix(in_srgb,var(--amber)_30%,transparent)] bg-[color-mix(in_srgb,var(--amber)_9%,transparent)] before:bg-caution";
@@ -43955,10 +44011,10 @@ var useControlMark = () => {
 };
 function Intake({ inBar }) {
   const { reason, pending } = useShellStore((state) => state.inputs.intake);
-  return /* @__PURE__ */ jsx_runtime33.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime34.jsxs("div", {
     className: cn("flex flex-none gap-1.5", inBar ? "relative items-center justify-center" : "flex-col items-stretch"),
     children: [
-      /* @__PURE__ */ jsx_runtime33.jsxs(Button2, {
+      /* @__PURE__ */ jsx_runtime34.jsxs(Button2, {
         variant: "outline",
         id: "intake",
         "aria-describedby": "intake-reason",
@@ -43968,16 +44024,16 @@ function Intake({ inBar }) {
         onClick: () => shellStore.handlers().intake(),
         className: inBar ? "h-12 w-[calc(100%-8px)] flex-col rounded-xl gap-1 border-border-strong bg-accent p-0 text-[0.6875rem] leading-none text-foreground aria-disabled:border-border aria-disabled:bg-transparent aria-disabled:text-muted-foreground [&_.icon]:box-content [&_.icon]:size-[18px] [&_.icon]:rounded-[14px] [&_.icon]:px-[15px] [&_.icon]:py-[3px]" : "h-8 justify-start gap-2.5 px-2.5 rail:h-[50px] rail:flex-col rail:justify-center rail:gap-[5px] rail:px-0.5 rail:py-1.5 rail:text-center rail:text-[0.6875rem] rail:leading-[1.1]",
         children: [
-          /* @__PURE__ */ jsx_runtime33.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime34.jsx(Icon, {
             name: "spark"
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx("span", {
+          /* @__PURE__ */ jsx_runtime34.jsx("span", {
             className: "label",
             children: pending ? "Opening…" : "New intake"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx("span", {
+      /* @__PURE__ */ jsx_runtime34.jsx("span", {
         id: "intake-reason",
         className: cn("text-xs text-card-foreground [overflow-wrap:anywhere]", inBar ? "pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 w-max max-w-[calc(100vw-32px)] -translate-x-1/2 rounded-sm border border-border bg-card px-2 py-1" : "px-2.5 rail:p-0 rail:text-center rail:text-[0.6875rem]"),
         hidden: pending || reason === null,
@@ -43991,23 +44047,23 @@ function SkipLinks() {
   const isPhone = useShellStore((state) => state.isPhone);
   const isOps = shell.area === "operations";
   const isDetails = isOps && shell.details !== null && (!isPhone || shell.pane === "chat");
-  return /* @__PURE__ */ jsx_runtime33.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime34.jsxs("div", {
     className: "contents",
     id: "skips",
     children: [
-      /* @__PURE__ */ jsx_runtime33.jsx("a", {
+      /* @__PURE__ */ jsx_runtime34.jsx("a", {
         className: SKIP,
         href: "#side",
         children: "Skip to the sidebar"
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx("a", {
+      /* @__PURE__ */ jsx_runtime34.jsx("a", {
         className: SKIP,
         id: "skip-center",
         href: !isOps ? `#area-${shell.area}` : isDetails ? "#panel" : "#coordinator",
         hidden: isOps && !isChatShown(shell, isPhone) && !isDetails,
         children: !isOps ? "Skip to the work area" : isDetails ? "Skip to the details" : "Skip to the chat"
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx("a", {
+      /* @__PURE__ */ jsx_runtime34.jsx("a", {
         className: SKIP,
         id: "skip-pane",
         href: "#pane",
@@ -44022,21 +44078,21 @@ function Destination({ area, mark }) {
   const badges = useShellStore((state) => state.inputs.badges);
   const badge = BADGES[area];
   const count = badge ? badges[badge.count] : 0;
-  return /* @__PURE__ */ jsx_runtime33.jsxs(SidebarMenuButton, {
+  return /* @__PURE__ */ jsx_runtime34.jsxs(SidebarMenuButton, {
     "data-area": area,
     "aria-current": current3(isCurrent),
     ...mark ?? { "aria-label": badge ? needLabel(AREA_NAMES[area], count) : undefined },
     className: cn(area === "control" && 'data-mark:after:absolute data-mark:after:top-1/2 data-mark:after:right-2.5 data-mark:after:-mt-1 data-mark:after:size-2 data-mark:after:rounded-full data-mark:after:bg-needs data-mark:after:content-[""] data-[mark=fail]:after:bg-caution rail:data-mark:after:top-1 rail:data-mark:after:right-auto rail:data-mark:after:left-[calc(50%+6px)] rail:data-mark:after:mt-0'),
     onClick: () => shellStore.handlers().go(area),
     children: [
-      /* @__PURE__ */ jsx_runtime33.jsx(Icon, {
+      /* @__PURE__ */ jsx_runtime34.jsx(Icon, {
         name: AREA_ICONS[area]
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx("span", {
+      /* @__PURE__ */ jsx_runtime34.jsx("span", {
         className: "label min-w-0 flex-1 rail:flex-none",
         children: AREA_NAMES[area]
       }),
-      badge && /* @__PURE__ */ jsx_runtime33.jsx(Badge, {
+      badge && /* @__PURE__ */ jsx_runtime34.jsx(Badge, {
         variant: "count",
         id: badge.id,
         className: "rail:absolute rail:top-[3px] rail:left-[calc(50%+4px)]",
@@ -44047,7 +44103,7 @@ function Destination({ area, mark }) {
   });
 }
 function ControlDestination() {
-  return /* @__PURE__ */ jsx_runtime33.jsx(Destination, {
+  return /* @__PURE__ */ jsx_runtime34.jsx(Destination, {
     area: "control",
     mark: useControlMark()
   });
@@ -44056,24 +44112,24 @@ function Sidebar2() {
   const { data } = useQuery(viewOptions);
   const isPhone = useShellStore((state) => state.isPhone);
   const hints = useShellStore((state) => state.inputs.hints);
-  return /* @__PURE__ */ jsx_runtime33.jsxs(Sidebar, {
+  return /* @__PURE__ */ jsx_runtime34.jsxs(Sidebar, {
     id: "side",
     "aria-label": "Board",
     children: [
-      /* @__PURE__ */ jsx_runtime33.jsxs(SidebarHeader, {
+      /* @__PURE__ */ jsx_runtime34.jsxs(SidebarHeader, {
         children: [
-          /* @__PURE__ */ jsx_runtime33.jsx("span", {
+          /* @__PURE__ */ jsx_runtime34.jsx("span", {
             className: "grid size-[26px] flex-none place-items-center rounded-lg bg-foreground text-background [&_.icon]:size-3.5",
             id: "logo",
-            children: /* @__PURE__ */ jsx_runtime33.jsx(Icon, {
+            children: /* @__PURE__ */ jsx_runtime34.jsx(Icon, {
               name: "logo"
             })
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx("h1", {
+          /* @__PURE__ */ jsx_runtime34.jsx("h1", {
             className: "sr-only",
             children: "Agent board"
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx("span", {
+          /* @__PURE__ */ jsx_runtime34.jsx("span", {
             className: "min-w-0 truncate text-sm leading-none font-semibold tracking-[-0.012em] text-foreground rail:max-w-full rail:text-[0.6875rem] rail:font-medium rail:text-card-foreground",
             id: "repo",
             title: data?.repo,
@@ -44081,10 +44137,10 @@ function Sidebar2() {
           })
         ]
       }),
-      !isPhone && /* @__PURE__ */ jsx_runtime33.jsx(Intake, {
+      !isPhone && /* @__PURE__ */ jsx_runtime34.jsx(Intake, {
         inBar: false
       }),
-      /* @__PURE__ */ jsx_runtime33.jsxs(Button2, {
+      /* @__PURE__ */ jsx_runtime34.jsxs(Button2, {
         variant: "outline",
         id: "find",
         onClick: openPalette,
@@ -44092,38 +44148,38 @@ function Sidebar2() {
         "aria-keyshortcuts": "Control+K Meta+K /",
         className: "h-8 w-full justify-start gap-2.5 py-0 pr-1.5 pl-2.5 text-left leading-normal font-normal text-muted-foreground hover:bg-secondary hover:text-card-foreground rail:h-[50px] rail:flex-col rail:justify-center rail:gap-[5px] rail:px-0.5 rail:py-1.5 rail:text-center rail:text-[0.6875rem] rail:leading-[1.1] rail:font-medium phone:size-11 phone:flex-none phone:justify-center phone:p-0 [&_.icon]:size-3.5",
         children: [
-          /* @__PURE__ */ jsx_runtime33.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime34.jsx(Icon, {
             name: "search"
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx("span", {
+          /* @__PURE__ */ jsx_runtime34.jsx("span", {
             className: "min-w-0 flex-1 truncate rail:flex-none rail:text-card-foreground phone:hidden",
             children: "Search"
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx("kbd", {
+          /* @__PURE__ */ jsx_runtime34.jsx(Kbd, {
             className: "rail:hidden phone:hidden",
             children: FIND_KEY
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx(SidebarMenu, {
+      /* @__PURE__ */ jsx_runtime34.jsx(SidebarMenu, {
         id: "dests",
-        children: AREAS.map((area) => /* @__PURE__ */ jsx_runtime33.jsx(SidebarMenuItem, {
-          children: area === "control" ? /* @__PURE__ */ jsx_runtime33.jsx(ControlDestination, {}) : /* @__PURE__ */ jsx_runtime33.jsx(Destination, {
+        children: AREAS.map((area) => /* @__PURE__ */ jsx_runtime34.jsx(SidebarMenuItem, {
+          children: area === "control" ? /* @__PURE__ */ jsx_runtime34.jsx(ControlDestination, {}) : /* @__PURE__ */ jsx_runtime34.jsx(Destination, {
             area
           })
         }, area))
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx(SidebarFooter, {
+      /* @__PURE__ */ jsx_runtime34.jsx(SidebarFooter, {
         id: "side-foot",
-        children: /* @__PURE__ */ jsx_runtime33.jsx("span", {
+        children: /* @__PURE__ */ jsx_runtime34.jsx("span", {
           className: "mb-1.5 flex flex-wrap gap-x-2.5 gap-y-1.5 border-b border-border px-2 pb-2",
           id: "hints",
           "aria-hidden": "true",
-          children: hints.map((pair) => /* @__PURE__ */ jsx_runtime33.jsxs("span", {
+          children: hints.map((pair) => /* @__PURE__ */ jsx_runtime34.jsxs("span", {
             className: "inline-flex items-center gap-1.5",
             children: [
-              pair.slice(0, -1).map((key) => /* @__PURE__ */ jsx_runtime33.jsx("kbd", {
-                className: "min-h-[18px] min-w-[18px] px-1 text-[0.6875rem]",
+              pair.slice(0, -1).map((key) => /* @__PURE__ */ jsx_runtime34.jsx(Kbd, {
+                className: "min-h-[18px] min-w-[18px] px-1",
                 children: key
               }, key)),
               pair.at(-1)
@@ -44136,25 +44192,27 @@ function Sidebar2() {
 }
 function AreaBox({ area, children }) {
   const isShown = useShellStore((state) => state.shell.area === area);
-  return /* @__PURE__ */ jsx_runtime33.jsx("div", {
+  return /* @__PURE__ */ jsx_runtime34.jsx("div", {
     className: isShown ? "contents" : undefined,
     hidden: !isShown,
     children
   });
 }
 function Throughput() {
-  return /* @__PURE__ */ jsx_runtime33.jsx("section", {
-    className: "area-screen",
+  return /* @__PURE__ */ jsx_runtime34.jsx("section", {
+    className: `${AREA_SCREEN} place-items-center`,
     id: "area-throughput",
     "aria-labelledby": "area-throughput-title",
-    children: /* @__PURE__ */ jsx_runtime33.jsxs("div", {
-      className: "area-empty",
+    children: /* @__PURE__ */ jsx_runtime34.jsxs("div", {
+      className: "max-w-[46ch] p-6 text-center",
       children: [
-        /* @__PURE__ */ jsx_runtime33.jsx("h2", {
+        /* @__PURE__ */ jsx_runtime34.jsx("h2", {
+          className: "text-sm leading-[1.38] font-semibold tracking-[-0.012em] text-foreground",
           id: "area-throughput-title",
           children: "Throughput is not built yet."
         }),
-        /* @__PURE__ */ jsx_runtime33.jsx("p", {
+        /* @__PURE__ */ jsx_runtime34.jsx("p", {
+          className: "mt-1.5 mb-0 text-[0.78125rem] text-muted-foreground text-pretty",
           children: "Throughput will show how fast the issues move from intent to the trunk."
         })
       ]
@@ -44164,24 +44222,24 @@ function Throughput() {
 function Work() {
   const { data, isError } = useQuery(viewOptions);
   const area = useShellStore((state) => state.shell.area);
-  return /* @__PURE__ */ jsx_runtime33.jsxs("main", {
-    className: "work",
+  return /* @__PURE__ */ jsx_runtime34.jsxs("main", {
+    className: "col-start-2 row-start-1 flex min-h-0 min-w-0 flex-col gap-3 px-4 pt-3 pb-3.5 focus:[outline:none] phone:col-start-1 phone:row-start-2 phone:px-3 phone:pb-[calc(12px+var(--dock))]",
     id: "work",
     tabIndex: -1,
     "aria-label": "Work area",
     "data-area": area,
     children: [
-      /* @__PURE__ */ jsx_runtime33.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime34.jsxs("div", {
         className: "flex-none not-has-[.banner:not([hidden])]:hidden",
         children: [
-          /* @__PURE__ */ jsx_runtime33.jsx("p", {
+          /* @__PURE__ */ jsx_runtime34.jsx("p", {
             className: cn(BANNER, WARN),
             id: "dirty",
             role: "alert",
             hidden: !data?.noRun,
             children: data?.noRun
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx("p", {
+          /* @__PURE__ */ jsx_runtime34.jsx("p", {
             className: BANNER,
             id: "stale",
             role: "alert",
@@ -44190,27 +44248,27 @@ function Work() {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime34.jsx(AreaBox, {
         area: "home",
-        children: /* @__PURE__ */ jsx_runtime33.jsx(Home, {})
+        children: /* @__PURE__ */ jsx_runtime34.jsx(Home, {})
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime34.jsx(AreaBox, {
         area: "control",
-        children: /* @__PURE__ */ jsx_runtime33.jsx(Control, {})
+        children: /* @__PURE__ */ jsx_runtime34.jsx(Control, {})
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime34.jsx(AreaBox, {
         area: "throughput",
-        children: /* @__PURE__ */ jsx_runtime33.jsx(Throughput, {})
+        children: /* @__PURE__ */ jsx_runtime34.jsx(Throughput, {})
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime34.jsx(AreaBox, {
         area: "operations",
-        children: /* @__PURE__ */ jsx_runtime33.jsx(Operations, {})
+        children: /* @__PURE__ */ jsx_runtime34.jsx(Operations, {})
       })
     ]
   });
 }
 function DockItem({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime33.jsx(Button2, {
+  return /* @__PURE__ */ jsx_runtime34.jsx(Button2, {
     variant: "ghost",
     className: cn("relative h-14 flex-col gap-1 rounded-xl border-0 p-0 transition-all duration-0 hover:bg-transparent text-[0.6875rem] leading-none text-muted-foreground aria-[current=page]:text-foreground aria-expanded:text-foreground [&_.icon]:box-content [&_.icon]:size-[18px] [&_.icon]:rounded-[14px] [&_.icon]:px-[15px] [&_.icon]:py-[5px] aria-[current=page]:[&_.icon]:bg-accent aria-expanded:[&_.icon]:bg-accent", className),
     ...props
@@ -44231,26 +44289,26 @@ function BottomBar() {
   const moreOpen = useShellStore((state) => state.inputs.moreOpen);
   const mark = useControlMark();
   const isOps = shell.area === "operations";
-  return /* @__PURE__ */ jsx_runtime33.jsxs("nav", {
+  return /* @__PURE__ */ jsx_runtime34.jsxs("nav", {
     id: "bar",
     "aria-label": "Panes",
     className: "fixed inset-x-0 bottom-0 z-[7] hidden h-[var(--dock)] grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.25fr)_repeat(2,minmax(0,1fr))] items-center border-t border-border bg-background px-2 py-1.5 [anchor-name:--bar] phone:grid",
     children: [
-      /* @__PURE__ */ jsx_runtime33.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime34.jsxs(DockItem, {
         id: "pb-home",
         "aria-current": current3(isPhone && shell.area === "home"),
         onClick: () => shellStore.handlers().go("home"),
         children: [
-          /* @__PURE__ */ jsx_runtime33.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime34.jsx(Icon, {
             name: "home"
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx("span", {
+          /* @__PURE__ */ jsx_runtime34.jsx("span", {
             className: "label",
             children: "Home"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime33.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime34.jsxs(DockItem, {
         className: "min-h-11",
         id: "pb-chat",
         "data-state": chat.state,
@@ -44261,34 +44319,34 @@ function BottomBar() {
         "aria-current": current3(isPhone && isOps && shell.pane === "chat"),
         onClick: () => shellStore.handlers().showChat(),
         children: [
-          /* @__PURE__ */ jsx_runtime33.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime34.jsx(Icon, {
             name: "message"
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx("span", {
+          /* @__PURE__ */ jsx_runtime34.jsx("span", {
             className: "label",
             children: "Chat"
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx(ChatMark, {
+          /* @__PURE__ */ jsx_runtime34.jsx(ChatMark, {
             state: chat.state,
             stale: chat.stale,
             className: "absolute top-1.5 left-[calc(50%+9px)]"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime33.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime34.jsxs(DockItem, {
         id: "pb-agents",
         "aria-label": needLabel("Agents", agents),
         "aria-current": current3(isPhone && isOps && shell.pane === "agents"),
         onClick: () => shellStore.handlers().agents(),
         children: [
-          /* @__PURE__ */ jsx_runtime33.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime34.jsx(Icon, {
             name: "board"
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx("span", {
+          /* @__PURE__ */ jsx_runtime34.jsx("span", {
             className: "label",
             children: "Agents"
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx(Badge, {
+          /* @__PURE__ */ jsx_runtime34.jsx(Badge, {
             variant: "count",
             className: "absolute top-0.5 left-[calc(50%+6px)]",
             id: "now-badge",
@@ -44297,48 +44355,48 @@ function BottomBar() {
           })
         ]
       }),
-      isPhone && /* @__PURE__ */ jsx_runtime33.jsx(Intake, {
+      isPhone && /* @__PURE__ */ jsx_runtime34.jsx(Intake, {
         inBar: true
       }),
-      /* @__PURE__ */ jsx_runtime33.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime34.jsxs(DockItem, {
         id: "pb-control",
         className: "data-mark:after:absolute data-mark:after:top-1.5 data-mark:after:left-[calc(50%+8px)] data-mark:after:size-2 data-mark:after:rounded-full data-mark:after:bg-needs data-mark:after:content-[''] data-[mark=fail]:after:bg-caution",
         "aria-current": current3(isPhone && shell.area === "control"),
         ...mark,
         onClick: () => shellStore.handlers().go("control"),
         children: [
-          /* @__PURE__ */ jsx_runtime33.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime34.jsx(Icon, {
             name: "sliders"
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx("span", {
+          /* @__PURE__ */ jsx_runtime34.jsx("span", {
             className: "label",
             children: "Control"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime33.jsxs(DropdownMenu, {
+      /* @__PURE__ */ jsx_runtime34.jsxs(DropdownMenu, {
         modal: false,
         open: moreOpen,
         onOpenChange: (isOpen) => shellStore.setInputs({ moreOpen: isOpen }),
         children: [
-          /* @__PURE__ */ jsx_runtime33.jsxs(DropdownMenuTrigger, {
-            render: /* @__PURE__ */ jsx_runtime33.jsx(DockItem, {
+          /* @__PURE__ */ jsx_runtime34.jsxs(DropdownMenuTrigger, {
+            render: /* @__PURE__ */ jsx_runtime34.jsx(DockItem, {
               id: "board-more",
               "aria-label": "More board actions",
               "aria-current": current3(isPhone && shell.area === "throughput"),
               title: "More board actions"
             }),
             children: [
-              /* @__PURE__ */ jsx_runtime33.jsx(Icon, {
+              /* @__PURE__ */ jsx_runtime34.jsx(Icon, {
                 name: "dots"
               }),
-              /* @__PURE__ */ jsx_runtime33.jsx("span", {
+              /* @__PURE__ */ jsx_runtime34.jsx("span", {
                 className: "label",
                 children: "More"
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime33.jsxs(DropdownMenuContent, {
+          /* @__PURE__ */ jsx_runtime34.jsxs(DropdownMenuContent, {
             "aria-label": "Board actions",
             "data-more-menu": "",
             side: "top",
@@ -44348,12 +44406,12 @@ function BottomBar() {
                 event.preventBaseUIHandler();
             },
             children: [
-              /* @__PURE__ */ jsx_runtime33.jsx(FirstFocus, {}),
-              /* @__PURE__ */ jsx_runtime33.jsx(ViewBoundary, {
+              /* @__PURE__ */ jsx_runtime34.jsx(FirstFocus, {}),
+              /* @__PURE__ */ jsx_runtime34.jsx(ViewBoundary, {
                 snapshot: shell,
                 fallback: null,
                 onFail: closeMore,
-                children: /* @__PURE__ */ jsx_runtime33.jsx(Entries2, {
+                children: /* @__PURE__ */ jsx_runtime34.jsx(Entries2, {
                   list: phoneMenu,
                   close: closeMore
                 })
@@ -44366,21 +44424,21 @@ function BottomBar() {
   });
 }
 function Shell() {
-  return /* @__PURE__ */ jsx_runtime33.jsxs(jsx_runtime33.Fragment, {
+  return /* @__PURE__ */ jsx_runtime34.jsxs(jsx_runtime34.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime33.jsx(SkipLinks, {}),
-      /* @__PURE__ */ jsx_runtime33.jsx(Sidebar2, {}),
-      /* @__PURE__ */ jsx_runtime33.jsx(Work, {}),
-      /* @__PURE__ */ jsx_runtime33.jsx(BottomBar, {})
+      /* @__PURE__ */ jsx_runtime34.jsx(SkipLinks, {}),
+      /* @__PURE__ */ jsx_runtime34.jsx(Sidebar2, {}),
+      /* @__PURE__ */ jsx_runtime34.jsx(Work, {}),
+      /* @__PURE__ */ jsx_runtime34.jsx(BottomBar, {})
     ]
   });
 }
 
 // engine/board/page/app/app.tsx
-var jsx_runtime34 = __toESM(require_jsx_runtime());
+var jsx_runtime35 = __toESM(require_jsx_runtime());
 var Announcer = import_react33.memo(() => {
   const text = import_react33.useSyncExternalStore(announcement.subscribe, announcement.get);
-  return /* @__PURE__ */ jsx_runtime34.jsx("p", {
+  return /* @__PURE__ */ jsx_runtime35.jsx("p", {
     className: "sr-only",
     id: "announce",
     "aria-live": "polite",
@@ -44390,24 +44448,24 @@ var Announcer = import_react33.memo(() => {
 function App() {
   useGlobalKeys();
   import_react33.useEffect(() => queueMicrotask(startRead), []);
-  return /* @__PURE__ */ jsx_runtime34.jsx(CSPProvider, {
+  return /* @__PURE__ */ jsx_runtime35.jsx(CSPProvider, {
     disableStyleElements: true,
-    children: /* @__PURE__ */ jsx_runtime34.jsxs(QueryClientProvider, {
+    children: /* @__PURE__ */ jsx_runtime35.jsxs(QueryClientProvider, {
       client: queryClient,
       children: [
-        /* @__PURE__ */ jsx_runtime34.jsx(Shell, {}),
-        /* @__PURE__ */ jsx_runtime34.jsx(Announcer, {}),
-        /* @__PURE__ */ jsx_runtime34.jsx(UpdateDialog, {}),
-        /* @__PURE__ */ jsx_runtime34.jsx(StopDialog, {}),
-        /* @__PURE__ */ jsx_runtime34.jsx(Palette, {}),
-        /* @__PURE__ */ jsx_runtime34.jsx(Shortcuts, {}),
-        /* @__PURE__ */ jsx_runtime34.jsx(Toaster, {})
+        /* @__PURE__ */ jsx_runtime35.jsx(Shell, {}),
+        /* @__PURE__ */ jsx_runtime35.jsx(Announcer, {}),
+        /* @__PURE__ */ jsx_runtime35.jsx(UpdateDialog, {}),
+        /* @__PURE__ */ jsx_runtime35.jsx(StopDialog, {}),
+        /* @__PURE__ */ jsx_runtime35.jsx(Palette, {}),
+        /* @__PURE__ */ jsx_runtime35.jsx(Shortcuts, {}),
+        /* @__PURE__ */ jsx_runtime35.jsx(Toaster, {})
       ]
     })
   });
 }
 
 // engine/board/page/main.tsx
-var jsx_runtime35 = __toESM(require_jsx_runtime());
+var jsx_runtime36 = __toESM(require_jsx_runtime());
 var root2 = import_client.createRoot(document.body);
-import_react_dom7.flushSync(() => root2.render(/* @__PURE__ */ jsx_runtime35.jsx(App, {})));
+import_react_dom7.flushSync(() => root2.render(/* @__PURE__ */ jsx_runtime36.jsx(App, {})));

@@ -54,7 +54,7 @@ into `engine/board/board.js`, with the production JSX runtime and the production
 `NODE_ENV` of React. Its guard refuses each bundle input that is not a file of `engine/board/`, an
 issue key file of the tracker, or a file of a package that `packages` of `engine/bun.lock` holds,
 nested packages too. The CSS step runs the Tailwind CLI of the lockfile on
-`engine/board/page/app.css` and writes `engine/board/board.css`, with `--cwd engine/board`. Before
+`engine/board/page/app.css` and writes `engine/board/app.css`, with `--cwd engine/board`. Before
 it, its guard runs `compile` of `@tailwindcss/node`, the compile that the CLI runs, and refuses
 each path that the compile reads when the path is neither in `engine/board/` nor in a package of
 `engine/bun.lock` (the decision of the maintainer on issue #344,
@@ -65,7 +65,7 @@ stylesheet that the compile reads must be in `engine/board/` or in a locked pack
 pattern of the sources of the compile must stay in `engine/board/`, with no `..` segment. An
 `@import` that the output still holds is refused. Tailwind drops a repeated `@tailwind utilities` rule, so the guard accepts that
 repeat, and it has no effect. ADR-0123, "The limits of the checks", lists the probe of each case.
-The hand-written rules of the board are in `engine/board/page/board.css`.
+The global rules of the board are in `engine/board/page/app.css`, and each other rule is utilities of its owner component.
 
 ```sh
 BUN_RUNTIME_TRANSPILER_CACHE_PATH=0 DO_NOT_TRACK=1 bun --no-env-file --no-install --config=/dev/null --no-macros scripts/build.ts

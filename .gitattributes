@@ -1,5 +1,5 @@
 * text=auto eol=lf
 engine/board/board.js linguist-generated=true
-engine/board/board.css linguist-generated=true
+engine/board/app.css linguist-generated=true
 plugins/celetis/hooks/entry.js linguist-generated=true
 .celetis.yaml text eol=lf

@@ -2,13 +2,13 @@ import { Button as ButtonPrimitive } from '@base-ui/react/button';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from 'cn';
 
-const TAP =
+export const TAP =
   'phone:relative phone:before:absolute phone:before:top-1/2 phone:before:left-1/2 phone:before:h-[max(100%,44px)] phone:before:w-[max(100%,44px)] phone:before:content-[""] phone:before:[transform:translate(-50%,-50%)]';
 const FADE = 'transition-[background-color,border-color,opacity,transform] duration-150';
 const LABEL = 'text-[0.78125rem] leading-none font-medium whitespace-nowrap';
 
 const variants = cva(
-  'group/button inline-flex shrink-0 select-none items-center justify-center rounded-lg border border-transparent py-0 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-[0.97] aria-busy:cursor-progress aria-busy:opacity-70 motion-safe:aria-busy:[&_.icon]:animate-[turn_0.9s_linear_infinite] aria-disabled:cursor-not-allowed aria-disabled:opacity-[0.42] aria-disabled:active:scale-100 [&_svg]:shrink-0',
+  'group/button inline-flex shrink-0 select-none items-center justify-center rounded-lg border border-transparent py-0 focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-[0.97] aria-busy:cursor-progress aria-busy:opacity-70 motion-safe:aria-busy:[&_.icon]:animate-turn aria-disabled:cursor-not-allowed aria-disabled:opacity-[0.42] aria-disabled:active:scale-100 [&_svg]:shrink-0',
   {
     variants: {
       variant: {

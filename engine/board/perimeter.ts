@@ -29,7 +29,7 @@ import { createTrends } from './trends.ts';
 const HERE = import.meta.dirname;
 const FILES: Record<string, [string, string]> = {
   '/': ['index.html', 'text/html; charset=utf-8'],
-  '/board.css': ['board.css', 'text/css; charset=utf-8'],
+  '/app.css': ['app.css', 'text/css; charset=utf-8'],
   '/board.js': ['board.js', 'text/javascript; charset=utf-8'],
   '/theme.js': ['theme.js', 'text/javascript; charset=utf-8'],
   '/fonts/geist.woff2': ['fonts/geist.woff2', 'font/woff2'],

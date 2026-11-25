@@ -1,15 +1,9 @@
-@layer theme, base, board, components, utilities;
+@layer theme, base, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities) source(none);
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "./board.css" layer(board);
 @source "./";
-/* The host markup or the old modules use these names; a utility of the same name would restyle their nodes. */
-@source not inline("blur");
-@source not inline("resize");
-@source not inline("running");
-@source not inline("sr-only");
 /* This class component holds no class name, and its keyword `static` would generate the utility. */
 @source not "./ui/view-boundary.tsx";
 
@@ -79,6 +73,73 @@
   }
 }
 
+@font-face {
+  font-family: Geist;
+  src: url(/fonts/geist.woff2) format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url(/fonts/geist-mono.woff2) format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+:root {
+  color-scheme: dark;
+  --sans: Geist, "Segoe UI", system-ui, sans-serif;
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --bg: #0d0d0f;
+  --panel: #121215;
+  --card: #19191d;
+  --card-hover: #1d1d22;
+  --fill: rgba(255, 255, 255, 0.05);
+  --fill-strong: rgba(255, 255, 255, 0.085);
+  --line: rgba(255, 255, 255, 0.07);
+  --line-strong: rgba(255, 255, 255, 0.13);
+  --fg: #ededf0;
+  --fg2: #a6a6af;
+  --fg3: #8d8d97;
+  --primary: #ededf0;
+  --on-primary: #111114;
+  --needs: #ff7a45;
+  --needs-tint: #ff7a45;
+  --working: #5ea2ff;
+  --ready: #3dd68c;
+  --danger: #ff6170;
+  --amber: #f5b13d;
+  --focus: #5ea2ff;
+  --select: rgba(94, 162, 255, 0.3);
+  --raise: 0 1px 0 rgba(255, 255, 255, 0.035) inset, 0 1px 2px rgba(0, 0, 0, 0.25);
+  --float: 0 16px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f7f7f8;
+  --panel: #efeff2;
+  --card: #ffffff;
+  --card-hover: #fcfcfd;
+  --fill: rgba(0, 0, 0, 0.04);
+  --fill-strong: rgba(0, 0, 0, 0.07);
+  --line: rgba(0, 0, 0, 0.08);
+  --line-strong: rgba(0, 0, 0, 0.15);
+  --fg: #17171a;
+  --fg2: #53535c;
+  --fg3: #62626b;
+  --primary: #17171a;
+  --on-primary: #ffffff;
+  --needs: #a93a09;
+  --needs-tint: #f08a3c;
+  --working: #1d64e0;
+  --ready: #106934;
+  --danger: #cf2637;
+  --amber: #8f5300;
+  --focus: #1d64e0;
+  --select: rgba(29, 100, 224, 0.16);
+  --raise: 0 1px 2px rgba(16, 16, 24, 0.05), 0 0 0 0.5px rgba(16, 16, 24, 0.02);
+  --float: 0 16px 40px rgba(16, 16, 24, 0.14), 0 0 0 1px rgba(16, 16, 24, 0.08);
+}
+
 @theme inline {
   --color-background: var(--bg);
   --color-foreground: var(--fg);
@@ -121,7 +182,161 @@
   --shadow-float: var(--float);
 }
 
-/* Base UI writes this rule in a style element, which the page does not allow; the board layer sets scrollbar-width on each node, so the rule sits above it. */
+@theme {
+  --animate-turn: turn 0.9s linear infinite;
+  --animate-turn-slow: turn 1.2s linear infinite;
+  --animate-flow: flow 1.6s linear infinite;
+  --animate-flow-fast: flow 1.4s linear infinite;
+  --animate-attention: attention 3s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  --animate-breathe: breathe 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  --animate-panel-in: panel-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-rise-in: rise-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-rise-in-fast: rise-in 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-rise: rise 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  @keyframes turn {
+    to {
+      transform: rotate(1turn);
+    }
+  }
+  @keyframes breathe {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(0.55);
+    }
+  }
+  @keyframes attention {
+    0%,
+    100% {
+      opacity: 0.15;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+  @keyframes flow {
+    from {
+      background-position: 100% 0;
+    }
+    to {
+      background-position: -50% 0;
+    }
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 8px);
+    }
+  }
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+  }
+  @keyframes panel-in {
+    from {
+      opacity: 0;
+      transform: translateX(12px);
+    }
+  }
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  html,
+  body {
+    margin: 0;
+    height: 100%;
+  }
+  body {
+    --side: 232px;
+    display: grid;
+    grid-template-columns: var(--side) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    height: 100dvh;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--fg2);
+    font: 400 0.8125rem / 1.5 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: var(--select);
+  }
+  button {
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+  input {
+    font: inherit;
+    color: inherit;
+    caret-color: var(--focus);
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  h2,
+  h3,
+  h4 {
+    margin: 0;
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  [hidden] {
+    /* biome-ignore lint/complexity/noImportantStyles: an element with the hidden attribute stays hidden over each display utility. */
+    display: none !important;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+  ::view-transition-group(*) {
+    animation-duration: 0.42s;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.18s;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      /* biome-ignore lint/complexity/noImportantStyles: reduced motion stops each animation and transition, also the ones of utilities. */
+      animation: none !important;
+      /* biome-ignore lint/complexity/noImportantStyles: reduced motion stops each animation and transition, also the ones of utilities. */
+      transition: none !important;
+    }
+  }
+  @media (min-width: 720px) and (max-width: 1099px) {
+    body {
+      --side: 88px;
+    }
+  }
+  @media (max-width: 719px) {
+    :root {
+      --dock: 70px;
+      scroll-padding-bottom: calc(var(--dock) + 8px);
+    }
+    body {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+  }
+}
+
+/* Base UI writes this rule in a style element, which the page does not allow; the base layer sets scrollbar-width on each node, so the rule sits above it. */
 @layer components {
   .base-ui-disable-scrollbar {
     scrollbar-width: none;
