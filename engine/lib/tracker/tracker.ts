@@ -23,9 +23,8 @@ export type Edit = Readonly<{
   state_reason?: 'completed' | 'not_planned';
 }>;
 
-export type Authored =
-  | Exclude<Entry, { kind: 'comment' }>
-  | Readonly<Extract<Entry, { kind: 'comment' }> & { author: string | null }>;
+type Comment = Extract<Entry, { kind: 'comment' }>;
+export type Authored = Exclude<Entry, Comment> | Readonly<Omit<Comment, 'own'> & { author: string | null }>;
 export type Parent = Readonly<{ key: IssueKey; url: string }>;
 export type Child = Readonly<{ key: IssueKey; title: string; url: string; state: 'open' | 'closed' }>;
 export type NewLabel = Readonly<{ name: string; description: string; color: string }>;
@@ -81,6 +80,14 @@ export class TrackerError extends Error {
     this.refused = failure.refused;
     this.missing = failure.missing;
   }
+}
+
+export function owned(history: readonly Authored[], self: string | null): Entry[] {
+  return history.map((entry) =>
+    entry.kind === 'comment'
+      ? { kind: entry.kind, id: entry.id, at: entry.at, body: entry.body, own: self !== null && entry.author === self }
+      : entry,
+  );
 }
 
 export function issueData(issue: Issue, history: readonly Entry[]): IssueData {

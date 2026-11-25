@@ -16,11 +16,11 @@ function fullName(url: string): string {
   return path.replace(/^\/+/, '').replace(/\.git$/, '');
 }
 
-export function gitCodeHost(main: string, signal?: AbortSignal): CodeHost {
+export function gitCodeHost(main: string, signal?: AbortSignal, env?: NodeJS.ProcessEnv): CodeHost {
   let stderr = '';
 
   async function git(args: string[]): Promise<string> {
-    const result = await run('git', [...base, ...args], { cwd: main, signal });
+    const result = await run('git', [...base, ...args], { cwd: main, signal, env });
     stderr += result.stderr;
     if (result.code !== 0) {
       const output = `${result.stdout}${result.stderr}`.trimEnd() || null;

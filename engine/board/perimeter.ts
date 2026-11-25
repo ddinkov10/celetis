@@ -235,6 +235,9 @@ export const createBoard = ({
     else if (input.path === '/api/go') await presses.go(input.sessionId);
     else if (input.path === '/api/aside') await presses.aside(input.number);
     else if (input.path === '/api/stop') await presses.stop(input.number, input.sessionId);
+    else if (input.path === '/api/held/land') await presses.landHeld(input.number, input.head, input.patch);
+    else if (input.path === '/api/held/discard') await presses.discardHeld(input.number);
+    else if (input.path === '/api/hold') await presses.hold(input.number);
     else if (input.path === '/api/coordinator/open') await presses.openCoordinator();
     else if (input.path === '/api/coordinator/say') await presses.actCoordinator({ kind: 'say', text: input.text });
     else if (input.path === '/api/coordinator/key') await presses.actCoordinator({ kind: 'key', key: input.key });

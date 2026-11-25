@@ -12,6 +12,7 @@ import {
   issueData,
   type NewIssue,
   type NewLabel,
+  owned,
   type Parent,
   type Tracker,
   TrackerError,
@@ -93,29 +94,26 @@ function parseChild(raw: unknown): Child {
   return { key, title: text(child.title), url: text(child.html_url), state };
 }
 
-function parseHistory(entries: readonly unknown[]): Authored[] {
-  return entries.flatMap((raw) =>
-    parseTimeline([raw]).map(
-      (entry): Authored =>
-        entry.kind === 'comment'
-          ? { kind: entry.kind, id: entry.id, at: entry.at, author: author(record(raw).user), body: entry.body }
-          : entry,
-    ),
-  );
-}
-
 function author(user: unknown): string | null {
   return user === null ? null : text(record(user).login);
 }
 
-export function parseTimeline(entries: readonly unknown[]): Entry[] {
-  return entries.flatMap((raw): Entry[] => {
+function parseHistory(entries: readonly unknown[]): Authored[] {
+  return entries.flatMap((raw): Authored[] => {
     const entry = record(raw);
     const event = text(entry.event);
     if (!event || /[\s\0]/.test(event)) throw malformed();
     switch (event) {
       case 'commented':
-        return [{ kind: 'comment', id: String(integer(entry.id)), at: text(entry.created_at), body: text(entry.body) }];
+        return [
+          {
+            kind: 'comment',
+            id: String(integer(entry.id)),
+            at: text(entry.created_at),
+            author: author(entry.user),
+            body: text(entry.body),
+          },
+        ];
       case 'labeled':
       case 'unlabeled':
         return [
@@ -133,13 +131,19 @@ export function parseTimeline(entries: readonly unknown[]): Entry[] {
 }
 
 const timelineItems = (after: string) =>
-  `timelineItems(first: 100${after}, itemTypes: [ISSUE_COMMENT, LABELED_EVENT, UNLABELED_EVENT]) { pageInfo { hasNextPage endCursor } nodes { __typename ... on IssueComment { databaseId createdAt body } ... on LabeledEvent { createdAt label { name } } ... on UnlabeledEvent { createdAt label { name } } } }`;
+  `timelineItems(first: 100${after}, itemTypes: [ISSUE_COMMENT, LABELED_EVENT, UNLABELED_EVENT]) { pageInfo { hasNextPage endCursor } nodes { __typename ... on IssueComment { databaseId createdAt body author { login } } ... on LabeledEvent { createdAt label { name } } ... on UnlabeledEvent { createdAt label { name } } } }`;
 
-function timelineEntry(raw: unknown): Entry {
+function timelineEntry(raw: unknown): Authored {
   const node = record(raw);
   switch (node.__typename) {
     case 'IssueComment':
-      return { kind: 'comment', id: String(integer(node.databaseId)), at: text(node.createdAt), body: text(node.body) };
+      return {
+        kind: 'comment',
+        id: String(integer(node.databaseId)),
+        at: text(node.createdAt),
+        author: author(node.author),
+        body: text(node.body),
+      };
     case 'LabeledEvent':
     case 'UnlabeledEvent':
       return {
@@ -165,7 +169,8 @@ function trackerError(error: GitHubError): TrackerError {
 }
 
 export function githubTracker(client: Client): Tracker {
-  const { cwd, signal, env, parsed, get, pages, getAll, send, json, graphql, connectionAt, appendStderr } = client;
+  const { cwd, signal, env, parsed, get, pages, getAll, send, json, graphql, connectionAt, appendStderr, login } =
+    client;
 
   async function timelines(issues: readonly Issue[]): Promise<ReadonlyMap<IssueKey, readonly Entry[]>> {
     const result = new Map<IssueKey, readonly Entry[]>(issues.map((issue) => [issue.key, []]));
@@ -173,6 +178,7 @@ export function githubTracker(client: Client): Tracker {
       issues.filter((issue) => issue.comments > 0),
       50,
     )) {
+      const self = await login();
       const data = await graphql(
         graphqlQuery(chunk.map(({ key }) => `i${key}: issue(number: ${key}) { ${timelineItems('')} }`).join(' ')),
       );
@@ -192,7 +198,7 @@ export function githubTracker(client: Client): Tracker {
         );
         result.set(
           key,
-          parsed('graphql', () => nodes.map(timelineEntry)),
+          parsed('graphql', () => owned(nodes.map(timelineEntry), self)),
         );
       }
     }
@@ -222,7 +228,8 @@ export function githubTracker(client: Client): Tracker {
     timelines,
     async read(n: IssueKey) {
       const issue = await get(`issues/${n}`, parseIssue);
-      return { issue, data: issueData(issue, issue.comments === 0 ? [] : await timeline(n, parseTimeline)) };
+      const self = await login();
+      return { issue, data: issueData(issue, await timeline(n, (entries) => owned(parseHistory(entries), self))) };
     },
     async epic(n: IssueKey) {
       const target = `issues/${n}`;
@@ -240,10 +247,11 @@ export function githubTracker(client: Client): Tracker {
           throw malformed();
         return parent;
       });
+      const self = await login();
       const timeline = `${target}/timeline?per_page=100`;
       const rawEntries = await pages(timeline);
       const entries = parsed(timeline, () => {
-        const result = parseTimeline(rawEntries);
+        const result = owned(parseHistory(rawEntries), self);
         const ids = new Set<string>();
         for (const entry of result) {
           if (entry.kind !== 'comment') continue;

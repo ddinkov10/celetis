@@ -250,10 +250,14 @@ store. A file that git does not ignore makes a tree dirty too:
 
 ## The labels
 
-The flow uses the ten labels of `docs/issue-tracker.md`, "Labels". With the tracker `local`, setup
+The flow uses the eleven labels of `docs/issue-tracker.md`, "Labels". With the tracker `local`, setup
 makes no label and `write` needs no `gh`. With GitHub, setup makes each label that the
 repository does not have, with the description and the color of `labelStyles` in
-[`engine/setup.ts`](https://github.com/ddinkov10/celetis/blob/main/engine/setup.ts).
+[`engine/lib/setup/labels.ts`](https://github.com/ddinkov10/celetis/blob/main/engine/lib/setup/labels.ts).
+
+The label `hold-landing` is the eleventh. The engine also makes it on demand, when a hold first needs
+it (`issue <n> hold`, a Hold landing press, or a `land` that holds a change), so `setup status` does not
+report it as missing in a project that setup wired before the hold.
 
 GitHub gives a new repository three of them (`bug`, `enhancement`, and `wontfix`), and their
 descriptions are the ones of GitHub. A label that is there keeps its color and its description.

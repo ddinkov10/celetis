@@ -6356,10 +6356,22 @@ var exitClasses = [
   },
   { code: 7, name: "cleanup", meaning: "The change landed, and its cleanup stopped." },
   { code: 8, name: "stop", meaning: "The engine stops the task; the session escalates." },
+  { code: 9, name: "held", meaning: "The change is held for the maintainer, and nothing landed." },
   { code: "128+n", name: "signal", meaning: "The signal n ended the command." }
 ];
 var brand = (code) => code;
 var exits = Object.fromEntries(exitClasses.flatMap(({ code, name }) => typeof code === "number" ? [[name, brand(code)]] : []));
+var headings = {
+  plan: "## Plan",
+  built: "## Built",
+  rootCause: "## Root cause",
+  beforeLanding: "## Before landing",
+  landingRefused: "## Landing refused",
+  humanStepsDone: "## Human steps done",
+  stopped: "## Stopped",
+  held: "## Held",
+  released: "## Released"
+};
 var required = (name, value) => ({
   name,
   ...value ? { value } : {},
@@ -6398,7 +6410,7 @@ var issueActs = {
     names: { "feature|bug|chore|hotfix": "lane" },
     argument: "lane",
     purpose: "Sets the lane of an issue to feature, bug, chore, or hotfix.",
-    prerequisite: "open; not an epic",
+    prerequisite: "open; not an epic; a route to `chore` or `hotfix` exits 3 while a hold is active, and when `holdLanding` is on for a built `feature` or `bug`",
     writes: "the label of the lane; it removes the other lane labels and `needs-triage`"
   },
   effort: {
@@ -6427,7 +6439,7 @@ var issueActs = {
     argument: "file",
     purpose: "Posts a file as a comment on an issue, with the files of `attach` uploaded.",
     prerequisite: "an issue, open or closed; not a pull request",
-    writes: "the file as a comment, with each `--attach` file uploaded (the flag repeats, at most 50 times); it refuses a first line that is a lifecycle heading or the effort marker"
+    writes: "the file as a comment, with each `--attach` file uploaded (the flag repeats, at most 50 times); it refuses a first line that is a lifecycle heading, `## Held`, `## Released`, or the effort marker"
   },
   view: {
     words: ["view"],
@@ -6583,6 +6595,15 @@ var issueActs = {
     purpose: "Hands an issue to the human with no comment.",
     prerequisite: "open",
     writes: "adds or retains `ready-for-human`, then removes `ready-for-agent` when present"
+  },
+  hold: {
+    words: ["hold"],
+    flags: [],
+    read: false,
+    argument: "none",
+    purpose: "Holds the landing of an issue until the maintainer lands or discards it on the board.",
+    prerequisite: "open; in the lane `feature` or `bug`; the landing `merge`",
+    writes: "adds or retains `hold-landing`, and makes that label in the repository when it is missing"
   },
   assisted: {
     words: ["assisted", "<file>"],
@@ -6786,12 +6807,12 @@ var commands = [
       ...changes,
       purpose: "Lands the change of an issue on the trunk with the subject of its commit, by the landing of the project."
     })
-  ], `Lands the change of the issue by the \`landing\` field of \`.celetis.yaml\`. It is the one landing path of an agent. The master daemon of the repository runs the landing when one runs, and \`land\` prints its output and exits with its status; with no daemon, \`land\` runs the landing in its own process; with a daemon of another revision it exits ${exits.prerequisite}, when the daemon does not answer ${exits.blocked}, and for another refusal of the request by the daemon it exits with the code of that refusal. It refuses an issue that is not ready to land. It exits ${exits.cleanup} when the change landed and its cleanup stopped; run it again`, ["done", "internal", "usage", "prerequisite", "repair", "checks", "blocked", "cleanup", "signal"]),
+  ], `Lands the change of the issue by the \`landing\` field of \`.celetis.yaml\`. It is the one landing path of an agent. The master daemon of the repository runs the landing when one runs, and \`land\` prints its output and exits with its status; with no daemon, \`land\` runs the landing in its own process; with a daemon of another revision it exits ${exits.prerequisite}, when the daemon does not answer ${exits.blocked}, and for another refusal of the request by the daemon it exits with the code of that refusal. It refuses an issue that is not ready to land. It exits ${exits.cleanup} when the change landed and its cleanup stopped; run it again. It exits ${exits.held} when the change is held for the maintainer and nothing landed`, ["done", "internal", "usage", "prerequisite", "repair", "checks", "blocked", "cleanup", "held", "signal"]),
   entry("issue", true, Object.values(issueActs).map((act) => form("numbered" in act ? ["issue", ...act.words] : ["issue", "<n>", ...act.words], act.flags, {
     read: act.read,
     purpose: act.purpose,
     ..."names" in act ? { names: act.names } : {}
-  })), `Makes each issue write of a session in the repository of the checkout: ${issueActList}. Its acts \`view\` and \`list\` read and write nothing: \`view\` prints the JSON of an issue, with its parent, its children, and its history, and \`view --latest\` prints the body of the newest comment whose first line is the heading; \`list\` prints the open issues as JSON, and \`list --state closed\` prints the closed issues; \`--label\` keeps only the issues with that label. \`link\` makes the child a sub-issue of the epic under the epic lock, and writes nothing when the link exists. The acts other than the reads, \`create\`, \`comment\`, \`link\`, and \`sync\` are the workflow writes that the engine reads. With the local tracker, each write act pulls the local issues from origin before it writes and pushes them after it writes; when origin cannot be reached, the write stays local, the act prints a warning, and it keeps its exit code. \`sync\` pulls and pushes the local issues on request: it exits ${exits.blocked} when origin cannot be reached, and ${exits.prerequisite} with the GitHub tracker. \`create\` prints the URL of the new issue before any other write: a URL on stdout means that the issue exists, also on a nonzero exit. \`comment\` refuses a file whose first line is a lifecycle heading or the effort marker, and names the act for that write. The assistance act records an attributed \`## Human steps done\` report before removing present blocking labels; it adds no label and preserves build state. Lifecycle acts write the comment heading before label changes. Each act refuses unmet prerequisites. \`state\` writes nothing and prints lifecycle facts. \`epic-state\` writes nothing and prints the current declaration, child snapshot, history, and holds. Epic definition writes preserve the complete parent body; guarded completion publishes its accepted record before closing and leaves readiness labels unchanged. \`docs/issue-tracker.md\`, "Conventions", gives each act`),
+  })), `Makes each issue write of a session in the repository of the checkout: ${issueActList}. Its acts \`view\` and \`list\` read and write nothing: \`view\` prints the JSON of an issue, with its parent, its children, and its history, and \`view --latest\` prints the body of the newest comment whose first line is the heading; \`list\` prints the open issues as JSON, and \`list --state closed\` prints the closed issues; \`--label\` keeps only the issues with that label. \`link\` makes the child a sub-issue of the epic under the epic lock, and writes nothing when the link exists. The acts other than the reads, \`create\`, \`comment\`, \`link\`, and \`sync\` are the workflow writes that the engine reads. With the local tracker, each write act pulls the local issues from origin before it writes and pushes them after it writes; when origin cannot be reached, the write stays local, the act prints a warning, and it keeps its exit code. \`sync\` pulls and pushes the local issues on request: it exits ${exits.blocked} when origin cannot be reached, and ${exits.prerequisite} with the GitHub tracker. \`create\` prints the URL of the new issue before any other write: a URL on stdout means that the issue exists, also on a nonzero exit. \`comment\` refuses a file whose first line is a lifecycle heading, \`## Held\`, \`## Released\`, or the effort marker, and names the act for that write. The assistance act records an attributed \`## Human steps done\` report before removing present blocking labels; it adds no label and preserves build state. Lifecycle acts write the comment heading before label changes. Each act refuses unmet prerequisites. \`state\` writes nothing and prints lifecycle facts. \`epic-state\` writes nothing and prints the current declaration, child snapshot, history, and holds. Epic definition writes preserve the complete parent body; guarded completion publishes its accepted record before closing and leaves readiness labels unchanged. \`docs/issue-tracker.md\`, "Conventions", gives each act`),
   entry("next-step", true, [
     form("next-step <n>", [], { ...reads, purpose: "Reads the next step of one issue." }),
     form("next-step", [required("--open")], { ...reads, purpose: "Reads the next step of each open issue." })
@@ -6863,7 +6884,7 @@ var commands = [
       ...helped(3, "Reports each part of the required wiring that this checkout lacks; writes nothing."),
       ...reads
     })
-  ], `Reports the required wiring of the active checkout for the selected host, also from a subfolder or a lane worktree: \`origin\`, \`.celetis.yaml\` and its configured files, the Celetis block, the Claude imports and settings or the Codex restriction, the ignore and attribute lines, the record of setup, and the workflow labels. It writes nothing, runs no product file, and fetches nothing. An incomplete report ends with \`Run /celetis:setup in the main checkout: <path>\`. It exits ${exits.done} when the wiring is complete, ${exits.prerequisite} when it is missing, invalid, or different, and ${exits.blocked} when an observation is blocked`),
+  ], `Reports the required wiring of the active checkout for the selected host, also from a subfolder or a lane worktree: \`origin\`, \`.celetis.yaml\` and its configured files, the Celetis block, the Claude imports and settings or the Codex restriction, the ignore and attribute lines, the record of setup, and the workflow labels, except \`hold-landing\`, which it does not report as missing because the engine makes it when a hold needs it. It writes nothing, runs no product file, and fetches nothing. An incomplete report ends with \`Run /celetis:setup in the main checkout: <path>\`. It exits ${exits.done} when the wiring is complete, ${exits.prerequisite} when it is missing, invalid, or different, and ${exits.blocked} when an observation is blocked`),
   entry("agents", false, [
     form("agents read", [], helped(4, "Reads the local ordered agent preference and its version.")),
     form(["agents", "replace", "'<JSON>'"], [], helped(5, "Replaces the local order using order and expectedVersion."))
@@ -6926,6 +6947,11 @@ var hinted = new Set([
   "visual",
   "worktree"
 ]);
+
+// engine/lib/workflow/hold.ts
+var id = "([0-9a-f]{40})";
+var heldForm = new RegExp(`^${headings.held}\\nhead: ${id}\\npatch: ${id}\\nsubject: ([^\\r\\n]+)\\n?$`);
+var releasedForm = new RegExp(`^${headings.released}\\nhead: ${id}\\npatch: ${id}\\n?$`);
 
 // engine/lib/workflow/workflow.ts
 var lanes = {
@@ -7213,6 +7239,7 @@ function checkSchema(value) {
     "autoLanes",
     "board",
     "worktreeSetup",
+    "holdLanding",
     "suite",
     "custom",
     "codexProfiles"
@@ -7256,6 +7283,12 @@ function checkSchema(value) {
   }
   if (Object.hasOwn(config, "worktreeSetup"))
     validateWorktreeSetup(config.worktreeSetup);
+  if (Object.hasOwn(config, "holdLanding")) {
+    if (typeof config.holdLanding !== "boolean")
+      throw new ConfigError(["holdLanding"], "need a boolean");
+    if (config.holdLanding && config.landing === "pr")
+      throw new ConfigError(["holdLanding"], "the landing pr has no hold");
+  }
   if (config.landing === "merge")
     required2(config, "suite", []);
   if (Object.hasOwn(config, "suite")) {

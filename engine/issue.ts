@@ -20,11 +20,13 @@ import { completeEpic, readEpic, withEpicLock, writeEpicDefinition } from './lib
 import { hostAdapter } from './lib/host/hosts.ts';
 import { lineOf } from './lib/resolver/lines.ts';
 import { services } from './lib/services/services.ts';
+import { ensureLabel } from './lib/setup/labels.ts';
 import { installRecorder, markDefect } from './lib/state/events.ts';
 import { parseHandle } from './lib/tracker/key.ts';
 import { writeRefreshHint } from './lib/tracker/refresh-hints.ts';
 import { type Edit, type Tracker, TrackerError } from './lib/tracker/tracker.ts';
 import { decidable, effortMarker, isLevel, isModel } from './lib/workflow/effort.ts';
+import { holdApplies, holdOf } from './lib/workflow/hold.ts';
 import {
   type Decision,
   decide,
@@ -66,6 +68,10 @@ const inLane = (context: Context, ...names: Lane[]) =>
   open(context) && context.found.kind === 'lane' && names.includes(context.found.lane);
 const landing = ({ decision }: Context) => decision.kind === 'run' && lands(decision.step);
 const headed = (heading: string, text: string) => `${heading}\n\n${text}`;
+const leavesHold = ({ data, found, argument }: Context, setting: boolean) =>
+  (argument === 'chore' || argument === 'hotfix') &&
+  (holdOf(data).active ||
+    (found.kind === 'lane' && holdApplies(data, found.lane, setting) && factsOf(data, found.lane).build === 'built'));
 
 const acts: Readonly<Record<EngineAct, Act>> = {
   route: {
@@ -137,10 +143,11 @@ const acts: Readonly<Record<EngineAct, Act>> = {
       remove: ['needs-info', 'ready-for-human'],
     }),
   },
+  hold: { ready: (context) => inLane(context, 'feature', 'bug'), writes: () => ({ add: ['hold-landing'] }) },
   state: { ready: () => true, writes: () => ({}) },
 };
 
-const lifecycleActs: Readonly<Record<keyof typeof headings, IssueAct>> = {
+const lifecycleActs: Readonly<Record<Exclude<keyof typeof headings, 'held' | 'released'>, IssueAct>> = {
   plan: 'plan',
   built: 'built',
   rootCause: 'root-cause',
@@ -248,6 +255,9 @@ async function commentIssue(argv: string[], explicit: string | undefined): Promi
   const text = await readText(file);
   if (!text.trim()) die('usage', `${file} is empty; give the text of the comment`);
   const start = text.replace(/^\uFEFF/, '').trimStart();
+  const heading = start.split(/\r?\n/, 1)[0]?.trim();
+  if (heading === headings.held || heading === headings.released)
+    die('usage', `${file} starts with ${heading}; only the engine writes that record`);
   const owner = recorded.find(([prefix]) => start.startsWith(prefix));
   if (owner)
     die(
@@ -470,6 +480,8 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
     return exits.done;
   }
   if (!act) die('usage', usageText('issue'));
+  if (name === 'hold' && config.landing !== 'merge')
+    die('prerequisite', `#${n} cannot hold: the landing ${config.landing} has no hold`);
   const gh = services(config, main).tracker;
   const work = async (): Promise<ExitCode> => {
     const read = await gh.read(n).catch(() => null);
@@ -494,9 +506,20 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
     }
     const context: Context = { host: operation.host, data, found, decision, argument, text, during, effort };
     if (!act.ready(context)) die('prerequisite', `#${n} cannot ${name}: ${lineOf(n, decision)}`);
+    if (name === 'route' && leavesHold(context, config.holdLanding === true))
+      die('prerequisite', `#${n} cannot route to ${argument}: only a landing or a discard ends its hold`);
     const { comment, add = [], remove = [], body, ...close } = act.writes(context);
     const adding = add.filter((label) => !data.labels.includes(label));
     const removing = remove.filter((label) => data.labels.includes(label));
+    if (adding.includes('hold-landing'))
+      await ensureLabel(gh, 'hold-landing').catch((error: unknown) =>
+        die(
+          'blocked',
+          `#${n}: cannot make the label hold-landing; the issue did not change`,
+          gh.stderr(),
+          error instanceof Error ? error.message : String(error),
+        ),
+      );
     const edit: Edit = { ...(body === undefined || body === data.body ? {} : { body }), ...close };
     const writes: Write[] = [
       ...(comment === undefined ? [] : [{ send: () => gh.comment(n, comment), flags: [] }]),

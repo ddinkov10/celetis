@@ -13,7 +13,9 @@ import { laneFolder } from '../state/state.ts';
 import { compareKeys, type IssueKey } from '../tracker/key.ts';
 import { type Issue, issueData, type Tracker, TrackerError } from '../tracker/tracker.ts';
 import { decisionOf, type EffortDecision, startPair } from '../workflow/effort.ts';
+import { holdOf } from '../workflow/hold.ts';
 import {
+  branchGlobs,
   type Decision,
   decide,
   factsOf,
@@ -27,7 +29,7 @@ import {
   stageOf,
 } from '../workflow/workflow.ts';
 import { describe, type Next, type Observed } from './lines.ts';
-import type { IssueRow, ParentEpic, Pull } from './types.ts';
+import type { HeldView, IssueRow, ParentEpic, Pull } from './types.ts';
 
 type Fetched = Readonly<{ issue: Issue; data: IssueData }>;
 type BranchPull = Readonly<{ branch: string; pull: Pull }>;
@@ -250,6 +252,15 @@ function shownRow(
   const type = found.kind === 'lane' ? found.lane : null;
   const step = next.kind === 'run' ? next.step : null;
   const path = dirtyLanes.find((lane) => basename(lane).startsWith(folderPrefix(issue.key)));
+  const hold = holdOf(data);
+  const { latest } = hold;
+  const held: HeldView | null =
+    next.kind === 'stop' &&
+    (next.reason === 'held' || next.reason === 'released') &&
+    (latest?.kind === 'held' || latest?.kind === 'released') &&
+    hold.held !== null
+      ? { state: latest.kind, head: latest.head, patch: latest.patch, subject: hold.held.subject, tip: null }
+      : null;
   return {
     line,
     row: {
@@ -263,6 +274,8 @@ function shownRow(
       effort: next.kind === 'run' ? startPair(decisionOf(data, next), config?.sessions?.[next.step]) : null,
       epic,
       pr: prs.find(({ branch }) => holdsKey(branch, issue.key))?.pull ?? null,
+      held,
+      holdable: (type === 'feature' || type === 'bug') && config?.landing === 'merge' && !hold.active,
       ...(path === undefined ? {} : { path }),
       state: path === undefined ? shown.state : 'dirty',
       step,
@@ -272,8 +285,22 @@ function shownRow(
   };
 }
 
+async function laneTip(checkout: string, n: IssueKey): Promise<string | null> {
+  const refs = branchGlobs(n).map((glob) => `refs/heads/${glob}`);
+  const result = await runProcess(
+    'git',
+    ['-C', checkout, '--no-optional-locks', 'for-each-ref', '--format=%(objectname)', ...refs],
+    { cwd: checkout },
+  );
+  const tips = result.stdout.split('\n').filter(Boolean);
+  return result.code === 0 && tips.length === 1 ? (tips[0] as string) : null;
+}
+
 async function boardRow(operation: Operation, { row, line }: Shown, aside: ReadonlySet<IssueKey>): Promise<IssueRow> {
-  if (await lockHolder(operation.checkout.main as string, issueLock(row.number))) return { ...row, state: 'starting' };
+  const checkout = operation.checkout.main as string;
+  if (await lockHolder(checkout, issueLock(row.number))) return { ...row, state: 'starting' };
+  if (row.state === 'held')
+    return { ...row, held: row.held && { ...row.held, tip: await laneTip(checkout, row.number) } };
   const act = `celetis --agent <host> run resume ${row.number}`;
   if (aside.has(row.number)) return { ...row, state: 'aside', act };
   if (row.state === 'dirty' || !(await isRecorded(operation.checkout.common as string, row.number, line))) return row;

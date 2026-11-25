@@ -40,6 +40,7 @@ export type Store = Readonly<{
   bugs(): Promise<Readonly<{ bugs: readonly Bug[]; refused: readonly Readonly<{ ref: string; rule: string }>[] }>>;
   identities(): Promise<ReadonlyMap<string, Identity>>;
   writable(): Promise<string | null>;
+  self(): Promise<string | null>;
   author(): Promise<string>;
   create(first: NewOp, next: readonly NewOp[]): Promise<Readonly<{ id: string; opIds: readonly string[] }>>;
   append(id: string, ops: readonly NewOp[], files?: readonly Uint8Array[]): Promise<readonly string[]>;
@@ -304,7 +305,7 @@ export function openStore(main: string, signal?: AbortSignal): Store {
     throw new StoreError('blocked', `${line}; nothing was written`);
   }
 
-  async function identify(state: State): Promise<string> {
+  async function known(state: State): Promise<string | null> {
     const configured = await config('git-bug.identity', true);
     if (configured) {
       if (state.identities.has(configured)) return configured;
@@ -314,10 +315,17 @@ export function openStore(main: string, signal?: AbortSignal): Store {
       );
     }
     const email = await config('user.email');
-    const [known] = [...state.identities.values()]
+    if (!email) return null;
+    const [found] = [...state.identities.values()]
       .filter((i) => i.email === email)
       .sort((a, b) => (a.id < b.id ? -1 : 1));
-    if (known) return known.id;
+    return found?.id ?? null;
+  }
+
+  async function identify(state: State): Promise<string> {
+    const found = await known(state);
+    if (found !== null) return found;
+    const email = await config('user.email');
     const name = await config('user.name');
     if (!name)
       throw new StoreError(
@@ -392,6 +400,10 @@ export function openStore(main: string, signal?: AbortSignal): Store {
     },
 
     writable,
+
+    async self() {
+      return known(await read('none'));
+    },
 
     async author() {
       await prerequisite();

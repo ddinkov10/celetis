@@ -8,10 +8,12 @@ import { type BoardDaemon, celetisAdapter } from '../../board/adapter.ts';
 import { type BoardHandle, startBoard } from '../../board/start.ts';
 import { HostError } from '../command/errors.ts';
 import { createOperation, type HostSelection, locateCheckouts, type Operation } from '../command/operation.ts';
+import type { Config } from '../config/core.ts';
 import { type ExitCode, exits, signalExit } from '../contract/contract.ts';
 import { createCoordinator } from '../coordinator/coordinator.ts';
 import { type Engine, enginePaths } from '../install/installation.ts';
 import { versionFolderGone } from '../install/version-folder.ts';
+import { landingResult, type PressAnswer, type PressIo, pressDiscard, pressLand } from '../landing/press.ts';
 import { processStart, processState } from '../process/identity.ts';
 import { childEnv } from '../process/process.ts';
 import { holdFolder, makePrivateFolder, privateFolderProblem } from '../process/windows.ts';
@@ -92,6 +94,8 @@ const boardRequests: ReadonlySet<DaemonRequest['kind']> = new Set([
   'halt',
   'queue-action',
   'queue-reconcile',
+  'held-land',
+  'held-discard',
 ]);
 const bodyLimit = 16 * 1024;
 const stoppable: ReadonlySet<RunState> = new Set(['running', 'waiting', 'checking', 'stopping']);
@@ -589,6 +593,39 @@ async function serve(
       );
     return send(said);
   };
+  const pressing = new Set<IssueKey>();
+  const pressIo = (config: Config): PressIo => ({
+    main,
+    config,
+    owner: createLockOwner(main, start),
+    busy: (number) =>
+      landings.rows().some(({ issue }) => issue === number) ||
+      [...entries.values()].some(({ handle, outcome }) => outcome === null && handle.view().issue === number)
+        ? `daemon: #${number} has a landing or a run now; wait for its end, then press again`
+        : null,
+    land: async ({ number, subject }) =>
+      stopping
+        ? { code: exits.prerequisite, line: stopLine }
+        : landingResult(
+            landings.answer({ kind: 'land', number, subject, selection: {}, from: main }, new AbortController().signal),
+          ),
+  });
+  const press = async (number: IssueKey, act: (io: PressIo) => Promise<PressAnswer>) => {
+    if (pressing.has(number))
+      return refusal(409, `daemon: a press of #${number} runs; wait for its answer`, exits.prerequisite);
+    pressing.add(number);
+    try {
+      const { mainConfig } = await createOperation(checkout, {}, 'main');
+      if (!mainConfig) return refusal(409, 'daemon: the main checkout has no configuration', exits.prerequisite);
+      const answer = await act(pressIo(mainConfig));
+      return answer.ok ? reply(200, { accepted: true, run: null }) : refusal(409, answer.line, answer.code);
+    } catch (error) {
+      if (!(error instanceof HostError)) throw error;
+      return refusal(409, error.message, error.code);
+    } finally {
+      pressing.delete(number);
+    }
+  };
   const respond = async (request: Request): Promise<Response> => {
     if (stopping && claim.successor === null) return refusal(503, stopLine, exits.prerequisite);
     let body: unknown = null;
@@ -632,6 +669,10 @@ async function serve(
         if (line !== null) return refusal(409, `daemon: ${line}`, exits.prerequisite);
         return landings.answer(parsed, request.signal);
       }
+      case 'held-land':
+        return press(parsed.number, (io) => pressLand(parsed, io));
+      case 'held-discard':
+        return press(parsed.number, (io) => pressDiscard(parsed.number, io));
       case 'coordinator-open': {
         const { status, answer } = await coordinator.open(parsed.selection);
         return reply(status, answer);

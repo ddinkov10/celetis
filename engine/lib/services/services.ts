@@ -33,6 +33,6 @@ export function services(choice: Choice, cwd: string, signal?: AbortSignal, env?
   };
   return {
     tracker: choice.tracker === 'local' ? localTracker(cwd, signal) : githubTracker(github()),
-    codeHost: choice.landing === 'merge' ? gitCodeHost(cwd, signal) : githubCodeHost(github()),
+    codeHost: choice.landing === 'merge' ? gitCodeHost(cwd, signal, env) : githubCodeHost(github()),
   };
 }

@@ -360,11 +360,12 @@ A row gets its `state` by the first rule that matches:
 | # | The issue | `state` | Fields of that state |
 |---|---|---|---|
 | 2 | has a lock that a live script holds | `starting` | |
-| 3 | is in the set-aside record | `aside` | `path`: the lane worktree, when it is dirty. `act`: `celetis --agent <host> run resume <n>` |
-| 4 | has a dirty lane worktree | `dirty` | `path`: the lane worktree |
-| 5 | has a row in the record for its `run` line: no progress, or a refused skip | `stuck` | `act`: `celetis --agent <host> run resume <n>` |
-| 6 | has `needs-info` or `ready-for-human`, two or more lane labels, an open human step, or a hotfix to land by hand | `blocked` | `reason`, from the first match in the order of the resolver (`docs/issue-tracker.md`, "Resolving an issue's state"): `needs info` for `needs-info`; for `ready-for-human`, `landing refused` while a landing refusal is current, else `ready for your step`; `several lane labels` for two or more lane labels; `human step open` for a `## Before landing` comment with no completion evidence; `land by hand` for a hotfix whose stop is cleared. `act`: the act that the `stop` line of the issue names |
-| 7 | has a `run` line | `ready` | |
+| 3 | has the stop `held` or `released` of the resolver, and no dirty lane worktree | `held` | `reason`: `held` or `released`. `act`: `Land or discard it on the board.` or `Press Land on the board again.` `held`: `{state, head, patch, subject, tip}` of the latest records of the engine login. `tip` is the commit of the one lane branch, from `git for-each-ref` with `--no-optional-locks`, else `null`. The read computes no patch ID |
+| 4 | is in the set-aside record | `aside` | `path`: the lane worktree, when it is dirty. `act`: `celetis --agent <host> run resume <n>` |
+| 5 | has a dirty lane worktree | `dirty` | `path`: the lane worktree |
+| 6 | has a row in the record for its `run` line: no progress, or a refused skip | `stuck` | `act`: `celetis --agent <host> run resume <n>` |
+| 7 | has `needs-info` or `ready-for-human`, two or more lane labels, an open human step, or a hotfix to land by hand | `blocked` | `reason`, from the first match in the order of the resolver (`docs/issue-tracker.md`, "Resolving an issue's state"): `needs info` for `needs-info`; for `ready-for-human`, `landing refused` while a landing refusal is current, else `ready for your step`; `several lane labels` for two or more lane labels; `human step open` for a `## Before landing` comment with no completion evidence; `land by hand` for a hotfix whose stop is cleared. `act`: the act that the `stop` line of the issue names |
+| 8 | has a `run` line | `ready` | |
 
 `picker` holds the version of the local order beside `order`. Its `usage` is the confirmed usage
 block of each host with its reason and reset time, and it is `null` once the reset time has
@@ -405,6 +406,8 @@ Each row also has `number`, `title`, `url`, `updatedAt` and these fields:
   approves, requests changes, or is dismissed counts. The review state is `changes` when one of
   those reviews requests changes, else `approved` when one approves, else `required` when a
   requested reviewer or team has not answered, else `null`.
+- `held`: the object `{state, head, patch, subject, tip}` of a row in the state `held`, else `null`.
+- `holdable`: `true` for a `feature` or `bug` row with the landing `merge` and no active hold, else `false`.
 
 ## Landed history
 
@@ -608,6 +611,7 @@ no row, show the link label, else the tab name, as the title, with no link and n
 | `dirty` | Needs you | `dirty tree` | `path` | Open shell, and Set aside |
 | `stuck` | Needs you | `no progress` | none: the details show `act` | Resume, and a quiet Run again, and Set aside |
 | `blocked` | Needs you | `reason` | `act` | Open agent |
+| `held` | Needs you | `held` | `act` | none: the held line has Land and Discard |
 | `ready` | Needs you when `started` or `urgent`, else Idle | none: the card shows `next <step>` | none | Run |
 
 A row whose live run waits because every included agent is limited makes a card in Needs you,
@@ -615,6 +619,9 @@ in the group `Paused by usage limits`, with the state `waits for a usage limit`.
 Agent order, opens the agent order, which has its Retry. A recovery record whose run no longer runs adds a warning
 to the card of its row, and Run starts the step again.
 
+- A `held` card has the `held` object of its row and the field `landing` (`runs` or `waits` while the daemon runs or queues the landing of the issue, else `null`). Its line shows `head <short> · patch <short>` in mono, with Land and Discard at its right, and the line wraps at a narrow width. The short head is a button with the name `Copy the full head SHA <short>`, and it copies the full SHA. The two buttons have no toolbar role. Land is `aria-disabled` while its press runs or `landing` is set, and then its label and its announcement are `Landing…`. Discard is `aria-disabled` then, and an open discard confirmation closes when the landing starts. While a Discard press runs, both buttons are `aria-disabled`, and the label and the announcement of Discard are `Discarding…`. A press of either button then sends nothing. For a `held` row whose `tip` differs from its `head`, Land is `aria-disabled` too, and Land names a warning in `aria-describedby`. The warning says that the lane branch moved, and it shows the command `git diff <head>..<tip>` and the command `celetis --agent <host> land <n> '<subject>'`, which records the current tip, each on its own row. A `null` `tip` says that the board cannot read the tip, and Land names that warning too. A `released` row keeps Land enabled, because the daemon checks the content.
+- A Land press sends `POST /api/held/land` with the head and the patch that the card shows. The daemon refuses a mismatch, and a refusal shows in the toast `Land failed`. On a `released` card, the line of the refused press also stays below the buttons until the next Land press. So a released change with new lane content shows its cause and the command `celetis --agent <host> land <n> '<subject>'`. A Discard press opens the modal alert dialog `Discard #<n>?` with the text `The issue closes as wontfix and the worktree goes. The commits stay on the origin branch.` The focus starts on Cancel. Escape and Cancel close it and send nothing. `Discard change` sends `POST /api/held/discard` and shows the toast `Discarded #<n>`. The line of a refused press shows in the toast `Discard failed`.
+- A card has `hold` when its issue is a `feature` or `bug`, the landing is `merge`, and no hold is active (`holdable` of the row). A session card of such an issue has it too, so a running issue and a card with a dirty main checkout can be held. The menu of a card with `hold` has the entry **Hold landing**. It sends `POST /api/hold`, which runs `issue <n> hold`, and shows the toast `Holding the landing of #<n>`.
 - Each card has `aside`. It is true on a `no progress` or `dirty tree` card while its issue press
   is open, and it gives the Set aside button. A session card has `stop` (`{reason}`) only while the
   run row of its issue has that card's terminal, the row state is `running`, `waiting`, `checking`,
@@ -707,6 +714,9 @@ A press that fails ends the `Starting` card at once, and the next read gives the
 | Retry | One request `POST /retry` of the master daemon, with the issue number and the wait ID. It starts no run. |
 | Set aside | One request `POST /aside` of the master daemon, with the issue number. It opens no tab. |
 | Stop | One request `POST /halt` of the master daemon, with the issue number and the terminal of the session. The daemon ends the session and sets the issue aside. |
+| Land | One request `POST /held-land` of the master daemon, with the issue number, the head, and the patch of the card. The daemon writes `## Released` and runs the landing ([the daemon document](../README.md#the-master-daemon), "The requests"). |
+| Discard | One request `POST /held-discard` of the master daemon, with the issue number. The daemon pushes the lane branch, closes the issue as `wontfix`, and removes the worktree. |
+| Hold landing | The fixed command `issue <n> hold` of the installed engine, in the main checkout, with no agent in its environment. |
 | New intake | A focused `Intake` tab in the main checkout. The current default host asks for the request, then enters `celetis:intake` with the answer. The button creates no issue and starts no run. |
 | Assist | A focused tab `#<n> assist` in the main checkout, with the Assist argv. |
 | Make visual | A focused tab `#<n> visual` in the main checkout, with the Make visual argv, for a History row with no page. The command in the tab makes the page `docs/superpowers/visuals/<sha>.html` of the main checkout. |
@@ -1008,8 +1018,8 @@ view with its `error`. With no coordinator record, `view` is `none`, and `chat` 
 `null`.
 
 **The presses.** The page sends a press as a POST with a JSON body: `{"number": <n>}` to
-`/api/run`, `/api/resume`, `/api/assist`, `/api/visual`, `/api/shell`, and `/api/aside`, `{"sessionId": "<id>"}` to `/api/go`,
-`{"number": <n>, "sessionId": "<id>"}` to `/api/stop`, and `{}` to
+`/api/run`, `/api/resume`, `/api/assist`, `/api/visual`, `/api/shell`, `/api/aside`, `/api/held/discard`, and `/api/hold`, `{"sessionId": "<id>"}` to `/api/go`,
+`{"number": <n>, "sessionId": "<id>"}` to `/api/stop`, `{"number": <n>, "head": "<sha>", "patch": "<sha>"}` to `/api/held/land`, and `{}` to
 `/api/refresh`, `{}` to `/api/coordinator/open`, `/api/coordinator/interrupt`, and
 `/api/coordinator/end`, `{"text": "<text>"}` to `/api/coordinator/say`, and `{"key": "<key>"}` to
 `/api/coordinator/key`. Each `<n>` is the issue key as a JSON string, for example `"12"`. A Run body can also have `"agent": "<name>"` and `"effort": "<level>"`, and no other
@@ -1029,6 +1039,9 @@ sends no request, and starts no terminal, unless each condition holds:
 | `POST /api/shell` | The issue has a card of its own, with no session. Its row is `dirty`, or `aside` with a `path`. Its `path` is a lane worktree of the main checkout. | The issue has no dirty worktree. |
 | `POST /api/aside` | The issue has a card of its own, with no session. Its row is `stuck` or `dirty`, with `aside` true. No press on that issue is active. The daemon accepts the request. | A press of the issue is in flight; the issue is not stuck; otherwise the line of the daemon. |
 | `POST /api/stop` | `sessionId` is a session of the repository with that issue. No press on that issue is active. The daemon accepts the request. | A press of the issue is in flight, or the line of the daemon (404 when the session is no session of that issue). |
+| `POST /api/held/land` | The issue has a card of its own, with no session, and its row is `held`. No press on that issue is active. The daemon accepts the request. | A press of the issue is in flight; the issue is not held; otherwise the line of the daemon. |
+| `POST /api/held/discard` | The same conditions as `POST /api/held/land`. | The same causes. |
+| `POST /api/hold` | The issue has a card, also with a session, and `hold` of that card is true. No press on that issue is active. `issue <n> hold` ends with 0. | A press of the issue is in flight; the issue has no landing to hold now; otherwise the first line of the error of the command. |
 
 `POST /api/queue` accepts exactly `{"action": <QueueAction>}`, or for Add with one host
 `{"action": <QueueAction>, "agent": <a registry agent>}`. An Add with no agent records the default
@@ -1164,15 +1177,19 @@ process. Twelve rules hold for the server and the page:
 5. It accepts only a JSON string that the grammar of the tracker accepts (`isKey`) as the number of an issue, only the terminal
    id of a session of the repository ("The cards") or the terminal of the coordinator record of
    the daemon as the id of a session, and only `low`,
-   `medium`, `high`, `xhigh`, or `max` as the effort level of a Run. The page takes the grammar
+   `medium`, `high`, `xhigh`, or `max` as the effort level of a Run, and only 40 lowercase hex
+   digits (`isCommit`) as the head and the patch of a Land. The board checks no more than the shape: the
+   daemon compares both with the latest `## Held` or `## Released` record of the engine login and
+   with the lane branch,
+   and it refuses a mismatch before it writes (`engine/lib/landing/press.ts`). The page takes the grammar
    of the tracker from `grammar` of each board document (`useGrammar`) before it parses a key of
    that document.
 6. The page sends an issue key, a session id, a selected Run agent, a selected Run effort level, a strict queue action, an
    agent order with the version that it read, a usage-limit wait ID, the issue key and the session ID of a Stop, or an opaque update offer
-   ID, never a command, an installation path, or a usage observation. For the coordinator session
+   ID, the issue key with the head and the patch of a Land, never a command, an installation path, or a usage observation. For the coordinator session
    it sends what the rules of the coordinator session below permit.
    New intake and **Restart** send only an empty object; the daemon reads the installed engine
-   itself. Resume, Assist, Make visual, and Set aside take only the issue key.
+   itself. Resume, Assist, Make visual, Set aside, Discard, and Hold landing take only the issue key.
 7. An id of an answer of `hc` or `herdr-app` (a terminal, a space, a tab) goes into a command only
    when it has letters, digits, `_`, `:`, `.`, and `-`, and does not start with `-` (`isSafeId` of
    `engine/lib/terminal/terminal.ts`). An id that is absent goes into no command.
@@ -1215,14 +1232,14 @@ process. Twelve rules hold for the server and the page:
 
 Five rules hold for the start, the argvs, and the data:
 
-1. **Each press that starts a command reads the engine.** Each press of New intake, Assist, or
-   Make visual reads the installed `celetis` engine. The read
+1. **Each press that starts a command reads the engine.** Each press of New intake, Assist,
+   Make visual, or Hold landing reads the installed `celetis` engine. The read
    accepts only the own entry of the engine in `<base>/.local/bin/`, which starts the engine in
    its version folder, and the command path holds no control character. The page, the data, and a
    lane cannot supply a command path.
 2. **A press starts a fixed argv or sends a fixed request.** Run and Resume send the fixed fields
-   of "The requests of Run and Resume", Retry sends `{number, waitId}`, Set aside sends `{number}`, Stop sends `{number, terminal}`, and a queue action sends
-   `{action, selection}`. New intake, Assist, and Make visual start their interactive commands ("The
+   of "The requests of Run and Resume", Retry sends `{number, waitId}`, Set aside sends `{number}`, Stop sends `{number, terminal}`, Land sends `{number, head, patch}`, Discard sends `{number}`, and a queue action sends
+   `{action, selection}`. Land and Discard release content to the trunk or push the lane branch, in the daemon (`engine/lib/landing/press.ts`). Hold landing starts the fixed argv `issue <n> hold`. New intake, Assist, and Make visual start their interactive commands ("The
    argv of a press"). On macOS and Linux, the login shell of the new terminal gets the argv as
    `"$@"`, so it reads no item as shell text. That engine starts the first `bun` on the `PATH` of
    that login shell, through its `env -S` shebang. On Windows, the board starts its own Bun with
@@ -1282,7 +1299,7 @@ These files enforce the rules. They are the trust files of the board:
 | --- | --- |
 | 1 (listen on `127.0.0.1`) | `engine/board/start.ts` |
 | 2, 3, 4 (the `Host`, the POST `Origin` and content type, `Origin: null` first) | `engine/board/perimeter.ts` |
-| 5 (issue keys, a session of the repository, five levels) | `engine/board/requests.ts`, `engine/lib/tracker/key.ts` (`isKey`), `engine/lib/tracker/grammar.ts`, `engine/board/presses.ts` (Go, Stop), `engine/lib/workflow/effort.ts` (`isLevel`) |
+| 5 (issue keys, a session of the repository, five levels, the head and the patch of a Land) | `engine/board/requests.ts`, `engine/lib/tracker/key.ts` (`isKey`), `engine/lib/tracker/grammar.ts`, `engine/board/presses.ts` (Go, Stop, Land, Discard, Hold landing), `engine/lib/workflow/effort.ts` (`isLevel`), `engine/lib/state/fields.ts` (`isCommit`), `engine/lib/landing/press.ts` (the comparison with the record and the branch) |
 | 6 (what the page sends) | `engine/board/requests.ts`, the page modules of `engine/board/page/` |
 | 7 (`isSafeId`) | `engine/lib/terminal/terminal.ts` |
 | 8 (no shell) | `engine/board/perimeter.ts` (`run`), `engine/lib/process/process.ts` (`run` of the issue and status reads), `engine/lib/host/codex/app-server.ts` (`createCodexClient`) |
@@ -1291,8 +1308,8 @@ These files enforce the rules. They are the trust files of the board:
 | 11 (no write in a product working tree; the trend files only in the git common dir) | No one file: each module of the board; the read model reads, and only `engine/board/trends.ts` through `engine/lib/board-read/trends.ts` and the History read through the trend cache write, in `<git common dir>/celetis/` |
 | 12 (text as text, the Content-Security-Policies, the visual page) | `engine/board/perimeter.ts`, `engine/lib/state/fields.ts` (`isCommit`), `engine/lib/board-read/board-read.ts` (`readVisualPage`), `engine/lib/workflow/visual.ts` (`hasPage`), the page modules |
 | Start rule 1 (the engine read) | `engine/board/adapter.ts`, `engine/lib/install/installation.ts` (`readEngine`) |
-| Start rule 2 (fixed argvs and requests) | `engine/board/adapter.ts`, `engine/lib/terminal/terminal.ts` (`openTab`), `engine/lib/host/codex/app-server.ts` (`createCodexClient`) |
-| Start rule 3 (only validated values) | `engine/board/requests.ts`, `engine/lib/tracker/key.ts` (`isKey`), `engine/lib/tracker/grammar.ts`, `engine/lib/state/fields.ts`, `engine/lib/host/names.ts` (`isHost`), `engine/board/adapter.ts`, `engine/lib/queue/queue.ts` (`parseQueueAction`), `engine/lib/queue/types.ts` (`queueAction`), `engine/lib/state/schemas.ts` |
+| Start rule 2 (fixed argvs and requests) | `engine/board/adapter.ts`, `engine/lib/landing/press.ts` (Land and Discard in the daemon), `engine/lib/terminal/terminal.ts` (`openTab`), `engine/lib/host/codex/app-server.ts` (`createCodexClient`) |
+| Start rule 3 (only validated values) | `engine/board/requests.ts`, `engine/lib/landing/press.ts`, `engine/lib/tracker/key.ts` (`isKey`), `engine/lib/tracker/grammar.ts`, `engine/lib/state/fields.ts`, `engine/lib/host/names.ts` (`isHost`), `engine/board/adapter.ts`, `engine/lib/queue/queue.ts` (`parseQueueAction`), `engine/lib/queue/types.ts` (`queueAction`), `engine/lib/state/schemas.ts` |
 | Start rule 4 (the data comes from the engine) | `engine/lib/board-read/board-read.ts`, `engine/board/adapter.ts`, `engine/lib/daemon/types.ts` (`parseAnswer`, `parseQueueAnswer`) |
 | Start rule 5 (a clean `PATH`) | `engine/lib/process/process.ts` (`childEnv`) |
 | Coordinator rules 1, 2 (what the page sends, the exact shapes) | `engine/board/requests.ts`, `engine/board/perimeter.ts` (the body limit), `engine/lib/coordinator/types.ts` (`coordinatorKeys`), `engine/lib/coordinator/coordinator.ts` (the check of an act), the page modules |

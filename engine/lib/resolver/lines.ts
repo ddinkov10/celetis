@@ -10,7 +10,7 @@ export type Observed = Readonly<
 export type Next = Decision | Observed;
 type Described = {
   line: string;
-  row: { state: 'ready' | 'blocked' | 'done'; reason: string | null; act: string | null } | null;
+  row: { state: 'ready' | 'blocked' | 'held' | 'done'; reason: string | null; act: string | null } | null;
 };
 
 function describeObserved(n: IssueKey, next: Observed): Described {
@@ -39,6 +39,10 @@ function describeStop(n: IssueKey, next: Stop): Described {
     line: `stop #${n} ${head}. ${act}`,
     row: { state: 'blocked', reason, act },
   });
+  const kept = (head: string, reason: string, act: string): Described => ({
+    line: `stop #${n} ${head}. ${act}`,
+    row: { state: 'held', reason, act },
+  });
   switch (next.reason) {
     case 'wontfix':
       return { line: `stop #${n} is closed as wontfix.`, row: null };
@@ -60,6 +64,10 @@ function describeStop(n: IssueKey, next: Stop): Described {
         'land by hand',
         `Run celetis --agent <host> land ${n} '<subject>' in your own shell, from the main checkout.`,
       );
+    case 'held':
+      return kept('is held', 'held', 'Land or discard it on the board.');
+    case 'released':
+      return kept('is released and not landed', 'released', 'Press Land on the board again.');
     case 'epic':
       return { line: `stop #${n} is an epic. Each child runs its own flow.`, row: null };
     case 'several-lanes':

@@ -37,6 +37,7 @@ Execute no recommended action and invoke no other skill.
 | see an issue's next step without running it | `celetis --agent <host> next-step <#>`; `celetis --agent <host> next-step --open` lists each open issue |
 | open the session of a step again to diagnose it | the selected host's session-recovery command of the entry contract, using the recorded session identity |
 | land a change whose landing stopped (`## Landing refused`) | the build step again, `/celetis:implement <#>` or `/celetis:chore <#>`: it lands the change and does not build it again |
+| keep a built change on its branch until you land or discard it | set `holdLanding: true` in `.celetis.yaml`, or hold one `feature` or `bug` issue with `celetis --agent <host> issue <n> hold`; then press Land or Discard on its card in the board (`<plugin>/docs/workflow.md`, "A held change") |
 | score the current diff before asking for review | `/celetis:critic-loop` |
 | record a decision or a lesson | `/celetis:record-architecture-decisions`, `/celetis:lesson` |
 | write or amend the constitution of the product | `/celetis:constitution [the change]` |

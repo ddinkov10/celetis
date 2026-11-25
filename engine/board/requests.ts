@@ -3,7 +3,7 @@ import { textLimit } from '../lib/daemon/types.ts';
 import { hostChoices, isHost } from '../lib/host/names.ts';
 import { parseQueueAction } from '../lib/queue/queue.ts';
 import type { QueueAction } from '../lib/queue/types.ts';
-import { orderVersion, uuid } from '../lib/state/fields.ts';
+import { isCommit, orderVersion, uuid } from '../lib/state/fields.ts';
 import { isSafeId, TerminalError } from '../lib/terminal/terminal.ts';
 import { type IssueKey, isKey } from '../lib/tracker/key.ts';
 import { isLevel, levels } from '../lib/workflow/effort.ts';
@@ -20,6 +20,9 @@ export const POSTS: ReadonlySet<string> = new Set([
   '/api/go',
   '/api/aside',
   '/api/stop',
+  '/api/held/land',
+  '/api/held/discard',
+  '/api/hold',
   '/api/refresh',
   '/api/agent',
   '/api/update/check',
@@ -103,6 +106,25 @@ export const parseRequest = (path: string, body: unknown): BoardRequest => {
     if (!stops) return { path, number };
     if (!isSafeId(input.sessionId)) throw new Refusal(400, 'the session ID is not a terminal ID');
     return { path, number, sessionId: input.sessionId };
+  }
+  if (path === '/api/held/land') {
+    const { number, head, patch } = input;
+    if (fieldsOf(input) !== 'head,number,patch')
+      throw new Refusal(400, 'Land takes only the issue number, the head, and the patch');
+    if (!isKey(number)) throw new Refusal(400, notKey);
+    if (!isCommit(head) || !isCommit(patch))
+      throw new Refusal(400, 'the head and the patch are not 40 lowercase hex digits');
+    return { path, number, head, patch };
+  }
+  if (path === '/api/held/discard' || path === '/api/hold') {
+    const { number } = input;
+    if (fieldsOf(input) !== 'number')
+      throw new Refusal(
+        400,
+        path === '/api/hold' ? 'Hold landing takes only the issue number' : 'Discard takes only the issue number',
+      );
+    if (!isKey(number)) throw new Refusal(400, notKey);
+    return { path, number };
   }
   if (path === '/api/coordinator/open' || path === '/api/coordinator/interrupt' || path === '/api/coordinator/end') {
     if (Object.keys(input).length) throw new Refusal(400, 'this act of the coordinator takes an empty object');

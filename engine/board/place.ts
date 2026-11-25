@@ -139,6 +139,7 @@ const issueCard = (issue: IssueRow, extra: Partial<Card>): Card => ({
   resume: false,
   go: false,
   aside: false,
+  hold: issue.holdable,
   epic: issue.epic,
   pr: issue.pr,
   ...extra,
@@ -146,7 +147,7 @@ const issueCard = (issue: IssueRow, extra: Partial<Card>): Card => ({
 
 const PLACERS: Record<
   IssueRow['state'],
-  (issue: IssueRow, context: { flow: Flow; isOpen: boolean }) => [Column, Card]
+  (issue: IssueRow, context: { flow: Flow; isOpen: boolean; landings: readonly LandingRow[] }) => [Column, Card]
 > = {
   starting: (issue) => ['running', issueCard(issue, { step: issue.step, state: 'starts' })],
   aside: (issue, { isOpen }) => [
@@ -178,6 +179,16 @@ const PLACERS: Record<
   blocked: (issue, { isOpen }) => [
     'needs',
     issueCard(issue, { state: 'blocked', reason: issue.reason, act: issue.act, assist: isOpen }),
+  ],
+  held: (issue, { landings }) => [
+    'needs',
+    issueCard(issue, {
+      state: 'held',
+      reason: issue.reason,
+      act: issue.act,
+      held: issue.held,
+      landing: landings.find((row) => row.issue === issue.number)?.state ?? null,
+    }),
   ],
   ready: (issue, { flow, isOpen }) => [
     issue.started || issue.urgent ? 'needs' : 'idle',
@@ -236,6 +247,7 @@ const placeSession = (
       resume: false,
       go: true,
       aside: false,
+      hold: issue?.holdable === true,
       ...(stoppable && {
         stop: { reason: row.host === 'codex' ? codexStopLine : row.state === 'stopping' ? STOPPING : null },
       }),
@@ -299,6 +311,7 @@ export const place = ({
           isOpen:
             noRun === null &&
             (!feedback || feedback.kind === 'failed' || (feedback.kind === 'timed' && feedback.expired)),
+          landings,
         });
         const orphan = recovery?.kind === 'orphaned' ? QUOTA_ORPHAN : null;
         if (orphan) card.warning = orphan;

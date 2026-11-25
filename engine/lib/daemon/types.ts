@@ -6,7 +6,7 @@ import { hosts } from '../host/names.ts';
 import type { ProcessState } from '../process/identity.ts';
 import { queueAction, queueView } from '../queue/types.ts';
 import type { RunInput, RunState } from '../run/engine.ts';
-import { commit } from '../state/fields.ts';
+import { commit, isCommit } from '../state/fields.ts';
 import { bounded, code, count, issueKey, members, uuidText } from '../state/schemas.ts';
 import { daemonSocketPath, type RepositoryLayout, repositoryLayout } from '../state/state.ts';
 import { isSafeId } from '../terminal/terminal.ts';
@@ -22,11 +22,12 @@ export const unprovedStopAct =
   'End those processes, then restart the daemon: celetis daemon stop, then celetis daemon start.';
 export const codexStopLine = 'The daemon cannot prove the end of a Codex session. Close its tab, then use Set aside.';
 export const requestUsage =
-  'usage: GET /status | POST /run {"number":<issue>,"selection":<selection>,"effort":<level>|null,"model":<model>|null} | POST /auto {"on":<boolean>,"selection":<selection>} | POST /queue {"id":<uuid>,"token":<uuid>,"selection":<selection>} | POST /resume {"number":<issue>,"selection":<selection>} | POST /assist {"number":<issue>,"selection":<selection>} | POST /stop {} | POST /retry {"number":<issue>,"waitId":<text>} | POST /aside {"number":<issue>} | POST /halt {"number":<issue>,"terminal":<id>} | POST /queue/action {"action":<action>,"selection":<selection>} | POST /queue/reconcile {} | POST /land {"number":<issue>,"subject":<subject>,"selection":<selection>,"from":<path>} | POST /coordinator/open {"selection":<selection>} | POST /coordinator/read {"number":<issue>} | POST /coordinator/send {"number":<issue>,"authority":"maintainer"|"coordinator","text":<text>,"token":<uuid>} | POST /coordinator/end-assist {"number":<issue>,"token":<uuid>}; <selection> is {"explicit"?:"claude"|"codex"|"opencode","environment"?:<text>}; <level> is low|medium|high|xhigh|max; <model> is haiku|sonnet|opus|fable; <action> is a queue action of celetis queue action';
+  'usage: GET /status | POST /run {"number":<issue>,"selection":<selection>,"effort":<level>|null,"model":<model>|null} | POST /auto {"on":<boolean>,"selection":<selection>} | POST /queue {"id":<uuid>,"token":<uuid>,"selection":<selection>} | POST /resume {"number":<issue>,"selection":<selection>} | POST /assist {"number":<issue>,"selection":<selection>} | POST /stop {} | POST /retry {"number":<issue>,"waitId":<text>} | POST /aside {"number":<issue>} | POST /halt {"number":<issue>,"terminal":<id>} | POST /queue/action {"action":<action>,"selection":<selection>} | POST /queue/reconcile {} | POST /land {"number":<issue>,"subject":<subject>,"selection":<selection>,"from":<path>} | POST /held-land {"number":<issue>,"head":<commit>,"patch":<commit>} | POST /held-discard {"number":<issue>} | POST /coordinator/open {"selection":<selection>} | POST /coordinator/read {"number":<issue>} | POST /coordinator/send {"number":<issue>,"authority":"maintainer"|"coordinator","text":<text>,"token":<uuid>} | POST /coordinator/end-assist {"number":<issue>,"token":<uuid>}; <selection> is {"explicit"?:"claude"|"codex"|"opencode","environment"?:<text>}; <level> is low|medium|high|xhigh|max; <model> is haiku|sonnet|opus|fable; <action> is a queue action of celetis queue action';
 
 const text = bounded(textLimit);
 const filled = text.refine((value) => value.length > 0);
 const absolute = filled.refine(isAbsolute);
+const hash = z.string().refine(isCommit);
 const exitCode = z.custom<ExitCode>((value) => exitCodeOf(value) !== null);
 const latin1 = z.string().refine((value) => Buffer.from(value, 'latin1').toString('latin1') === value);
 
@@ -63,6 +64,8 @@ const bodies = {
       .strictObject({ number: issueKey, subject: z.string(), selection, from: absolute })
       .refine(({ number, subject }) => landingSubject(number, subject)),
   ),
+  'held-land': routed('held-land', z.strictObject({ number: issueKey, head: hash, patch: hash })),
+  'held-discard': routed('held-discard', z.strictObject({ number: issueKey })),
   'coordinator-open': routed('coordinator-open', z.strictObject({ selection })),
   'coordinator-read': routed('coordinator-read', z.strictObject({ number: issueKey })),
   'coordinator-send': routed(
@@ -183,6 +186,8 @@ export const requestPaths: Readonly<Record<Exclude<DaemonRequest['kind'], 'statu
   'queue-action': '/queue/action',
   'queue-reconcile': '/queue/reconcile',
   land: '/land',
+  'held-land': '/held-land',
+  'held-discard': '/held-discard',
   'coordinator-open': '/coordinator/open',
   'coordinator-read': '/coordinator/read',
   'coordinator-send': '/coordinator/send',
@@ -201,7 +206,7 @@ export const isAuthority = (value: unknown): value is Authority => authority.saf
 export function landingSubject(key: IssueKey, subject: string): boolean {
   return (
     /^[a-z]+(\([^()]+\))?!?: [^ ]/.test(subject) &&
-    !subject.includes('\n') &&
+    !/[\r\n]/.test(subject) &&
     !subject.endsWith(keyedSubject('', key).trimStart())
   );
 }

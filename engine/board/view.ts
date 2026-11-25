@@ -36,11 +36,13 @@ export const GROUPS = [
     isCompact: true,
   },
   { key: 'paused', label: 'Paused by usage limits', short: 'paused', states: ['quota-wait'], isCompact: true },
+  { key: 'held', label: 'Held for landing', short: 'held', states: ['held'], isCompact: true },
   { key: 'ready', label: 'Ready to run', short: 'ready to run', states: null, isCompact: true },
 ];
 
 export const STATES: Record<string, string> = {
   works: 'works',
+  held: 'held',
   waits: 'waits for you',
   starts: 'Starting',
   'checks-step': 'checks step',

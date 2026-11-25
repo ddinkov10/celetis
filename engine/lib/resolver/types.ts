@@ -10,12 +10,19 @@ export type Pull = {
   review: string | null;
 };
 export type ParentEpic = { number: IssueKey; title: string };
+export type HeldView = Readonly<{
+  state: 'held' | 'released';
+  head: string;
+  patch: string;
+  subject: string;
+  tip: string | null;
+}>;
 export type IssueRow = {
   number: IssueKey;
   title: string;
   url: string;
   type: Lane | null;
-  state: 'ready' | 'starting' | 'aside' | 'stuck' | 'dirty' | 'blocked';
+  state: 'ready' | 'starting' | 'aside' | 'stuck' | 'dirty' | 'blocked' | 'held';
   step: Step | null;
   started: boolean;
   urgent: boolean;
@@ -26,4 +33,6 @@ export type IssueRow = {
   effort: StartPair<RowSource> | null;
   epic: ParentEpic | null;
   pr: Pull | null;
+  held: HeldView | null;
+  holdable: boolean;
 };

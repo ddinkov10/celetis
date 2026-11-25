@@ -116,13 +116,14 @@ export async function deleteRemoteBranches(
   branches: readonly string[],
   cwd: string,
   signal?: AbortSignal,
+  env?: NodeJS.ProcessEnv,
 ): Promise<readonly string[]> {
   const refs = branches.map((branch) => `refs/heads/${branch}`);
   signal?.throwIfAborted();
-  const deletion = await run('git', ['push', '-q', 'origin', '--delete', ...refs], { cwd, signal });
+  const deletion = await run('git', ['push', '-q', 'origin', '--delete', ...refs], { cwd, signal, env });
   signal?.throwIfAborted();
   if (deletion.code === 0) return [];
-  const left = await run('git', ['ls-remote', '--heads', 'origin', ...refs], { cwd, signal });
+  const left = await run('git', ['ls-remote', '--heads', 'origin', ...refs], { cwd, signal, env });
   signal?.throwIfAborted();
   process.stderr.write(left.stderr);
   const failed = new HostError(`${deletion.stdout}${deletion.stderr}`.trimEnd(), exits.blocked);
@@ -139,10 +140,11 @@ export async function removeLane(
   checkout: string,
   cwd: string,
   signal?: AbortSignal,
+  env?: NodeJS.ProcessEnv,
 ): Promise<readonly string[]> {
   const git = async (args: string[], output = false) => {
     signal?.throwIfAborted();
-    const result = await run('git', args, { cwd, signal });
+    const result = await run('git', args, { cwd, signal, env });
     signal?.throwIfAborted();
     if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
     if (output) process.stderr.write(result.stdout + result.stderr);
@@ -164,6 +166,7 @@ export async function removeLane(
         pushed.split('\n').map((line) => line.slice(line.indexOf('\t') + 1).replace(/^refs\/heads\//, '')),
         cwd,
         signal,
+        env,
       )
     : [];
   if (checkout) {

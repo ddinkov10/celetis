@@ -1,6 +1,6 @@
 import type { IssueKey } from '../../../lib/tracker/key.ts';
 import type { Level } from '../../../lib/workflow/effort.ts';
-import type { Action, Board, Card, MenuEntry } from '../../types.ts';
+import type { Action, Board, Card, HeldView, MenuEntry } from '../../types.ts';
 import { agentOf, cleanCause, keyOf, knownAgent, levelSource, runTitle, startTitle } from '../../view.ts';
 import { shellStore } from '../store.ts';
 import { toast } from '../toast/toast.ts';
@@ -344,8 +344,41 @@ export const actionsOf = (card: Card): Action[] => {
   return list;
 };
 
+export const landHeld = async (card: Card, held: HeldView) => {
+  if (isReconnecting()) return null;
+  const error = await send(
+    '/api/held/land',
+    { number: card.number, head: held.head, patch: held.patch },
+    'Land failed',
+  );
+  await readAgain();
+  return error;
+};
+
+export const discardHeld = (card: Card) =>
+  act('/api/held/discard', { number: card.number }, 'Discard failed', () =>
+    toast(`Discarded #${card.number}`, { detail: 'The commits stay on the origin branch.' }),
+  );
+
+const holdLanding = (card: Card) =>
+  act('/api/hold', { number: card.number }, 'Hold landing failed', () =>
+    toast(`Holding the landing of #${card.number}`, {
+      detail: 'The change stays on its branch until you land or discard it.',
+    }),
+  );
+
 export const menuOf = (card: Card, key: string): (MenuEntry | 'rule')[] => [
   ...actionsOf(card).map((action) => toMenuEntry(action, card)),
+  ...(card.hold
+    ? [
+        {
+          icon: 'aside',
+          label: 'Hold landing',
+          title: 'Keep this change on its branch until you land or discard it',
+          run: () => holdLanding(card),
+        },
+      ]
+    : []),
   ...levelEntries(card),
   'rule',
   { icon: 'panel', label: 'Show the details', key: 'Space', run: () => openDetails(key) },

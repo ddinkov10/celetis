@@ -44,6 +44,9 @@ export type Adapter = Readonly<{
   resume(number: IssueKey): Promise<string>;
   aside(number: IssueKey): Promise<void>;
   halt(number: IssueKey, terminal: string): Promise<void>;
+  landHeld(number: IssueKey, head: string, patch: string): Promise<void>;
+  discardHeld(number: IssueKey): Promise<void>;
+  hold(number: IssueKey): Promise<void>;
   queue(action: QueueAction, choice: AgentChoice): Promise<QueueView>;
   replaceAgentOrder(order: readonly Host[], expectedVersion: string): Promise<AgentOrder>;
   retryQuota(number: IssueKey, waitId: string): Promise<void>;
@@ -170,6 +173,22 @@ export async function celetisAdapter(
     halt: async (number, terminal) => {
       const answer = parseAnswer(await daemon.send({ kind: 'halt', number: number, terminal }));
       if (!answer.accepted) throw new Error(answer.line);
+    },
+    landHeld: async (number, head, patch) => {
+      const answer = parseAnswer(await daemon.send({ kind: 'held-land', number, head, patch }));
+      if (!answer.accepted) throw new Error(answer.line);
+    },
+    discardHeld: async (number) => {
+      const answer = parseAnswer(await daemon.send({ kind: 'held-discard', number }));
+      if (!answer.accepted) throw new Error(answer.line);
+    },
+    hold: async (number) => {
+      const result = await control(['issue', number, 'hold']);
+      if (result.code !== exits.done)
+        throw new Error(
+          result.stderr.split('\n').find((each) => each.trim() !== '') ??
+            `#${number}: the hold ended with code ${result.code}`,
+        );
     },
     retryQuota: async (number, waitId) => {
       const answer = parseAnswer(await daemon.send({ kind: 'retry', number: number, waitId }));

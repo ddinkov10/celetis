@@ -9,7 +9,15 @@ import { run } from '../process/process.ts';
 import { local } from '../tracker/grammar.ts';
 import type { IssueKey } from '../tracker/key.ts';
 import { writeRefreshHint } from '../tracker/refresh-hints.ts';
-import { type Authored, type Child, type Issue, issueData, type Tracker, TrackerError } from '../tracker/tracker.ts';
+import {
+  type Authored,
+  type Child,
+  type Issue,
+  issueData,
+  owned,
+  type Tracker,
+  TrackerError,
+} from '../tracker/tracker.ts';
 import type { Entry } from '../workflow/workflow.ts';
 import {
   addComment,
@@ -107,12 +115,19 @@ function issueOf(bug: Bug, shot: Snapshot): Issue {
   };
 }
 
-function entriesOf(shot: Snapshot): Entry[] {
+function authored(shot: Snapshot, author: (identity: string) => string | null): Authored[] {
   return shot.events.map(
-    (event): Entry =>
+    (event): Authored =>
       event.kind === 'comment'
-        ? { kind: 'comment', id: event.id, at: time(event.at), body: event.body }
+        ? { kind: 'comment', id: event.id, at: time(event.at), body: event.body, author: author(event.author) }
         : { kind: 'label', change: event.change, name: event.name, at: time(event.at) },
+  );
+}
+
+function entriesOf(shot: Snapshot, self: string | null): Entry[] {
+  return owned(
+    authored(shot, (identity) => identity),
+    self,
   );
 }
 
@@ -222,7 +237,7 @@ export function localTracker(main: string, signal?: AbortSignal): Tracker {
     project: async () => repository,
     read: reported(async (n: IssueKey) => {
       const { shot, issue } = await load(n);
-      return { issue, data: issueData(issue, entriesOf(shot)) };
+      return { issue, data: issueData(issue, entriesOf(shot, await store.self())) };
     }),
     issue: reported(async (n: IssueKey) => (await load(n)).issue),
     issues: guard(async (state: Issue['state'], label?: string) =>
@@ -233,11 +248,7 @@ export function localTracker(main: string, signal?: AbortSignal): Tracker {
     ),
     history: reported(async (n: IssueKey) => {
       const { shot } = await load(n);
-      const author = await names();
-      const by = new Map(shot.comments.map((c) => [c.id, author(c.author)]));
-      return entriesOf(shot).map(
-        (entry): Authored => (entry.kind === 'comment' ? { ...entry, author: by.get(entry.id) ?? null } : entry),
-      );
+      return authored(shot, await names());
     }),
     children: reported(async (n: IssueKey) => {
       const { bug } = await load(n);
@@ -257,7 +268,8 @@ export function localTracker(main: string, signal?: AbortSignal): Tracker {
       await writeRefreshHint(main, child);
     }),
     timelines: guard(async (issues: readonly Issue[]) => {
-      const entries = new Map((await all()).map(({ issue, shot }) => [issue.key, entriesOf(shot)]));
+      const self = await store.self();
+      const entries = new Map((await all()).map(({ issue, shot }) => [issue.key, entriesOf(shot, self)]));
       return new Map(
         issues.map(({ key }) => {
           const found = entries.get(key);
@@ -285,7 +297,7 @@ export function localTracker(main: string, signal?: AbortSignal): Tracker {
       return {
         repository,
         parent: issue.key,
-        data: issueData(issue, entriesOf(shot)),
+        data: issueData(issue, entriesOf(shot, await store.self())),
         declaration: parseEpicAcceptance(shot.body, localForms),
         children: parseEpicChildren(kids, localForms),
       };

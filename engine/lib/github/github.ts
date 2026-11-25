@@ -97,6 +97,7 @@ export type Client = Readonly<{
   connectionAt(value: unknown, ...keys: string[]): Connection;
   stderr(): string;
   appendStderr(text: string): void;
+  login(): Promise<string>;
 }>;
 
 export function client(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEnv): Client {
@@ -119,13 +120,13 @@ export function client(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
     }
   }
 
-  async function call(endpoint: string, paginate: boolean): Promise<unknown> {
+  async function call(
+    endpoint: string,
+    paginate: boolean,
+    path = `repos/{owner}/{repo}${endpoint ? `/${endpoint}` : ''}`,
+  ): Promise<unknown> {
     signal?.throwIfAborted();
-    const result = await run(
-      'gh',
-      ['api', ...(paginate ? ['--paginate', '--slurp'] : []), `repos/{owner}/{repo}${endpoint ? `/${endpoint}` : ''}`],
-      { cwd, signal, env },
-    );
+    const result = await run('gh', ['api', ...(paginate ? ['--paginate', '--slurp'] : []), path], { cwd, signal, env });
     signal?.throwIfAborted();
     stderr += result.stderr;
     if (result.code !== 0)
@@ -236,6 +237,23 @@ export function client(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
     });
   }
 
+  let viewer: Promise<string> | undefined;
+  const login = () => {
+    viewer ??= call('user', false, 'user')
+      .then((raw) =>
+        parsed('user', () => {
+          const name = text(record(raw).login);
+          if (!name) throw malformed();
+          return name;
+        }),
+      )
+      .catch((error: unknown) => {
+        viewer = undefined;
+        throw error;
+      });
+    return viewer;
+  };
+
   const connectionAt = (value: unknown, ...keys: string[]) => parsed('graphql', () => connection(select(value, keys)));
 
   return {
@@ -254,6 +272,7 @@ export function client(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
     appendStderr: (text: string) => {
       stderr += text;
     },
+    login,
   };
 }
 

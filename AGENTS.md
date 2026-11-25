@@ -276,7 +276,7 @@ For installation changes, follow `plugins/celetis/README.md`, "Updates".
   `engine/lib/terminal/terminal.ts`, `engine/lib/workflow/effort.ts`, `engine/lib/process/process.ts`,
   `engine/lib/update/updater.ts`, `engine/lib/update/target.ts`, `engine/lib/release/release.ts`,
   `engine/lib/install/installation.ts`,
-  `engine/lib/install/dependencies.ts`, `engine/lib/package/archive.ts`, `engine/lib/package/package.ts`,
+  `engine/lib/install/dependencies.ts`, `engine/lib/landing/press.ts`, `engine/lib/package/archive.ts`, `engine/lib/package/package.ts`,
   `engine/lib/package/registry.ts`, `engine/lib/queue/queue.ts`, `engine/lib/queue/types.ts`,
   `engine/lib/coordinator/coordinator.ts`, `engine/lib/coordinator/types.ts`,
   `engine/lib/host/codex/app-server.ts`, `engine/lib/daemon/server.ts`, and

@@ -49,6 +49,9 @@ export type Presses = {
   go(sessionId: string): Promise<void>;
   aside(number: IssueKey): Promise<void>;
   stop(number: IssueKey, sessionId: string): Promise<void>;
+  landHeld(number: IssueKey, head: string, patch: string): Promise<void>;
+  discardHeld(number: IssueKey): Promise<void>;
+  hold(number: IssueKey): Promise<void>;
   queue(action: QueueAction, choice: AgentChoice): Promise<QueueView>;
   replaceOrder(order: readonly Host[], expectedVersion: string): Promise<AgentOrder>;
   openCoordinator(): Promise<void>;
@@ -447,6 +450,38 @@ export const createPresses = ({
       () => adapter.halt(number, sessionId),
     );
 
+  const isHeld = async (number: IssueKey) => {
+    if ((await issueCardOf(number))?.state !== 'held') throw new Refusal(409, `#${number} is not held`);
+  };
+
+  const landHeld = (number: IssueKey, head: string, patch: string) =>
+    daemonAct(
+      number,
+      () => isHeld(number),
+      () => adapter.landHeld(number, head, patch),
+    );
+
+  const discardHeld = (number: IssueKey) =>
+    daemonAct(
+      number,
+      () => isHeld(number),
+      () => adapter.discardHeld(number),
+    );
+
+  const hold = (number: IssueKey) =>
+    daemonAct(
+      number,
+      async () => {
+        if (
+          !Object.values((await placement()).columns)
+            .flat()
+            .some((card) => card.number === number && card.hold)
+        )
+          throw new Refusal(409, `#${number} has no landing to hold now`);
+      },
+      () => adapter.hold(number),
+    );
+
   const go = async (sessionId: string) => {
     if (
       sessionId !== adapter.coordinator()?.terminal &&
@@ -479,6 +514,9 @@ export const createPresses = ({
     go,
     aside,
     stop,
+    landHeld,
+    discardHeld,
+    hold,
     queue,
     replaceOrder,
     openCoordinator: () => coordinatorPress(() => adapter.openCoordinator()),

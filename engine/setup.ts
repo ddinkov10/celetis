@@ -11,13 +11,14 @@ import { HostError } from './lib/command/errors.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/command/operation.ts';
 import { readConfig } from './lib/config/config.ts';
 import { type Config, ConfigError, formatConfigError, type Host, validateWorktreeSetup } from './lib/config/core.ts';
-import { type ExitCode, exits, type Label, labels, usage } from './lib/contract/contract.ts';
+import { type ExitCode, exits, labels, usage } from './lib/contract/contract.ts';
 import { hostAdapter, type Need, requireCan } from './lib/host/hosts.ts';
 import { checkClaudePolicy } from './lib/plugin/policy.ts';
 import { childEnv, run } from './lib/process/process.ts';
 import { engineRelease } from './lib/release/release.ts';
 import { type Choice, services } from './lib/services/services.ts';
 import { editJSON, jsonStyle, layoutJSON } from './lib/setup/json-layout.ts';
+import { labelStyles } from './lib/setup/labels.ts';
 import { parseSetupRecord, type SetupEntry, type WiringRecord } from './lib/setup/record.ts';
 import { freshChoice, setupStatus } from './lib/setup/status.ts';
 import {
@@ -58,18 +59,6 @@ const setupPaths = [
   'CLAUDE.md',
   '.claude/CLAUDE.md',
 ];
-const labelStyles = {
-  'needs-triage': ['not yet classified', 'FBCA04'],
-  bug: ["Something isn't working", 'd73a4a'],
-  enhancement: ['New feature or request', 'a2eeef'],
-  hotfix: ['production broken, the fix ships now', 'FEF2C0'],
-  chore: ['zero-behavior-change edit', '006B75'],
-  epic: ['parent of several feature sub-issues', '0052CC'],
-  'needs-info': ['the report lacks what its lane needs; the questions are in a comment', 'FEF2C0'],
-  'ready-for-agent': ['plan posted; no human hold; build completion is recorded in comments', 'D93F0B'],
-  'ready-for-human': ['a step needs assistance before continuation', 'C2E0C6'],
-  wontfix: ['This will not be worked on', 'ffffff'],
-} as const satisfies Record<Label, readonly [string, string]>;
 type Options = {
   hosts: readonly Host[];
   tracker: TrackerKind;

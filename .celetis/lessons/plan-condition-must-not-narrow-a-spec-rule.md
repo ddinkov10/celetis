@@ -9,10 +9,32 @@
     "recurring",
     "false-negative"
   ],
-  "date": "2026-11-14",
+  "date": "2026-11-25",
   "status": "active",
-  "source": "The implement session of #311 on Claude Code, task review of Task 11 (the design review), 2026-11-14\n\nTask 4 of ddinkov10/celetis#269 (implement step, subagent flow), controller Ruling 6 and its correction Ruling 7\n\nFinal fix wave of ddinkov10/celetis#263\n\nFinal review of ddinkov10/celetis#250, implement step session (coordinator incident)\n\nTask 3 review of #182 (ddinkov10/celetis), controller-confirmed reproduction",
+  "source": "implement session of #381 (coordinator), claude\n\nThe implement session of #311 on Claude Code, task review of Task 11 (the design review), 2026-11-14\n\nTask 4 of ddinkov10/celetis#269 (implement step, subagent flow), controller Ruling 6 and its correction Ruling 7\n\nFinal fix wave of ddinkov10/celetis#263\n\nFinal review of ddinkov10/celetis#250, implement step session (coordinator incident)\n\nTask 3 review of #182 (ddinkov10/celetis), controller-confirmed reproduction",
   "incidents": [
+    {
+      "id": "381-plan-narrowing",
+      "date": "2026-11-25",
+      "action": "The plan of #381 changed two spec rules. (1) The spec, \"The label and the act\", says the act \"can run at any time before the landing\" and \"The card menu of such an issue has Hold landing\". Plan Task 4 said \"Each issue card gets `hold: issue.holdable && isOpen`\". (2) The spec, \"Required behavior\", says \"A running action shows its progress in words, is announced, and takes no second press\". Plan Task 5 gave only Land a running state. Each task built its plan text.",
+      "expected": "Each card that the spec rule covers has the entry, and each act of the spec rule has a running state: progress in words, an announcement, and no second press.",
+      "observed": "Task 4 review, demonstrated with place(): a running implement session gave a card with no hold, and noRun set gave hold:false. Final review, demonstrated in Chromium with the Discard POST held 4 s: both buttons kept aria-disabled null, no live text, and the page sent [\"discard\",\"land\",\"discard\"].",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "place(): running implement session -> card with no `hold`; noRun set -> hold:false. Chromium, Discard POST held 4 s: aria-disabled null on both buttons, no live text, sent [\"discard\",\"land\",\"discard\"]."
+      },
+      "inference": "Inferred, not established: the plan stated each rule from the card or the act that the author had in mind (an open issue card, Land) and did not list each card state and each act that the spec rule names. The planning transcript was not read. Alternative: the plan review read \"each issue card\" and \"a running action\" as the common case.",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "126b556, bb0844f",
+      "brief": "Each affected task brief of the plan carried the lesson plan-condition-must-not-narrow-a-spec-rule (digest 905deb76...). Its Action says: quote each affected spec rule, name every mode, caller, or entry point that it covers, and add a probe case for each mode that the change can exclude.",
+      "lesson": {
+        "name": "plan-condition-must-not-narrow-a-spec-rule",
+        "revision": "2026-11-14",
+        "digest": "905deb763acf60691d624f607a05a21198b6c06e24a725273aaabf5eae1b9f1b"
+      }
+    },
     {
       "id": "73e2a03a-42f0-4b61-9d2c-e15913e93006",
       "date": "2026-11-14",
@@ -140,7 +162,7 @@
       "revision": "44d1e65"
     }
   ],
-  "recurrences": 5,
+  "recurrences": 6,
   "reviews": [
     {
       "id": "8385ab4c-cffb-479f-9c23-69fddfe2c2e9",
@@ -215,6 +237,22 @@
         "state": "proposed",
         "detail": "The earlier proposed follow-up stays open. A second one is added: the plan skill carries plan-condition-must-not-narrow-a-spec-rule into the lesson rules of each design-review task, and its check is a plan whose design-review task lacks it (owner: the plugin celetis). Both need separate authorization; this review changes no skill or procedure."
       }
+    },
+    {
+      "id": "ab418bfb-adc2-4972-9747-8df2d6f00ebd",
+      "requestDigest": "8b7db6032060819cf758fda4899d942dfc189f1fcae41afba420a86b10534fdc",
+      "date": "2026-11-25",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #381; claude child opus/high\n\nMerge (reviewer rules): the proposal states the same rule as the active lesson plan-condition-must-not-narrow-a-spec-rule. That rule already covers a plan that changes a spec rule by an added condition or a removed case, and tells the author to name every mode, caller, or entry point that the rule covers. The incident records that the briefs carried that lesson (diagnosis not-followed). The proposal has observed tool-output evidence (place() probes and a Chromium probe of a held Discard POST), and no live or historical lesson holds its incident. The survivor keeps every incident and prior review, and its rule now names card states, acts, and each member of a set explicitly. The inferred cause stays labeled apart from the facts. The rule widens no permission and weakens no check.",
+      "related": [
+        "a-plan-task-covers-each-card-and-each-action-that-a-spec-rule-names",
+        "plan-condition-must-not-narrow-a-spec-rule"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "Structural follow-up, which needs separate authorization: the acceptance coverage review of the plan step lists each member of a set that a spec rule names (each card state, each act) and compares each member with a task step and a probe case. A check that would reject this incident is a plan review that finds no step for the running state of Discard.",
+        "owner": "the plugin celetis"
+      }
     }
   ]
 }
@@ -223,7 +261,7 @@
 
 ## What happened
 
-Six incidents. In #182, the plan added a link-label condition to the spec's session rule for a
+Seven incidents. In #182, the plan added a link-label condition to the spec's session rule for a
 runner foreground. The build followed the plan. A hand-run `celetis-flow --resume <n>` sets no
 link label, so its terminal got no board card. The Task 3 review reproduced it at the
 `sessionsOf` boundary (`hand-run resume, no link label: []`), and fix 6506cd7 also accepts a
@@ -271,6 +309,16 @@ narrowed it. The task reviewer compared the base and the head in a browser: on t
 on, the done steps show `auto`; on the head, they show nothing in either mode. Fix bbcc54e restored
 the earlier line. The lesson rules of Task 11 in the plan did not name this lesson.
 
+In #381, the plan narrowed two spec rules, and each task built the narrowed rule. The spec says
+that the hold act "can run at any time before the landing" and that the card menu of such an
+issue has Hold landing. Plan Task 4 said "Each issue card gets `hold: issue.holdable && isOpen`".
+The Task 4 review showed with `place()` that a running implement session gave a card with no
+`hold`, and that `noRun` gave `hold:false`. The spec also says that a running action shows its
+progress in words, is announced, and takes no second press. Plan Task 5 gave only Land a running
+state. The final review held the Discard POST for 4 s in Chromium: both buttons kept
+`aria-disabled` null, there was no live text, and the page sent `["discard","land","discard"]`.
+Fixes: 126b556 and bb0844f. Each affected task brief carried this lesson.
+
 ## Root cause
 
 Inferred, not established: in #182 the condition was added to hold out a stale status between two
@@ -303,13 +351,24 @@ condition, but the earlier applicability named only plans, briefs, and rulings, 
 not retrieved for the refine work. Uncertain alternative: "refinement preserves" of the design
 review was read as "keeps the look", not "keeps every spec rule".
 
+In #381, observed: the task briefs carried this lesson, and the plan text still added a condition
+(`&& isOpen`) and left out a member of the set (Discard). So this is a further recurrence of a
+rule that was not followed. Inferred, not established: the plan stated each rule from the card or
+the act that the author had in mind (an open issue card, Land), and did not list each card state
+(running, `noRun`) or each act (Land and Discard) that the rule names. Uncertain: the planning
+transcript was not read. Alternative: a plan author can read "each issue card" and "a running
+action" as the common case, and the rule text gives no listing step for a member that is left
+out with no added condition.
+
 ## Fix
 
 Proposed prevention (text, not enforced): when a plan states a rule that the spec states, quote
 the spec rule, and mark each difference (an added condition, a removed case, a changed scope) as
 a decision that the maintainer records before the build. List each mode or caller that the rule
 covers (for the runner: numbered, automatic, queue, resume) and check the plan rule against each
-one in a probe.
+one in a probe. When the spec rule names a set ("each issue card", "a running action"), list each
+member of the set (each card state, each act) under the rule, with the task step and the probe case
+of each member.
 
 A repair ruling or a repair brief that changes how an element or an operation behaves in one mode
 can narrow another spec rule of the same element without naming it. So, before the ruling, list
@@ -349,7 +408,9 @@ new condition ("with the focus inside the dialog"). A fix brief that widens a pa
 that check. A ruling or a fix brief that states a new pass condition and records a form that the
 spec refuses as an accepted limit. A refine fix whose diff adds a condition that hides or drops a
 spec-named label or element (for example `step.state !== 'done' && ...`), and a base-and-head
-probe in which that element shows on the base and not on the head.
+probe in which that element shows on the base and not on the head. A plan task that adds a
+condition to a set that the spec names ("each issue card" built as `hold: issue.holdable && isOpen`),
+or that gives a state to one act of a set ("a running action" built for Land only).
 
 ## Rule
 
@@ -358,8 +419,9 @@ a design review or of another refine pass changes a rule
 that the approved spec states (an added condition, a removed case, a narrower scope, or a change of
 what a check refuses or passes), or changes a mode of an element or an operation that other spec
 rules of that element cover (for example how a dialog opens, or when a process stops). Action: quote each affected spec rule, including each
-other rule of the same element that the changed mode can reach; name every mode, caller, or entry
-point that it covers, and each mode that a new pass condition matches; and add a probe case for
+other rule of the same element that the changed mode can reach; name every mode, caller, entry
+point, card state, or act that it covers, also each member of a set that the rule names ("each
+issue card", "a running action"), and each mode that a new pass condition matches; and add a probe case for
 each mode that the change can exclude or newly pass. Check: each
 excluded mode is one that the spec excludes too, or the plan or the ruling records a maintainer
 decision for it; a repair brief names each sibling rule with its case, and the repair's probe runs

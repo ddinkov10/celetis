@@ -18,10 +18,11 @@ nothing after a `---` marker on its line.
 | `board` | Mapping with optional `port`, an integer from 1024 to 65535: the first port to try for the board ("Start the board") | Search starts at 4403 |
 | `worktreeSetup` | A root-relative `.ts` file reference, for example `"scripts/worktree-setup.ts"`, or exactly `""` ("Setup file and instruction text") | No setup |
 | `suite` | A relative path of a TypeScript file in the checkout: the full check of a `merge` landing ("Setup file and instruction text"); required with `landing: merge`, refused with `landing: pr` | With `merge`, the config is refused |
+| `holdLanding` | A boolean. `true` holds each built `feature` and `bug` issue on its branch until the maintainer lands or discards it on the board (`docs/workflow.md`, "A held change"). `true` with `landing: pr` is refused | `false`: no issue is held; one issue can still be held by `celetis --agent <host> issue <n> hold` or the board |
 | `custom` | Mapping from a skill name of the plugin to an instruction string: an addition to the procedure of that skill | No addition for an omitted skill |
 | `codexProfiles` | Mapping from a runtime identity to its profile: four ordered model slots and the reviewer minimum for that dispatch surface | Each Codex child keeps the parent's model |
 
-The engine reads `tracker`, `landing`, `suite`, `gates`, `agents`, `sessions`, `autoLanes`, `board`,
+The engine reads `tracker`, `landing`, `suite`, `holdLanding`, `gates`, `agents`, `sessions`, `autoLanes`, `board`,
 and `codexProfiles` from the main checkout, also when a command starts in a lane or a subfolder.
 The worktree command reads `worktreeSetup` from the lane checkout. At a skill entry, the active
 checkout supplies only the selected `custom.<skill>`

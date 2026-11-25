@@ -158,6 +158,8 @@ The exit status of `land <n> '<subject>'` gives the result (`<plugin>/docs/workf
   `run celetis --agent <host> land again`). It is no refusal, and step 5 does not count it: the
   change is on the trunk, so do what the line says and run the script again. A second exit 7 with the
   same line is a cause outside the change (step 5).
+- **Exit 9** (`held`) ends the step. The change is held and nothing landed. Report that, write no
+  `## Landing refused` comment, and stop. The maintainer lands or discards it on the board.
 - **Exit 128+n** is **a signal that stopped `land`**, for example the time limit of a background
   `land`, or a stop of the daemon (143). The change can be on the trunk or not: a signal to the
   client after the push prints no cleanup line to the client. It is no refusal, and step 5 does

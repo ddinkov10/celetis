@@ -61,6 +61,7 @@ export type Config = Readonly<{
   autoLanes?: readonly AutoLane[];
   board?: Readonly<{ port?: number }>;
   worktreeSetup?: string;
+  holdLanding?: boolean;
   custom?: Readonly<Record<string, string>>;
   codexProfiles?: Readonly<
     Record<
@@ -343,6 +344,7 @@ function checkSchema(value: unknown): asserts value is Config {
       'autoLanes',
       'board',
       'worktreeSetup',
+      'holdLanding',
       'suite',
       'custom',
       'codexProfiles',
@@ -382,6 +384,11 @@ function checkSchema(value: unknown): asserts value is Config {
     if (Object.hasOwn(board, 'port')) integer(board.port, 1024, 65535, ['board', 'port']);
   }
   if (Object.hasOwn(config, 'worktreeSetup')) validateWorktreeSetup(config.worktreeSetup);
+  if (Object.hasOwn(config, 'holdLanding')) {
+    if (typeof config.holdLanding !== 'boolean') throw new ConfigError(['holdLanding'], 'need a boolean');
+    if (config.holdLanding && config.landing === 'pr')
+      throw new ConfigError(['holdLanding'], 'the landing pr has no hold');
+  }
   if (config.landing === 'merge') required(config, 'suite', []);
   if (Object.hasOwn(config, 'suite')) {
     text(config.suite, ['suite']);

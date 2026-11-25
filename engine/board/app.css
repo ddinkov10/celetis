@@ -297,6 +297,9 @@
   .mb-1\.5 {
     margin-bottom: calc(var(--spacing) * 1.5);
   }
+  .mb-2 {
+    margin-bottom: calc(var(--spacing) * 2);
+  }
   .mb-3\.5 {
     margin-bottom: calc(var(--spacing) * 3.5);
   }
@@ -1670,6 +1673,9 @@
   .text-start {
     text-align: start;
   }
+  .font-\[inherit\] {
+    font-family: inherit;
+  }
   .font-mono {
     font-family: var(--mono);
   }
@@ -1876,6 +1882,9 @@
   .text-\[color\:var\(--danger\)\] {
     color: var(--danger);
   }
+  .text-\[inherit\] {
+    color: inherit;
+  }
   .text-background {
     color: var(--bg);
   }
@@ -1933,6 +1942,9 @@
   }
   .underline {
     text-decoration-line: underline;
+  }
+  .decoration-dotted {
+    text-decoration-style: dotted;
   }
   .underline-offset-2 {
     text-underline-offset: 2px;

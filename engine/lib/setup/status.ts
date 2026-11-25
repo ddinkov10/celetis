@@ -376,9 +376,11 @@ class Status {
     for (const label of labels) {
       if (found.includes(label)) continue;
       const variant = found.find((other) => other.toLowerCase() === label);
-      if (variant === undefined)
-        this.add('missing', `label ${label}`, 'the repository has no such label; setup makes it');
-      else this.add('different', `label ${label}`, `the repository has ${variant}; rename it to ${label} by hand`);
+      if (variant === undefined) {
+        // The hold makes this label on demand, so a project wired before it needs no new setup.
+        if (label !== 'hold-landing')
+          this.add('missing', `label ${label}`, 'the repository has no such label; setup makes it');
+      } else this.add('different', `label ${label}`, `the repository has ${variant}; rename it to ${label} by hand`);
     }
   }
 }

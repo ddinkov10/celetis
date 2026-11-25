@@ -12,7 +12,7 @@ import type { AgentChoice, AgentDecision, AgentOrder, Host, UsageBlock } from '.
 import type { CoordinatorAction, CoordinatorKey, CoordinatorState } from '../lib/coordinator/types.ts';
 import type { PluginHost, Registry } from '../lib/host/names.ts';
 import type { QueueAction, QueueView } from '../lib/queue/types.ts';
-import type { IssueRow, ParentEpic, Pull } from '../lib/resolver/types.ts';
+import type { HeldView, IssueRow, ParentEpic, Pull } from '../lib/resolver/types.ts';
 import type { DialogKind, TerminalStatus } from '../lib/terminal/types.ts';
 import type { TrackerKind } from '../lib/tracker/grammar.ts';
 import type { IssueKey } from '../lib/tracker/key.ts';
@@ -23,6 +23,7 @@ export type {
   Diff,
   Document,
   Flow,
+  HeldView,
   History,
   IssueKey,
   IssueRow,
@@ -89,6 +90,8 @@ export type BoardRequest =
   | { path: '/api/go'; sessionId: string }
   | { path: '/api/aside'; number: IssueKey }
   | { path: '/api/stop'; number: IssueKey; sessionId: string }
+  | { path: '/api/held/land'; number: IssueKey; head: string; patch: string }
+  | { path: '/api/held/discard' | '/api/hold'; number: IssueKey }
   | { path: '/api/agent'; order: Host[]; expectedVersion: string }
   | { path: '/api/refresh' }
   | { path: '/api/update/check' }
@@ -186,6 +189,9 @@ export type Card = {
   diff?: Diff | null;
   warning?: string | null;
   effort?: StartPair<RowSource> | null;
+  held?: HeldView | null;
+  hold?: boolean;
+  landing?: 'runs' | 'waits' | null;
 };
 export type Column = 'needs' | 'running' | 'idle' | 'human';
 export type Columns = Record<Column, Card[]>;

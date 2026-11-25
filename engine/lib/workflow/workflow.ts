@@ -1,5 +1,6 @@
 import { headings, type Kind, type Label, marker } from '../contract/contract.ts';
 import { type IssueKey, keySource, parseKey } from '../tracker/key.ts';
+import { holdApplies, holdOf } from './hold.ts';
 
 export const lanes = {
   feature: { label: 'enhancement', prefix: 'feat', steps: ['specify', 'plan', 'implement'] },
@@ -141,7 +142,7 @@ export function laneOf(names: readonly string[]): LaneOf {
 }
 
 export type Entry = Readonly<
-  | { kind: 'comment'; id: string; at: string; body: string }
+  | { kind: 'comment'; id: string; at: string; body: string; own: boolean }
   | { kind: 'label'; change: 'added' | 'removed'; name: string; at: string }
 >;
 
@@ -390,7 +391,7 @@ export function autoTakes(list: readonly AutoLane[] | undefined, run: Run): bool
 }
 
 export type Stop = Readonly<
-  | { kind: 'stop'; reason: 'wontfix' | 'finished' | 'needs-info' | 'epic' | 'land-by-hand' }
+  | { kind: 'stop'; reason: 'wontfix' | 'finished' | 'needs-info' | 'epic' | 'land-by-hand' | 'held' | 'released' }
   | { kind: 'stop'; reason: 'ready-for-human'; variant: 'landing-refused' | 'your-step' }
   | { kind: 'stop'; reason: 'human-step'; variant: HumanStep['missing'] }
   | { kind: 'stop'; reason: 'several-lanes'; labels: readonly string[] }
@@ -400,7 +401,10 @@ export type Decision = Run | Stop;
 
 export function decide(issue: IssueData): Decision {
   const labeled = (name: Label) => issue.labels.includes(name);
-  const stop = (reason: 'wontfix' | 'finished' | 'needs-info' | 'epic'): Stop => ({ kind: 'stop', reason });
+  const stop = (reason: 'wontfix' | 'finished' | 'needs-info' | 'epic' | 'held' | 'released'): Stop => ({
+    kind: 'stop',
+    reason,
+  });
   const run = (step: Step, lane: Lane | null, state: RunState): Run => ({ kind: 'run', step, lane, state });
   const found = laneOf(issue.labels);
   const { build, open, refusal } = factsOf(issue, found.kind === 'lane' ? found.lane : null);
@@ -417,6 +421,10 @@ export function decide(issue: IssueData): Decision {
   if (lane === 'bug' && !diagnosed(issue)) return run('bug', lane, 'undiagnosed');
   const human = open.at(-1);
   if (human) return { kind: 'stop', reason: 'human-step', variant: human.missing };
+  if (build === 'built' && holdApplies(issue, lane, false)) {
+    const { latest } = holdOf(issue);
+    if (latest?.kind === 'held' || latest?.kind === 'released') return stop(latest.kind);
+  }
   const handed = headed(issue.history, headings.landingRefused, headings.beforeLanding).at(-1);
   if (lane === 'hotfix' && handed && removedAfter(issue.history, 'ready-for-human', handed.position))
     return { kind: 'stop', reason: 'land-by-hand' };
@@ -427,7 +435,7 @@ export function decide(issue: IssueData): Decision {
 }
 
 export function landable(decision: Decision): boolean {
-  if (decision.kind === 'stop') return decision.reason === 'land-by-hand';
+  if (decision.kind === 'stop') return decision.reason === 'land-by-hand' || decision.reason === 'released';
   return decision.step === 'implement' ? decision.state === 'built' : ['chore', 'hotfix'].includes(decision.step);
 }
 

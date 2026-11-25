@@ -42,6 +42,8 @@ const plainReasons: Record<Plain, true> = {
   'needs-info': true,
   epic: true,
   'land-by-hand': true,
+  held: true,
+  released: true,
 };
 const readyVariants: Record<Variant<'ready-for-human'>, true> = { 'landing-refused': true, 'your-step': true };
 const humanVariants: Record<Variant<'human-step'>, true> = { evidence: true, report: true, removal: true };

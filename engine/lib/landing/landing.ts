@@ -15,8 +15,10 @@ import { type LockOwner, landLock } from '../state/locks.ts';
 import type { IssueKey } from '../tracker/key.ts';
 import { writeRefreshHint } from '../tracker/refresh-hints.ts';
 import { TrackerError } from '../tracker/tracker.ts';
-import { branchGlobs, decide, landable } from '../workflow/workflow.ts';
+import { holdApplies, holdOf } from '../workflow/hold.ts';
+import { branchGlobs, decide, landable, laneOf } from '../workflow/workflow.ts';
 import { checkoutOf, deleteRemoteBranches, refusedDeletion, removeLane } from '../workflow/worktree.ts';
+import { carriesRelease, holdGate, patchId } from './hold.ts';
 import { mergeMechanism } from './merge.ts';
 import { prMechanism } from './pr.ts';
 
@@ -163,10 +165,26 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
             die('usage', `the lane worktree is dirty: ${checkout}; commit first`);
         }
         await git(['fetch', '-q', 'origin', trunk], ['blocked', `cannot fetch ${trunk} from origin`]);
-        const tip = await git(['rev-parse', `refs/heads/${branch}`]);
         const base = await git(['rev-parse', `origin/${trunk}`]);
         if (!(await git(['rev-list', '-n', '1', `origin/${trunk}..${branch}`])))
           die('usage', `${branch} has no commit that ${trunk} lacks; nothing to land`);
+        const gate = await holdGate({
+          n,
+          subject,
+          main,
+          trunk,
+          branch,
+          checkout,
+          base,
+          setting: config.holdLanding === true,
+          signal,
+          git,
+          gitRaw,
+          tracked,
+          die,
+        });
+        if (gate.kind === 'held') return { status: exits.held, defect: null };
+        const tip = await git(['rev-parse', `refs/heads/${branch}`]);
         const stale = `merge origin/${trunk} into ${branch}, run the verify gate of the project again, then land again`;
         const preflight = async () => {
           const fresh = await createOperation(await locateCheckouts(main), operation.selection, 'main');
@@ -178,8 +196,21 @@ export async function runLanding(landing: Landing, main: string, signal: AbortSi
           const read = await gh.read(n).catch(() => null);
           process.stderr.write(gh.stderr());
           interrupted();
-          const decision = read ? decide(read.data) : die('blocked', `cannot read #${n} from ${gh.name}`);
+          const data = read ? read.data : die('blocked', `cannot read #${n} from ${gh.name}`);
+          const decision = decide(data);
           if (!landable(decision)) die('prerequisite', `#${n} is not ready to land: ${lineOf(n, decision)}`);
+          const lane = laneOf(data.labels);
+          if (lane.kind === 'lane' && holdApplies(data, lane.lane, fresh.mainConfig?.holdLanding === true)) {
+            const { latest } = holdOf(data);
+            if (
+              gate.kind !== 'released' ||
+              latest?.kind !== 'released' ||
+              latest.patch !== gate.patch ||
+              (await patchId(base, tip, main, signal)) !== gate.patch ||
+              (await carriesRelease(latest.head, base, tip, main, signal)) !== 'same'
+            )
+              die('prerequisite', `#${n} has no release for this content; press Land on the board again`);
+          }
           if (
             (
               await checked(

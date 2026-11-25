@@ -453,6 +453,8 @@ dispatcher throws is the 500 answer below. A body is JSON of at most 16 KiB, wit
 | `POST /queue/action` | `{action, selection}` | A queue action, as `queue action '<QueueAction JSON>'`; `action` is that JSON |
 | `POST /queue/reconcile` | `{}` | The queue reconcile of a board read |
 | `POST /land` | `{number, subject, selection, from}` | A landing, as `celetis --agent <host> land <number> '<subject>'` from the folder `from`; the answer is a stream (below) |
+| `POST /held-land` | `{number, head, patch}` | The Land press of a held change; the answer comes after the landing ends (below) |
+| `POST /held-discard` | `{number}` | The Discard press of a held change (below) |
 | `POST /coordinator/open` | `{selection}` | The open of the coordinator session, as `celetis coordinator`; the answer is `{accepted: true, opened}` ([The coordinator session](#the-coordinator-session)) |
 | `POST /coordinator/read` | `{number}` | The screen read, as `celetis coordinator read <number>`; the answer is `{accepted: true, text, complete, why}` ([The coordinator session](#the-coordinator-session)) |
 | `POST /coordinator/send` | `{number, authority, text, token}` | The send, as `celetis coordinator send <number> <file> --as <authority>`; `authority` is `maintainer` or `coordinator`, `text` is a string, and `token` is a UUID; the answer is `{accepted: true, run: null}` ([The coordinator session](#the-coordinator-session)) |
@@ -480,8 +482,32 @@ writes one `out` record first ([A landing](../plugins/celetis/docs/workflow.md#a
 `<text>` is one byte of the write (U+0000 to U+00FF), so the client writes the bytes of the landing
 unchanged. A refused `/land` gets the refusal answers below, with no stream.
 
+A `/held-land` or `/held-discard` body has the issue key `number`; `/held-land` also has `head` and
+`patch`, each 40 lowercase hex digits. Only the board calls them. The daemon takes the lock
+`land-<n>` for the checks and the writes of the press, and refuses it with 409 and code 3 when a landing or a run of the issue is
+active, or another press of the issue runs. `/held-land` reads the issue and requires the decision
+`held` or `released`. It refuses a `head` or a `patch` that differs from the latest record and from
+the current branch ("A held change" of
+[the workflow document](../plugins/celetis/docs/workflow.md#a-held-change)), and writes nothing then. For a
+`released` issue whose lane branch has other content, the line names the command
+`celetis --agent <host> land <n> '<subject>'`, which writes a new `## Held`. Only a record of the login that the
+engine uses for the tracker counts, and a failed read of that login is 409 with code 6. For a
+`held` issue it writes `## Released`. It then runs the landing of `/land` in the same process, with
+the subject of the latest `## Held`, the default host selection, and the main checkout as `from`. A
+landing that ends with 4 or 5 gets `## Landing refused` with its last `land:` line and the label
+`ready-for-human`. Each answer of a press is `{accepted: true, run: null}` when the landing ends with 0,
+else 409 with the `land:` line and its exit code. `/held-discard` pushes the lane branch to `origin`,
+closes the issue as `wontfix`, and removes the lane worktree, and a refusal of any act leaves the
+earlier acts in place, so the press can run again. When GitHub refuses the deletion of a remote
+prototype branch with HTTP 403, the answer is 409 with code 6 and a line that names each such branch.
+The `ls-remote` and the fetch of `/held-land`, and the push and the lane removal of `/held-discard`, run
+with no prompt (`GIT_TERMINAL_PROMPT=0`, an empty `GIT_ASKPASS`). They use the `GIT_SSH_COMMAND` of
+the daemon unchanged. With none, they use the effective `core.sshCommand` of the main checkout with
+`-o BatchMode=yes` added. Else, with `GIT_SSH` set, the press sets no `GIT_SSH_COMMAND`, so that program
+runs unchanged. Else they use `ssh -o BatchMode=yes`.
+
 An answer is `{accepted: true, run}` or `{accepted: false, line, code}`. `run` is the run ID, or
-`null` for `/auto`, `/retry`, `/aside`, `/halt`, and `/stop`. A queue action and a reconcile answer
+`null` for `/auto`, `/retry`, `/aside`, `/halt`, `/held-land`, `/held-discard`, and `/stop`. A queue action and a reconcile answer
 `{accepted: true, run, view}`, where `view` is the queue view of `queue status` after the change, and
 `run` is the run ID of the queue wake of the change, or `null` when the change has no wake. A queue
 wake of either request starts as `POST /queue` does. When the daemon refuses that wake with 409, it
@@ -499,7 +525,7 @@ code of its cause:
 | 404, 405 | Another path, or another method for a path; code 2 |
 | 409 | A refused admission or an end before the first session, with its line and code: for example a busy issue lock with code 3, a failed GitHub read of the issue with code 6, and a finished issue with code 0. A refused queue action or reconcile, with the line and code of `queue action`: for example a stale `expected` with code 3 |
 | 413 | A body of more than 16 KiB; code 2 |
-| 503 | A request that arrives during a stop (except `POST /stop` during a restart, "The restart"), and the answer of a run, queue, resume, assist, or auto on request, or of a queue action or reconcile with a wake, that comes after a stop began, code 3. A status read that began before the stop answers 200. A run, resume, retry, aside, halt, queue action, or reconcile request of the board before the end of the takeover, code 3 |
+| 503 | A request that arrives during a stop (except `POST /stop` during a restart, "The restart"), and the answer of a run, queue, resume, assist, or auto on request, or of a queue action or reconcile with a wake, that comes after a stop began, code 3. A status read that began before the stop answers 200. A run, resume, retry, aside, halt, held-land, held-discard, queue action, or reconcile request of the board before the end of the takeover, code 3 |
 | 500 | An unexpected error of the daemon while it answers: its message, code 1 |
 
 A run, queue, resume, or assist request answers after every check before the first session of its run:

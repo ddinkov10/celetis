@@ -13,6 +13,7 @@ import { Entries, FirstFocus } from '../ui/menu-entries.tsx';
 import { copy } from '../ui.ts';
 import { actionsOf, copyWhat, menuName, menuOf, runEntries } from './actions.ts';
 import { type Launch, SLOW_START, SLOW_START_TEXT } from './cards.ts';
+import { HeldPanel } from './held.tsx';
 import { columnId, columnStop } from './keys.ts';
 import { ActionButton, GateLabel, IconButton, Link, Mark, Num, PrChips, Timed, WARNING } from './parts.tsx';
 import { type MenuKind, type ScreenState, screen, useScreen } from './state.ts';
@@ -593,6 +594,11 @@ export const Card = memo(function Card({
         <StartNote card={card} failure={failure} launch={launch} isCompact />
         {card.warning && <p className={warning}>{card.warning}</p>}
         {aside && <p className={warning}>{aside}</p>}
+        {card.state === 'held' && (
+          <div className="col-[2/-1] mt-1">
+            <HeldPanel card={card} />
+          </div>
+        )}
       </div>
       {mainButton &&
         (runMenu ? (
@@ -641,6 +647,7 @@ export const Card = memo(function Card({
       {card.act && card.state !== 'no-progress' && <ActLine card={card} />}
       {card.warning && <p className={warning}>{card.warning}</p>}
       {refusal && <p className={warning}>{refusal}</p>}
+      {card.state === 'held' && <HeldPanel card={card} />}
       <div className="flex min-h-7 items-center justify-between gap-2.5 cq-360:flex-col cq-360:items-stretch">
         <Status card={card} env={env} />
         <div className="flex flex-none items-center gap-2 cq-360:justify-end">
