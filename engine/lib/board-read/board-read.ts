@@ -5,6 +5,7 @@ import { activeBlock, readUsage, selectAgent } from '../agent/usage.ts';
 import { createOperation, locateCheckouts } from '../command/operation.ts';
 import type { AgentDecision, AgentOrder, Config, Host, UsageBlock } from '../config/core.ts';
 import { type Client, type Connection, chunks, client, drain, graphqlQuery } from '../github/github.ts';
+import { trusted } from '../github/tracker.ts';
 import { hostAvailability } from '../host/host.ts';
 import { capableOrder } from '../host/hosts.ts';
 import { hosts } from '../host/names.ts';
@@ -277,7 +278,8 @@ async function readIssues(
     graphqlQuery(
       numbers
         .map(
-          (n) => `n${n}: issueOrPullRequest(number: ${n}) { __typename ... on Issue { number title url createdAt } }`,
+          (n) =>
+            `n${n}: issueOrPullRequest(number: ${n}) { __typename ... on Issue { number title url createdAt authorAssociation } }`,
         )
         .join(' '),
     ),
@@ -291,7 +293,12 @@ async function readIssues(
       const title = text(issue.title);
       const href = text(issue.url);
       link(href);
-      issues.set(n, typeof issue.number === 'number' && String(issue.number) === n ? { title, url: href } : null);
+      issues.set(
+        n,
+        typeof issue.number === 'number' && String(issue.number) === n && trusted(issue.authorAssociation)
+          ? { title, url: href }
+          : null,
+      );
     }
     if (!cache.issues.has(n)) {
       const createdAt = issues.get(n) ? date(issue.createdAt) : null;

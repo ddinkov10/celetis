@@ -17,8 +17,8 @@ The skills use these forms:
 - **Create an issue**: `celetis --agent <host> issue create <file>`. The first line of the file
   is `# Intent: <title>`; the act takes the title from it, posts the whole file as the body, and
   sets `needs-triage`.
-- **Read an issue**: `celetis --agent <host> issue <n> view` prints the JSON of the issue: `key`, `title`, `url`, `state`, `labels`, `body`, `parent`, `children`, and `history` (the ordered timeline; each comment has its `author`, `null` when the tracker gives no user). `view --latest '<heading>'` prints the body of the newest comment whose first line is the heading, and exits 3 when none matches. A pull request exits 3, and a read failure exits 6.
-- **List issues**: `celetis --agent <host> issue list` prints the open issues with no pull request as a JSON array of `{ key, title, url, labels }`. `--state closed` lists the closed issues in place of the open issues, and `--label <label>` lists only the issues with that one label.
+- **Read an issue**: `celetis --agent <host> issue <n> view` prints the JSON of the issue: `key`, `title`, `url`, `state`, `labels`, `body`, `parent`, `children`, and `history` (the ordered timeline; each comment has its `author`, `null` when the tracker gives no user). With the GitHub tracker, `history` holds only the comments of trusted authors ("Trusted authors"). `view --latest '<heading>'` prints the body of the newest comment whose first line is the heading, and exits 3 when none matches. A pull request exits 3, and a read failure exits 6.
+- **List issues**: `celetis --agent <host> issue list` prints the open issues with no pull request as a JSON array of `{ key, title, url, labels }`. `--state closed` lists the closed issues in place of the open issues, and `--label <label>` lists only the issues with that one label. With the GitHub tracker, the list holds no issue of an untrusted author ("Trusted authors").
 - **Link a sub-issue**: `celetis --agent <host> issue <epic> link <child>` makes the child a sub-issue of the epic; it writes nothing when the link exists.
 - **Comment**: `celetis --agent <host> issue <n> comment <file>`, with one
   `--attach '<file>#<alt text>'` for each image or video.
@@ -95,6 +95,30 @@ also use the protected current-state reads in "Epic completion and repair":
   resolver stops a `## Before landing` comment with no `ready-for-human` as an open human step, and
   a failed plan-label addition leaves an unfinished plan. Readiness writes do not record build
   completion ("Resolving an issue's state").
+
+## Trusted authors
+
+With the GitHub tracker, the engine reads only the issue text of trusted authors. An author is trusted when GitHub reports its association with the repository as `OWNER`, `MEMBER`, or `COLLABORATOR`: the REST field `author_association` of an issue and of a `commented` timeline event, and the GraphQL field `authorAssociation` of an issue comment. Each other value (for example `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, or `NONE`), a missing field, and `null` are not trusted. The trust of a text follows its author: an edit of the text does not change it.
+
+The GitHub adapter of the tracker port (`engine/lib/github/tracker.ts`) is the one place of the rule. It applies the rule where it parses each issue and each comment, before any consumer sees the data, so no consumer checks the author again. The history read of the board, which reads the title of each landed issue outside the port, uses the same rule and leaves out an issue of an untrusted author. Each reading method of the port applies it:
+
+| Method | A comment of an untrusted author | An issue of an untrusted author |
+|---|---|---|
+| `read` | left out of the history | refused |
+| `history` | left out | (the caller reads `issue` first) |
+| `timelines` (GraphQL, the board read) | left out | (only listed issues come in) |
+| `epic` | left out of the history | the parent: refused |
+| `issue` | none | refused |
+| `issues` | none | left out of the list, a pull request too |
+| `children` | none | left out of the list |
+
+So no lifecycle heading, effort marker, epic reference, `view` history entry, or `view --latest` result comes from an untrusted author, and `issue list`, the board, and the resolver show no issue of one. Label events stay in each history: only a user with triage access or higher can change a label. The child snapshot of `epic-state` keeps each child, because it holds no text of the child, and the completion guard counts each child. The `comments` count of an issue stays the count of GitHub.
+
+An issue of an untrusted author reads as a missing issue. Each act on it stops as it stops for a missing issue, the write acts too: an `issue` act exits 6 with `cannot read #<n> from GitHub`, and `worktree`, `next-step`, `run`, the queue, and the landing report the issue as unreadable. Each of them also prints the line `#<n> was opened by <login>, who is not the owner, a member, or a collaborator of the repository; Celetis does not read it`, with `an unknown user` for an issue with no user; for `run`, the daemon writes the line to its log. A board read by key skips the issue, so the board does not blank. The remedy is a new issue that the maintainer writes in their own words, through `/celetis:intake`. The rule applies to reads only: `issue create` does not refuse the issue that it writes.
+
+The `gh` login of the engine must be the owner, a member, or a collaborator of the repository. The engine writes each record as that login, so with another login, for example a GitHub App token, the engine leaves out its own records, and the line of each issue stalls. The engine does not detect this.
+
+The local tracker trusts each author: each author of a local issue writes it with push access to `origin`.
 
 ## The local tracker
 

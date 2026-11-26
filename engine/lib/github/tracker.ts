@@ -98,22 +98,33 @@ function author(user: unknown): string | null {
   return user === null ? null : text(record(user).login);
 }
 
+export function trusted(association: unknown): boolean {
+  return association === 'OWNER' || association === 'MEMBER' || association === 'COLLABORATOR';
+}
+
+function onlyTrusted<T>(parse: (raw: unknown) => T): (raw: unknown) => T[] {
+  return (raw) => {
+    const value = parse(raw);
+    return trusted(record(raw).author_association) ? [value] : [];
+  };
+}
+
 function parseHistory(entries: readonly unknown[]): Authored[] {
   return entries.flatMap((raw): Authored[] => {
     const entry = record(raw);
     const event = text(entry.event);
     if (!event || /[\s\0]/.test(event)) throw malformed();
     switch (event) {
-      case 'commented':
-        return [
-          {
-            kind: 'comment',
-            id: String(integer(entry.id)),
-            at: text(entry.created_at),
-            author: author(entry.user),
-            body: text(entry.body),
-          },
-        ];
+      case 'commented': {
+        const comment: Authored = {
+          kind: 'comment',
+          id: String(integer(entry.id)),
+          at: text(entry.created_at),
+          author: author(entry.user),
+          body: text(entry.body),
+        };
+        return trusted(entry.author_association) ? [comment] : [];
+      }
       case 'labeled':
       case 'unlabeled':
         return [
@@ -131,27 +142,31 @@ function parseHistory(entries: readonly unknown[]): Authored[] {
 }
 
 const timelineItems = (after: string) =>
-  `timelineItems(first: 100${after}, itemTypes: [ISSUE_COMMENT, LABELED_EVENT, UNLABELED_EVENT]) { pageInfo { hasNextPage endCursor } nodes { __typename ... on IssueComment { databaseId createdAt body author { login } } ... on LabeledEvent { createdAt label { name } } ... on UnlabeledEvent { createdAt label { name } } } }`;
+  `timelineItems(first: 100${after}, itemTypes: [ISSUE_COMMENT, LABELED_EVENT, UNLABELED_EVENT]) { pageInfo { hasNextPage endCursor } nodes { __typename ... on IssueComment { databaseId createdAt body author { login } authorAssociation } ... on LabeledEvent { createdAt label { name } } ... on UnlabeledEvent { createdAt label { name } } } }`;
 
-function timelineEntry(raw: unknown): Authored {
+function timelineEntry(raw: unknown): Authored[] {
   const node = record(raw);
   switch (node.__typename) {
-    case 'IssueComment':
-      return {
+    case 'IssueComment': {
+      const comment: Authored = {
         kind: 'comment',
         id: String(integer(node.databaseId)),
         at: text(node.createdAt),
         author: author(node.author),
         body: text(node.body),
       };
+      return trusted(node.authorAssociation) ? [comment] : [];
+    }
     case 'LabeledEvent':
     case 'UnlabeledEvent':
-      return {
-        kind: 'label',
-        change: node.__typename === 'LabeledEvent' ? 'added' : 'removed',
-        name: text(record(node.label).name),
-        at: text(node.createdAt),
-      };
+      return [
+        {
+          kind: 'label',
+          change: node.__typename === 'LabeledEvent' ? 'added' : 'removed',
+          name: text(record(node.label).name),
+          at: text(node.createdAt),
+        },
+      ];
     default:
       throw malformed();
   }
@@ -198,11 +213,24 @@ export function githubTracker(client: Client): Tracker {
         );
         result.set(
           key,
-          parsed('graphql', () => owned(nodes.map(timelineEntry), self)),
+          parsed('graphql', () => owned(nodes.flatMap(timelineEntry), self)),
         );
       }
     }
     return result;
+  }
+
+  function refuseUntrusted(n: IssueKey, raw: Record<string, unknown>): void {
+    if (trusted(raw.author_association)) return;
+    const line = `#${n} was opened by ${author(raw.user) ?? 'an unknown user'}, who is not the owner, a member, or a collaborator of the repository; Celetis does not read it`;
+    appendStderr(`${line}\n`);
+    throw new TrackerError(line, { text: line, stderr: `${line}\n`, notFound: true, refused: true, missing: n });
+  }
+
+  function readable(n: IssueKey, raw: unknown): Issue {
+    const issue = parseIssue(raw);
+    refuseUntrusted(n, record(raw));
+    return issue;
   }
 
   async function timeline<T>(n: IssueKey, parse: (entries: readonly unknown[]) => T): Promise<T> {
@@ -227,7 +255,7 @@ export function githubTracker(client: Client): Tracker {
     project,
     timelines,
     async read(n: IssueKey) {
-      const issue = await get(`issues/${n}`, parseIssue);
+      const issue = await get(`issues/${n}`, (raw) => readable(n, raw));
       const self = await login();
       return { issue, data: issueData(issue, await timeline(n, (entries) => owned(parseHistory(entries), self))) };
     },
@@ -247,6 +275,7 @@ export function githubTracker(client: Client): Tracker {
           throw malformed();
         return parent;
       });
+      refuseUntrusted(n, rawParent);
       const self = await login();
       const timeline = `${target}/timeline?per_page=100`;
       const rawEntries = await pages(timeline);
@@ -295,19 +324,21 @@ export function githubTracker(client: Client): Tracker {
     async children(n: IssueKey) {
       const endpoint = `issues/${n}/sub_issues?per_page=100`;
       const items = await pages(endpoint);
-      return parsed(endpoint, () => items.map(parseChild));
+      return parsed(endpoint, () => items.flatMap(onlyTrusted(parseChild)));
     },
     async link(epic: IssueKey, child: IssueKey) {
       const id = await get(`issues/${child}`, (raw) => integer(record(raw).id));
       await send('POST', `issues/${epic}/sub_issues`, { fields: { sub_issue_id: id } });
       await writeRefreshHint(cwd, child);
     },
-    issue: (n: IssueKey) => get(`issues/${n}`, parseIssue),
-    issues: (state: Issue['state'], label?: string) =>
-      getAll(
-        `issues?state=${state}${label === undefined ? '' : `&labels=${encodeURIComponent(label)}`}&per_page=100`,
-        parseIssue,
-      ),
+    issue: (n: IssueKey) => get(`issues/${n}`, (raw) => readable(n, raw)),
+    issues: async (state: Issue['state'], label?: string) =>
+      (
+        await getAll(
+          `issues?state=${state}${label === undefined ? '' : `&labels=${encodeURIComponent(label)}`}&per_page=100`,
+          onlyTrusted(parseIssue),
+        )
+      ).flat(),
     parent: (n: IssueKey) => get(`issues/${n}/parent`, parseParent),
     labels: () => getAll('labels?per_page=100', parseLabelName),
     async createLabel(fields: NewLabel) {

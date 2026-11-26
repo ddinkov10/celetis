@@ -72,14 +72,16 @@ export async function admitQueue(operation: Operation, input: QueueAction): Prom
   const pinned = explicitHost(choice);
   const number = action.kind === 'add' ? action.number : snapshot?.numbers[0];
   if (!number) refuse('queue: that action is not available; refresh the queue');
-  const next = (await nextIssue(number, operation)).next;
+  const { next, stderr } = await nextIssue(number, operation);
   if (action.kind === 'add' || action.kind === 'continue' || action.kind === 'retry') {
     if (
       action.kind === 'retry' && action.step === null
         ? !terminal(next)
         : next.kind !== 'run' || next.step !== action.step
     )
-      refuse(`queue: the displayed decision changed: ${lineOf(number, next)}`);
+      refuse(
+        `queue: the displayed decision changed: ${lineOf(number, next)}${next.kind === 'observed' && next.reason === 'unreadable' ? `\n${stderr}`.trimEnd() : ''}`,
+      );
     if (next.kind === 'run' && pinned && !hostAvailability(pinned).available) refuse(`queue: ${pinned} is not on PATH`);
   }
   const currentNext =
