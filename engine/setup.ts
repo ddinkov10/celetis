@@ -9,8 +9,15 @@ import { initializeAgentOrder, readAgentOrder, validateAgentOrder } from './lib/
 import { CodeHostError } from './lib/code-host/code-host.ts';
 import { HostError } from './lib/command/errors.ts';
 import { commandInput, createOperation, locateCheckouts, type Operation } from './lib/command/operation.ts';
-import { readConfig } from './lib/config/config.ts';
-import { type Config, ConfigError, formatConfigError, type Host, validateWorktreeSetup } from './lib/config/core.ts';
+import { engineReader, readConfig } from './lib/config/config.ts';
+import {
+  type Config,
+  ConfigError,
+  configSchema,
+  formatConfigError,
+  type Host,
+  validateWorktreeSetup,
+} from './lib/config/core.ts';
 import { type ExitCode, exits, labels, usage } from './lib/contract/contract.ts';
 import { hostAdapter, type Need, requireCan } from './lib/host/hosts.ts';
 import { checkClaudePolicy } from './lib/plugin/policy.ts';
@@ -88,7 +95,7 @@ async function fromGitHub<T>(call: Promise<T>, message: string): Promise<T> {
     return fail(message, exits.blocked);
   });
 }
-function editConfig(source: string, updates: Map<string, string | undefined>): string {
+function editConfig(source: string, updates: Map<string, string | number | undefined>): string {
   if (!updates.size) return source;
   if (!source)
     return [...updates]
@@ -111,7 +118,7 @@ function editConfig(source: string, updates: Map<string, string | undefined>): s
     if (item) {
       if (value !== undefined) {
         if (!item.value) fail(`${configFile}: ${key} has no editable value`);
-        CST.setScalarValue(item.value, value, { type: 'QUOTE_DOUBLE' });
+        CST.setScalarValue(item.value, String(value), { type: typeof value === 'number' ? 'PLAIN' : 'QUOTE_DOUBLE' });
       } else {
         const retained = [
           ...item.start.filter((token) => token.type !== 'comma'),
@@ -664,9 +671,9 @@ class Setup {
       fail(`cannot preserve unrelated values of ${settings}; repair the file by hand first`);
     this.put(settings, edited);
   }
-  configError(checkout: string, error: unknown): void {
+  async configError(checkout: string, error: unknown): Promise<void> {
     if (!(error instanceof ConfigError)) throw error;
-    console.error(`celetis: ${checkout}/${configFile}: ${error.field}: ${error.message}`);
+    console.error(formatConfigError(checkout, error, await engineReader()));
   }
   async planConfig(opts: Options, scratch: string): Promise<void> {
     let original: Partial<Config> & { suite?: string } = {};
@@ -674,13 +681,14 @@ class Setup {
       try {
         original = this.config ??= readConfig(this.cwd);
       } catch (error) {
-        this.configError(this.cwd, error);
+        await this.configError(this.cwd, error);
         fail(`cannot read ${configFile}; fix the cause above first`, exits.usage);
       }
     }
     const desired = { ...original };
-    const updates = new Map<string, string | undefined>();
-    const wanted: (readonly ['tracker' | 'landing' | 'suite', string])[] = [
+    const updates = new Map<string, string | number | undefined>();
+    const wanted: (readonly ['schema' | 'tracker' | 'landing' | 'suite', string | number])[] = [
+      ['schema', configSchema],
       ['tracker', opts.tracker],
       ['landing', opts.landing],
     ];
@@ -726,7 +734,7 @@ class Setup {
       try {
         actual = readConfig(scratch);
       } catch (error) {
-        this.configError(scratch, error);
+        await this.configError(scratch, error);
         fail(`cannot update ${configFile}; repair its fields by hand first`, exits.usage);
       }
       if (!isDeepStrictEqual(actual, desired))
@@ -928,7 +936,7 @@ class Setup {
           await mkdir(dirname(absolute), { recursive: true });
           await this.checkDestination(path);
           await writeFile(absolute, file.contents);
-          if (path === configFile) this.config = this.read(this.cwd);
+          if (path === configFile) this.config = await this.read(this.cwd);
         }
       } catch (error) {
         fail(
@@ -1019,11 +1027,12 @@ class Setup {
       fail('the commit failed in the test lane', exits.blocked);
     }
   }
-  read(checkout: string): Config {
+  async read(checkout: string): Promise<Config> {
     try {
       return readConfig(checkout);
     } catch (error) {
-      if (error instanceof ConfigError) throw new HostError(formatConfigError(checkout, error), exits.usage);
+      if (error instanceof ConfigError)
+        throw new HostError(formatConfigError(checkout, error, await engineReader()), exits.usage);
       throw error;
     }
   }

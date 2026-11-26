@@ -1,6 +1,7 @@
 import { readFile, realpath } from 'node:fs/promises';
 import { dirname, join, posix } from 'node:path';
 import { HostError } from '../engine/lib/command/errors.ts';
+import { ConfigError, configSchema, parseConfigText, validateConfig } from '../engine/lib/config/core.ts';
 import {
   type CommandName,
   capPrefix,
@@ -30,11 +31,13 @@ import {
   worktreePathLine,
 } from '../engine/lib/contract/contract.ts';
 import { entryParts } from '../engine/lib/contract/entry-text.ts';
+import { hosts } from '../engine/lib/host/names.ts';
 import { checkTools } from '../engine/lib/mcp/tools.ts';
 import { type Job, printJobs, runJobs } from '../engine/lib/process/parallel.ts';
 import { bunArgs, childEnv, run } from '../engine/lib/process/process.ts';
 import { type IssueKey, parseKey } from '../engine/lib/tracker/key.ts';
-import { lanes } from '../engine/lib/workflow/workflow.ts';
+import { levels, models, reviewerLevels } from '../engine/lib/workflow/effort.ts';
+import { autoLaneNames, lanes, steps } from '../engine/lib/workflow/workflow.ts';
 
 const root = dirname(import.meta.dir);
 const plugin = 'plugins/celetis/';
@@ -757,6 +760,59 @@ export function checkContractVersion(files: ReadonlyMap<string, string>): string
   return errors;
 }
 
+const configSchemaFile = 'engine/lib/config/schema.json';
+const configSourceFile = 'engine/lib/config/core.ts';
+
+function configDigest(source: string): string {
+  const canonical = {
+    source,
+    hosts,
+    levels,
+    models,
+    reviewerLevels,
+    autoLaneNames,
+    steps,
+    lanes: Object.fromEntries(Object.entries(lanes).map(([name, { steps }]) => [name, steps])),
+  };
+  return new Bun.CryptoHasher('sha256').update(JSON.stringify(canonical)).digest('hex');
+}
+
+function schemaRecord(text: string): { schema: number; digest: string } | null {
+  try {
+    const record = JSON.parse(text);
+    return Number.isInteger(record.schema) && record.schema >= 1 && /^[0-9a-f]{64}$/.test(record.digest)
+      ? record
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export function checkConfigSchema(files: ReadonlyMap<string, string>): string[] {
+  const prefix = 'verify: config schema: ';
+  const record = schemaRecord(files.get(configSchemaFile) ?? '');
+  if (record === null)
+    return [`${prefix}${configSchemaFile} declares no valid schema record; write { "schema": <n>, "digest": "<hex>" }`];
+  const errors: string[] = [];
+  if (record.schema !== configSchema)
+    errors.push(
+      `${prefix}${configSchemaFile} records schema ${record.schema}, and configSchema of ${configSourceFile} is ${configSchema}; write one number in both`,
+    );
+  const digest = configDigest(files.get(configSourceFile) ?? '');
+  if (record.digest !== digest)
+    errors.push(
+      `${prefix}the validation of .celetis.yaml changed, and schema ${configSchema} records another digest; when the accepted set changed, raise configSchema to ${configSchema + 1}, add its row to plugins/celetis/docs/configuration.md, "Schema versions", set schema: ${configSchema + 1} in .celetis.yaml, and run the gate again for the digest; else write { "schema": ${configSchema}, "digest": "${digest}" } in ${configSchemaFile}`,
+    );
+  try {
+    const config = validateConfig(parseConfigText(files.get('.celetis.yaml') ?? ''));
+    if (config.schema !== configSchema)
+      errors.push(`${prefix}.celetis.yaml has schema ${config.schema}; set schema: ${configSchema}`);
+  } catch (error) {
+    if (!(error instanceof ConfigError)) throw error;
+  }
+  return errors;
+}
+
 const exactVersion = /^\d+\.\d+\.\d+$/;
 
 async function installedVersion(file: string): Promise<string | undefined> {
@@ -946,6 +1002,7 @@ async function execute(argv: string[]): Promise<number> {
       ...checkImports(texts),
       ...checkLayout(files),
       ...checkContractVersion(texts),
+      ...checkConfigSchema(texts),
       ...checkTools(commands),
     ];
     for (const line of textErrors) console.error(line);

@@ -9,6 +9,7 @@ nothing after a `---` marker on its line.
 
 | Field | Accepted value | Default when omitted |
 | --- | --- | --- |
+| `schema` | Required: an integer of 1 or more: the schema number that the file was written for ("Schema versions") | None: the config is refused |
 | `tracker` | Required: `github` or `local`: the issue tracker of the project. `local` keeps the issues in the repository and needs `landing: merge`; with `landing: pr`, the config is refused. The key form of each command follows it: a number for `github`, the 7 hexadecimal characters of a local issue for `local` | None: the config is refused |
 | `landing` | Required: `pr` or `merge`. `pr` squash-merges a PR when each check is green. `merge` creates one squash commit on the trunk, with no PR; a project with no PR check uses `merge` (`docs/issue-tracker.md`, "Branches, PRs, merge") | None: the config is refused |
 | `gates` | Mapping from `triage` and each lane name to a gate (`docs/workflow.md`, "Gates") | `manual` for each omitted key and step |
@@ -115,6 +116,7 @@ YAML string. Folded blocks (`>`) and arrays are not accepted for instructions. Q
 backslashes, Unicode, blank lines, and parsed trailing newlines stay intact.
 
 ```yaml
+schema: 1
 tracker: github
 landing: pr
 worktreeSetup: "scripts/worktree-setup.ts"
@@ -185,6 +187,21 @@ failed or denied read stop the entry with the path and the field, and the stop b
 access path. The hook parses text, not bytes: the byte checks of the reader, for example strict
 UTF-8, hold at each command, which validates the file again before protected work.
 
+A file with a newer `schema` stops the entry with the schema line, and the act of the line names
+what makes the session current. When the plugin root has the form
+`<config>/plugins/cache/<marketplace>/<plugin>/<version>`, the hook makes two more
+permission-checked `Read`s: the install record `<config>/plugins/installed_plugins.json` of Claude
+Code, and `config-schema.json` of the installed copy that a record names. A record of
+`celetis@celetis` applies when its `scope` is `user` or its `projectPath` is the checkout; the
+paths compare with `/` separators and no final slash. A record that names the loaded root gives
+`run celetis update, then /reload-plugins`. A record that names another copy gives
+`run /reload-plugins, or start a new session` when that copy reads the schema of the file or a
+newer one, and the update act when it reads an older one or has no `config-schema.json`. Another
+root, no applicable record, a missing or malformed file, and a denied or failed read give the update
+act followed by `the installed copy could not be checked: <cause>`; the entry stops in each case.
+The hook makes these reads only at a newer-schema stop, and again at each such entry, also when the
+native `Read` answers that the config is unchanged.
+
 Each `SKILL.md` holds one entry line: bind `<plugin>` from the path of the loaded skill, and read
 `<plugin>/references/procedures/entry.md` before any step or answer. On Claude Code, the hook puts its
 facts block in place of that line before the model sees the skill. The block gives the host, the
@@ -218,7 +235,9 @@ without inserted defaults. `skillName` is the form of a `custom` key.
 `custom` key, in order, and throws a `ConfigError` of `custom.<key>` at the first missing file. The
 caller gives `isFile`, because the module has no file access. Only the reader CLI and the entry hook
 check the skill file of a `custom` key; each other command checks only its form. `ConfigError` names
-the field, and `formatConfigError` renders the selected path, field, and message. A failed read also
+the field, and keeps the schema number of the file in `schema` when it differs from `configSchema`.
+`describeConfigError(error, reader)` renders the field and the message, or the schema line below,
+and `formatConfigError` adds the selected path. A failed read also
 keeps its filesystem code (`ioCode`), so `setup status` reports an absent file as missing and a
 denied read as blocked.
 
@@ -229,7 +248,24 @@ once, decodes it as strict UTF-8, and parses it. `readConfig(CHECKOUT)` combines
 and full validation.
 
 Source reads require safe file access, strict UTF-8, one mapping document, string keys, unique keys,
-supported tags, finite scalars, and no aliases or merge keys. Full validation checks allowed fields,
+supported tags, finite scalars, and no aliases or merge keys. Full validation reads the root
+`schema` first. A missing `schema` gives `schema: required field; add "schema: 1" as a root field`.
+The value must be a plain decimal integer: a quoted, float, `-0`, leading-zero, hexadecimal, or
+empty value gives `schema: need an integer`, and a value below 1 or above 2^53−1 gives
+`schema: integer is out of range`. The reader then compares the number N of the file with the
+number M that it reads (`configSchema` of `engine/lib/config/core.ts`, now 1):
+
+- N equal to M: the other checks run, and an error gives the line `<field>: <message>`.
+- N above M: no other check runs. The line is
+  `schema: the file has schema N, and <reader> reads schema M; <act>`. The reader is
+  `the engine <first 12 characters of its revision>`, or `the engine at <engine root>` when the
+  revision cannot be read. The act is `run celetis update, then restart the daemon` in the daemon,
+  `run celetis update, then start a new Codex session` for `--agent codex` of the reader CLI only,
+  and `run celetis update` in each other case, also for `--agent codex` of another command.
+- N below M: the other checks run, and an error line adds
+  `; the file has schema N, and <reader> reads schema M; plugins/celetis/docs/configuration.md, "Schema versions", says how to change the file`.
+
+Then full validation checks allowed fields,
 the form of each `custom` key, required `tracker` and `landing`, `landing: merge` with
 `tracker: local`, instruction literal styles, setup reference syntax, and field-specific integer
 forms and ranges. There is no YAML host projection. Host selection reads the local preference only
@@ -249,7 +285,8 @@ reads and validates the file, and `checkSkills` checks each `custom` key against
 `PLUGIN/skills/<key>/SKILL.md` with `lstat`: a regular file with no symlink. It prints one compact
 validated JSON object and LF. Invalid or missing configuration and a missing skill file exit 2
 with empty stdout. Its diagnostic names the selected path and field; syntax and root errors
-use `<document>`. Another form exits 2 with its usage line. `--agent` selects nothing. The
+use `<document>`. Another form exits 2 with its usage line. `--agent codex` selects the act of the
+schema line of a newer file ("Validation and reader interface"); it selects nothing else. The
 engine entry checks the Bun floor (`requireBun`) before it starts the command: a below-floor
 Bun exits 3. Missing, broken, or nonexecutable Bun uses the native env/kernel diagnostic and
 status. There is no interpreter wrapper. The engine owns its entry file `engine/celetis`.
@@ -320,6 +357,18 @@ branch, captured tip and trunk SHAs, and PR identity where applicable. After gre
 refreshes again around the final checks and PR-identity wait before its SHA-bound merge.
 Pushes remain non-forced and use captured SHAs. These boundaries give stable internal values,
 not a filesystem transaction across checkouts or a transaction with GitHub.
+
+## Schema versions
+
+`schema` names the accepted set of fields and values that the file was written for. The number
+goes up when a change of the engine changes that set. An engine reads only its own number in full;
+a newer file stops each read with the schema line above, and an older file gets the note of this
+section on its field error. There is no default and no automatic conversion: change an older file
+by hand, by the row of its number.
+
+| Schema | Change of the accepted set | How to change an older file |
+| --- | --- | --- |
+| 1 | The first number: the accepted set of #379 | Add `schema: 1` as a root field |
 
 ## Start the board
 

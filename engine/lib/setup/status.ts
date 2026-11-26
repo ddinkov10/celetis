@@ -2,8 +2,8 @@ import { lstat, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import type { Operation } from '../command/operation.ts';
-import { readConfig } from '../config/config.ts';
-import { type Config, ConfigError, type Host } from '../config/core.ts';
+import { engineReader, readConfig } from '../config/config.ts';
+import { type Config, ConfigError, configSchema, describeConfigError, type Host } from '../config/core.ts';
 import { type ExitCode, exits, labels, setupStatusClosing } from '../contract/contract.ts';
 import { loggedIn } from '../github/github.ts';
 import { run } from '../process/process.ts';
@@ -157,9 +157,12 @@ class Status {
     } catch (error) {
       if (!(error instanceof ConfigError)) throw error;
       if (error.ioCode === 'ENOENT')
-        this.add('missing', configFile, 'no file; setup writes tracker, landing, and suite with merge');
+        this.add('missing', configFile, 'no file; setup writes schema, tracker, landing, and suite with merge');
       else if (error.ioCode) this.add('blocked', configFile, `${error.field}: ${error.message}`);
-      else this.add('invalid', configFile, `${error.field}: ${error.message}; repair it by hand`);
+      else {
+        const line = describeConfigError(error, await engineReader());
+        this.add('invalid', configFile, (error.schema ?? 0) > configSchema ? line : `${line}; repair it by hand`);
+      }
       return null;
     }
   }

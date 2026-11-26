@@ -8,6 +8,7 @@ import { type BoardDaemon, celetisAdapter } from '../../board/adapter.ts';
 import { type BoardHandle, startBoard } from '../../board/start.ts';
 import { HostError } from '../command/errors.ts';
 import { createOperation, type HostSelection, locateCheckouts, type Operation } from '../command/operation.ts';
+import { readAsDaemon } from '../config/config.ts';
 import type { Config } from '../config/core.ts';
 import { type ExitCode, exits, signalExit } from '../contract/contract.ts';
 import { createCoordinator } from '../coordinator/coordinator.ts';
@@ -267,6 +268,7 @@ async function startSuccessor({ engine, auto, port, start, main, log }: Spawn): 
 
 export async function runDaemon(argv: readonly string[]): Promise<ExitCode> {
   installRecorder('daemon');
+  readAsDaemon();
   const frames = new AsyncLocalStorage<Frame>();
   routeOutput(frames);
   const handover = handoverOf(argv);

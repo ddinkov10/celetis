@@ -5,6 +5,7 @@ import { levels, models, type Pin, type ReviewerLevel, reviewerLevels } from '..
 import { type AutoLane, autoLaneNames, type Gates, lanes, type Step, steps } from '../workflow/workflow.ts';
 
 export const bunFloor = '1.4.4';
+export const configSchema = 1;
 
 type Path = (string | number)[];
 
@@ -21,6 +22,7 @@ type NodeRecord = {
 
 export class ConfigError extends Error {
   field: string;
+  schema?: number;
 
   constructor(
     path: Path,
@@ -54,7 +56,10 @@ export type ConfigSource = Readonly<{
   [sourceData]: { value: unknown; nodes: NodeRecord[] };
 }>;
 
+export type ConfigReader = Readonly<{ part: string; act: string }>;
+
 export type Config = Readonly<{
+  schema: number;
   gates?: Gates;
   agents?: Readonly<Partial<Record<Step, Host>>>;
   sessions?: Readonly<Partial<Record<Step, Pin>>>;
@@ -336,6 +341,7 @@ function checkSchema(value: unknown): asserts value is Config {
   keysOnly(
     config,
     [
+      'schema',
       'tracker',
       'landing',
       'gates',
@@ -443,10 +449,29 @@ function freeze(value: unknown): void {
   Object.freeze(value);
 }
 
+function fileSchema(value: unknown, nodes: NodeRecord[]): number {
+  const config = object(value, []);
+  if (!Object.hasOwn(config, 'schema'))
+    throw new ConfigError(['schema'], `required field; add "schema: ${configSchema}" as a root field`);
+  const node = nodes.find((each) => !each.key && at(each.path, 'schema'));
+  if (typeof config.schema !== 'number' || !/^(?:0|-?[1-9][0-9]*)$/.test(node?.plain ?? ''))
+    throw new ConfigError(['schema'], 'need an integer');
+  integer(config.schema, 1, Number.MAX_SAFE_INTEGER, ['schema']);
+  return config.schema;
+}
+
 export function validateConfig(source: ConfigSource): Config {
   const { value, nodes } = source[sourceData];
-  checkFieldMetadata(nodes);
-  checkSchema(value);
+  const schema = fileSchema(value, nodes);
+  if (schema > configSchema)
+    throw Object.assign(new ConfigError(['schema'], `the file has schema ${schema}, a newer one`), { schema });
+  try {
+    checkFieldMetadata(nodes);
+    checkSchema(value);
+  } catch (error) {
+    if (error instanceof ConfigError && schema !== configSchema) error.schema = schema;
+    throw error;
+  }
   freeze(value);
   return value;
 }
@@ -463,6 +488,15 @@ export async function checkSkills(
   }
 }
 
-export function formatConfigError(checkout: string, error: ConfigError): string {
-  return `celetis: ${checkout}/.celetis.yaml: ${error.field}: ${error.message}`;
+export function describeConfigError(error: ConfigError, reader: ConfigReader): string {
+  const line = `${error.field}: ${error.message}`;
+  if (error.schema === undefined) return line;
+  const skew = `the file has schema ${error.schema}, and ${reader.part} reads schema ${configSchema}`;
+  return error.schema > configSchema
+    ? `schema: ${skew}; ${reader.act}`
+    : `${line}; ${skew}; plugins/celetis/docs/configuration.md, "Schema versions", says how to change the file`;
+}
+
+export function formatConfigError(checkout: string, error: ConfigError, reader: ConfigReader): string {
+  return `celetis: ${checkout}/.celetis.yaml: ${describeConfigError(error, reader)}`;
 }

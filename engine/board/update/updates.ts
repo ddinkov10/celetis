@@ -358,14 +358,15 @@ export function createUpdates({
     checking = operation.done
       .then((value) => {
         const checked = value as UpdateCheck;
-        if (checked.error)
+        if (checked.error) {
+          const errors = checked.parts.flatMap((part) => ('error' in part ? [part] : []));
+          console.error([checked.error, ...errors.map((part) => `${part.part}: ${part.error}`)].join('\n'));
           failed(
-            publicFailure(
-              checked.error,
-              'update: check failed; inspect the installation in a terminal, then check again',
-            ),
+            errors.length
+              ? errors.map((part) => `${part.part}: ${part.error.split('\n', 1)[0]}`).join('\n')
+              : checked.error,
           );
-        else if (checked.offer) {
+        } else if (checked.offer) {
           prepared = checked.offer;
           if (!offerId || !isDeepStrictEqual(offered, prepared)) offerId = randomUUID();
           offered = structuredClone(prepared);
@@ -413,7 +414,7 @@ export function createUpdates({
       .then(() => {
         active = undefined;
         checking = undefined;
-        schedule();
+        if (view.phase !== 'check-failed') schedule();
         return snapshot();
       });
     return checking;

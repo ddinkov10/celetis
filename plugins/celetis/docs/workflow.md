@@ -468,6 +468,7 @@ step `bug`. The default gates start one step for each issue key or Run press. Wi
 `feature` as `auto`, the daemon starts a design session and waits for your first answer.
 
 ```yaml
+schema: 1
 tracker: github
 landing: pr
 gates:
@@ -492,6 +493,7 @@ each lane. An edit of the list applies at the next read of auto mode and before 
 its run, with no restart of the daemon.
 
 ```yaml
+schema: 1
 tracker: github
 landing: pr
 gates:

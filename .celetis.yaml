@@ -1,3 +1,4 @@
+schema: 1
 tracker: github
 landing: merge
 suite: scripts/verify.ts

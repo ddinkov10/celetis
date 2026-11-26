@@ -140,7 +140,8 @@ installation. Only the separate **Update and restart** decision approves an offe
 offer that moves an engine from npm names the exact release in three labelled lines: the version, the full
 revision, and the integrity.
 
-The daemon checks at its start and every 10 minutes, in a worker child process. Concurrent
+The daemon checks at its start and 10 minutes after each check that does not fail, in a worker child process.
+A failed check, also a manual one, sets no timer; the next check is a press of **Check again**. Concurrent
 checks share one worker, with a 120-second limit. These checks do not wait for issue or terminal
 reads. A direct board decision approves one exact offer for one attempt. The browser sends only
 the offer ID; the controller keeps its complete identity. A stale offer, conflict, or failure needs
@@ -156,7 +157,7 @@ revision>.` when the answer names a target, else `No update is available.`, and 
 **Hide progress** hides the dialog without cancelling the update; **Update in progress** opens it
 again.
 A background check failure shows a quiet **Update check failed** control. Open it for the error
-and **Check again**. A failed update shows its error line and its recovery line, and requires
+(one line for each part that failed, as `<part>: <first line of its error>`; the daemon log holds the whole error) and **Check again**. A failed update shows its error line and its recovery line, and requires
 **Check again** before another attempt. After an approved update of a daemon that runs from a
 checkout, the control shows **Update completed**, and the dialog **Celetis is updated**: the update completed, and that
 daemon does not restart; **Close** closes the dialog. **Update needs attention** opens that

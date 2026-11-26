@@ -129,6 +129,12 @@ cannot). Raise `plugins/celetis/contract.json` too when the plugin text needs th
 digest covers no prose field (`description`, `help`, `purpose`, `meaning`, `prerequisite`, `writes`).
 [ADR-0090](docs/adr/0090-a-contract-version-replaces-the-same-revision-rule.md) records the rule and the known gaps of the digest.
 
+The gate also refuses a change of the validation of `.celetis.yaml` (`engine/lib/config/core.ts` and the value
+lists that it reads) that keeps the digest of `engine/lib/config/schema.json`. When the accepted set of the
+file changed, raise `configSchema`, add its row to `plugins/celetis/docs/configuration.md`, "Schema versions", and
+set `schema` in `.celetis.yaml`; else write the printed digest under the same number. `scripts/build.ts` writes
+the number to `plugins/celetis/config-schema.json`.
+
 ## General text
 
 A session reads a skill, the step text, and each line that a script prints inside a product

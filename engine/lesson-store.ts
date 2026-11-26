@@ -2,7 +2,8 @@ import { lstat, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { HostError } from './lib/command/errors.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/command/operation.ts';
-import { readConfig } from './lib/config/config.ts';
+import { engineReader, readConfig } from './lib/config/config.ts';
+import { ConfigError, describeConfigError } from './lib/config/core.ts';
 import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
 import { hostChoices } from './lib/host/names.ts';
 import {
@@ -54,7 +55,15 @@ export async function main(argv: string[]): Promise<ExitCode> {
           try {
             readConfig(root);
           } catch (error) {
-            throw new LessonError(exits.usage, config, error instanceof Error ? error.message : String(error));
+            throw new LessonError(
+              exits.usage,
+              config,
+              error instanceof ConfigError
+                ? describeConfigError(error, await engineReader())
+                : error instanceof Error
+                  ? error.message
+                  : String(error),
+            );
           }
         }
       }

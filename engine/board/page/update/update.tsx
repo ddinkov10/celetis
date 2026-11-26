@@ -109,7 +109,11 @@ function Content({ shown }: { shown: UpdateShown }) {
       >
         {shown.progress}
       </p>
-      <p id="update-error" className={cn(NOTE, 'text-[color:var(--danger)]')} hidden={!shown.diagnostic}>
+      <p
+        id="update-error"
+        className={cn(NOTE, 'whitespace-pre-line text-[color:var(--danger)]')}
+        hidden={!shown.diagnostic}
+      >
         {shown.diagnostic}
       </p>
       <p id="update-recovery" className={cn(NOTE, 'text-card-foreground')} hidden={!shown.recovery}>

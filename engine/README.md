@@ -1896,11 +1896,12 @@ The daemon records a line once for each printed line. A no-progress stop in the 
 `no-progress` and `queue-error`. A board request with status 4xx is a result, not a failure, and
 the board health reads are state that the board shows, so neither is recorded.
 
-The board does not stop a repeated failure. Each repeat is one more entry with the same
-fingerprint:
+Each check that runs gives its entries once, and the board does not repeat a failed check on
+its own. A repeat is one more entry with the same fingerprint:
 
-- The board checks for an update when it starts and 10 minutes after each check ends. An update
-  that a person starts stops this timer. Each check starts the update worker, and the worker
+- The board checks for an update when it starts and 10 minutes after each check that does not fail.
+  A failed check, also a manual one, sets no timer, so the board stops its automatic check until a
+  person presses **Check again**. An update that a person starts stops this timer. Each check starts the update worker, and the worker
   starts one `engine/lib/update/updater.ts --inspect <host>` child for each host that it inspects. Each of
   these processes records its own failed exit. A child that fails, for example because the update
   source cannot be reached, gives one refusal entry (`command` `update`) at each check. The worker

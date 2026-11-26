@@ -34986,7 +34986,7 @@ function Content({ shown }) {
       }),
       /* @__PURE__ */ jsx_runtime10.jsx("p", {
         id: "update-error",
-        className: cn(NOTE, "text-[color:var(--danger)]"),
+        className: cn(NOTE, "whitespace-pre-line text-[color:var(--danger)]"),
         hidden: !shown.diagnostic,
         children: shown.diagnostic
       }),

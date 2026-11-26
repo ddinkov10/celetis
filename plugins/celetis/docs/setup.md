@@ -92,16 +92,17 @@ each missing tool and each hook that skips its checks in the test lane (ADR-0018
   files retain content outside owned scopes. Differing unowned settings and rules stay unchanged
   with exact path warnings and no new claim. Unrecorded old wiring needs
   [owner review](#review-old-wiring).
-- In `.celetis.yaml`, setup owns required `tracker` (`github` or `local`), `landing`, and `suite` (with `merge`
-  only). With no file, it makes one with `tracker`, `landing`, and, with `merge`, `suite`. In a
+- In `.celetis.yaml`, setup owns required `schema` (the schema number of its engine, written as an
+  integer), `tracker` (`github` or `local`), `landing`, and `suite` (with `merge`
+  only). With no file, it makes one with `schema`, `tracker`, `landing`, and, with `merge`, `suite`. In a
   valid file, it adds missing entries, refreshes recorded owned values, and removes an obsolete
   owned suite for `pr`, while preserving unrelated bytes and values. A differing unowned value
   stays with an exact warning; change that field by hand when the answer is the intended value.
   An unowned suite that blocks `pr` refuses before writes. Invalid current configuration still
   needs owner repair; setup reads no old configuration format. Each other field stays by hand.
 - After your yes, setup adds a missing `worktreeSetup` as a quoted file reference at the end of
-  the file, for example `worktreeSetup: "scripts/worktree-setup.ts"`; a new file holds `tracker`,
-  `landing`, `suite` with `merge`, and then the reference. `worktreeSetup`, also exactly `""`, stays
+  the file, for example `worktreeSetup: "scripts/worktree-setup.ts"`; a new file holds `schema`,
+  `tracker`, `landing`, `suite` with `merge`, and then the reference. `worktreeSetup`, also exactly `""`, stays
   product-owned: an existing different value stays unchanged with a warning, so change that field
   by hand when the approved reference is intended. The value must read back exactly, and each
   other value must stay the same outside the planned owned edits. If that validation fails, setup

@@ -19,7 +19,9 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
 - **`skill.prompt`.** For a skill `celetis:<name>` of this plugin (`source`, `pluginName`, and
   `path` of the event), the hook marks the expansion with a ticket. Other skills pass through.
 - **`session.append`.** When the marked skill text reaches the context of a bound agent loop, the
-  hook makes its own permission-checked `Read` of the `.git` boundary and of `.celetis.yaml`. A
+  hook makes its own permission-checked `Read` of the `.git` boundary and of `.celetis.yaml`; at a
+  stop on a newer `schema`, also of the install record of Claude Code and of `config-schema.json`
+  of an installed copy (`plugins/celetis/docs/configuration.md`, "Skill entry"). A
   main loop starts from the session root, and a child agent from its cwd. The hook uses no
   `$.fs.read`, because its permission semantics are not documented. It parses and validates the
   text of the `Read` with `parseConfigText` and `validateConfig` of `engine/lib/config/core.ts`,
@@ -53,7 +55,9 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
 - **`file_unchanged`.** A `Read` of a file that the session read before returns no content. The
   hook then reuses its own parsed result for that path, keyed by `size` and `mtimeMs` from
   `$.fs.stat`. The cache lives for the session, so a child agent that sees the parent's read
-  reuses the parent's result. With no cached result, or with a changed stat, the entry stops. An
+  reuses the parent's result. With no cached result, or with a changed stat, the entry stops; for
+  the install record and `config-schema.json`, the stop gives the act with "could not be checked". The
+  cached install record holds every record, and each entry applies its own checkout. An
   edit that keeps both the size and the millisecond of the modification time is a residual risk.
 - **A stop.** A denied, partial, or invalid read, or a `custom` key with no skill file, replaces
   the skill text with a line that says the Celetis entry stopped, with the path, the field, and the

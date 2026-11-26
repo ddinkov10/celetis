@@ -30,7 +30,7 @@ type Scope = {
 const scopes: Record<string, Scope> = {
   '.claude/celetis/wiring.json': { file: true },
   '.codex/rules/celetis.rules': { file: true },
-  '.celetis.yaml': { keys: [['tracker'], ['landing'], ['suite'], ['host']] },
+  '.celetis.yaml': { keys: [['schema'], ['tracker'], ['landing'], ['suite'], ['host']] },
   '.claude/settings.json': {
     keys: [
       ['extraKnownMarketplaces', 'celetis'],

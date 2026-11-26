@@ -3,6 +3,8 @@ import {
   type Config,
   ConfigError,
   checkSkills,
+  configSchema,
+  describeConfigError,
   parseConfigText,
   skillName,
   validateConfig,
@@ -161,6 +163,82 @@ async function checkout($: NativeTools, reader: Reader, cache: Map<string, Cache
   }
 }
 
+const updateAct = 'run celetis update, then /reload-plugins';
+
+function trimmed(path: string) {
+  return slashed(path).replace(/\/+$/, '');
+}
+
+function parsed<T>(path: string, parse: () => T) {
+  try {
+    return parse();
+  } catch (error) {
+    throw new Error(`${path}: ${message(error)}`);
+  }
+}
+
+interface InstallRecord {
+  user: boolean;
+  project?: string;
+  installPath: string;
+}
+
+function installRecords(content: string): InstallRecord[] {
+  const data: unknown = JSON.parse(content);
+  const plugins = data && typeof data === 'object' && 'plugins' in data ? data.plugins : undefined;
+  const records =
+    plugins && typeof plugins === 'object' && 'celetis@celetis' in plugins ? plugins['celetis@celetis'] : undefined;
+  if (!Array.isArray(records)) throw new Error('no celetis@celetis record');
+  return records.map((record: unknown) => {
+    if (!record || typeof record !== 'object' || !('installPath' in record) || typeof record.installPath !== 'string')
+      throw new Error('invalid celetis@celetis record');
+    return {
+      user: 'scope' in record && record.scope === 'user',
+      project:
+        'projectPath' in record && typeof record.projectPath === 'string' ? trimmed(record.projectPath) : undefined,
+      installPath: trimmed(record.installPath),
+    };
+  });
+}
+
+function copySchema(content: string) {
+  const data: unknown = JSON.parse(content);
+  const value = data && typeof data === 'object' && !Array.isArray(data) && 'schema' in data ? data.schema : undefined;
+  if (Object.keys(data ?? {}).length !== 1 || typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1)
+    throw new Error('need { "schema": <integer> }');
+  return value;
+}
+
+async function skewAct($: NativeTools, reader: Reader, cache: Map<string, Cached>, root: string | null, newer: number) {
+  try {
+    const plugin = trimmed($.plugin.root);
+    const config = /^(.*)\/plugins\/cache\/[^/]+\/[^/]+\/[^/]+$/.exec(plugin)?.[1];
+    if (!config) throw new Error(`${$.plugin.root} is not a copy of the plugin cache`);
+    const path = joined(config, 'plugins/installed_plugins.json');
+    const stat = await metadata($, path);
+    if (!stat) throw new Error(`${path}: no such file`);
+    const records = await read(reader, path, stat, cache, (content) => parsed(path, () => installRecords(content)));
+    const checkout = root === null ? undefined : trimmed(root);
+    const roots = records
+      .filter((record) => record.user || (checkout !== undefined && record.project === checkout))
+      .map((record) => record.installPath);
+    if (!roots.length) throw new Error(`${path}: no celetis@celetis record applies to this checkout`);
+    if (roots.includes(plugin)) return updateAct;
+    for (const other of roots) {
+      const file = joined(other, 'config-schema.json');
+      const info = await metadata($, file);
+      if (
+        info &&
+        (await read(reader, file, info, cache, (content) => parsed(file, () => copySchema(content)))) >= newer
+      )
+        return 'run /reload-plugins, or start a new session';
+    }
+    return updateAct;
+  } catch (error) {
+    return `${updateAct}; the installed copy could not be checked: ${message(error)}`;
+  }
+}
+
 async function load($: NativeTools, name: string, reader: Reader, cache: Map<string, Cached>, agentId?: string) {
   const root = await checkout($, reader, cache, agentId);
   if (!root) return { root, custom: '' };
@@ -169,13 +247,27 @@ async function load($: NativeTools, name: string, reader: Reader, cache: Map<str
   if (!stat) return { root, custom: '' };
   if (stat.isLink !== false || stat.kind !== 'file')
     throw new Error(`${path} <document>: config must be a regular file, not a symlink`);
-  const config = await read(reader, path, stat, cache, (content): Config => {
-    try {
-      return validateConfig(parseConfigText(content));
-    } catch (error) {
-      throw new Error(`${path} ${error instanceof ConfigError ? error.field : '<document>'}: ${message(error)}`);
-    }
-  });
+  const part = `the plugin copy ${$.plugin.root}`;
+  const outcome = await read(
+    reader,
+    path,
+    stat,
+    cache,
+    (content): { config: Config } | { newer: ConfigError; schema: number } => {
+      try {
+        return { config: validateConfig(parseConfigText(content)) };
+      } catch (error) {
+        if (!(error instanceof ConfigError)) throw new Error(`${path} <document>: ${message(error)}`);
+        if (error.schema !== undefined && error.schema > configSchema) return { newer: error, schema: error.schema };
+        throw new Error(`${path} ${describeConfigError(error, { part, act: '' })}`);
+      }
+    },
+  );
+  if ('newer' in outcome) {
+    const act = await skewAct($, reader, cache, root, outcome.schema);
+    throw new Error(`${path} ${describeConfigError(outcome.newer, { part, act })}`);
+  }
+  const { config } = outcome;
   await checkSkills(config, $.plugin.root, async (file) => {
     const skill = await metadata($, file);
     return skill?.kind === 'file' && skill.isLink === false;

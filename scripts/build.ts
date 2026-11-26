@@ -3,7 +3,7 @@ import { chmod, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promis
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { HostError } from '../engine/lib/command/errors.ts';
 import { commandInput, createOperation, locateCheckouts } from '../engine/lib/command/operation.ts';
-import { bunFloor } from '../engine/lib/config/core.ts';
+import { bunFloor, configSchema } from '../engine/lib/config/core.ts';
 import {
   commands,
   type Entry,
@@ -485,6 +485,11 @@ async function execute(args: string[], explicit: string | undefined): Promise<nu
     built.push({ output, mode: 0o644, bytes: Buffer.from(text) });
   }
   built.push({ output: 'docs/adr/index.md', mode: 0o644, bytes: Buffer.from(adr.text) });
+  built.push({
+    output: 'plugins/celetis/config-schema.json',
+    mode: 0o644,
+    bytes: Buffer.from(`{ "schema": ${configSchema} }\n`),
+  });
   for (const target of built) {
     const bytes = target.bytes;
     const output = join(root, target.output);

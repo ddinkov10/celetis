@@ -1,5 +1,16 @@
 import fs from 'node:fs';
-import { bunFloor, type Config, ConfigError, type ConfigSource, parseConfigText, validateConfig } from './core.ts';
+import { resolve } from 'node:path';
+import type { Host } from '../host/names.ts';
+import { engineRevision } from '../release/release.ts';
+import {
+  bunFloor,
+  type Config,
+  ConfigError,
+  type ConfigReader,
+  type ConfigSource,
+  parseConfigText,
+  validateConfig,
+} from './core.ts';
 
 const notRegularFile = 'need a regular, readable file, with no symlink';
 
@@ -46,4 +57,24 @@ export function readConfigSource(checkout: string): ConfigSource {
 
 export function readConfig(checkout: string): Config {
   return validateConfig(readConfigSource(checkout));
+}
+
+let daemon = false;
+
+export function readAsDaemon(): void {
+  daemon = true;
+}
+
+export async function engineReader(host?: Host): Promise<ConfigReader> {
+  const root = resolve(import.meta.dir, '../../..');
+  const part = await engineRevision(root).then(
+    (revision) => `the engine ${revision.slice(0, 12)}`,
+    () => `the engine at ${root}`,
+  );
+  const act = daemon
+    ? 'run celetis update, then restart the daemon'
+    : host === 'codex'
+      ? 'run celetis update, then start a new Codex session'
+      : 'run celetis update';
+  return { part, act };
 }

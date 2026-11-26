@@ -1,6 +1,6 @@
 import { realpath } from 'node:fs/promises';
 import { readAgentOrder } from '../agent/order.ts';
-import { readConfigSource } from '../config/config.ts';
+import { engineReader, readConfigSource } from '../config/config.ts';
 import {
   type AgentChoice,
   type Config,
@@ -76,11 +76,12 @@ export async function createOperation(
 ): Promise<Operation> {
   checkout = Object.freeze({ ...checkout });
   selection = Object.freeze({ ...selection });
-  const configured = <T>(path: string, read: () => T): T => {
+  const configured = async <T>(path: string, read: () => T): Promise<T> => {
     try {
       return read();
     } catch (error) {
-      if (error instanceof ConfigError) throw new HostError(formatConfigError(path, error), exits.usage);
+      if (error instanceof ConfigError)
+        throw new HostError(formatConfigError(path, error, await engineReader()), exits.usage);
       throw error;
     }
   };
@@ -100,11 +101,12 @@ export async function createOperation(
   if (mode !== 'host') {
     const main = checkout.main;
     if (main === null) throw new HostError('celetis: need a Git checkout', exits.usage);
-    mainConfig = configured(main, () => validateConfig(readConfigSource(main)));
+    mainConfig = await configured(main, () => validateConfig(readConfigSource(main)));
     if (mode === 'active') {
       const active = checkout.active;
       if (active === null) throw new HostError('celetis: need an active Git checkout', exits.usage);
-      activeConfig = active === main ? mainConfig : configured(active, () => validateConfig(readConfigSource(active)));
+      activeConfig =
+        active === main ? mainConfig : await configured(active, () => validateConfig(readConfigSource(active)));
     }
   }
   return Object.freeze({ checkout, selection, choice, host, mainConfig, activeConfig });

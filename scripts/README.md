@@ -28,6 +28,9 @@ and the pin installer for a change.
 - `checkContractVersion`: the contract version of the plugin against the served versions, and
   the digest of the declarations of `engine/lib/contract/contract.ts`
   ([`AGENTS.md`](../AGENTS.md#verify-gate) gives the rule, ADR-0090).
+- `checkConfigSchema`: the schema number of `.celetis.yaml` against `engine/lib/config/schema.json`, and the
+  digest of the validation in `engine/lib/config/core.ts`
+  ([`AGENTS.md`](../AGENTS.md#verify-gate) gives the rule).
 - `checkTools`: the MCP tools that `engine/lib/mcp/tools.ts` builds from the agent forms of
   `engine/lib/contract/contract.ts`
   ([`engine/README.md`](../engine/README.md#the-mcp-server), "The gate", lists its rules, ADR-0125).
@@ -47,7 +50,8 @@ The jobs run in bounded workers. A passing run prints the success line of
 `scripts/build.ts` writes the files that come from other files. Besides the files that
 [`AGENTS.md`](../AGENTS.md#verify-gate) names, it writes the engine entry `engine/celetis`, the package entry `engine/bootstrap`, and
 `plugins/celetis/hooks/entry.js`, which embeds `plugins/celetis/references/procedures/entry.md`. An edit of
-that file needs a run of the build. The build installs nothing. Add the file `engine/<name>.ts` with each new declared command.
+that file needs a run of the build. It also writes `plugins/celetis/config-schema.json`, the `configSchema` number
+of `engine/lib/config/core.ts`, which the plugin hook reads. The build installs nothing. Add the file `engine/<name>.ts` with each new declared command.
 
 The board page has two steps, in `pageArtifacts`. The bundle step builds `engine/board/page/main.tsx`
 into `engine/board/board.js`, with the production JSX runtime and the production condition and
