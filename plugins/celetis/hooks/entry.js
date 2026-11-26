@@ -7701,7 +7701,7 @@ ${text}` };
       return next(e);
     const index = e.door === "note" && e.agentId !== undefined ? 1 : 0;
     const { block, end, ticket, request } = blocks[0];
-    const bound = blocks.length === 1 && blocks[0]?.index === index && !request.entry && e.message.type === "user" && e.message.role === "user" && e.message.isMeta === true && typeof e.uuid === "string" && e.uuid.length > 0 && (e.agentId === undefined || typeof e.agentId === "string" && e.agentId.length > 0) && (e.door === "note" && e.origin.kind === "engine" && e.message.content.length === index + 1 || e.door === "tool-message" && e.origin.kind === "tool" && e.origin.tool === "Skill" && e.message.content.length === 1);
+    const bound = blocks.length === 1 && blocks[0]?.index === index && !request.entry && e.message.type === "user" && e.message.role === "user" && e.message.isMeta === true && typeof e.uuid === "string" && e.uuid.length > 0 && (e.agentId === undefined || typeof e.agentId === "string" && e.agentId.length > 0) && (e.door === "note" && e.origin.kind === "engine" && e.message.content.length === index + 1 || e.door === "tool-message" && e.origin.kind === "tool" && e.message.content.length === 1);
     if (!bound)
       return next(rewrite(e, blocks, (selected) => selected.request.name ? stopped("native skill delivery has no supported loop binding") : selected.block.text.slice(selected.end + 1)));
     const skill = block.text.slice(end + 1);

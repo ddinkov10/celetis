@@ -21,7 +21,11 @@ compares its bytes. The hook runtime has no Node and no DOM: a module that the h
 - **`session.append`.** When the marked skill text reaches the context of a bound agent loop, the
   hook makes its own permission-checked `Read` of the `.git` boundary and of `.celetis.yaml`; at a
   stop on a newer `schema`, also of the install record of Claude Code and of `config-schema.json`
-  of an installed copy (`plugins/celetis/docs/configuration.md`, "Skill entry"). A
+  of an installed copy (`plugins/celetis/docs/configuration.md`, "Skill entry"). The hook binds
+  the marked text when the engine delivers it as a note of a slash command, or when a tool row
+  delivers it, whatever tool the host names, because the ticket proves the expansion; a `Skill`
+  call of a REPL script can reach the hook before the host stores its call, and the host then
+  names the tool `unknown`. A
   main loop starts from the session root, and a child agent from its cwd. The hook uses no
   `$.fs.read`, because its permission semantics are not documented. It parses and validates the
   text of the `Read` with `parseConfigText` and `validateConfig` of `engine/lib/config/core.ts`,

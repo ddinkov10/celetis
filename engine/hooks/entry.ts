@@ -361,10 +361,7 @@ export function register(on: NativeOn) {
       e.uuid.length > 0 &&
       (e.agentId === undefined || (typeof e.agentId === 'string' && e.agentId.length > 0)) &&
       ((e.door === 'note' && e.origin.kind === 'engine' && e.message.content.length === index + 1) ||
-        (e.door === 'tool-message' &&
-          e.origin.kind === 'tool' &&
-          e.origin.tool === 'Skill' &&
-          e.message.content.length === 1));
+        (e.door === 'tool-message' && e.origin.kind === 'tool' && e.message.content.length === 1));
     if (!bound)
       return next(
         rewrite(e, blocks, (selected) =>
