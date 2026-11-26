@@ -2,9 +2,11 @@ import { createHash } from 'node:crypto';
 import { constants, type Stats } from 'node:fs';
 import { lstat, open, realpath, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
+import { z } from 'zod';
 import { mainCheckout } from '../../process/git.ts';
 import { bunArgs } from '../../process/process.ts';
 import { isSessionId } from '../../state/fields.ts';
+import { uuidText } from '../../state/schemas.ts';
 import { captureFiles, privateMode, withLock, writeAtomic } from '../../state/state.ts';
 import {
   type ObservedUsage,
@@ -12,11 +14,37 @@ import {
   type UsageObservation,
   unknownUsage,
   usageAttempt,
-  usageObject,
-  usageUuid,
+  usageAttemptSchema,
 } from '../usage.ts';
 
-type Entry = { key: string; observation: UsageObservation };
+const observation = z.discriminatedUnion('kind', [
+  z.looseObject({ kind: z.literal('blocked'), reason: z.string().min(1), resetAt: z.null() }),
+  z.looseObject({ kind: z.literal('available') }),
+  z.looseObject({ kind: z.literal('unknown') }),
+]) satisfies z.ZodType<UsageObservation>;
+const entry = z.looseObject({ key: z.string().regex(/^[0-9a-f]{64}$/), observation });
+const attemptFile = z.looseObject({ schema: z.literal(1), attempt: usageAttemptSchema });
+const eventsFile = z.looseObject({ schema: z.literal(1), attempt: usageAttemptSchema, events: z.array(entry) });
+const hookEvent = z.looseObject({
+  session_id: z.string(),
+  prompt_id: uuidText,
+  cwd: z.string(),
+  agent_id: z.never().optional(),
+  hook_event_name: z.enum(['Stop', 'StopFailure']),
+});
+const stopEvent = z.looseObject({
+  hook_event_name: z.literal('Stop'),
+  error: z.never().optional(),
+  stop_hook_active: z.boolean(),
+  last_assistant_message: z.string(),
+});
+const limitEvent = z.looseObject({
+  hook_event_name: z.literal('StopFailure'),
+  error: z.literal('rate_limit'),
+  last_assistant_message: z.string(),
+});
+
+type Entry = z.infer<typeof entry>;
 type State = { schema: 1; attempt: UsageAttempt; events: Entry[] };
 const limit = 16 * 1024 * 1024;
 const sameAttempt = (a: UsageAttempt, b: UsageAttempt) =>
@@ -50,51 +78,23 @@ async function read(path: string): Promise<string | null> {
 
 async function binding(path: string): Promise<UsageAttempt> {
   await directory(path);
-  const value: unknown = JSON.parse((await read(captureFiles(path).attempt)) ?? 'null');
+  const parsed = attemptFile.safeParse(JSON.parse((await read(captureFiles(path).attempt)) ?? 'null'));
   if (
-    !usageObject(value) ||
-    value.schema !== 1 ||
-    !usageAttempt(value.attempt) ||
-    value.attempt.host !== 'claude' ||
-    !isSessionId('claude', value.attempt.sessionId) ||
-    (await realpath(value.attempt.main)) !== value.attempt.main
+    !parsed.success ||
+    parsed.data.attempt.host !== 'claude' ||
+    !isSessionId('claude', parsed.data.attempt.sessionId) ||
+    (await realpath(parsed.data.attempt.main)) !== parsed.data.attempt.main
   )
     throw failure();
-  return value.attempt;
-}
-
-function observation(value: unknown): value is UsageObservation {
-  return (
-    usageObject(value) &&
-    (value.kind === 'available' ||
-      value.kind === 'unknown' ||
-      (value.kind === 'blocked' &&
-        typeof value.reason === 'string' &&
-        value.reason.length > 0 &&
-        value.resetAt === null))
-  );
+  return parsed.data.attempt;
 }
 
 async function state(path: string, attempt: UsageAttempt): Promise<State> {
   const text = await read(captureFiles(path).events);
   if (text === null) return { schema: 1, attempt, events: [] };
-  const value: unknown = JSON.parse(text);
-  if (
-    !usageObject(value) ||
-    value.schema !== 1 ||
-    !usageAttempt(value.attempt) ||
-    !sameAttempt(attempt, value.attempt) ||
-    !Array.isArray(value.events) ||
-    !value.events.every(
-      (event: unknown) =>
-        usageObject(event) &&
-        typeof event.key === 'string' &&
-        /^[0-9a-f]{64}$/.test(event.key) &&
-        observation(event.observation),
-    )
-  )
-    throw failure();
-  const events = value.events as Entry[];
+  const parsed = eventsFile.safeParse(JSON.parse(text));
+  if (!parsed.success || !sameAttempt(attempt, parsed.data.attempt)) throw failure();
+  const events = parsed.data.events;
   if (new Set(events.map((event) => event.key)).size !== events.length) throw failure();
   return { schema: 1, attempt, events };
 }
@@ -137,21 +137,13 @@ export async function prepareClaudeUsage(attempt: UsageAttempt, captureDirectory
   return ['--session-id', attempt.sessionId, '--settings', settings];
 }
 
-function classify(value: Record<string, unknown>): UsageObservation {
-  if (
-    value.hook_event_name === 'Stop' &&
-    value.error === undefined &&
-    typeof value.stop_hook_active === 'boolean' &&
-    typeof value.last_assistant_message === 'string'
-  )
-    return { kind: 'available' };
-  if (
-    value.hook_event_name !== 'StopFailure' ||
-    value.error !== 'rate_limit' ||
-    typeof value.last_assistant_message !== 'string'
-  )
-    return { kind: 'unknown' };
-  const matched = /^You've hit your (weekly|5-hour) limit · resets [^\r\n]{1,160}$/.exec(value.last_assistant_message);
+function classify(event: z.infer<typeof hookEvent>): Entry['observation'] {
+  if (stopEvent.safeParse(event).success) return { kind: 'available' };
+  const limited = limitEvent.safeParse(event);
+  if (!limited.success) return { kind: 'unknown' };
+  const matched = /^You've hit your (weekly|5-hour) limit · resets [^\r\n]{1,160}$/.exec(
+    limited.data.last_assistant_message,
+  );
   if (!matched) return { kind: 'unknown' };
   return { kind: 'blocked', reason: `Claude ${matched[1]} usage allowance is exhausted.`, resetAt: null };
 }
@@ -159,20 +151,18 @@ function classify(value: Record<string, unknown>): UsageObservation {
 export async function receiveClaudeUsage(captureDirectory: string, attemptId: string, value: unknown): Promise<void> {
   const attempt = await binding(captureDirectory);
   if (attempt.id !== attemptId) throw failure();
+  const parsed = hookEvent.safeParse(value);
   if (
-    !usageObject(value) ||
-    value.session_id !== attempt.sessionId ||
-    !usageUuid(value.prompt_id) ||
-    typeof value.cwd !== 'string' ||
-    value.agent_id !== undefined ||
-    (value.hook_event_name !== 'Stop' && value.hook_event_name !== 'StopFailure') ||
-    (await mainCheckout(value.cwd).catch(() => null)) !== attempt.main ||
+    !parsed.success ||
+    parsed.data.session_id !== attempt.sessionId ||
+    (await mainCheckout(parsed.data.cwd).catch(() => null)) !== attempt.main ||
     Date.now() < attempt.startedAt
   )
     return;
-  const result = classify(value);
+  const event = parsed.data;
+  const result = classify(event);
   const key = createHash('sha256')
-    .update(JSON.stringify([value.prompt_id, value.hook_event_name, result]))
+    .update(JSON.stringify([event.prompt_id, event.hook_event_name, result]))
     .digest('hex');
   await locked(captureDirectory, async () => {
     if (!sameAttempt(attempt, await binding(captureDirectory))) throw failure();

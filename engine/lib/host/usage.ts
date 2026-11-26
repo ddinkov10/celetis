@@ -1,19 +1,26 @@
+import { z } from 'zod';
 import type { Host } from '../config/core.ts';
-import { isSessionId, uuid } from '../state/fields.ts';
+import { isSessionId } from '../state/fields.ts';
+import { count } from '../state/schemas.ts';
 import { isHost } from './names.ts';
 
-export type UsageAttempt = {
-  id: string;
-  host: Host;
-  main: string;
-  startedAt: number;
-  sessionId: string | null;
-};
+export const usageAttemptSchema = z
+  .looseObject({
+    id: z.string().min(1).max(128),
+    host: z.custom<Host>(isHost),
+    main: z.string().min(1),
+    startedAt: count,
+    sessionId: z.string().nullable(),
+  })
+  .refine((attempt) => attempt.sessionId === null || isSessionId(attempt.host, attempt.sessionId));
+export type UsageAttempt = z.infer<typeof usageAttemptSchema>;
 
-export type UsageObservation =
-  | { kind: 'blocked'; reason: string; resetAt: number | null }
-  | { kind: 'available' }
-  | { kind: 'unknown' };
+export const usageObservation = z.discriminatedUnion('kind', [
+  z.looseObject({ kind: z.literal('blocked'), reason: z.string(), resetAt: count.nullable() }),
+  z.looseObject({ kind: z.literal('available') }),
+  z.looseObject({ kind: z.literal('unknown') }),
+]);
+export type UsageObservation = z.infer<typeof usageObservation>;
 
 export type ObservedUsage = {
   attemptId: string;
@@ -30,20 +37,6 @@ export const unknownUsage = (attempt: UsageAttempt): ObservedUsage => ({
 export const usageObject = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 
-export const usageUuid = (value: unknown): value is string => typeof value === 'string' && uuid.test(value);
-
 export function usageAttempt(value: unknown): value is UsageAttempt {
-  return (
-    usageObject(value) &&
-    typeof value.id === 'string' &&
-    value.id.length > 0 &&
-    value.id.length <= 128 &&
-    isHost(value.host) &&
-    typeof value.main === 'string' &&
-    value.main.length > 0 &&
-    typeof value.startedAt === 'number' &&
-    Number.isSafeInteger(value.startedAt) &&
-    value.startedAt > 0 &&
-    (value.sessionId === null || isSessionId(value.host, value.sessionId))
-  );
+  return usageAttemptSchema.safeParse(value).success;
 }

@@ -1,9 +1,11 @@
 import { realpath } from 'node:fs/promises';
 import { join } from 'node:path';
+import { z } from 'zod';
 import { HostError, unsupported } from '../../command/errors.ts';
 import { exits } from '../../contract/contract.ts';
 import { run } from '../../process/process.ts';
 import { isSessionId } from '../../state/fields.ts';
+import { anyNumber } from '../../state/schemas.ts';
 import { writeAtomic } from '../../state/state.ts';
 import type { IssueKey } from '../../tracker/key.ts';
 import { command, type Step } from '../../workflow/workflow.ts';
@@ -16,9 +18,14 @@ const opencodeTimeout = 60_000;
 let lastMs = 0;
 let counter = 0;
 
-function object(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
+const sessionList = z.array(z.unknown());
+const listedSession = z.looseObject({ id: z.unknown().optional() });
+const sessionEntry = z.looseObject({ directory: z.string(), created: anyNumber });
+const sessionExport = z.looseObject({
+  info: z.looseObject({ id: z.unknown().optional() }),
+  messages: z.array(z.unknown()),
+});
+const userMessage = z.looseObject({ type: z.literal('user') });
 
 function opencodePrompt(step: Step, issue: IssueKey): string {
   return `Load the skill ${command(step)} with the skill tool and follow it for #${issue}. Complete its Celetis entry before any response, including commentary.`;
@@ -83,22 +90,20 @@ export const opencode: HostAdapter = {
     if (!isSessionId('opencode', id)) return false;
     try {
       const sessions = await opencodeJson(['session', 'list', '--format', 'json'], checkout);
-      const entry = Array.isArray(sessions) ? sessions.find((each) => object(each) && each.id === id) : undefined;
+      const list = sessionList.safeParse(sessions);
+      const found = list.data?.find((each) => listedSession.safeParse(each).data?.id === id);
+      const entry = sessionEntry.safeParse(found);
       if (
-        !object(entry) ||
-        typeof entry.directory !== 'string' ||
-        typeof entry.created !== 'number' ||
-        entry.created / 1000 < startedAt ||
-        (await realpath(entry.directory)) !== (await realpath(checkout))
+        !entry.success ||
+        entry.data.created / 1000 < startedAt ||
+        (await realpath(entry.data.directory)) !== (await realpath(checkout))
       )
         return false;
-      const exported = await opencodeJson(['session', 'export', id], checkout);
+      const exported = sessionExport.safeParse(await opencodeJson(['session', 'export', id], checkout));
       return (
-        object(exported) &&
-        object(exported.info) &&
-        exported.info.id === id &&
-        Array.isArray(exported.messages) &&
-        exported.messages.some((message) => object(message) && message.type === 'user')
+        exported.success &&
+        exported.data.info.id === id &&
+        exported.data.messages.some((message) => userMessage.safeParse(message).success)
       );
     } catch {
       return false;

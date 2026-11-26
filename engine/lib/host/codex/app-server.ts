@@ -1,12 +1,17 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
+import { z } from 'zod';
 import { HostError } from '../../command/errors.ts';
 import { exitCodeOf, exits } from '../../contract/contract.ts';
 import { bunArgs, childEnv, run, updateDescriptor } from '../../process/process.ts';
 import { codexHome } from '../homes.ts';
 
-function object(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
+const message = z.looseObject({});
+
+function parsed(value: unknown): Record<string, unknown> {
+  const reply = message.safeParse(value);
+  if (!reply.success) throw new HostError('celetis: invalid Codex app-server response', exits.blocked);
+  return reply.data;
 }
 
 async function nativeCodexRequest(
@@ -165,12 +170,12 @@ export async function codexRequest(
   params: unknown,
   nativeHome?: string,
   execute: typeof run = run,
-): Promise<unknown> {
+): Promise<Record<string, unknown>> {
   const inheritedFd = updateDescriptor();
   const env = childEnv({ ...process.env, CODEX_HOME: await codexHome(nativeHome) });
   if (!Bun.which('codex', { PATH: env.PATH })) throw new HostError('celetis: codex is not on PATH', exits.prerequisite);
   try {
-    if (execute === run) return await nativeCodexRequest(cwd, method, params, inheritedFd, env);
+    if (execute === run) return parsed(await nativeCodexRequest(cwd, method, params, inheritedFd, env));
     const program = `try{const [cwd,method,params,fd]=JSON.parse(process.argv[1]);console.log(JSON.stringify(await (${nativeCodexRequest.toString()})(cwd,method,params,fd??undefined,process.env)));}catch(error){console.error(error.message);process.exitCode=typeof error.code==='number'?error.code:1;}`;
     const helperFd = inheritedFd === undefined ? undefined : 3;
     const result = await execute(
@@ -179,13 +184,12 @@ export async function codexRequest(
       { cwd, env, inheritedFd },
     );
     if (result.code !== 0) throw new HostError(result.stderr.trimEnd(), exits.blocked);
-    const value: unknown = JSON.parse(result.stdout);
-    if (!object(value)) throw new HostError('celetis: invalid Codex app-server response', exits.blocked);
-    return value;
+    return parsed(JSON.parse(result.stdout));
   } catch (error) {
     throw new HostError(
       error instanceof Error ? error.message : String(error),
-      (object(error) ? exitCodeOf(error.code) : null) ?? exits.internal,
+      (typeof error === 'object' && error !== null && 'code' in error ? exitCodeOf(error.code) : null) ??
+        exits.internal,
     );
   }
 }
@@ -222,21 +226,22 @@ async function call(session: Session, method: string, params: unknown): Promise<
     for (;;) {
       const next = await Promise.race([session.lines.next(), timeout, session.ended]);
       if (next.done) throw blocked(`Codex app-server closed its output during ${method}`);
-      let value: unknown;
+      let line: unknown;
       try {
-        value = JSON.parse(next.value);
+        line = JSON.parse(next.value);
       } catch {
         throw blocked('invalid Codex app-server response');
       }
-      if (!object(value)) throw blocked('invalid Codex app-server response');
+      const value = parsed(line);
       if (typeof value.method === 'string') continue;
       if (!Object.hasOwn(value, 'id')) throw blocked('invalid Codex app-server response');
       if (value.id !== id) continue;
       if (value.error != null) {
-        const message = object(value.error) ? (value.error.message ?? 'unknown error') : 'unknown error';
-        throw new Rejected(`celetis: Codex ${method} failed: ${message}`, exits.blocked);
+        const error = message.safeParse(value.error);
+        const detail = error.success ? (error.data.message ?? 'unknown error') : 'unknown error';
+        throw new Rejected(`celetis: Codex ${method} failed: ${detail}`, exits.blocked);
       }
-      if (!object(value.result)) throw blocked('invalid Codex app-server response');
+      parsed(value.result);
       return value;
     }
   } finally {

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { z } from 'zod';
 import { HostError } from '../../command/errors.ts';
 import { exits } from '../../contract/contract.ts';
 import { isSessionId } from '../../state/fields.ts';
@@ -10,9 +11,12 @@ import { configHome } from '../homes.ts';
 import type { HostAdapter } from '../types.ts';
 import { prepareClaudeUsage, readClaudeUsage } from './usage.ts';
 
-function object(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
+const transcriptRow = z.looseObject({
+  sessionId: z.string(),
+  type: z.literal('user'),
+  cwd: z.string(),
+  timestamp: z.string().regex(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$/),
+});
 
 export const claude: HostAdapter = {
   app: 'claude-code',
@@ -61,20 +65,18 @@ export const claude: HostAdapter = {
       const source = await readFile(join(projects, name, `${sessionId}.jsonl`), 'utf8').catch(() => null);
       if (source === null) continue;
       for (const line of source.split('\n').filter(Boolean)) {
-        let row: unknown;
+        let value: unknown;
         try {
-          row = JSON.parse(line);
+          value = JSON.parse(line);
         } catch {
           break;
         }
+        const row = transcriptRow.safeParse(value);
         if (
-          object(row) &&
-          row.sessionId === sessionId &&
-          row.type === 'user' &&
-          row.cwd === checkout &&
-          typeof row.timestamp === 'string' &&
-          /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$/.test(row.timestamp) &&
-          Date.parse(row.timestamp) / 1000 >= startedAt
+          row.success &&
+          row.data.sessionId === sessionId &&
+          row.data.cwd === checkout &&
+          Date.parse(row.data.timestamp) / 1000 >= startedAt
         )
           return true;
       }

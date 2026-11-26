@@ -1,6 +1,8 @@
 import { constants } from 'node:fs';
 import { lstat, open, realpath } from 'node:fs/promises';
+import { z } from 'zod';
 import { commonDir, mainCheckout } from '../../process/git.ts';
+import { count } from '../../state/schemas.ts';
 import { privateMode, repositoryLayout, withLock, writeAtomic } from '../../state/state.ts';
 import {
   type ObservedUsage,
@@ -8,20 +10,58 @@ import {
   type UsageObservation,
   unknownUsage,
   usageAttempt,
-  usageObject,
+  usageAttemptSchema,
+  usageObservation,
 } from '../usage.ts';
 import { codexRequest } from './app-server.ts';
 
 type NativeUsage = { turnId: string; observation: UsageObservation };
-type SequenceRecord = NativeUsage & { schema: 1; attempt: UsageAttempt; sequence: number };
 
-const seconds = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
-const resultOf = (value: unknown) => (usageObject(value) && usageObject(value.result) ? value.result : null);
 const turnTime = (id: unknown): number | null =>
   typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
     ? Number.parseInt(id.replaceAll('-', '').slice(0, 12), 16)
     : null;
+
+const turnId = z.string().refine((id) => turnTime(id) !== null);
+const sequenceRecord = z.looseObject({
+  schema: z.literal(1),
+  attempt: usageAttemptSchema,
+  turnId,
+  sequence: count,
+  observation: usageObservation,
+});
+type SequenceRecord = z.infer<typeof sequenceRecord>;
+const threadReply = z.looseObject({
+  result: z.looseObject({
+    thread: z.looseObject({
+      id: z.string(),
+      sessionId: z.string(),
+      ephemeral: z.literal(false),
+      cwd: z.string(),
+      modelProvider: z.unknown().optional(),
+      model: z.unknown().optional(),
+    }),
+  }),
+});
+type Thread = z.infer<typeof threadReply>['result']['thread'];
+const turnsReply = z.looseObject({ result: z.looseObject({ data: z.array(z.unknown()).length(1) }) });
+const turnSchema = z.looseObject({
+  id: z.string(),
+  startedAt: count,
+  completedAt: count,
+  status: z.unknown().optional(),
+  error: z.unknown().optional(),
+});
+const usageLimitError = z.looseObject({ codexErrorInfo: z.literal('usageLimitExceeded') });
+const limitsReply = z.looseObject({ result: z.looseObject({ rateLimitsByLimitId: z.looseObject({}) }) });
+const bucketHead = z.looseObject({
+  limitId: z.unknown().optional(),
+  normalModelSlug: z.unknown().optional(),
+  spendControlReached: z.unknown().optional(),
+  rateLimitReachedType: z.unknown().optional(),
+});
+const rateWindow = z.looseObject({ usedPercent: z.number(), resetsAt: z.unknown().optional() });
+const reachedBucket = z.looseObject({ primary: rateWindow.nullable(), secondary: rateWindow.nullable() });
 
 const invalid = () => new Error('usage: invalid or unsafe Codex attempt sequence');
 const sameAttempt = (left: UsageAttempt, right: UsageAttempt) =>
@@ -30,18 +70,6 @@ const sameAttempt = (left: UsageAttempt, right: UsageAttempt) =>
   left.main === right.main &&
   left.startedAt === right.startedAt &&
   left.sessionId === right.sessionId;
-
-function isObservation(value: unknown): value is UsageObservation {
-  return (
-    usageObject(value) &&
-    (value.kind === 'unknown' ||
-      value.kind === 'available' ||
-      (value.kind === 'blocked' &&
-        typeof value.reason === 'string' &&
-        (value.resetAt === null ||
-          (typeof value.resetAt === 'number' && Number.isSafeInteger(value.resetAt) && value.resetAt > 0))))
-  );
-}
 
 function sameObservation(left: UsageObservation, right: UsageObservation): boolean {
   return (
@@ -62,27 +90,11 @@ async function readSequence(file: string, attempt: UsageAttempt): Promise<Sequen
   try {
     const opened = await handle.stat();
     if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino) throw invalid();
-    const value: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await handle.readFile()));
-    if (
-      !usageObject(value) ||
-      value.schema !== 1 ||
-      !usageAttempt(value.attempt) ||
-      !sameAttempt(value.attempt, attempt) ||
-      typeof value.turnId !== 'string' ||
-      turnTime(value.turnId) === null ||
-      typeof value.sequence !== 'number' ||
-      !Number.isSafeInteger(value.sequence) ||
-      value.sequence < 1 ||
-      !isObservation(value.observation)
-    )
-      throw invalid();
-    return {
-      schema: 1,
-      attempt: value.attempt,
-      turnId: value.turnId,
-      sequence: value.sequence,
-      observation: value.observation,
-    };
+    const record = sequenceRecord.safeParse(
+      JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await handle.readFile())),
+    );
+    if (!record.success || !sameAttempt(record.data.attempt, attempt)) throw invalid();
+    return record.data;
   } finally {
     await handle.close();
   }
@@ -95,7 +107,7 @@ async function sequenced(attempt: UsageAttempt & { sessionId: string }): Promise
     const file = layout.sequenceState(attempt.id);
     const previous = await readSequence(file, attempt);
     const native = await readNativeUsage(attempt);
-    if (!native || !isObservation(native.observation)) return unknownUsage(attempt);
+    if (!native || !usageObservation.safeParse(native.observation).success) return unknownUsage(attempt);
     if (
       previous &&
       previous.turnId !== native.turnId &&
@@ -113,36 +125,35 @@ async function sequenced(attempt: UsageAttempt & { sessionId: string }): Promise
   });
 }
 
-async function resetAt(attempt: UsageAttempt, thread: Record<string, unknown>): Promise<number | null> {
+async function resetAt(attempt: UsageAttempt, thread: Thread): Promise<number | null> {
   if (thread.modelProvider !== 'openai') return null;
-  const result = resultOf(await codexRequest(attempt.main, 'account/rateLimits/read', {}));
-  if (!result || !usageObject(result.rateLimitsByLimitId)) return null;
-  const applicable = Object.values(result.rateLimitsByLimitId).filter(
-    (value) =>
-      usageObject(value) &&
-      (value.limitId === 'codex' || (typeof thread.model === 'string' && value.normalModelSlug === thread.model)),
-  );
+  const limits = limitsReply.safeParse(await codexRequest(attempt.main, 'account/rateLimits/read', {}));
+  if (!limits.success) return null;
+  const applicable = Object.values(limits.data.result.rateLimitsByLimitId).flatMap((value) => {
+    const head = bucketHead.safeParse(value);
+    return head.success &&
+      (head.data.limitId === 'codex' ||
+        (typeof thread.model === 'string' && head.data.normalModelSlug === thread.model))
+      ? [head.data]
+      : [];
+  });
   if (!applicable.length) return null;
   const resets: number[] = [];
-  for (const bucket of applicable) {
-    if (!usageObject(bucket) || bucket.spendControlReached === true) return null;
-    if (bucket.rateLimitReachedType !== 'rate_limit_reached') {
-      if (bucket.rateLimitReachedType !== null) return null;
+  for (const head of applicable) {
+    if (head.spendControlReached === true) return null;
+    if (head.rateLimitReachedType !== 'rate_limit_reached') {
+      if (head.rateLimitReachedType !== null) return null;
       continue;
     }
-    if (
-      !(bucket.primary === null || usageObject(bucket.primary)) ||
-      !(bucket.secondary === null || usageObject(bucket.secondary))
-    )
-      return null;
+    const bucket = reachedBucket.safeParse(head);
+    if (!bucket.success) return null;
     let exhausted = false;
-    for (const window of [bucket.primary, bucket.secondary]) {
-      if (window === null) continue;
-      if (typeof window.usedPercent !== 'number' || !Number.isFinite(window.usedPercent)) return null;
-      if (window.usedPercent < 100) continue;
+    for (const window of [bucket.data.primary, bucket.data.secondary]) {
+      if (window === null || window.usedPercent < 100) continue;
       exhausted = true;
-      if (!seconds(window.resetsAt)) return null;
-      resets.push(window.resetsAt * 1000);
+      const reset = count.safeParse(window.resetsAt);
+      if (!reset.success) return null;
+      resets.push(reset.data * 1000);
     }
     if (!exhausted) return null;
   }
@@ -150,19 +161,17 @@ async function resetAt(attempt: UsageAttempt, thread: Record<string, unknown>): 
 }
 
 async function readNativeUsage(attempt: UsageAttempt): Promise<NativeUsage | null> {
-  const info = resultOf(await codexRequest(attempt.main, 'thread/read', { threadId: attempt.sessionId }));
-  const thread = info?.thread;
+  const info = threadReply.safeParse(await codexRequest(attempt.main, 'thread/read', { threadId: attempt.sessionId }));
+  if (!info.success) return null;
+  const thread = info.data.result.thread;
   if (
-    !usageObject(thread) ||
     thread.id !== attempt.sessionId ||
     thread.sessionId !== attempt.sessionId ||
-    thread.ephemeral !== false ||
-    typeof thread.cwd !== 'string' ||
     (await mainCheckout(thread.cwd)) !== attempt.main
   )
     return null;
   const since = Math.floor(attempt.startedAt / 1000);
-  const page = resultOf(
+  const page = turnsReply.safeParse(
     await codexRequest(attempt.main, 'thread/turns/list', {
       threadId: attempt.sessionId,
       limit: 1,
@@ -170,22 +179,22 @@ async function readNativeUsage(attempt: UsageAttempt): Promise<NativeUsage | nul
       itemsView: 'notLoaded',
     }),
   );
-  if (!page || !Array.isArray(page.data) || page.data.length !== 1) return null;
-  const latest: unknown = page.data[0];
-  if (!usageObject(latest) || typeof latest.id !== 'string' || !seconds(latest.startedAt)) return null;
+  if (!page.success) return null;
+  const parsed = turnSchema.safeParse(page.data.result.data[0]);
+  if (!parsed.success) return null;
+  const latest = parsed.data;
   const started = turnTime(latest.id);
   if (
     started === null ||
     Math.floor(started / 1000) !== latest.startedAt ||
     started < attempt.startedAt ||
-    !seconds(latest.completedAt) ||
     latest.completedAt < since
   )
     return null;
   const observed = { turnId: latest.id };
   if (latest.status === 'completed' && latest.error === null)
     return { ...observed, observation: { kind: 'available' } };
-  if (latest.status !== 'failed' || !usageObject(latest.error) || latest.error.codexErrorInfo !== 'usageLimitExceeded')
+  if (latest.status !== 'failed' || !usageLimitError.safeParse(latest.error).success)
     return { ...observed, observation: { kind: 'unknown' } };
   return {
     ...observed,

@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
+import { z } from 'zod';
 import { type ExitCode, exits } from '../contract/contract.ts';
 import { hostAdapter } from '../host/hosts.ts';
 import { type Host, hosts } from '../host/names.ts';
 import { bunArgs, childEnv, run } from '../process/process.ts';
+import { members, code as nonnegative } from '../state/schemas.ts';
 import { repositoryLayout, StateError, withLock } from '../state/state.ts';
 import type { DialogKind, Terminal, TerminalStatus } from './types.ts';
 
@@ -20,7 +22,6 @@ export type OpenTab = {
   focus: boolean;
   keepShell: boolean;
 };
-type Space = { id: string | null; name: unknown; tabs: { id: string | null; terminals: unknown[] }[] };
 
 export class TerminalError extends Error {
   constructor(
@@ -42,14 +43,57 @@ const KINDS: Record<DialogKind, true> = { permission: true, question: true, auth
 const GONE_KINDS = new Set(['finished', 'not_found']);
 
 export const isSafeId = (value: unknown): value is string => typeof value === 'string' && SAFE_ID.test(value);
-const isText = (value: unknown): value is string => typeof value === 'string';
-const isCount = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-const isStatus = (value: unknown): value is TerminalStatus => isText(value) && Object.hasOwn(STATUSES, value);
-const isKind = (value: unknown): value is DialogKind => isText(value) && Object.hasOwn(KINDS, value);
 const hostOf = (app: unknown): Host | null => hosts.find((host) => hostAdapter(host).app === app) ?? null;
-const records = (value: unknown) => (Array.isArray(value) ? value.filter(isRecord) : []);
+const safeId = z.custom<string>(isSafeId);
+const kept = <T>(entry: z.ZodType<T>, values: unknown[]): T[] =>
+  values.flatMap((value) => {
+    const parsed = entry.safeParse(value);
+    return parsed.success ? [parsed.data] : [];
+  });
+const listOf = <T>(entry: z.ZodType<T>) => z.array(z.unknown()).transform((values) => kept(entry, values));
+const hcTerminal = z.looseObject({
+  address: z.string(),
+  turn: nonnegative,
+  status: z
+    .looseObject({
+      app: z.unknown().optional(),
+      state: members(STATUSES).nullable().catch(null),
+      kind: members(KINDS).nullable().catch(null),
+    })
+    .catch({ state: null, kind: null }),
+  status_ms: nonnegative.nullable().catch(null),
+  foreground: z
+    .looseObject({ cwd: z.string().optional().catch(undefined), argv: z.array(z.string()).nullable().catch(null) })
+    .catch({ argv: null }),
+  cwd: z.string().optional().catch(undefined),
+  labels: z
+    .record(z.string(), z.unknown())
+    .catch({})
+    .transform((labels) =>
+      Object.fromEntries(
+        Object.entries(labels).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+      ),
+    ),
+});
+const hcState = z.looseObject({ address: z.string(), state: z.string() });
+const hcList = z.looseObject({ terminals: listOf(z.looseObject({ address: safeId })) });
+const hcHistory = z.looseObject({ text: z.string(), complete: z.boolean(), why: z.string().nullable().catch(null) });
+const hcKey = z.looseObject({ key: z.string() });
+const hcStarted = z.looseObject({ address: safeId });
+const errorReply = z.looseObject({ error: z.unknown().optional() });
+const errorDetail = z.looseObject({ message: z.unknown().optional(), kind: z.string().optional().catch(undefined) });
+const herdrTab = z.looseObject({
+  id: safeId.nullable().catch(null),
+  terminals: listOf(z.looseObject({ terminal: z.unknown().optional() })).catch([]),
+});
+const herdrSpace = z.looseObject({
+  machine: z.null(),
+  id: safeId.nullable().catch(null),
+  name: z.unknown().optional(),
+  tabs: listOf(herdrTab).catch([]),
+});
+const herdrList = z.looseObject({ spaces: listOf(herdrSpace) });
+type Space = z.infer<typeof herdrSpace>;
 const firstLine = (text: string) =>
   text
     .split('\n')
@@ -113,13 +157,15 @@ function tabArgv({ argv, env, keepShell }: OpenTab & { argv: string[] }): string
   return [shell, '-lic', script, shell, ...variables, ...argv];
 }
 
+const errorOf = (text: string) => errorReply.safeParse(parse(text)).data?.error;
+
 function failure(file: string, { code, stdout, stderr }: Result): string {
-  const errors = [stderr, stdout].map((text) => {
-    const value = parse(text);
-    return isRecord(value) ? value.error : undefined;
-  });
-  const texts = [...errors.map((error) => (isRecord(error) ? error.message : undefined)), ...errors, stderr, stdout];
-  return texts.filter(isText).map(firstLine).find(Boolean) ?? `${file} exited ${code}`;
+  const errors = [stderr, stdout].map(errorOf);
+  const texts = [...errors.map((error) => errorDetail.safeParse(error).data?.message), ...errors, stderr, stdout];
+  return (
+    texts.flatMap((text) => (typeof text === 'string' ? [firstLine(text)] : [])).find(Boolean) ??
+    `${file} exited ${code}`
+  );
 }
 
 async function poll<T>(read: () => Promise<T | null>, limitMs = POLL_LIMIT_MS): Promise<T | null> {
@@ -136,29 +182,23 @@ export async function readTerminal(
   { exec = run, signal }: { exec?: Exec; signal?: AbortSignal } = {},
 ): Promise<Terminal | null> {
   if (!isSafeId(id)) return null;
-  const value = answer(await call(exec, 'hc', ['get', id, '--json'], { signal }));
-  if (!isRecord(value) || value.address !== id || !isCount(value.turn)) return null;
-  const status = isRecord(value.status) ? value.status : {};
-  const foreground = isRecord(value.foreground) ? value.foreground : {};
-  const cwd = [foreground.cwd, value.cwd].find(isText);
+  const reply = hcTerminal.safeParse(answer(await call(exec, 'hc', ['get', id, '--json'], { signal })));
+  if (!reply.success || reply.data.address !== id) return null;
+  const { status, foreground, labels } = reply.data;
+  const cwd = foreground.cwd ?? reply.data.cwd;
   if (cwd === undefined) return null;
-  const labels = Object.fromEntries(
-    Object.entries(isRecord(value.labels) ? value.labels : {}).filter((entry): entry is [string, string] =>
-      isText(entry[1]),
-    ),
-  );
   const where = labels.where ?? '';
   const at = where.indexOf(' / ');
   return {
     id,
     host: hostOf(status.app),
-    status: isStatus(status.state) ? status.state : null,
-    kind: isKind(status.kind) ? status.kind : null,
-    statusMs: isCount(value.status_ms) ? value.status_ms : null,
-    turn: value.turn,
+    status: status.state,
+    kind: status.kind,
+    statusMs: reply.data.status_ms,
+    turn: reply.data.turn,
     labels,
     cwd,
-    foreground: Array.isArray(foreground.argv) && foreground.argv.every(isText) ? programArgv(foreground.argv) : null,
+    foreground: foreground.argv === null ? null : programArgv(foreground.argv),
     tab: at < 0 ? null : where.slice(at + 3) || null,
   };
 }
@@ -166,11 +206,9 @@ export async function readTerminal(
 async function terminalIds(exec: Exec): Promise<string[]> {
   const result = await call(exec, 'hc', ['ls', '--json']);
   if (result.code !== 0) throw new TerminalError(failure('hc', result));
-  const value = parse(result.stdout);
-  if (!isRecord(value) || !Array.isArray(value.terminals)) throw new TerminalError('hc gave no list of terminals');
-  return records(value.terminals)
-    .map((entry) => entry.address)
-    .filter(isSafeId);
+  const list = hcList.safeParse(parse(result.stdout));
+  if (!list.success) throw new TerminalError('hc gave no list of terminals');
+  return list.data.terminals.map((entry) => entry.address);
 }
 
 export async function listTerminals(exec: Exec = run): Promise<Terminal[]> {
@@ -179,12 +217,8 @@ export async function listTerminals(exec: Exec = run): Promise<Terminal[]> {
 }
 
 const errorKinds = (result: Result) =>
-  [result.stderr, result.stdout].map((output) => {
-    const value = parse(output);
-    const error = isRecord(value) ? value.error : undefined;
-    return isRecord(error) ? error.kind : undefined;
-  });
-const isGone = (kind: unknown) => isText(kind) && GONE_KINDS.has(kind);
+  [result.stderr, result.stdout].map((output) => errorDetail.safeParse(errorOf(output)).data?.kind);
+const isGone = (kind: string | undefined) => kind !== undefined && GONE_KINDS.has(kind);
 const goneOrUnknown = (result: Result) => (errorKinds(result).some(isGone) ? 'gone' : 'unknown');
 const withoutTerminal = () => {
   const env = { ...process.env };
@@ -197,8 +231,8 @@ export type TerminalState = 'live' | 'ended' | 'unknown';
 export async function terminalState(id: string, exec: Exec = run): Promise<TerminalState> {
   if (!isSafeId(id)) return 'ended';
   const result = await call(exec, 'hc', ['get', id, '--json']);
-  const value = answer(result);
-  if (isRecord(value) && value.address === id && isText(value.state)) return value.state === 'live' ? 'live' : 'ended';
+  const reply = hcState.safeParse(answer(result));
+  if (reply.success && reply.data.address === id) return reply.data.state === 'live' ? 'live' : 'ended';
   return result.code !== 0 && errorKinds(result).some(isGone) ? 'ended' : 'unknown';
 }
 
@@ -234,9 +268,10 @@ export type ScreenRead = Readonly<{ text: string; complete: boolean; why: string
 
 export async function readHistory(id: string, lines: number, exec: Exec = run): Promise<ScreenRead | null> {
   if (!isSafeId(id)) return null;
-  const value = answer(await call(exec, 'hc', ['read', id, '--lines', String(lines), '--json']));
-  if (!isRecord(value) || !isText(value.text) || typeof value.complete !== 'boolean') return null;
-  return { text: value.text, complete: value.complete, why: isText(value.why) ? value.why : null };
+  const reply = hcHistory.safeParse(answer(await call(exec, 'hc', ['read', id, '--lines', String(lines), '--json'])));
+  if (!reply.success) return null;
+  const { text, complete, why } = reply.data;
+  return { text, complete, why };
 }
 
 export async function readScreen(id: string, history: number, exec: Exec = run): Promise<string | null> {
@@ -269,8 +304,7 @@ export async function pressKeys(id: string, keys: readonly string[], exec: Exec 
 export async function interruptTerminal(id: string, exec: Exec = run): Promise<Sent> {
   if (!isSafeId(id)) return 'gone';
   const result = await call(exec, 'hc', ['interrupt', id, '--json'], { env: withoutTerminal(), timeout: 30_000 });
-  const value = answer(result);
-  if (isRecord(value) && isText(value.key)) return 'sent';
+  if (hcKey.safeParse(answer(result)).success) return 'sent';
   return result.code === 0 ? 'unknown' : goneOrUnknown(result);
 }
 
@@ -292,18 +326,9 @@ export function inSequence<T>(id: string, work: () => Promise<T>): Promise<T> {
 async function readSpaces(exec: Exec): Promise<Space[]> {
   const result = await call(exec, 'herdr-app', ['ls']);
   if (result.code !== 0) throw new TerminalError(failure('herdr-app', result));
-  const value = parse(result.stdout);
-  if (!isRecord(value) || !Array.isArray(value.spaces)) throw new TerminalError('herdr gave no list of spaces');
-  return records(value.spaces)
-    .filter((space) => space.machine === null)
-    .map((space) => ({
-      id: isSafeId(space.id) ? space.id : null,
-      name: space.name,
-      tabs: records(space.tabs).map((tab) => ({
-        id: isSafeId(tab.id) ? tab.id : null,
-        terminals: records(tab.terminals).map((terminal) => terminal.terminal),
-      })),
-    }));
+  const list = herdrList.safeParse(parse(result.stdout));
+  if (!list.success) throw new TerminalError('herdr gave no list of spaces');
+  return list.data.spaces;
 }
 
 const reason = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -332,7 +357,9 @@ const spaceNamed = (spaces: Space[], name: string) =>
 
 async function tabOf(id: string, exec: Exec): Promise<string | null> {
   const spaces = await readSpaces(exec).catch(() => []);
-  return spaces.flatMap((space) => space.tabs).find((tab) => tab.terminals.includes(id))?.id ?? null;
+  return (
+    spaces.flatMap((space) => space.tabs).find((tab) => tab.terminals.some((each) => each.terminal === id))?.id ?? null
+  );
 }
 
 const rename = (tab: string, name: string, exec: Exec) =>
@@ -356,9 +383,9 @@ async function runTerminal(exec: Exec, options: string[], argv: string[]): Promi
     ...argv,
   ]);
   if (result.code !== 0) throw new TerminalError(failure('hc', result));
-  const reply = parse(result.stdout);
-  if (!isRecord(reply) || !isSafeId(reply.address)) throw new TerminalError('hc gave no terminal id');
-  return reply.address;
+  const reply = hcStarted.safeParse(parse(result.stdout));
+  if (!reply.success) throw new TerminalError('hc gave no terminal id');
+  return reply.data.address;
 }
 
 async function startTab(request: OpenTab, exec: Exec): Promise<string> {
