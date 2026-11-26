@@ -36,6 +36,8 @@ records this boundary and supersedes the historical coordination requirements.
 
 ## Host checks
 
+Codex support is deferred and stays as it is on 2026-11-26 until the maintainer resumes it: a change adds no Codex work, runs no Codex check, still passes the verify gate, and a report names each Codex part that it did not check ([ADR-0146](docs/adr/0146-codex-support-stays-as-it-is-until-the-maintainer-resumes-it.md)).
+
 Reuse the existing Claude Code installation and its existing authentication.
 Do not create separate signed-in installations or require another login for testing.
 Use temporary test data with the existing hosts. If a check lacks access, report the specific
