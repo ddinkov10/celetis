@@ -1060,7 +1060,10 @@ Codex and Claude sessions and the daemon can stay open. The updater never stops 
 processes or requires the Codex daemon to stop. It uses each host's native cache replacement.
 A fresh session loads the updated skills and tools; old cache files are not guaranteed to remain
 available to running work. Restart a session or the daemon if it still needs a resource that the
-host replaced.
+host replaced. The tool calls of an open Claude Code session run the installed engine when it serves
+the contract version of the tools of the session, so the session needs no reconnect. When the
+installed engine does not serve that version and an update removed the start folder of the session,
+a call gives exit 3 and a line that tells you to start a fresh session.
 
 An install or an update keeps the three newest version folders, the current one, the folder of
 the engine that runs that install, and the folder of each daemon that answers its status read.
@@ -1078,7 +1081,8 @@ lookup that finds the plugin folder, and the folder. The lookup keeps its refusa
 not installed, is disabled, or is ambiguous. So an installation whose marketplace source is not Git, such as a local
 Codex marketplace, can start a new step. After `celetis update`, restart the daemon with **Restart** in the board,
 or with `celetis daemon stop`, then `celetis daemon start`; a `run` or `queue` form of another
-revision refuses with exit 3 until then. The daemon serves the board, so that restart also gives the board the new
+revision refuses with exit 3 until then. The refusal line names the side that is old, and the act: restart the daemon, start a
+fresh session, or run the installed `celetis`. The daemon serves the board, so that restart also gives the board the new
 engine.
 
 The engine runs the updater of its own version folder. When the engine is broken or missing,

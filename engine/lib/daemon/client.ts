@@ -1,8 +1,9 @@
-import { readdir, readFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { readFile, realpath } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
 import { HostError } from '../command/errors.ts';
 import { type ExitCode, exits } from '../contract/contract.ts';
 import { selectHost } from '../host/host.ts';
+import { enginePaths, readEngine } from '../install/installation.ts';
 import { daemonScript, processScript, processState } from '../process/identity.ts';
 import { privateFolderProblem } from '../process/windows.ts';
 import { engineRevision } from '../release/release.ts';
@@ -54,37 +55,6 @@ export async function findDaemon(common: string): Promise<Found> {
     if (refusal) throw refusal;
   }
   return { kind: 'runs', identity };
-}
-
-export async function liveRevisions(): Promise<ReadonlySet<string> | null> {
-  let names: string[];
-  try {
-    names = await readdir(daemonSockets.path);
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'ENOENT' ? new Set() : null;
-  }
-  const revisions = await Promise.all(
-    names
-      .filter((name) => name.endsWith('.sock'))
-      .map(async (name) => {
-        try {
-          const response = await fetch('http://daemon/status', {
-            unix: join(daemonSockets.path, name),
-            signal: AbortSignal.timeout(5000),
-          });
-          return parseStatus(await response.json()).daemon.revision;
-        } catch (error) {
-          const code = (error as { code?: unknown }).code;
-          return code === 'ENOENT' || code === 'ECONNREFUSED' ? '' : null;
-        }
-      }),
-  );
-  const live = new Set<string>();
-  for (const revision of revisions) {
-    if (revision === null) return null;
-    if (revision) live.add(revision);
-  }
-  return live;
 }
 
 export function socketFolderRefusal(reason: string | null): HostError | null {
@@ -184,11 +154,43 @@ export async function requireDaemon(common: string, prefix: Prefix): Promise<Dae
   return found.identity;
 }
 
+export type OldSide = 'daemon' | 'caller' | 'neither';
+
+export function oldSide(caller: string, daemon: string, installed: string | null, callerInstalled: boolean): OldSide {
+  if (caller === installed) return 'daemon';
+  return daemon === installed && callerInstalled ? 'caller' : 'neither';
+}
+
+async function installedEngineRevision(): Promise<string | null> {
+  try {
+    return (await readEngine())?.revision ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function runsFromInstall(root: string): Promise<boolean> {
+  try {
+    return (await realpath(dirname(root))) === (await realpath(enginePaths().versions));
+  } catch {
+    return false;
+  }
+}
+
 export async function revisionRefusal(identity: DaemonIdentity, prefix: Prefix): Promise<string | null> {
-  const own = await engineRevision(resolve(import.meta.dir, '../../..'));
-  return own === identity.revision
-    ? null
-    : `${prefix}: the daemon runs the engine at ${shortRevision(identity.revision)} and this engine is at ${shortRevision(own)}; restart it: celetis daemon stop, then celetis daemon start`;
+  const root = resolve(import.meta.dir, '../../..');
+  const own = await engineRevision(root);
+  if (own === identity.revision) return null;
+  const caller = shortRevision(own);
+  const daemon = shortRevision(identity.revision);
+  switch (oldSide(own, identity.revision, await installedEngineRevision(), await runsFromInstall(root))) {
+    case 'daemon':
+      return `${prefix}: the daemon runs the engine at ${daemon} and the installed engine is at ${caller}; restart it: celetis daemon stop, then celetis daemon start`;
+    case 'caller':
+      return `${prefix}: this engine at ${caller} is not the installed engine ${daemon}, which the daemon runs; start a fresh session, or run the installed celetis`;
+    case 'neither':
+      return `${prefix}: the daemon runs the engine at ${daemon} and this engine is at ${caller}; run this command and the daemon from one engine`;
+  }
 }
 
 export async function askDaemon(

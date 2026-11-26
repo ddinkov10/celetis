@@ -4,7 +4,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { HostError } from '../command/errors.ts';
 import { exits } from '../contract/contract.ts';
-import { liveRevisions } from '../daemon/client.ts';
+import { liveRevisions } from '../daemon/live.ts';
 import { celetisBase } from '../host/homes.ts';
 import { writeArchive } from '../package/archive.ts';
 import { checkReleaseTag, readRecord, readTarget, writeRecord } from '../package/package.ts';

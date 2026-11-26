@@ -3,9 +3,9 @@ import { isAbsolute, parse } from 'node:path';
 import { McpServer } from '@modelcontextprotocol/server';
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { z } from 'zod';
-import { commands, contractVersions, exits, usage } from '../contract/contract.ts';
-import { versionFolderGone } from '../install/version-folder.ts';
+import { commands, exits, usage } from '../contract/contract.ts';
 import { type Outcome, outcomeOf, runForm } from './call.ts';
+import { pickEngine, type StartEngine, startEngine } from './engine.ts';
 import { argumentsOf, type Input, type Parameter, type Tool, toolSet } from './tools.ts';
 
 const outputSchema = z.object({
@@ -59,25 +59,27 @@ async function isFolder(path: string): Promise<boolean> {
   }
 }
 
-async function call(root: string, host: string, tool: Tool, checkout: string, input: Input): Promise<Outcome> {
+async function call(start: StartEngine, host: string, tool: Tool, checkout: string, input: Input): Promise<Outcome> {
   if (!isAbsolute(checkout) || driveRelative(checkout))
     return refusal(exits.usage, `celetis: the checkout ${checkout} is not an absolute path`);
   if (!(await isFolder(checkout))) return refusal(exits.usage, `celetis: the checkout ${checkout} is not a folder`);
   const built = argumentsOf(tool, input, commands);
   if (built.kind === 'refused')
     return refusal(exits.usage, usage(tool.command, built.line.slice(0, built.line.lastIndexOf('\n'))));
-  if (await versionFolderGone(root))
-    return refusal(
-      exits.prerequisite,
-      'celetis: an update removed the engine version of this session; start a fresh session',
-    );
-  return runForm(root, host, built.argv, checkout);
+  const pick = await pickEngine(start);
+  switch (pick.kind) {
+    case 'refused':
+      return refusal(exits.prerequisite, pick.line);
+    case 'run':
+      return runForm(pick.root, host, built.argv, checkout);
+  }
 }
 
 export async function serve(root: string, host: string): Promise<void> {
+  const start = startEngine(root);
   const server = new McpServer({
     name: 'celetis',
-    version: String(Math.max(...contractVersions.serves.map(({ contract }) => contract))),
+    version: String(start.served.contract),
   });
   for (const tool of toolSet(commands))
     server.registerTool(
@@ -89,7 +91,7 @@ export async function serve(root: string, host: string): Promise<void> {
         annotations: { readOnlyHint: tool.readOnly },
       },
       async ({ checkout, ...input }) => {
-        const outcome = await call(root, host, tool, checkout, input);
+        const outcome = await call(start, host, tool, checkout, input);
         return {
           content: [{ type: 'text', text: JSON.stringify(outcome) }],
           structuredContent: outcome,

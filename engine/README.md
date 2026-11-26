@@ -962,11 +962,23 @@ decision.
    example `\Windows` or `/Windows`, is not absolute.
 3. `argumentsOf` selects the form and builds the argument list. A refusal gives code 2 with the usage
    line of the command, and starts no process.
-4. The server reads `versionFolderGone` of `engine/lib/install/version-folder.ts`. An update can
-   remove the version folder of a running engine. When the folder is gone, the result has code 3 and a
-   line that tells the session to start a fresh session.
+4. `pickEngine` of `engine/lib/mcp/engine.ts` picks the engine of the call. The start entry is the
+   entry of `engine/lib/contract/versions.json` of the server with the highest `contract`.
+   1. It reads the installed engine with `readEngine`. When no engine is installed, it picks the
+      start engine while its version folder exists (`versionFolderGone` of
+      `engine/lib/install/version-folder.ts`). Else the result has code 3 and the line
+      `celetis: an update removed the engine version of this session; start a fresh session`.
+   2. When the installed root is the start root, it picks the installed engine.
+   3. It reads `engine/lib/contract/versions.json` of the installed root as data. When an entry has the
+      `contract` and the `digest` of the start entry, it picks the installed engine. A file that is
+      missing, is not JSON, or has another shape does not serve.
+   4. Else, it picks the start engine while its version folder exists.
+   5. Else, the result has code 3. When `readEngine` failed, the line is the message of that error,
+      for example `celetis: CELETIS_HOME must be an absolute path: <path>`, or
+      `celetis: the installed engine cannot be read: <message>`. Else the line is
+      `celetis: the installed engine does not serve contract <n> of the tools of this session; start a fresh session`.
 5. `runForm` of `engine/lib/mcp/call.ts` starts `process.execPath` with `bunArgs` and the program
-   entry `<root>/engine/celetis` of the engine of the server, as `daemonArgv` does
+   entry `<root>/engine/celetis` of the picked engine, as `daemonArgv` does
    ([ADR-0083](../docs/adr/0083-a-library-starts-a-celetis-process-through-the-program-entry.md)). The
    arguments are `--agent <host>` and the built list. The child has `checkout` as its working folder,
    the environment of `childEnv`, no stdin, and no shell. A file parameter is a path as on the command
@@ -1009,9 +1021,14 @@ value that the CLI parses again.
 
 **These rules also hold.**
 
-- **The revision.** The server runs the CLI of its own engine revision, not the CLI that `PATH` finds.
-  So the schemas of the tools and the forms that they run come from one revision. After an update, a
-  session keeps the tools of its start revision until a fresh session starts.
+- **The revision.** The tool list and its schemas come from the start revision of the server. Each
+  call runs the installed engine when it serves the start entry of `versions.json` (the same
+  `contract` and `digest`), else the engine of the start revision while its folder exists. So an
+  update reaches the calls of an open session with no reconnect. A new tool shows only in a fresh
+  session. A server that starts from a checkout (for example `"$PWD/engine/celetis" --agent claude mcp`)
+  also runs the installed engine on each call where the installed engine serves the start entry, so a
+  check of a changed form of the checkout runs the entry of the checkout by its path, not through the
+  server.
 - **No timeout and no kill.** The server sets no timer on a child and sends it no signal. A call waits
   for its child, also for `land` and `worktree`, and a cancel of the client does not end the child.
   So the server never stops a child in the middle of an act.

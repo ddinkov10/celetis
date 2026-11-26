@@ -132,8 +132,8 @@ The exit status of `land <n> '<subject>'` gives the result (`<plugin>/docs/workf
   landing, and the line starts with `land: prerequisite:`.
   - `the lock land-<n> has the owner PID …`: another landing of the issue still runs. Wait until
     it ends, then run the script again. It is no refusal, and step 5 does not count it.
-  - `the daemon runs the engine at …`: the maintainer restarts the daemon (`celetis daemon stop`
-    and then `celetis daemon start`). Show the user the line, and stop. In a step session, hand it to the issue with a `## Stopped`
+  - `the daemon runs the engine at …` and `this engine at … is not the installed engine …`: a version skew
+    of the daemon. The line names the act that ends it. Show the user the line, and stop. In a step session, hand it to the issue with a `## Stopped`
     comment by `<plugin>/references/procedures/stop.md`, "A stop in a step session".
   - `#<n> is not ready to land`: the issue is not ready to land, and the line quotes the line of
     the resolver. Run `celetis --agent <host> issue <n> state`. When its `line:` is
