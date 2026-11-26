@@ -1,4 +1,5 @@
 import { deferredMarker, headings, type Kind, type Label, marker } from '../contract/contract.ts';
+import type { AcceptedEpicResult, EpicAcceptance, EpicChild, EpicSubmission, EpicTarget } from '../epic/schemas.ts';
 import { type IssueKey, keySource, parseKey } from '../tracker/key.ts';
 import { holdApplies, holdOf } from './hold.ts';
 
@@ -153,67 +154,9 @@ export type IssueData = Readonly<{
   history: readonly Entry[];
 }>;
 
-export type EpicScenario = Readonly<{
-  name: string;
-  criterion: string;
-  children: readonly string[];
-  setup: string;
-  preparation: string;
-  target: string;
-  expected: string;
-  timing: string;
-  sourceToFiles: string;
-  filesToTarget: string;
-  oracle: string;
-}>;
-
-export type EpicAcceptance =
-  | Readonly<{ mode: 'independent'; rationale: string }>
-  | Readonly<{ mode: 'combined'; scenarios: readonly EpicScenario[] }>;
-
 export type EpicDeclaration =
   | Readonly<{ kind: 'valid'; acceptance: EpicAcceptance; definitionHash: string }>
   | Readonly<{ kind: 'unresolved'; reason: string }>;
-
-export type EpicChild = Readonly<{
-  url: string;
-  id: string;
-  number: IssueKey;
-  state: 'open' | 'closed';
-  stateReason: 'completed' | 'not_planned' | 'duplicate' | 'reopened' | null;
-  closedAt: string | null;
-}>;
-
-export type EpicSource = Readonly<{ checkout: string; commit: string }> &
-  (Readonly<{ dirty: false }> | Readonly<{ dirty: true; snapshot: string }>);
-
-export type EpicTarget = Readonly<{
-  name: string;
-  source: EpicSource;
-  runtime: string;
-  sourceToFiles: string;
-  filesToTarget: string;
-}>;
-
-export type AcceptedEpicResult =
-  | Readonly<{
-      scenario: string;
-      result: 'PASS';
-      target: string;
-      observation: string;
-      oracle: string;
-      reports: readonly string[];
-    }>
-  | Readonly<{ scenario: string; result: 'inapplicable'; rationale: string; decision: string }>;
-
-export type EpicResult =
-  | AcceptedEpicResult
-  | Readonly<{
-      scenario: string;
-      result: 'FAIL' | 'BLOCKED' | 'unrun' | 'UNVERIFIED';
-      reason: string;
-      reports: readonly string[];
-    }>;
 
 export type EpicReview = Readonly<{ session: string; at: string }>;
 
@@ -224,9 +167,6 @@ type EpicEvidence = Readonly<{
   children: readonly EpicChild[];
   review: EpicReview;
 }>;
-
-export type EpicSubmission = EpicEvidence &
-  Readonly<{ targets: readonly EpicTarget[]; results: readonly EpicResult[] }>;
 
 export type AcceptedEpic = EpicEvidence &
   (

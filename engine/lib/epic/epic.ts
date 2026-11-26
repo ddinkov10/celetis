@@ -5,15 +5,9 @@ import { repositoryLayout, withLock } from '../state/state.ts';
 import type { IssueKey } from '../tracker/key.ts';
 import { writeRefreshHint } from '../tracker/refresh-hints.ts';
 import type { Tracker } from '../tracker/tracker.ts';
-import {
-  type AcceptedEpic,
-  type AcceptedEpicResult,
-  decideEpicCompletion,
-  type EpicSnapshot,
-  type EpicSubmission,
-  laneOf,
-} from '../workflow/workflow.ts';
-import { completionIdentity, type EpicForms, parseAcceptedEpic, parseEpicAcceptance } from './acceptance.ts';
+import { type AcceptedEpic, decideEpicCompletion, type EpicSnapshot, laneOf } from '../workflow/workflow.ts';
+import { completionIdentity, parseAcceptedEpic, parseEpicAcceptance } from './acceptance.ts';
+import type { AcceptedEpicResult, EpicForms, EpicSubmission } from './schemas.ts';
 
 export type EpicCompletionResult =
   | Readonly<{ kind: 'closed' }>

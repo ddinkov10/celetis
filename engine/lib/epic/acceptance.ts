@@ -1,60 +1,64 @@
 import { parseAllDocuments } from 'yaml';
-import { revision } from '../state/fields.ts';
-import { type IssueKey, keySource, parseKey } from '../tracker/key.ts';
-import type {
-  AcceptedEpic,
-  AcceptedEpicResult,
-  EpicAcceptance,
-  EpicChild,
-  EpicDeclaration,
-  EpicResult,
-  EpicScenario,
-  EpicSource,
-  EpicSubmission,
-  EpicTarget,
-} from '../workflow/workflow.ts';
+import type { z } from 'zod';
+import { keySource, parseKey } from '../tracker/key.ts';
+import type { AcceptedEpic, EpicDeclaration } from '../workflow/workflow.ts';
+import {
+  type AcceptedEpicResult,
+  acceptance,
+  accepted,
+  children,
+  compare,
+  type EpicChild,
+  type EpicForms,
+  type EpicResult,
+  type EpicSubmission,
+  string,
+  submission,
+} from './schemas.ts';
 
-function object(value: unknown, fields: readonly string[], path: string): Record<string, unknown> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${path}: need an object`);
-  const record = value as Record<string, unknown>;
-  const unknown = Object.keys(record).find((key) => !fields.includes(key));
-  if (unknown !== undefined) throw new Error(`${path}: unknown field ${unknown}`);
-  for (const key of fields) {
-    if (!Object.hasOwn(record, key)) throw new Error(`${path}.${key}: missing field`);
+type Path = readonly PropertyKey[];
+
+function label(path: Path, root: string, prefixed: readonly string[]): string {
+  // An item of a list of strings carries the label of its list.
+  const listed = path.at(-2) === 'reports' || (path.at(-2) === 'children' && path.at(-4) === 'scenarios');
+  const segments = listed && typeof path.at(-1) === 'number' ? path.slice(0, -1) : path;
+  return segments.reduce<string>(
+    (text, segment, index) =>
+      typeof segment === 'number'
+        ? `${text}[${segment}]`
+        : index === 0 && !prefixed.includes(String(segment))
+          ? String(segment)
+          : `${text}.${String(segment)}`,
+    root,
+  );
+}
+
+function line(issue: z.core.$ZodIssue, input: unknown, root: string, prefixed: readonly string[]): string {
+  const { path } = issue;
+  if (issue.code === 'unrecognized_keys') return `${label(path, root, prefixed)}: unknown field ${issue.keys[0]}`;
+  const field = path.at(-1);
+  const parent = path.slice(0, -1).reduce<unknown>((node, key) => (node as Record<PropertyKey, unknown>)[key], input);
+  if (
+    issue.code !== 'invalid_union' &&
+    typeof field === 'string' &&
+    typeof parent === 'object' &&
+    parent !== null &&
+    !Object.hasOwn(parent, field)
+  ) {
+    return `${label(path.slice(0, -1), root, prefixed)}.${field}: missing field`;
   }
-  return record;
+  return `${label(path, root, prefixed)}: ${issue.message}`;
 }
 
-function string(value: unknown, path: string): string {
-  if (typeof value !== 'string' || !value.trim() || value.includes('\0')) {
-    throw new Error(`${path}: need a nonblank, NUL-free string`);
-  }
-  return value;
-}
-
-function key(value: unknown, path: string): IssueKey {
-  const parsed = typeof value === 'string' ? parseKey(value) : null;
-  if (parsed === null) throw new Error(`${path}: need an issue key`);
-  return parsed;
-}
-
-function array(value: unknown, path: string): unknown[] {
-  if (!Array.isArray(value)) throw new Error(`${path}: need an array`);
-  return value;
-}
-
-function nonempty<T>(values: T[], path: string): T[] {
-  if (values.length === 0) throw new Error(`${path}: must not be empty`);
-  return values;
-}
-
-function unique<T>(values: T[], key: (value: T) => string | number, path: string): T[] {
-  if (new Set(values.map(key)).size !== values.length) throw new Error(`${path}: duplicate identity`);
-  return values;
-}
-
-function compare(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
+function checked<S extends z.ZodType>(
+  schema: S,
+  value: unknown,
+  root: string,
+  prefixed: readonly string[] = [],
+): z.output<S> {
+  const result = schema.safeParse(value);
+  if (result.success) return result.data;
+  throw new Error(line(result.error.issues[0] as z.core.$ZodIssue, value, root, prefixed));
 }
 
 function json(text: string): unknown {
@@ -65,38 +69,8 @@ function json(text: string): unknown {
   return value;
 }
 
-function timestamp(value: unknown, path: string): string {
-  const text = string(value, path);
-  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|([+-])(\d{2}):(\d{2}))$/.exec(text);
-  if (
-    !match ||
-    !Number.isFinite(Date.parse(text)) ||
-    new Date(`${match[1]}T00:00:00Z`).toISOString().slice(0, 10) !== match[1] ||
-    Number(match[2]) > 23 ||
-    Number(match[3]) > 59 ||
-    Number(match[4]) > 59 ||
-    Number(match[6] ?? 0) > 23 ||
-    Number(match[7] ?? 0) > 59
-  ) {
-    throw new Error(`${path}: need an ISO timestamp`);
-  }
-  return text;
-}
-
-function digest(value: unknown, path: string): string {
-  const text = string(value, path);
-  if (!/^[0-9a-f]{64}$/.test(text)) throw new Error(`${path}: need a SHA-256 digest`);
-  return text;
-}
-
-export type EpicForms = Readonly<{
-  repository(value: unknown): string;
-  issueUrl(repository: string, key: IssueKey): string;
-  issueKey(url: string): Readonly<{ repository: string; key: IssueKey }> | null;
-}>;
-
 function githubRepository(value: unknown): string {
-  const text = string(value, 'repository');
+  const text = checked(string, value, 'repository');
   const url = new URL(text);
   if (
     url.protocol !== 'https:' ||
@@ -123,84 +97,8 @@ export const githubForms: EpicForms = {
   },
 };
 
-function issueUrl(value: unknown, path: string, forms: EpicForms): { url: string; number: IssueKey } {
-  const url = string(value, path);
-  const found = forms.issueKey(url);
-  if (found === null) throw new Error(`${path}: need a canonical issue URL`);
-  return { url, number: found.key };
-}
-
 export function parseEpicChildren(value: unknown, forms: EpicForms): EpicChild[] {
-  const children = array(value, 'children').map((raw, index): EpicChild => {
-    const path = `children[${index}]`;
-    const child = object(raw, ['url', 'id', 'number', 'state', 'stateReason', 'closedAt'], path);
-    const { url, number } = issueUrl(child.url, `${path}.url`, forms);
-    if (key(child.number, `${path}.number`) !== number) throw new Error(`${path}: URL and number differ`);
-    if (child.state !== 'open' && child.state !== 'closed') throw new Error(`${path}.state: need open or closed`);
-    const reason = child.stateReason;
-    if (
-      reason !== null &&
-      reason !== 'completed' &&
-      reason !== 'not_planned' &&
-      reason !== 'duplicate' &&
-      reason !== 'reopened'
-    ) {
-      throw new Error(`${path}.stateReason: invalid state reason`);
-    }
-    const closedAt = child.closedAt === null ? null : timestamp(child.closedAt, `${path}.closedAt`);
-    if ((child.state === 'closed') !== (closedAt !== null)) throw new Error(`${path}: state and closedAt differ`);
-    return { url, id: string(child.id, `${path}.id`), number, state: child.state, stateReason: reason, closedAt };
-  });
-  unique(children, (child) => child.url, 'children');
-  unique(children, (child) => child.id, 'children');
-  return children.sort((a, b) => compare(a.url, b.url));
-}
-
-const scenarioFields = [
-  'name',
-  'criterion',
-  'children',
-  'setup',
-  'preparation',
-  'target',
-  'expected',
-  'timing',
-  'sourceToFiles',
-  'filesToTarget',
-  'oracle',
-] as const;
-
-function acceptance(value: unknown, forms: EpicForms): EpicAcceptance {
-  const mode = value !== null && typeof value === 'object' && 'mode' in value ? value.mode : undefined;
-  if (mode === 'independent') {
-    const data = object(value, ['mode', 'rationale'], 'acceptance');
-    return { mode, rationale: string(data.rationale, 'acceptance.rationale') };
-  }
-  if (mode !== 'combined') throw new Error('acceptance.mode: need independent or combined');
-  const data = object(value, ['mode', 'scenarios'], 'acceptance');
-  const scenarios = nonempty(array(data.scenarios, 'scenarios'), 'scenarios').map((raw, index): EpicScenario => {
-    const path = `scenarios[${index}]`;
-    const scenario = object(raw, scenarioFields, path);
-    const children = nonempty(array(scenario.children, `${path}.children`), `${path}.children`).map(
-      (child) => issueUrl(child, `${path}.children`, forms).url,
-    );
-    unique(children, (child) => child, `${path}.children`);
-    return {
-      name: string(scenario.name, `${path}.name`),
-      criterion: string(scenario.criterion, `${path}.criterion`),
-      children,
-      setup: string(scenario.setup, `${path}.setup`),
-      preparation: string(scenario.preparation, `${path}.preparation`),
-      target: string(scenario.target, `${path}.target`),
-      expected: string(scenario.expected, `${path}.expected`),
-      timing: string(scenario.timing, `${path}.timing`),
-      sourceToFiles: string(scenario.sourceToFiles, `${path}.sourceToFiles`),
-      filesToTarget: string(scenario.filesToTarget, `${path}.filesToTarget`),
-      oracle: string(scenario.oracle, `${path}.oracle`),
-    };
-  });
-  unique(scenarios, (scenario) => scenario.name, 'scenarios');
-  return { mode, scenarios };
+  return checked(children(forms), value, 'children');
 }
 
 function sectionOf(body: string): string {
@@ -244,7 +142,7 @@ export function parseEpicAcceptance(body: string | null, forms: EpicForms): Epic
     if (fenced === undefined) throw new Error('acceptance: need one bounded json fence and no other content');
     return {
       kind: 'valid',
-      acceptance: acceptance(json(fenced), forms),
+      acceptance: checked(acceptance(forms), json(fenced), 'acceptance', ['mode', 'rationale']),
       definitionHash: new Bun.CryptoHasher('sha256').update(section).digest('hex'),
     };
   } catch (error) {
@@ -252,113 +150,28 @@ export function parseEpicAcceptance(body: string | null, forms: EpicForms): Epic
   }
 }
 
-function target(value: unknown, index: number): EpicTarget {
-  const path = `targets[${index}]`;
-  const data = object(value, ['name', 'source', 'runtime', 'sourceToFiles', 'filesToTarget'], path);
-  const raw = data.source;
-  const dirty = raw !== null && typeof raw === 'object' && 'dirty' in raw ? raw.dirty : undefined;
-  if (typeof dirty !== 'boolean') throw new Error(`${path}.source.dirty: need a boolean`);
-  const source = object(
-    raw,
-    dirty ? ['checkout', 'commit', 'dirty', 'snapshot'] : ['checkout', 'commit', 'dirty'],
-    `${path}.source`,
-  );
-  const checkout = string(source.checkout, `${path}.source.checkout`);
-  const commit = string(source.commit, `${path}.source.commit`);
-  if (!revision.test(commit)) throw new Error(`${path}.source.commit: need a full commit`);
-  const parsed: EpicSource = dirty
-    ? { checkout, commit, dirty, snapshot: string(source.snapshot, `${path}.source.snapshot`) }
-    : { checkout, commit, dirty };
-  return {
-    name: string(data.name, `${path}.name`),
-    source: parsed,
-    runtime: string(data.runtime, `${path}.runtime`),
-    sourceToFiles: string(data.sourceToFiles, `${path}.sourceToFiles`),
-    filesToTarget: string(data.filesToTarget, `${path}.filesToTarget`),
-  };
-}
-
-function result(value: unknown, index: number): EpicResult {
-  const path = `results[${index}]`;
-  const status = value !== null && typeof value === 'object' && 'result' in value ? value.result : undefined;
-  if (status === 'inapplicable') {
-    const data = object(value, ['scenario', 'result', 'rationale', 'decision'], path);
-    return {
-      scenario: string(data.scenario, `${path}.scenario`),
-      result: status,
-      rationale: string(data.rationale, `${path}.rationale`),
-      decision: string(data.decision, `${path}.decision`),
-    };
-  }
-  if (status !== 'PASS' && status !== 'FAIL' && status !== 'BLOCKED' && status !== 'unrun' && status !== 'UNVERIFIED') {
-    throw new Error(`${path}.result: invalid result`);
-  }
-  const data = object(
-    value,
-    status === 'PASS'
-      ? ['scenario', 'result', 'target', 'observation', 'oracle', 'reports']
-      : ['scenario', 'result', 'reason', 'reports'],
-    path,
-  );
-  const reports = nonempty(array(data.reports, `${path}.reports`), `${path}.reports`).map((id) =>
-    string(id, `${path}.reports`),
-  );
-  unique(reports, (id) => id, `${path}.reports`);
-  const scenario = string(data.scenario, `${path}.scenario`);
-  return status === 'PASS'
-    ? {
-        scenario,
-        result: status,
-        target: string(data.target, `${path}.target`),
-        observation: string(data.observation, `${path}.observation`),
-        oracle: string(data.oracle, `${path}.oracle`),
-        reports,
-      }
-    : { scenario, result: status, reason: string(data.reason, `${path}.reason`), reports };
-}
-
-const submissionFields = ['repository', 'parent', 'definitionHash', 'children', 'review', 'targets', 'results'];
-
-function submission(data: Record<string, unknown>, forms: EpicForms): EpicSubmission {
-  const review = object(data.review, ['session', 'at'], 'review');
-  const targets = array(data.targets, 'targets').map(target);
-  unique(targets, (target) => target.name, 'targets');
-  return {
-    repository: forms.repository(data.repository),
-    parent: key(data.parent, 'parent'),
-    definitionHash: digest(data.definitionHash, 'definitionHash'),
-    children: parseEpicChildren(data.children, forms),
-    review: { session: string(review.session, 'review.session'), at: timestamp(review.at, 'review.at') },
-    targets,
-    results: array(data.results, 'results').map(result),
-  };
-}
-
 export function parseEpicSubmission(text: string, forms: EpicForms): EpicSubmission {
-  return submission(object(json(text), submissionFields, 'submission'), forms);
+  return checked(submission(forms), json(text), 'submission');
 }
 
 export function parseAcceptedEpic(text: string, forms: EpicForms): AcceptedEpic & { completionId: string } {
-  const data = object(json(text), [...submissionFields, 'mode', 'completionId'], 'accepted');
-  const evidence = submission(data, forms);
-  let accepted: AcceptedEpic;
-  if (data.mode === 'independent') {
+  const { mode, completionId, ...evidence } = checked(accepted(forms), json(text), 'accepted', ['mode']);
+  let record: AcceptedEpic;
+  if (mode === 'independent') {
     if (evidence.targets.length || evidence.results.length)
       throw new Error('independent acceptance has no targets or results');
-    accepted = { ...evidence, mode: 'independent', targets: [], results: [] };
-  } else if (data.mode === 'combined') {
-    const results = evidence.results.filter(
+    record = { ...evidence, mode, targets: [], results: [] };
+  } else {
+    const all: readonly EpicResult[] = evidence.results;
+    const results = all.filter(
       (result): result is AcceptedEpicResult => result.result === 'PASS' || result.result === 'inapplicable',
     );
     if (results.length !== evidence.results.length || !results.length)
       throw new Error('combined acceptance needs accepted results');
-    accepted = { ...evidence, mode: 'combined', results };
-  } else {
-    throw new Error('accepted.mode: need independent or combined');
+    record = { ...evidence, mode, results };
   }
-  const completionId = digest(data.completionId, 'completionId');
-  if (completionId !== completionIdentity(accepted)) throw new Error('accepted.completionId: does not match record');
-  return { ...accepted, completionId };
+  if (completionId !== completionIdentity(record)) throw new Error('accepted.completionId: does not match record');
+  return { ...record, completionId };
 }
 
 export function completionIdentity(record: AcceptedEpic): string {

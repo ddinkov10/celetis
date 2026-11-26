@@ -1,10 +1,11 @@
 import { readdir, readFile, realpath } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
+import { z } from 'zod';
 import { effectiveOrder, readAgentOrder } from '../agent/order.ts';
 import { activeBlock, readUsage, selectAgent } from '../agent/usage.ts';
 import { createOperation, locateCheckouts } from '../command/operation.ts';
 import type { AgentDecision, AgentOrder, Config, Host, UsageBlock } from '../config/core.ts';
-import { type Client, type Connection, chunks, client, drain, graphqlQuery } from '../github/github.ts';
+import { type Client, type Connection, chunks, client, connection, drain, graphqlQuery } from '../github/github.ts';
 import { trusted } from '../github/tracker.ts';
 import { hostAvailability } from '../host/host.ts';
 import { capableOrder } from '../host/hosts.ts';
@@ -153,51 +154,67 @@ function malformed(): never {
   throw new Error('malformed GitHub history');
 }
 
-function record(value: unknown): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) malformed();
-  return value as Record<string, unknown>;
+function parse<S extends z.ZodType>(schema: S, value: unknown): z.output<S> {
+  const result = schema.safeParse(value);
+  if (!result.success) malformed();
+  return result.data;
 }
 
-function text(value: unknown): string {
-  if (typeof value !== 'string') malformed();
-  return value;
-}
+const identity = z.string().regex(commit);
 
-function array(value: unknown): unknown[] {
-  if (!Array.isArray(value)) malformed();
-  return value;
-}
+const date = z
+  .string()
+  .refine(
+    (at) =>
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(at) &&
+      Number.isFinite(Date.parse(at)),
+  );
 
-function identity(value: unknown): string {
-  const sha = text(value);
-  if (!commit.test(sha)) malformed();
-  return sha;
-}
+const link = z
+  .string()
+  .refine((href) => !/[\x00-\x20\x7f-\x9f]/.test(href))
+  .transform((href) => new URL(href))
+  .refine((url) => ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password)
+  .transform((url) => url.href);
 
-function date(value: unknown): string {
-  const at = text(value);
-  if (
-    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(at) ||
-    !Number.isFinite(Date.parse(at))
-  )
-    malformed();
-  return at;
-}
+const trunkOf = z.object({
+  repository: z.object({
+    nameWithOwner: z.string().regex(/^[^/\s]+\/[^/\s]+$/),
+    url: z.unknown().optional(),
+    defaultBranchRef: z.object({
+      name: z.string().min(1),
+      target: z.object({ oid: identity, history: connection }),
+    }),
+  }),
+});
 
-function link(value: unknown): string {
-  const href = text(value);
-  if (/[\u0000-\u0020\u007f-\u009f]/.test(href)) malformed();
-  const url = new URL(href);
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) malformed();
-  return url.href;
-}
+const commitNode = z.object({ oid: identity, url: link, message: z.string(), committedDate: date });
 
-function connection(value: unknown): Connection {
-  const { nodes, pageInfo } = record(value);
-  const { hasNextPage, endCursor } = record(pageInfo);
-  if (typeof hasNextPage !== 'boolean') malformed();
-  return { nodes: array(nodes), next: hasNextPage ? text(endCursor) : null };
-}
+const repoName = z.object({ nameWithOwner: z.string() });
+
+const pullNode = z.object({
+  baseRepository: repoName.nullable(),
+  headRepository: repoName.nullable(),
+  baseRefName: z.string(),
+  headRefName: z.string(),
+  body: z.string().nullable(),
+  mergedAt: date.nullable(),
+  mergeCommit: z.object({ oid: identity }).nullable(),
+});
+
+const issueNode = z.discriminatedUnion('__typename', [
+  z.object({ __typename: z.literal('PullRequest') }),
+  z.object({
+    __typename: z.literal('Issue'),
+    number: z.unknown().optional(),
+    title: z.string(),
+    url: z.string().refine((href) => link.safeParse(href).success),
+    createdAt: z.unknown().optional(),
+    authorAssociation: z.unknown().optional(),
+  }),
+]);
+
+const keyed = z.record(z.string(), z.unknown());
 
 const pullsOf = (after: string) =>
   `associatedPullRequests(first: 100${after}) { pageInfo { hasNextPage endCursor } nodes { number body mergedAt mergeCommit { oid } baseRefName headRefName baseRepository { nameWithOwner } headRepository { nameWithOwner } } }`;
@@ -228,44 +245,44 @@ async function loadCache(common: string): Promise<Cache> {
 }
 
 async function readTrunk(gh: Pick<Client, 'graphql'>, history: string) {
-  const repo = record(
-    (
-      await gh.graphql(
-        graphqlQuery(`nameWithOwner url defaultBranchRef { name target { ... on Commit { oid ${history} } } }`),
-      )
-    ).repository,
+  const { repository } = parse(
+    trunkOf,
+    await gh.graphql(
+      graphqlQuery(`nameWithOwner url defaultBranchRef { name target { ... on Commit { oid ${history} } } }`),
+    ),
   );
-  const branch = record(repo.defaultBranchRef);
-  const trunk = text(branch.name);
-  const name = text(repo.nameWithOwner);
-  if (!trunk || !/^[^/\s]+\/[^/\s]+$/.test(name)) malformed();
-  const target = record(branch.target);
-  return { trunk, name, repoUrl: repo.url, head: identity(target.oid), page: connection(target.history) };
+  const { name: trunk, target } = repository.defaultBranchRef;
+  return {
+    trunk,
+    name: repository.nameWithOwner,
+    repoUrl: repository.url,
+    head: target.oid,
+    page: target.history,
+  };
 }
 
 function commits(page: Connection): Commit[] {
-  return page.nodes.map((raw) => {
-    const row = record(raw);
-    return {
-      sha: identity(row.oid),
-      commitUrl: link(row.url),
-      subject: text(row.message).split('\n')[0] as string,
-      committedAt: date(row.committedDate),
-    };
-  });
+  return parse(z.array(commitNode), page.nodes).map((row) => ({
+    sha: row.oid,
+    commitUrl: row.url,
+    subject: row.message.split('\n')[0] as string,
+    committedAt: row.committedDate,
+  }));
 }
 
-async function commitObject(
+async function commitConnection(
   gh: Pick<Client, 'graphql'>,
   fields: string,
   oid: string,
   cursor: string,
-): Promise<Record<string, unknown>> {
+  key: 'history' | 'associatedPullRequests',
+): Promise<Connection> {
   const data = await gh.graphql(
     graphqlQuery(`object(oid: $oid) { ... on Commit { ${fields} } }`, '$oid: GitObjectID!', '$cursor: String!'),
     { oid, cursor },
   );
-  return record(record(data.repository).object);
+  const { repository } = parse(z.object({ repository: z.object({ object: z.object({ [key]: connection }) }) }), data);
+  return repository.object[key] as Connection;
 }
 
 async function readIssues(
@@ -284,24 +301,19 @@ async function readIssues(
         .join(' '),
     ),
   );
-  const repository = record(data.repository);
+  const repository = parse(z.object({ repository: keyed }), data).repository;
   for (const n of numbers) {
-    const issue = record(repository[`n${n}`]);
+    const issue = parse(issueNode, repository[`n${n}`]);
     if (issue.__typename === 'PullRequest') issues.set(n, null);
-    else if (issue.__typename !== 'Issue') malformed();
-    else {
-      const title = text(issue.title);
-      const href = text(issue.url);
-      link(href);
+    else
       issues.set(
         n,
         typeof issue.number === 'number' && String(issue.number) === n && trusted(issue.authorAssociation)
-          ? { title, url: href }
+          ? { title: issue.title, url: issue.url }
           : null,
       );
-    }
     if (!cache.issues.has(n)) {
-      const createdAt = issues.get(n) ? date(issue.createdAt) : null;
+      const createdAt = issues.get(n) && issue.__typename === 'Issue' ? parse(date, issue.createdAt) : null;
       cache.issues.set(n, createdAt);
       cache.fresh.push({ issue: n, createdAt });
     }
@@ -318,22 +330,15 @@ function association(
   if (pulls.length === 0) return subjectKey(subject);
   const candidates = new Set<IssueKey>();
   for (const raw of pulls) {
-    const pull = record(raw);
-    const baseRepo = pull.baseRepository === null ? null : text(record(pull.baseRepository).nameWithOwner);
-    const headRepo = pull.headRepository === null ? null : text(record(pull.headRepository).nameWithOwner);
-    const baseRef = text(pull.baseRefName);
-    const headRef = text(pull.headRefName);
-    const body = pull.body === null ? '' : text(pull.body);
-    const merged = pull.mergedAt === null ? null : date(pull.mergedAt);
-    const mergeSha = pull.mergeCommit === null ? null : identity(record(pull.mergeCommit).oid);
-    const lane = laneKey(headRef);
-    const closes = closedKeys(body);
+    const pull = parse(pullNode, raw);
+    const lane = laneKey(pull.headRefName);
+    const closes = closedKeys(pull.body ?? '');
     if (
-      merged &&
-      mergeSha === sha &&
-      baseRef === trunk &&
-      baseRepo === name &&
-      headRepo === name &&
+      pull.mergedAt &&
+      pull.mergeCommit?.oid === sha &&
+      pull.baseRefName === trunk &&
+      pull.baseRepository?.nameWithOwner === name &&
+      pull.headRepository?.nameWithOwner === name &&
       lane &&
       closes.length > 0 &&
       closes.every((key) => key === lane)
@@ -355,18 +360,18 @@ async function issuesOf(
   const waiting = new Map<string, IssueKey>();
   // About 300 bytes per alias: 50 keep one `gh` argument far below the Windows limit of 32,767 characters.
   for (const chunk of chunks(unread, 50)) {
-    const repository = record(
-      (
-        await gh.graphql(
-          graphqlQuery(
-            chunk.map(({ sha }, i) => `c${i}: object(oid: "${sha}") { ... on Commit { ${pullsOf('')} } }`).join(' '),
-          ),
-        )
-      ).repository,
+    const { repository } = parse(
+      z.object({ repository: keyed }),
+      await gh.graphql(
+        graphqlQuery(
+          chunk.map(({ sha }, i) => `c${i}: object(oid: "${sha}") { ... on Commit { ${pullsOf('')} } }`).join(' '),
+        ),
+      ),
     );
     for (const [i, { sha, subject, committedAt }] of chunk.entries()) {
-      const pulls = await drain(connection(record(repository[`c${i}`]).associatedPullRequests), async (cursor) =>
-        connection((await commitObject(gh, pullsOf(', after: $cursor'), sha, cursor)).associatedPullRequests),
+      const first = parse(z.object({ associatedPullRequests: connection }), repository[`c${i}`]);
+      const pulls = await drain(first.associatedPullRequests, (cursor) =>
+        commitConnection(gh, pullsOf(', after: $cursor'), sha, cursor, 'associatedPullRequests'),
       );
       const issue = association(repo.trunk, repo.name, sha, pulls, subject);
       const line = { sha, issue, at: committedAt };
@@ -409,7 +414,7 @@ async function answerIssues(
 
 export async function readHistory(gh: Pick<Client, 'graphql'>, common: string): Promise<History> {
   const { trunk, name, repoUrl, head, page: first } = await readTrunk(gh, historyOf(''));
-  const url = `${link(repoUrl).replace(/\/$/, '')}/commits/${encodeURIComponent(trunk)}`;
+  const url = `${parse(link, repoUrl).replace(/\/$/, '')}/commits/${encodeURIComponent(trunk)}`;
   const cache = await loadCache(common);
   const entries: LandedIssue[] = [];
   const seen = new Set<IssueKey>();
@@ -446,7 +451,7 @@ export async function readHistory(gh: Pick<Client, 'graphql'>, common: string): 
     }
     await save();
     if (page.next === null) return done();
-    page = connection((await commitObject(gh, historyOf(', after: $cursor'), head, page.next)).history);
+    page = await commitConnection(gh, historyOf(', after: $cursor'), head, page.next, 'history');
   }
 }
 
@@ -480,7 +485,7 @@ export async function readDelivery(
   for (;;) {
     walked.push(...commits(page));
     if (page.next === null) break;
-    page = connection((await commitObject(gh, historyOf(', after: $cursor', since), head, page.next)).history);
+    page = await commitConnection(gh, historyOf(', after: $cursor', since), head, page.next, 'history');
   }
   const kept = walked.filter(({ committedAt }) => Date.parse(committedAt) >= from);
   const cache = await loadCache(common);

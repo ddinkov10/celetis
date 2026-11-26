@@ -18,6 +18,7 @@ import {
 } from './lib/contract/contract.ts';
 import { parseEpicAcceptance, parseEpicSubmission } from './lib/epic/acceptance.ts';
 import { completeEpic, readEpic, withEpicLock, writeEpicDefinition } from './lib/epic/epic.ts';
+import type { EpicSubmission } from './lib/epic/schemas.ts';
 import { hostAdapter } from './lib/host/hosts.ts';
 import { lineOf } from './lib/resolver/lines.ts';
 import { services } from './lib/services/services.ts';
@@ -32,7 +33,6 @@ import {
   type Decision,
   decide,
   diagnosed,
-  type EpicSubmission,
   factsOf,
   type IssueData,
   type Lane,

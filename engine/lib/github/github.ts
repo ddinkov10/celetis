@@ -1,6 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { z } from 'zod';
 import { run } from '../process/process.ts';
 import { parseKey } from '../tracker/key.ts';
 import { writeRefreshHint } from '../tracker/refresh-hints.ts';
@@ -25,23 +26,10 @@ export function malformed(): Error {
   return new Refusal('malformed GitHub data');
 }
 
-export function record(value: unknown): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw malformed();
-  return value as Record<string, unknown>;
-}
-
-export function text(value: unknown): string {
-  if (typeof value !== 'string') throw malformed();
-  return value;
-}
-
-export function integer(value: unknown): number {
-  if (!Number.isSafeInteger(value)) throw malformed();
-  return value as number;
-}
-
-export function orNull<T>(value: unknown, parse: (value: unknown) => T): T | null {
-  return value === null ? null : parse(value);
+export function parse<S extends z.ZodType>(schema: S, value: unknown): z.output<S> {
+  const result = schema.safeParse(value);
+  if (!result.success) throw malformed();
+  return result.data;
 }
 
 export async function loggedIn(host: string, cwd: string): Promise<boolean> {
@@ -50,12 +38,23 @@ export async function loggedIn(host: string, cwd: string): Promise<boolean> {
 
 export type Connection = Readonly<{ nodes: readonly unknown[]; next: string | null }>;
 
-function connection(raw: unknown): Connection {
-  const { nodes, pageInfo } = record(raw);
-  const { hasNextPage, endCursor } = record(pageInfo);
-  if (!Array.isArray(nodes) || typeof hasNextPage !== 'boolean') throw malformed();
-  return { nodes, next: hasNextPage ? text(endCursor) : null };
-}
+const object = z.custom<Record<string, unknown>>(
+  (value) => typeof value === 'object' && value !== null && !Array.isArray(value),
+);
+const items = z.array(z.unknown());
+
+export const connection: z.ZodType<Connection> = z
+  .object({
+    nodes: items,
+    pageInfo: z.union([
+      z.object({ hasNextPage: z.literal(true), endCursor: z.string() }),
+      z.object({ hasNextPage: z.literal(false) }),
+    ]),
+  })
+  .transform(({ nodes, pageInfo }) => ({ nodes, next: pageInfo.hasNextPage ? pageInfo.endCursor : null }));
+
+const answer = z.object({ errors: z.undefined().optional(), data: object });
+const user = z.object({ login: z.string().min(1) });
 
 export async function drain(first: Connection, more: (cursor: string) => Promise<Connection>): Promise<unknown[]> {
   const nodes = [...first.nodes];
@@ -77,7 +76,8 @@ export function graphqlQuery(fields: string, ...variables: string[]): string {
   return `query(${['$owner: String!', '$name: String!', ...variables].join(', ')}) { repository(owner: $owner, name: $name) { ${fields} } }`;
 }
 
-export const select = (value: unknown, keys: readonly string[]) => keys.reduce((node, key) => record(node)[key], value);
+export const select = (value: unknown, keys: readonly string[]) =>
+  keys.reduce((node, key) => parse(object, node)[key], value);
 
 export type Client = Readonly<{
   cwd: string;
@@ -146,14 +146,9 @@ export function client(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
 
   async function pages(endpoint: string, key?: string): Promise<unknown[]> {
     const raw = await call(endpoint, true);
-    return parsed(endpoint, () => {
-      if (!Array.isArray(raw)) throw malformed();
-      return raw.flatMap((page: unknown): unknown[] => {
-        const items = key === undefined ? page : record(page)[key];
-        if (!Array.isArray(items)) throw malformed();
-        return items;
-      });
-    });
+    return parsed(endpoint, () =>
+      parse(items, raw).flatMap((page) => parse(items, key === undefined ? page : select(page, [key]))),
+    );
   }
 
   async function getAll<T>(endpoint: string, parse: (raw: unknown) => T, key?: string): Promise<T[]> {
@@ -230,23 +225,13 @@ export function client(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
         result.stderr,
         'GitHub read failed',
       );
-    return parsed('graphql', () => {
-      const answer = record(json(result.stdout));
-      if (answer.errors !== undefined) throw malformed();
-      return record(answer.data);
-    });
+    return parsed('graphql', () => parse(answer, json(result.stdout)).data);
   }
 
   let viewer: Promise<string> | undefined;
   const login = () => {
     viewer ??= call('user', false, 'user')
-      .then((raw) =>
-        parsed('user', () => {
-          const name = text(record(raw).login);
-          if (!name) throw malformed();
-          return name;
-        }),
-      )
+      .then((raw) => parsed('user', () => parse(user, raw).login))
       .catch((error: unknown) => {
         viewer = undefined;
         throw error;
@@ -254,7 +239,8 @@ export function client(cwd: string, signal?: AbortSignal, env?: NodeJS.ProcessEn
     return viewer;
   };
 
-  const connectionAt = (value: unknown, ...keys: string[]) => parsed('graphql', () => connection(select(value, keys)));
+  const connectionAt = (value: unknown, ...keys: string[]) =>
+    parsed('graphql', () => parse(connection, select(value, keys)));
 
   return {
     cwd,

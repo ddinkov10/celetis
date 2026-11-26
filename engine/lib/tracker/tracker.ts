@@ -1,5 +1,5 @@
 import type { Label } from '../contract/contract.ts';
-import type { EpicForms } from '../epic/acceptance.ts';
+import type { EpicForms } from '../epic/schemas.ts';
 import type { Entry, EpicSnapshot, IssueData } from '../workflow/workflow.ts';
 import type { IssueKey } from './key.ts';
 

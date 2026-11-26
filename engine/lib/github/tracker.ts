@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises';
+import { z } from 'zod';
 import { githubForms, parseEpicAcceptance, parseEpicChildren } from '../epic/acceptance.ts';
 import { run } from '../process/process.ts';
+import { count, issueKey } from '../state/schemas.ts';
 import { github } from '../tracker/grammar.ts';
 import { type IssueKey, parseKey } from '../tracker/key.ts';
 import { writeRefreshHint } from '../tracker/refresh-hints.ts';
@@ -26,29 +28,32 @@ import {
   drain,
   GitHubError,
   graphqlQuery,
-  integer,
   malformed,
+  parse,
   Refusal,
-  record,
-  text,
 } from './github.ts';
 
-function issueKey(value: unknown): IssueKey | null {
-  return Number.isSafeInteger(value) ? parseKey(String(value)) : null;
-}
+const key = z
+  .int()
+  .transform((value) => String(value))
+  .pipe(issueKey);
+const state = z.enum(['open', 'closed']);
+const labelName = z.object({ name: z.string() }).transform((label) => label.name);
+const author = z
+  .object({ login: z.string() })
+  .nullable()
+  .transform((user) => user?.login ?? null);
+const withoutPull = z.custom<Record<string, unknown>>(
+  (value) =>
+    typeof value === 'object' && value !== null && !Array.isArray(value) && !Object.hasOwn(value, 'pull_request'),
+);
 
 function parseParent(raw: unknown): Parent {
-  const parent = typeof raw === 'object' && raw !== null && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
-  const key = issueKey(parent.number);
-  const url = parent.html_url;
-  if (key === null) throw new Refusal('the parent response has no valid issue number');
-  if (typeof url !== 'string' || !url.endsWith(`/issues/${key}`))
-    throw new Refusal('the parent response has no canonical issue URL that matches its number');
-  return { key, url };
-}
-
-function parseLabelName(raw: unknown): string {
-  return text(record(raw).name);
+  const number = z.object({ number: key }).safeParse(raw);
+  if (!number.success) throw new Refusal('the parent response has no valid issue number');
+  const url = z.object({ html_url: z.string().endsWith(`/issues/${number.data.number}`) }).safeParse(raw);
+  if (!url.success) throw new Refusal('the parent response has no canonical issue URL that matches its number');
+  return { key: number.data.number, url: url.data.html_url };
 }
 
 function parentKey(apiUrl: string, parentUrl: string | null): IssueKey | null {
@@ -57,148 +62,160 @@ function parentKey(apiUrl: string, parentUrl: string | null): IssueKey | null {
   return parentUrl.startsWith(prefix) ? parseKey(parentUrl.slice(prefix.length)) : null;
 }
 
-function blockerCount(summary: unknown): number | null {
-  const total =
-    typeof summary === 'object' && summary !== null ? (summary as Record<string, unknown>).total_blocked_by : undefined;
-  return Number.isSafeInteger(total) && (total as number) >= 0 ? (total as number) : null;
-}
+const blockerTotal = z
+  .object({ total_blocked_by: z.int().nonnegative() })
+  .transform((summary): number | null => summary.total_blocked_by)
+  .catch(null);
+
+const issue: z.ZodType<Issue> = z
+  .object({
+    number: key,
+    title: z.string(),
+    html_url: z.string(),
+    url: z.string(),
+    parent_issue_url: z.string().nullish(),
+    state,
+    labels: z.array(labelName),
+    body: z.string().nullable(),
+    comments: z.custom<number>((value) => typeof value === 'number'),
+    updated_at: z.string(),
+    closed_at: z.string().nullable(),
+    pull_request: z.custom<object | null>((value) => typeof value === 'object').optional(),
+    issue_dependencies_summary: blockerTotal.optional(),
+  })
+  .transform((raw) => ({
+    key: raw.number,
+    title: raw.title,
+    url: raw.html_url,
+    parent: parentKey(raw.url, raw.parent_issue_url ?? null),
+    state: raw.state,
+    labels: raw.labels,
+    body: raw.body,
+    comments: raw.comments,
+    updatedAt: raw.updated_at,
+    closedAt: raw.closed_at,
+    pull: Boolean(raw.pull_request),
+    blockerCount: raw.issue_dependencies_summary ?? null,
+  }));
 
 export function parseIssue(raw: unknown): Issue {
-  const issue = record(raw);
-  const { state, labels, body, comments, closed_at: closedAt, pull_request: pull } = issue;
-  const key = issueKey(issue.number);
-  if (
-    key === null ||
-    (state !== 'open' && state !== 'closed') ||
-    !Array.isArray(labels) ||
-    typeof comments !== 'number' ||
-    (pull !== undefined && pull !== null && typeof pull !== 'object')
-  )
-    throw malformed();
-  const parent = issue.parent_issue_url;
-  if (parent !== undefined && parent !== null && typeof parent !== 'string') throw malformed();
-  return {
-    key,
-    title: text(issue.title),
-    url: text(issue.html_url),
-    parent: parentKey(text(issue.url), parent ?? null),
-    state,
-    labels: labels.map((label) => text(record(label).name)),
-    body: body === null ? null : text(body),
-    comments,
-    updatedAt: text(issue.updated_at),
-    closedAt: closedAt === null ? null : text(closedAt),
-    pull: Boolean(pull),
-    blockerCount: blockerCount(issue.issue_dependencies_summary),
-  };
+  return parse(issue, raw);
 }
 
-function parseChild(raw: unknown): Child {
-  const child = record(raw);
-  const key = issueKey(child.number);
-  const { state } = child;
-  if (key === null || Object.hasOwn(child, 'pull_request') || (state !== 'open' && state !== 'closed'))
-    throw malformed();
-  return { key, title: text(child.title), url: text(child.html_url), state };
-}
+const child: z.ZodType<Child> = withoutPull.pipe(
+  z
+    .object({ number: key, title: z.string(), html_url: z.string(), state })
+    .transform((raw) => ({ key: raw.number, title: raw.title, url: raw.html_url, state: raw.state })),
+);
 
+const issueId = z.object({ id: z.int() }).transform((raw) => raw.id);
+const blocked = z.object({
+  id: z.int(),
+  html_url: z.string(),
+  number: z.int(),
+  state,
+  title: z.string(),
+  author_association: z.unknown().optional(),
+});
 const foreignIssue = /^https:\/\/[^/]+\/([^/]+\/[^/]+)\/issues\/([1-9][0-9]*)$/;
 
-function parseBlocker(raw: unknown, repository: string): Blocker {
-  const item = record(raw);
-  const { state } = item;
-  const url = text(item.html_url);
-  const number = integer(item.number);
-  if (state !== 'open' && state !== 'closed') throw malformed();
-  const title = text(item.title);
-  const key = url.startsWith(`${repository}/issues/`) ? issueKey(number) : null;
-  if (key !== null) {
-    if (url !== githubForms.issueUrl(repository, key)) throw malformed();
-    return { key, ref: `#${key}`, title: trusted(item.author_association) ? title : '', url, state };
+function parseBlocker(raw: unknown, repository: string): { id: number; blocker: Blocker } {
+  const { id, html_url: url, number, state, title, author_association } = parse(blocked, raw);
+  const home = url.startsWith(`${repository}/issues/`) ? key.safeParse(number) : null;
+  if (home?.success) {
+    if (url !== githubForms.issueUrl(repository, home.data)) throw malformed();
+    const ref = `#${home.data}`;
+    return { id, blocker: { key: home.data, ref, title: trusted(author_association) ? title : '', url, state } };
   }
   const foreign = foreignIssue.exec(url);
   if (foreign === null || foreign[2] !== String(number)) throw malformed();
   // The association of a foreign issue is with its own repository, so its title is never read.
-  return { key: null, ref: `${foreign[1]}#${number}`, title: '', url, state };
-}
-
-function author(user: unknown): string | null {
-  return user === null ? null : text(record(user).login);
+  return { id, blocker: { key: null, ref: `${foreign[1]}#${number}`, title: '', url, state } };
 }
 
 export function trusted(association: unknown): boolean {
   return association === 'OWNER' || association === 'MEMBER' || association === 'COLLABORATOR';
 }
 
-function onlyTrusted<T>(parse: (raw: unknown) => T): (raw: unknown) => T[] {
+const association = z.object({ author_association: z.unknown().optional() });
+const submitter = z.object({ author_association: z.unknown().optional(), user: z.unknown().optional() });
+const repositoryReply = z.object({
+  html_url: z.unknown().optional(),
+  id: z.unknown().optional(),
+  full_name: z.unknown().optional(),
+});
+
+function onlyTrusted<T>(schema: z.ZodType<T>): (raw: unknown) => T[] {
   return (raw) => {
-    const value = parse(raw);
-    return trusted(record(raw).author_association) ? [value] : [];
+    const value = parse(schema, raw);
+    return trusted(parse(association, raw).author_association) ? [value] : [];
   };
 }
 
+const restKinds = ['commented', 'labeled', 'unlabeled'];
+const restEntry: z.ZodType<Authored[]> = z.union([
+  z
+    .object({
+      event: z.literal('commented'),
+      id: z.int(),
+      created_at: z.string(),
+      user: author,
+      body: z.string(),
+      author_association: z.unknown().optional(),
+    })
+    .transform((raw): Authored[] =>
+      trusted(raw.author_association)
+        ? [{ kind: 'comment', id: String(raw.id), at: raw.created_at, author: raw.user, body: raw.body }]
+        : [],
+    ),
+  z
+    .object({ event: z.enum(['labeled', 'unlabeled']), label: labelName, created_at: z.string() })
+    .transform((raw): Authored[] => [
+      { kind: 'label', change: raw.event === 'labeled' ? 'added' : 'removed', name: raw.label, at: raw.created_at },
+    ]),
+  z
+    .object({
+      event: z
+        .string()
+        .regex(/^[^\s\0]+$/)
+        .refine((event) => !restKinds.includes(event)),
+    })
+    .transform((): Authored[] => []),
+]);
+
 function parseHistory(entries: readonly unknown[]): Authored[] {
-  return entries.flatMap((raw): Authored[] => {
-    const entry = record(raw);
-    const event = text(entry.event);
-    if (!event || /[\s\0]/.test(event)) throw malformed();
-    switch (event) {
-      case 'commented': {
-        const comment: Authored = {
-          kind: 'comment',
-          id: String(integer(entry.id)),
-          at: text(entry.created_at),
-          author: author(entry.user),
-          body: text(entry.body),
-        };
-        return trusted(entry.author_association) ? [comment] : [];
-      }
-      case 'labeled':
-      case 'unlabeled':
-        return [
-          {
-            kind: 'label',
-            change: event === 'labeled' ? 'added' : 'removed',
-            name: text(record(entry.label).name),
-            at: text(entry.created_at),
-          },
-        ];
-      default:
-        return [];
-    }
-  });
+  return entries.flatMap((raw) => parse(restEntry, raw));
 }
 
 const timelineItems = (after: string) =>
   `timelineItems(first: 100${after}, itemTypes: [ISSUE_COMMENT, LABELED_EVENT, UNLABELED_EVENT]) { pageInfo { hasNextPage endCursor } nodes { __typename ... on IssueComment { databaseId createdAt body author { login } authorAssociation } ... on LabeledEvent { createdAt label { name } } ... on UnlabeledEvent { createdAt label { name } } } }`;
 
-function timelineEntry(raw: unknown): Authored[] {
-  const node = record(raw);
-  switch (node.__typename) {
-    case 'IssueComment': {
-      const comment: Authored = {
-        kind: 'comment',
-        id: String(integer(node.databaseId)),
-        at: text(node.createdAt),
-        author: author(node.author),
-        body: text(node.body),
-      };
-      return trusted(node.authorAssociation) ? [comment] : [];
-    }
-    case 'LabeledEvent':
-    case 'UnlabeledEvent':
-      return [
-        {
-          kind: 'label',
-          change: node.__typename === 'LabeledEvent' ? 'added' : 'removed',
-          name: text(record(node.label).name),
-          at: text(node.createdAt),
-        },
-      ];
-    default:
-      throw malformed();
-  }
-}
+const graphqlEntry: z.ZodType<Authored[]> = z.union([
+  z
+    .object({
+      __typename: z.literal('IssueComment'),
+      databaseId: z.int(),
+      createdAt: z.string(),
+      author,
+      body: z.string(),
+      authorAssociation: z.unknown().optional(),
+    })
+    .transform((raw): Authored[] =>
+      trusted(raw.authorAssociation)
+        ? [{ kind: 'comment', id: String(raw.databaseId), at: raw.createdAt, author: raw.author, body: raw.body }]
+        : [],
+    ),
+  z
+    .object({ __typename: z.enum(['LabeledEvent', 'UnlabeledEvent']), label: labelName, createdAt: z.string() })
+    .transform((raw): Authored[] => [
+      {
+        kind: 'label',
+        change: raw.__typename === 'LabeledEvent' ? 'added' : 'removed',
+        name: raw.label,
+        at: raw.createdAt,
+      },
+    ]),
+]);
 
 function trackerError(error: GitHubError): TrackerError {
   const read = /^issues\/([^/?]+)$/.exec(error.endpoint);
@@ -241,24 +258,30 @@ export function githubTracker(client: Client): Tracker {
         );
         result.set(
           key,
-          parsed('graphql', () => owned(nodes.flatMap(timelineEntry), self)),
+          parsed('graphql', () =>
+            owned(
+              nodes.flatMap((node) => parse(graphqlEntry, node)),
+              self,
+            ),
+          ),
         );
       }
     }
     return result;
   }
 
-  function refuseUntrusted(n: IssueKey, raw: Record<string, unknown>): void {
-    if (trusted(raw.author_association)) return;
-    const line = `#${n} was opened by ${author(raw.user) ?? 'an unknown user'}, who is not the owner, a member, or a collaborator of the repository; Celetis does not read it`;
+  function refuseUntrusted(n: IssueKey, raw: unknown): void {
+    const { author_association, user } = parse(submitter, raw);
+    if (trusted(author_association)) return;
+    const line = `#${n} was opened by ${parse(author, user) ?? 'an unknown user'}, who is not the owner, a member, or a collaborator of the repository; Celetis does not read it`;
     appendStderr(`${line}\n`);
     throw new TrackerError(line, { text: line, stderr: `${line}\n`, notFound: true, refused: true, missing: n });
   }
 
   function readable(n: IssueKey, raw: unknown): Issue {
-    const issue = parseIssue(raw);
-    refuseUntrusted(n, record(raw));
-    return issue;
+    const value = parse(issue, raw);
+    refuseUntrusted(n, raw);
+    return value;
   }
 
   async function timeline<T>(n: IssueKey, parse: (entries: readonly unknown[]) => T): Promise<T> {
@@ -271,11 +294,10 @@ export function githubTracker(client: Client): Tracker {
 
   async function project(): Promise<string> {
     if (known !== undefined) return known;
-    const raw = await get('', record);
+    const raw = await get('', (value) => parse(repositoryReply, value));
     known = parsed('', () => {
       const url = githubForms.repository(raw.html_url);
-      if (!Number.isSafeInteger(raw.id) || Number(raw.id) <= 0 || raw.full_name !== new URL(url).pathname.slice(1))
-        throw malformed();
+      parse(z.object({ id: count, full_name: z.literal(new URL(url).pathname.slice(1)) }), raw);
       return url;
     });
     return known;
@@ -285,9 +307,7 @@ export function githubTracker(client: Client): Tracker {
     const endpoint = `issues/${n}/dependencies/blocked_by?per_page=100`;
     const items = await pages(endpoint);
     const home = await project();
-    return parsed(endpoint, () =>
-      items.map((raw) => ({ id: integer(record(raw).id), blocker: parseBlocker(raw, home) })),
-    );
+    return parsed(endpoint, () => items.map((raw) => parseBlocker(raw, home)));
   }
 
   const adapter: Tracker = {
@@ -303,19 +323,17 @@ export function githubTracker(client: Client): Tracker {
     async epic(n: IssueKey) {
       const target = `issues/${n}`;
       const repository = await project();
-      const rawParent = await get(target, record);
-      const issue = parsed(target, () => {
-        const parent = parseIssue(rawParent);
-        if (
-          Object.hasOwn(rawParent, 'pull_request') ||
-          parent.key !== n ||
-          parent.url !== githubForms.issueUrl(repository, n) ||
-          !Number.isSafeInteger(parent.comments) ||
-          parent.comments < 0
-        )
-          throw malformed();
-        return parent;
-      });
+      const url = githubForms.issueUrl(repository, n);
+      const rawParent = await get(target, (raw) => parse(withoutPull, raw));
+      const parent = parsed(target, () =>
+        parse(
+          issue.refine(
+            (value) =>
+              value.key === n && value.url === url && Number.isSafeInteger(value.comments) && value.comments >= 0,
+          ),
+          rawParent,
+        ),
+      );
       refuseUntrusted(n, rawParent);
       const self = await login();
       const timeline = `${target}/timeline?per_page=100`;
@@ -335,16 +353,15 @@ export function githubTracker(client: Client): Tracker {
       const children = parseEpicChildren(
         parsed(sub, () =>
           rawChildren.map((raw, index) => {
-            const child = record(raw);
-            if (Object.hasOwn(child, 'pull_request')) throw malformed();
-            const number = issueKey(child.number);
-            if (number === null) throw new Error(`children[${index}].number: need a positive safe integer`);
-            if (!Number.isSafeInteger(child.id) || Number(child.id) <= 0)
-              throw new Error(`children[${index}].id: need a positive safe integer`);
+            const child = parse(withoutPull, raw);
+            const number = key.safeParse(child.number);
+            if (!number.success) throw new Error(`children[${index}].number: need a positive safe integer`);
+            const id = count.safeParse(child.id);
+            if (!id.success) throw new Error(`children[${index}].id: need a positive safe integer`);
             return {
               url: child.html_url,
-              id: String(child.id),
-              number,
+              id: String(id.data),
+              number: number.data,
               state: child.state,
               stateReason: child.state_reason,
               closedAt: child.closed_at,
@@ -355,9 +372,9 @@ export function githubTracker(client: Client): Tracker {
       );
       return {
         repository,
-        parent: issue.key,
-        data: issueData(issue, entries),
-        declaration: parseEpicAcceptance(issue.body, githubForms),
+        parent: parent.key,
+        data: issueData(parent, entries),
+        declaration: parseEpicAcceptance(parent.body, githubForms),
         children,
       };
     },
@@ -365,10 +382,10 @@ export function githubTracker(client: Client): Tracker {
     async children(n: IssueKey) {
       const endpoint = `issues/${n}/sub_issues?per_page=100`;
       const items = await pages(endpoint);
-      return parsed(endpoint, () => items.flatMap(onlyTrusted(parseChild)));
+      return parsed(endpoint, () => items.flatMap(onlyTrusted(child)));
     },
     async link(epic: IssueKey, child: IssueKey) {
-      const id = await get(`issues/${child}`, (raw) => integer(record(raw).id));
+      const id = await get(`issues/${child}`, (raw) => parse(issueId, raw));
       await send('POST', `issues/${epic}/sub_issues`, { fields: { sub_issue_id: id } });
       await writeRefreshHint(cwd, child);
     },
@@ -377,7 +394,7 @@ export function githubTracker(client: Client): Tracker {
     },
     async addBlocker(n: IssueKey, blocker: IssueKey) {
       if ((await listBlockers(n)).some((item) => item.blocker.key === blocker)) return;
-      const id = await get(`issues/${blocker}`, (raw) => integer(record(raw).id));
+      const id = await get(`issues/${blocker}`, (raw) => parse(issueId, raw));
       await send('POST', `issues/${n}/dependencies/blocked_by`, { fields: { issue_id: id } });
     },
     async removeBlocker(n: IssueKey, blocker: IssueKey) {
@@ -392,11 +409,11 @@ export function githubTracker(client: Client): Tracker {
       (
         await getAll(
           `issues?state=${state}${label === undefined ? '' : `&labels=${encodeURIComponent(label)}`}&per_page=100`,
-          onlyTrusted(parseIssue),
+          onlyTrusted(issue),
         )
       ).flat(),
     parent: (n: IssueKey) => get(`issues/${n}/parent`, parseParent),
-    labels: () => getAll('labels?per_page=100', parseLabelName),
+    labels: () => getAll('labels?per_page=100', (raw) => parse(labelName, raw)),
     async createLabel(fields: NewLabel) {
       await send('POST', 'labels', { fields });
     },
@@ -412,7 +429,7 @@ export function githubTracker(client: Client): Tracker {
       if (attachments.length === 0) {
         const endpoint = `issues/${n}/comments`;
         const raw = await send('POST', endpoint, { fields: { body: await readFile(file, 'utf8') }, silent: false });
-        return `${parsed(endpoint, () => text(record(json(raw)).html_url))}\n`;
+        return `${parsed(endpoint, () => parse(z.object({ html_url: z.string() }), json(raw)).html_url)}\n`;
       }
       const result = await run(
         'gh',
