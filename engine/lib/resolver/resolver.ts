@@ -28,6 +28,7 @@ import {
   specified,
   stageOf,
 } from '../workflow/workflow.ts';
+import { type BlockerRead, readsBlockers, rowHoldOf } from './hold.ts';
 import { describe, type Next, type Observed } from './lines.ts';
 import type { HeldView, IssueRow, ParentEpic, Pull } from './types.ts';
 
@@ -236,7 +237,13 @@ async function parentEpics(tracker: Tracker, open: readonly Fetched[]): Promise<
   return epics;
 }
 
-type Shown = Readonly<{ row: IssueRow; line: string }>;
+type Shown = Readonly<{
+  row: IssueRow;
+  line: string;
+  decision: Decision;
+  history: IssueData['history'];
+  blockerCount: number | null;
+}>;
 
 function shownRow(
   { issue, data }: Fetched,
@@ -263,6 +270,9 @@ function shownRow(
       : null;
   return {
     line,
+    decision: next,
+    history: data.history,
+    blockerCount: issue.blockerCount,
     row: {
       number: issue.key,
       title: issue.title,
@@ -281,6 +291,7 @@ function shownRow(
       step,
       started: step !== null && stageOf(step) > 1,
       urgent: type === 'hotfix',
+      rowHold: null,
     },
   };
 }
@@ -305,6 +316,21 @@ async function boardRow(operation: Operation, { row, line }: Shown, aside: Reado
   if (aside.has(row.number)) return { ...row, state: 'aside', act };
   if (row.state === 'dirty' || !(await isRecorded(operation.checkout.common as string, row.number, line))) return row;
   return { ...row, state: 'stuck', act };
+}
+
+async function blockerRead(tracker: Tracker, { row, decision, blockerCount }: Shown): Promise<BlockerRead> {
+  if (!readsBlockers(decision) || blockerCount === 0) return { kind: 'none' };
+  try {
+    return { kind: 'read', blockers: await tracker.blockers(row.number) };
+  } catch {
+    return { kind: 'failed' };
+  }
+}
+
+async function heldRow(tracker: Tracker, shown: Shown, row: IssueRow): Promise<IssueRow> {
+  if (row.state !== 'blocked') return row;
+  const found = rowHoldOf(row.number, shown.decision, shown.history, await blockerRead(tracker, shown));
+  return found === null ? row : { ...row, rowHold: found.rowHold, reason: found.rowHold.text, act: found.act };
 }
 
 export async function nextBoard(
@@ -363,6 +389,8 @@ export async function nextBoard(
   if (value === null) return { data: null, stderr };
   const aside = await readSetAside(operation.checkout.common as string);
   const rows: IssueRow[] = [];
-  for (const shown of value.rows) rows.push(await boardRow(operation, shown, aside));
+  for (const shown of value.rows)
+    rows.push(await heldRow(read.tracker, shown, await boardRow(operation, shown, aside)));
+  if (signal.aborted) return { data: null, stderr };
   return { data: { ...value, rows }, stderr };
 }

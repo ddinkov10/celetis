@@ -1,9 +1,9 @@
 import type { Host, Registry } from '../lib/host/names.ts';
 import { grammar } from '../lib/tracker/grammar.ts';
-import { type IssueKey, isKey } from '../lib/tracker/key.ts';
+import { compareKeys, type IssueKey, isKey, parseHandle } from '../lib/tracker/key.ts';
 import type { Level, RowSource, StartPair } from '../lib/workflow/effort.ts';
 import type { Gate } from '../lib/workflow/workflow.ts';
-import type { Board, Card, Column, CoordinatorView, Diff, Flow, ParentEpic, Pull } from './types.ts';
+import type { Board, Card, Column, CoordinatorView, Diff, Flow, HoldBlocker, ParentEpic, Pull } from './types.ts';
 export const COLUMNS: { key: Column; name: string; note: string; empty: [string, string] }[] = [
   {
     key: 'needs',
@@ -127,6 +127,33 @@ export const groupEpics = (cards: Card[], canGroup: (card: Card) => boolean): Ep
     items.push(group);
   }
   return items;
+};
+
+export type WaitGroup = Readonly<{ key: string; blockers: readonly HoldBlocker[]; cards: Card[] }>;
+
+const firstRef = (group: WaitGroup) => group.blockers[0]?.ref ?? null;
+
+const compareRefs = (a: string | null, b: string | null) => {
+  if (a === b) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  const x = parseHandle(a);
+  const y = parseHandle(b);
+  if (x !== null && y !== null) return compareKeys(x, y);
+  if (x !== null) return -1;
+  if (y !== null) return 1;
+  return a < b ? -1 : 1;
+};
+
+export const waitGroups = (cards: readonly Card[]): WaitGroup[] => {
+  const groups = new Map<string, WaitGroup>();
+  for (const card of cards) {
+    if (card.rowHold?.place !== 'waiting') continue;
+    const known = groups.get(card.rowHold.group);
+    if (known) known.cards.push(card);
+    else groups.set(card.rowHold.group, { key: card.rowHold.group, blockers: card.rowHold.open, cards: [card] });
+  }
+  return [...groups.values()].sort((a, b) => compareRefs(firstRef(a), firstRef(b)));
 };
 
 export const parseOpenEpics = (value: string): Set<IssueKey> => {

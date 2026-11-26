@@ -1,4 +1,4 @@
-import { headings, type Kind, type Label, marker } from '../contract/contract.ts';
+import { deferredMarker, headings, type Kind, type Label, marker } from '../contract/contract.ts';
 import { type IssueKey, keySource, parseKey } from '../tracker/key.ts';
 import { holdApplies, holdOf } from './hold.ts';
 
@@ -261,7 +261,7 @@ export type Facts = Readonly<{ plan: string | null; build: Build; open: readonly
 
 const kinds: readonly Kind[] = ['general', 'during-the-build'];
 
-function headed(history: readonly Entry[], ...prefixes: string[]) {
+export function headed(history: readonly Entry[], ...prefixes: string[]) {
   return history.flatMap((entry, position) =>
     entry.kind === 'comment' && prefixes.some((prefix) => entry.body.startsWith(prefix))
       ? [{ ...entry, position }]
@@ -269,10 +269,15 @@ function headed(history: readonly Entry[], ...prefixes: string[]) {
   );
 }
 
-function removedAfter(history: readonly Entry[], name: Label, at: number): boolean {
+export function removedAfter(history: readonly Entry[], name: Label, at: number): boolean {
   return history.some(
     (entry, position) => position > at && entry.kind === 'label' && entry.change === 'removed' && entry.name === name,
   );
+}
+
+export function isDeferral(body: string): boolean {
+  const [heading, second] = body.split(/\r?\n/);
+  return heading === headings.stopped && second === deferredMarker;
 }
 
 export function factsOf(issue: IssueData, lane: Lane | null): Facts {
@@ -291,7 +296,11 @@ export function factsOf(issue: IssueData, lane: Lane | null): Facts {
       if (kind === 'general' ? report || removal : report && removal) return [];
       return [{ comment: id, kind, missing: report ? 'removal' : removal ? 'report' : 'evidence' }];
     });
-  const refusal = headed(history, '## ').at(-1)?.body.startsWith(headings.landingRefused) ?? false;
+  const refusal =
+    headed(history, '## ')
+      .filter(({ body }) => !isDeferral(body))
+      .at(-1)
+      ?.body.startsWith(headings.landingRefused) ?? false;
   return { plan: plan?.id ?? null, build, open, refusal };
 }
 
@@ -302,7 +311,7 @@ export function decideEpicCompletion({ snapshot, submission }: EpicCompletionInp
   if (!data.labels.includes('epic')) return refuse('parent is not an epic');
   if (children.length === 0) return refuse('epic has no children');
   if (children.some((child) => child.state !== 'closed')) return refuse('epic has open children');
-  if (data.labels.includes('needs-info') || data.labels.includes('ready-for-human'))
+  if (['deferred', 'needs-info', 'ready-for-human'].some((label) => data.labels.includes(label)))
     return refuse('epic has a current hold');
   if (factsOf(data, null).open.length) return refuse('epic has an unresolved human precondition');
   if (declaration.kind === 'unresolved') return refuse(`unresolved epic acceptance: ${declaration.reason}`);
@@ -391,7 +400,10 @@ export function autoTakes(list: readonly AutoLane[] | undefined, run: Run): bool
 }
 
 export type Stop = Readonly<
-  | { kind: 'stop'; reason: 'wontfix' | 'finished' | 'needs-info' | 'epic' | 'land-by-hand' | 'held' | 'released' }
+  | {
+      kind: 'stop';
+      reason: 'wontfix' | 'finished' | 'deferred' | 'needs-info' | 'epic' | 'land-by-hand' | 'held' | 'released';
+    }
   | { kind: 'stop'; reason: 'ready-for-human'; variant: 'landing-refused' | 'your-step' }
   | { kind: 'stop'; reason: 'human-step'; variant: HumanStep['missing'] }
   | { kind: 'stop'; reason: 'several-lanes'; labels: readonly string[] }
@@ -401,7 +413,7 @@ export type Decision = Run | Stop;
 
 export function decide(issue: IssueData): Decision {
   const labeled = (name: Label) => issue.labels.includes(name);
-  const stop = (reason: 'wontfix' | 'finished' | 'needs-info' | 'epic' | 'held' | 'released'): Stop => ({
+  const stop = (reason: 'wontfix' | 'finished' | 'deferred' | 'needs-info' | 'epic' | 'held' | 'released'): Stop => ({
     kind: 'stop',
     reason,
   });
@@ -410,6 +422,7 @@ export function decide(issue: IssueData): Decision {
   const { build, open, refusal } = factsOf(issue, found.kind === 'lane' ? found.lane : null);
 
   if (issue.state === 'closed') return stop(labeled('wontfix') ? 'wontfix' : 'finished');
+  if (labeled('deferred')) return stop('deferred');
   if (labeled('needs-info')) return stop('needs-info');
   if (labeled('ready-for-human'))
     return { kind: 'stop', reason: 'ready-for-human', variant: refusal ? 'landing-refused' : 'your-step' };

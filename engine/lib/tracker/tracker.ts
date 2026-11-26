@@ -15,6 +15,7 @@ export type Issue = Readonly<{
   updatedAt: string;
   closedAt: string | null;
   pull: boolean;
+  blockerCount: number | null;
 }>;
 
 export type Edit = Readonly<{
@@ -27,6 +28,13 @@ type Comment = Extract<Entry, { kind: 'comment' }>;
 export type Authored = Exclude<Entry, Comment> | Readonly<Omit<Comment, 'own'> & { author: string | null }>;
 export type Parent = Readonly<{ key: IssueKey; url: string }>;
 export type Child = Readonly<{ key: IssueKey; title: string; url: string; state: 'open' | 'closed' }>;
+export type Blocker = Readonly<{
+  key: IssueKey | null;
+  ref: string;
+  title: string;
+  url: string;
+  state: 'open' | 'closed';
+}>;
 export type NewLabel = Readonly<{ name: string; description: string; color: string }>;
 export type NewIssue = Readonly<{ title: string; body: string; labels: readonly Label[] }>;
 
@@ -40,6 +48,9 @@ export type Tracker = Readonly<{
   history(n: IssueKey): Promise<readonly Authored[]>;
   children(n: IssueKey): Promise<readonly Child[]>;
   link(epic: IssueKey, child: IssueKey): Promise<void>;
+  blockers(n: IssueKey): Promise<readonly Blocker[]>;
+  addBlocker(n: IssueKey, blocker: IssueKey): Promise<void>;
+  removeBlocker(n: IssueKey, blocker: IssueKey): Promise<void>;
   timelines(issues: readonly Issue[]): Promise<ReadonlyMap<IssueKey, readonly Entry[]>>;
   epic(n: IssueKey): Promise<EpicSnapshot>;
   parent(n: IssueKey): Promise<Parent>;

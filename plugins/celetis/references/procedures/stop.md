@@ -132,10 +132,12 @@ the stop to the issue:
     and each other act or message that the skill names for the stop. Then run
     `celetis --agent <host> issue <n> ready-for-human` as the last act of the turn.
 - **Else** write the step, the exact message or the failure trail, and each act outside the
-  session that lets the step go on to a file, with no heading. Run
-  `celetis --agent <host> issue <n> stopped <file>` as the last act of the turn, after each other
-  act that the skill names for the stop. It posts the file with `## Stopped` as its first line.
-  No `ready-for-human` follows it.
+  session that lets the step go on to a file, with no heading. The file starts with one sentence
+  that gives the reason of the stop. For each issue that the hold waits for, run
+  `celetis --agent <host> issue <n> blocked-by <m>` before
+  `celetis --agent <host> issue <n> stopped <file>`. Run the `stopped` act as the last act of the
+  turn, after each other act that the skill names for the stop. It posts the file with `## Stopped`
+  as its first line. No `ready-for-human` follows it.
 
 A later run reads the `build:` and `open:` lines of `celetis --agent <host> issue <n> state`.
 Only a `## Built` or `## Before landing` comment after the latest plan records a built change, so

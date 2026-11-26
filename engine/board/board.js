@@ -25092,6 +25092,9 @@ function parseKey(text) {
   const { pattern, accepts } = grammar();
   return envelope.test(text) && new RegExp(`^(?:${pattern})$`).test(text) && accepts(text) ? text : null;
 }
+function parseHandle(text) {
+  return parseKey(text.startsWith("#") ? text.slice(1) : text);
+}
 function isKey(value) {
   return typeof value === "string" && parseKey(value) !== null;
 }
@@ -25190,6 +25193,37 @@ var groupEpics = (cards, canGroup) => {
     items.push(group);
   }
   return items;
+};
+var firstRef = (group) => group.blockers[0]?.ref ?? null;
+var compareRefs = (a, b) => {
+  if (a === b)
+    return 0;
+  if (a === null)
+    return 1;
+  if (b === null)
+    return -1;
+  const x = parseHandle(a);
+  const y = parseHandle(b);
+  if (x !== null && y !== null)
+    return compareKeys(x, y);
+  if (x !== null)
+    return -1;
+  if (y !== null)
+    return 1;
+  return a < b ? -1 : 1;
+};
+var waitGroups = (cards) => {
+  const groups = new Map;
+  for (const card of cards) {
+    if (card.rowHold?.place !== "waiting")
+      continue;
+    const known = groups.get(card.rowHold.group);
+    if (known)
+      known.cards.push(card);
+    else
+      groups.set(card.rowHold.group, { key: card.rowHold.group, blockers: card.rowHold.open, cards: [card] });
+  }
+  return [...groups.values()].sort((a, b) => compareRefs(firstRef(a), firstRef(b)));
 };
 var parseOpenEpics = (value) => {
   try {
@@ -28018,7 +28052,7 @@ var SLOW_START_TEXT = "The daemon still checks the start";
 var project = (board, launches) => {
   if (launches.size === 0)
     return board;
-  const columns = { needs: [], running: [], idle: [], human: [] };
+  const columns = { needs: [], waiting: [], running: [], idle: [], human: [] };
   for (const [key, cards] of Object.entries(board.columns))
     for (const card of cards) {
       const launch = card.sessionId === null && card.number !== null ? launches.get(card.number) : undefined;
@@ -28067,17 +28101,18 @@ var indexCards = (board, view) => {
   if (view === "pipeline") {
     const where = new Map([
       ...columns.needs.map((card) => [card, "needs"]),
+      ...columns.waiting.map((card) => [card, "waiting"]),
       ...columns.running.map((card) => [card, "running"]),
       ...columns.idle.map((card) => [card, "idle"])
     ]);
-    const { stages, hold } = pipeline([...columns.needs, ...columns.running, ...columns.idle], board.flow);
+    const { stages, hold } = pipeline([...columns.needs, ...columns.waiting, ...columns.running, ...columns.idle], board.flow);
     for (const card of hold)
       add(card, where.get(card));
     for (const stage of stages)
       for (const item of groupEpics(stage.cards, (card) => where.get(card) === "idle"))
         for (const card of cardsOf(item))
           add(card, where.get(card));
-  } else
+  } else {
     for (const { key } of COLUMNS) {
       const cards = columns[key];
       if (key === "needs")
@@ -28091,7 +28126,12 @@ var indexCards = (board, view) => {
       else
         for (const card of cards)
           add(card, key);
+      if (key === "needs")
+        for (const group of waitGroups(columns.waiting))
+          for (const card of group.cards)
+            add(card, "waiting");
     }
+  }
   for (const card of columns.human)
     add(card, "human");
   return { byKey, keyOf: keys };
@@ -28115,6 +28155,7 @@ var state2 = {
   pressing: new Set,
   menu: null,
   columnStops: new Map,
+  waitingOpen: false,
   now: Date.now()
 };
 var emit2 = (next, isSync = true) => {
@@ -28237,11 +28278,13 @@ var accept = (next) => {
     stops,
     refusals,
     startFailures,
+    waitingOpen: state2.waitingOpen && project(next, launches).columns.waiting.length > 0,
     seen: state2.seen ?? new Map
   });
   if (isFirst)
     markAllSeen();
-  if (state2.menu !== null && !index4().byKey.has(state2.menu.key))
+  const menuCard = state2.menu && index4().byKey.get(state2.menu.key);
+  if (state2.menu !== null && (!menuCard || menuCard.column === "waiting" && view() === "now" && !state2.waitingOpen))
     emitFor("quiet", { ...state2, menu: null });
 };
 var pressId = (card, action) => `${keyOf(card)} ${action.id}`;
@@ -28329,13 +28372,19 @@ var openDetails = (key) => {
     seeTurn(entry.card);
   document.getElementById("panel").querySelector(PANEL_FOCUS)?.focus({ preventScroll: true });
 };
+var setWaitingOpen = (isOpen) => {
+  if (state2.waitingOpen !== isOpen)
+    emit2({ ...state2, waitingOpen: isOpen });
+};
 var revealCard = (key) => {
   const shown = board();
   const entry = index4().byKey.get(key);
+  if (entry?.column === "waiting")
+    setWaitingOpen(true);
   if (!shown || entry?.column !== "idle" || !entry.card.epic || state2.openEpics.has(entry.card.epic.number))
     return;
   const { columns, flow } = shown;
-  if (view() === "pipeline" && pipeline([...columns.needs, ...columns.running, ...columns.idle], flow).hold.includes(entry.card))
+  if (view() === "pipeline" && pipeline([...columns.needs, ...columns.waiting, ...columns.running, ...columns.idle], flow).hold.includes(entry.card))
     return;
   screen.setEpicOpen(entry.card.epic.number, true);
 };
@@ -28397,6 +28446,7 @@ var screen = {
   openEpics: () => state2.openEpics,
   setEpicOpen: (epic, isOpen) => setEpicsOpen((open) => isOpen ? open.add(epic) : open.delete(epic)),
   setEpicsOpen,
+  setWaitingOpen,
   launches: () => state2.launches,
   setLaunches: (change) => emit2({ ...state2, launches: edited(new Map(state2.launches), change) }),
   startFailures: () => state2.startFailures,
@@ -28892,18 +28942,28 @@ var pressAct = async (kind, card, path, value, text) => {
 
 // engine/board/page/operations/keys.ts
 var STOPS = ".card[data-key], .epic-row";
-var isStop = (node) => !node.closest(".epic-children[hidden]");
+var FOLD = ".wait-fold > summary";
+var isStop = (node) => !node.closest(".epic-children[hidden], details:not([open])");
+var reachable = (node) => node?.closest(".epic-children[hidden]")?.closest(".epic-group")?.querySelector(".epic-row") ?? node?.closest("details:not([open])")?.querySelector("summary") ?? node;
 var columnId = (col) => col.id || col.getAttribute("aria-labelledby") || "hold";
 var stopKey = (node) => node.dataset.key ?? node.dataset.group ?? "";
-var columnStop = (column) => [...document.querySelectorAll("#columns .col")].find((col) => columnId(col) === column)?.querySelector(`:is(${STOPS})[tabindex="0"], .empty`);
+var columnStop = (column) => {
+  const col = [...document.querySelectorAll("#columns .col")].find((each) => columnId(each) === column);
+  return col?.querySelector(`:is(${STOPS})[tabindex="0"]`) ?? col?.querySelector(".empty");
+};
 var move = (across, down) => {
-  const lists = [...document.querySelectorAll("#columns .col")].map((col) => [...col.querySelectorAll(STOPS)].filter(isStop));
-  const current = document.activeElement?.closest?.(STOPS) ?? null;
-  const at = lists.findIndex((list) => current !== null && list.includes(current));
+  const cols = [...document.querySelectorAll("#columns .col")];
+  const lists = cols.map((col) => [...col.querySelectorAll(STOPS)].filter(isStop));
+  const active = document.activeElement;
+  const current = active?.closest?.(STOPS) ?? null;
+  const fold = active?.closest?.(FOLD) ?? null;
+  const at = fold ? cols.findIndex((col) => col.contains(fold)) : lists.findIndex((list) => current !== null && list.includes(current));
   const list = lists[at];
-  if (!list || !current)
+  if (!list || !current && !fold)
     return lists.flat()[0]?.focus();
-  const row = list.indexOf(current);
+  const row = current ? list.indexOf(current) : list.filter((node) => node.compareDocumentPosition(fold) & Node.DOCUMENT_POSITION_FOLLOWING).length;
+  if (down && !current)
+    return list[down > 0 ? row : row - 1]?.focus();
   if (down)
     return list[Math.min(Math.max(row + down, 0), list.length - 1)]?.focus();
   for (let next = at + across;next >= 0 && next < lists.length; next += across) {
@@ -33873,6 +33933,7 @@ var paletteItems = () => {
   const goTo = [];
   for (const [column, group] of [
     ["needs", "Needs you"],
+    ["waiting", "Waiting"],
     ["running", "Running"],
     ["idle", "Run the next step"],
     ["human", "Human sessions"]
@@ -33936,7 +33997,12 @@ var paletteItems = () => {
     }
   }
   const epics = new Map;
-  for (const card of [...shown.columns.needs, ...shown.columns.running, ...shown.columns.idle])
+  for (const card of [
+    ...shown.columns.needs,
+    ...shown.columns.waiting,
+    ...shown.columns.running,
+    ...shown.columns.idle
+  ])
     if (card.epic)
       epics.set(card.epic.number, card.epic.title);
   for (const [number, title] of epics)
@@ -34486,7 +34552,7 @@ var notify = (cards) => {
   return fresh.map((card) => isYourTurn(card, seenTurn2) ? turnLine(card) : notice(card).title);
 };
 var startNotices = (columns) => {
-  const cards = [...columns.needs, ...columns.running, ...columns.idle];
+  const cards = [...columns.needs, ...columns.waiting, ...columns.running, ...columns.idle];
   const now = new Map;
   for (const card of cards)
     if (card.state === "starts" && card.number !== null)
@@ -38947,7 +39013,12 @@ function Ask2({ card, actions, registry }) {
     ]
   });
 }
-function Steps({ card, flow, auto }) {
+function Steps({
+  card,
+  flow,
+  auto,
+  isWaiting
+}) {
   const track = laneTrack(card, flow);
   if (!track)
     return null;
@@ -38962,7 +39033,7 @@ function Steps({ card, flow, auto }) {
         className: "relative col-span-full grid min-h-8 grid-cols-subgrid items-center gap-2.5 not-last:after:absolute not-last:after:top-[23px] not-last:after:left-[7.5px] not-last:after:h-[18px] not-last:after:w-px not-last:after:bg-border-strong not-last:after:content-['']",
         children: [
           /* @__PURE__ */ jsx_runtime22.jsx("span", {
-            className: cn("grid size-4 place-items-center text-muted-foreground [&_.icon]:size-3.5", step.state === "done" && "rounded-[50%] bg-accent text-card-foreground [&_.icon]:size-[11px] [&_.icon]:stroke-2", step.state === "now" && cn("text-foreground", NODE_TONES[card.state])),
+            className: cn("grid size-4 place-items-center text-muted-foreground [&_.icon]:size-3.5", step.state === "done" && "rounded-[50%] bg-accent text-card-foreground [&_.icon]:size-[11px] [&_.icon]:stroke-2", step.state === "now" && cn("text-foreground", !isWaiting && NODE_TONES[card.state])),
             children: /* @__PURE__ */ jsx_runtime22.jsx(Icon, {
               name: step.state === "done" ? "check" : step.state === "now" ? PILL_ICONS[card.state] ?? "pending" : "pending"
             })
@@ -39033,7 +39104,7 @@ var effortFacts = (pair) => pair ? [
     })
   ]
 ] : [];
-function Details({ card }) {
+function Details({ card, isWaiting }) {
   const { flow, registry, daemon } = screen.read();
   const actions = detailActions(card);
   const hasHelp = actions.some((action) => action.help);
@@ -39057,6 +39128,14 @@ function Details({ card }) {
       [card.act, COPIES[card.state]]
     ],
     card.act && !COPIES[card.state] && ["Your act", card.act],
+    card.rowHold?.reason && [
+      "Reason",
+      /* @__PURE__ */ jsx_runtime22.jsx("span", {
+        className: "block py-1.5 leading-[1.125rem] [overflow-wrap:anywhere] whitespace-normal",
+        children: card.rowHold.reason
+      })
+    ],
+    card.rowHold?.open.length ? ["Waits for", card.rowHold.open.map((blocker) => blocker.ref).join(", ")] : card.rowHold?.closed.length ? ["Blockers closed", card.rowHold.closed.map((blocker) => blocker.ref).join(", ")] : null,
     ...effortFacts(card.effort),
     ["Updated", clock(card.since)]
   ];
@@ -39130,7 +39209,7 @@ function Details({ card }) {
                 className: "mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[0.78125rem] text-muted-foreground",
                 children: [
                   /* @__PURE__ */ jsx_runtime22.jsxs("span", {
-                    className: cn("inline-flex min-h-6 items-center gap-1.5 rounded-[7px] py-1 pr-[9px] pl-[7px] text-[0.75rem] leading-[1.25] font-medium [&_.icon]:size-[13px]", (state && (state !== "waits" || asks) ? TONES[state] : undefined) ?? MUTED_TONE, state === "starts" && "[&_.icon]:animate-turn [&_.icon]:text-working"),
+                    className: cn("inline-flex min-h-6 items-center gap-1.5 rounded-[7px] py-1 pr-[9px] pl-[7px] text-[0.75rem] leading-[1.25] font-medium [&_.icon]:size-[13px]", (state && !isWaiting && (state !== "waits" || asks) ? TONES[state] : undefined) ?? MUTED_TONE, state === "starts" && "[&_.icon]:animate-turn [&_.icon]:text-working"),
                     children: [
                       /* @__PURE__ */ jsx_runtime22.jsx(Icon, {
                         name: state ? PILL_ICONS[state] ?? "pending" : "pending"
@@ -39194,7 +39273,8 @@ function Details({ card }) {
           /* @__PURE__ */ jsx_runtime22.jsx(Steps, {
             card,
             flow,
-            auto: daemon.auto
+            auto: daemon.auto,
+            isWaiting
           }),
           /* @__PURE__ */ jsx_runtime22.jsx(Section, {
             title: isSession ? "Session" : "Issue",
@@ -39239,7 +39319,8 @@ function Panel() {
     "data-state": card ? card.state ?? "next" : undefined,
     "data-key": card ? details ?? undefined : undefined,
     children: card && /* @__PURE__ */ jsx_runtime22.jsx(Details, {
-      card
+      card,
+      isWaiting: entry?.column === "waiting"
     }, details)
   });
 }
@@ -41418,7 +41499,7 @@ var SEG_NOW = {
   starts: "bg-transparent [box-shadow:inset_0_0_0_1.5px_var(--working)]"
 };
 var segOf = (state, cardState) => state === "done" ? "w-3.5 bg-muted-foreground [box-shadow:none]" : state === "now" ? `w-5 ${SEG_NOW[cardState ?? ""] ?? "bg-foreground [box-shadow:none]"}` : "w-3.5 bg-transparent [box-shadow:inset_0_0_0_1px_var(--fg3)]";
-function Track({ card, flow }) {
+function Track({ card, flow, isMuted }) {
   const steps = laneTrack(card, flow);
   if (!steps)
     return null;
@@ -41430,7 +41511,7 @@ function Track({ card, flow }) {
     "aria-label": `Step ${at + 1} of ${steps.length}: ${steps[at]?.name}`,
     title: steps.map((step) => step.state === "next" ? step.name : `${step.name} (${step.state === "now" ? "now" : "done"})`).join(" · "),
     children: steps.map((step) => /* @__PURE__ */ jsx_runtime27.jsx("i", {
-      className: `h-1.5 rounded-[3px] ${segOf(step.state, card.state)}`
+      className: `h-1.5 rounded-[3px] ${segOf(step.state, isMuted ? null : card.state)}`
     }, step.name))
   });
 }
@@ -41475,6 +41556,7 @@ function Status({
   env,
   hasGlyph = true,
   isShort = false,
+  isMuted = false,
   className
 }) {
   const quiet = isShort ? "text-muted-foreground" : "text-card-foreground";
@@ -41498,7 +41580,7 @@ function Status({
   if (card.state) {
     const agent = isShort ? null : agentOf(card, env.registry);
     return /* @__PURE__ */ jsx_runtime27.jsxs("span", {
-      className: cn(STATUS, "min-w-0 gap-[7px] [&>:last-child]:flex-[0_1_auto] [&>:last-child]:overflow-hidden", STATE_TEXT[card.state] ?? quiet, card.state === "starts" && "[&_.icon]:animate-turn [&_.icon]:text-working", className),
+      className: cn(STATUS, "min-w-0 gap-[7px] [&>:last-child]:flex-[0_1_auto] [&>:last-child]:overflow-hidden", isMuted ? "text-card-foreground" : STATE_TEXT[card.state] ?? quiet, card.state === "starts" && "[&_.icon]:animate-turn [&_.icon]:text-working", className),
       children: [
         hasGlyph && /* @__PURE__ */ jsx_runtime27.jsx(Icon, {
           name: STATUS_ICONS[card.state] ?? "pending"
@@ -41662,7 +41744,7 @@ var finalFocus = (trigger, key, column) => () => {
   const active = document.activeElement;
   if (active !== null && active !== document.body && !active.closest('[data-slot="dropdown-menu-content"]'))
     return false;
-  return (trigger.current?.isConnected ? trigger.current : null) ?? document.querySelector(`#tp-board .card[data-key="${CSS.escape(key)}"]`) ?? columnStop(column.current) ?? true;
+  return reachable((trigger.current?.isConnected ? trigger.current : null) ?? document.querySelector(`#tp-board .card[data-key="${CSS.escape(key)}"]`)) ?? columnStop(column.current) ?? true;
 };
 function CardMenu({
   kind,
@@ -41699,6 +41781,11 @@ function CardMenu({
   });
 }
 var RINGS = {
+  flat: {
+    none: "[box-shadow:none]",
+    fg: "[box-shadow:0_0_0_1px_color-mix(in_srgb,var(--fg3)_80%,transparent)]",
+    needs: "[box-shadow:none]"
+  },
   plain: {
     none: "[box-shadow:var(--raise)]",
     fg: "[box-shadow:0_0_0_1px_color-mix(in_srgb,var(--fg3)_80%,transparent),var(--raise)]",
@@ -41710,7 +41797,7 @@ var RINGS = {
     needs: "[box-shadow:inset_3px_0_0_var(--needs-tint),0_0_0_1px_color-mix(in_srgb,var(--needs)_80%,transparent),var(--raise)]"
   }
 };
-var lookOf = (isSelected, isWaits, isStripe) => cn(isSelected ? isWaits ? "border-[color-mix(in_srgb,var(--needs)_80%,transparent)]" : "border-[color-mix(in_srgb,var(--fg3)_80%,transparent)]" : isWaits ? "border-[color-mix(in_srgb,var(--needs-tint)_55%,transparent)]" : "[&:hover]:border-border-strong", isWaits ? "isolate bg-[color-mix(in_srgb,var(--needs-tint)_6%,var(--card))] [--fg3:var(--fg2)] before:pointer-events-none before:absolute before:inset-0 before:z-[-1] before:animate-attention before:rounded-[inherit] before:bg-[color-mix(in_srgb,var(--needs-tint)_10%,transparent)] before:content-[''] motion-reduce:before:opacity-70" : "[&:hover]:bg-card-hover", RINGS[isStripe ? "stripe" : "plain"][isSelected ? isWaits ? "needs" : "fg" : "none"]);
+var lookOf = (isSelected, isWaits, isStripe, isFlat) => cn(isSelected ? isWaits ? "border-[color-mix(in_srgb,var(--needs)_80%,transparent)]" : "border-[color-mix(in_srgb,var(--fg3)_80%,transparent)]" : isWaits ? "border-[color-mix(in_srgb,var(--needs-tint)_55%,transparent)]" : "[&:hover]:border-border-strong", isWaits ? "isolate bg-[color-mix(in_srgb,var(--needs-tint)_6%,var(--card))] [--fg3:var(--fg2)] before:pointer-events-none before:absolute before:inset-0 before:z-[-1] before:animate-attention before:rounded-[inherit] before:bg-[color-mix(in_srgb,var(--needs-tint)_10%,transparent)] before:content-[''] motion-reduce:before:opacity-70" : "[&:hover]:bg-card-hover", isFlat && "bg-transparent", RINGS[isFlat ? "flat" : isStripe ? "stripe" : "plain"][isSelected ? isWaits ? "needs" : "fg" : "none"]);
 var OPEN = {
   stop: { idle: "open-288:hidden open-304:hidden", busy: "open-317:hidden open-333:hidden" },
   aside: { idle: "open-324:hidden open-340:hidden", busy: "open-353:hidden open-369:hidden" }
@@ -41744,6 +41831,7 @@ var Card2 = import_react28.memo(function Card2({
   const actions = actionsOf(card);
   const [main] = actions;
   const isQuiet = column !== "needs";
+  const isWaiting = column === "waiting";
   const text = card.title || `Issue #${card.number}`;
   const Heading = level;
   const title = /* @__PURE__ */ jsx_runtime27.jsx(Heading, {
@@ -41805,7 +41893,7 @@ var Card2 = import_react28.memo(function Card2({
   const hideOnOpen = chipKind ? cn(OPEN[chipKind].idle, headAct?.isBusy && OPEN[chipKind].busy) : "";
   const isWaits = card.state === "waits";
   const isNext = !card.state && Boolean(card.step);
-  const className = cn("@container cursor-default", isCompact ? "compact flex-col grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-[5px] py-2.5 pr-2.5 pl-3" : "flex flex-col gap-2 px-3.5 py-3", "relative flex-none transition-[border-color,background-color] duration-150 ease-[ease]", lookOf(isSelected, isWaits, isPipeline && column === "needs"), isHold && "w-[340px] phone:w-auto", isSelected && "is-selected", isUnseen && "is-unseen", column === "needs" && "is-needs");
+  const className = cn("@container cursor-default", isCompact ? "compact flex-col grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-[5px] py-2.5 pr-2.5 pl-3" : "flex flex-col gap-2 px-3.5 py-3", "relative flex-none transition-[border-color,background-color] duration-150 ease-[ease]", lookOf(isSelected, isWaits, isPipeline && column === "needs", isWaiting), isHold && "w-[340px] phone:w-auto", isSelected && "is-selected", isUnseen && "is-unseen", column === "needs" && "is-needs");
   const warning = isCompact ? cn(WARNING, "col-[2/-1] mt-1.5 px-2 py-[5px]") : WARNING;
   const body = isCompact ? /* @__PURE__ */ jsx_runtime27.jsxs(jsx_runtime27.Fragment, {
     children: [
@@ -41840,6 +41928,7 @@ var Card2 = import_react28.memo(function Card2({
                 env,
                 hasGlyph: card.state === "starts",
                 isShort: true,
+                isMuted: isWaiting,
                 className: "flex-[0_1_auto] whitespace-nowrap"
               })
             ]
@@ -41903,7 +41992,8 @@ var Card2 = import_react28.memo(function Card2({
           }),
           /* @__PURE__ */ jsx_runtime27.jsx(Track, {
             card,
-            flow: env.flow
+            flow: env.flow,
+            isMuted: isWaiting
           }),
           headAct && /* @__PURE__ */ jsx_runtime27.jsx(AsideChip, {
             action: headAct
@@ -41955,7 +42045,8 @@ var Card2 = import_react28.memo(function Card2({
         children: [
           /* @__PURE__ */ jsx_runtime27.jsx(Status, {
             card,
-            env
+            env,
+            isMuted: isWaiting
           }),
           /* @__PURE__ */ jsx_runtime27.jsxs("div", {
             className: "flex flex-none items-center gap-2 cq-360:justify-end",
@@ -42021,6 +42112,8 @@ var markOf = (active, menu) => {
   const column = columnId(col);
   if (active.closest(".tail"))
     return { node: active, kind: "tail", key: "", column };
+  if (active.matches(FOLD))
+    return { node: active, kind: "fold", key: "", column };
   const row = active.closest(".epic-row");
   if (row)
     return { node: active, kind: "epic", key: row.dataset.group ?? "", column };
@@ -42037,7 +42130,6 @@ var markOf = (active, menu) => {
   };
 };
 var shown4 = (node) => node?.checkVisibility() ? node : null;
-var reachable = (node) => node?.closest(".epic-children[hidden]")?.closest(".epic-group")?.querySelector(".epic-row") ?? node;
 var targetOf = (mark) => {
   const one = (selector) => document.querySelector(selector);
   const keyed = (key, scope = "#columns") => one(`${scope} [data-key="${CSS.escape(key)}"]`);
@@ -42046,6 +42138,8 @@ var targetOf = (mark) => {
   switch (mark.kind) {
     case "tail":
       return shown4(one(".col-needs .tail")) ?? stop;
+    case "fold":
+      return one(FOLD) ?? stop;
     case "epic":
       return one(`.epic-row[data-group="${CSS.escape(mark.key)}"]`) ?? stop;
     case "pill": {
@@ -42054,7 +42148,7 @@ var targetOf = (mark) => {
     }
     case "control": {
       const control = [...card?.querySelectorAll("button, a") ?? []].find((node) => (node.getAttribute("aria-label") ?? node.textContent?.trim()) === mark.label);
-      return control ?? reachable(card) ?? stop;
+      return reachable(control ?? card) ?? stop;
     }
     default:
       return reachable(card) ?? stop;
@@ -42092,7 +42186,7 @@ var measureOf = (columns, isPipeline) => {
   if (body && wrap) {
     const bottom = Math.min(body.getBoundingClientRect().bottom, columns.parentElement.getBoundingClientRect().bottom) - (wrap.hidden ? 0 : wrap.offsetHeight);
     for (const node of body.querySelectorAll(".card[data-key]")) {
-      if (node.getBoundingClientRect().bottom <= bottom + 1)
+      if (node.closest(".wait-fold") || node.getBoundingClientRect().bottom <= bottom + 1)
         continue;
       below.add(node.dataset.key ?? "");
       const group = node.closest(".group");
@@ -42237,6 +42331,90 @@ function HumanPill({
     ]
   });
 }
+var WAIT_PLACE = { column: "waiting", isCompact: true, level: "h4" };
+function WaitHead({ group }) {
+  const [first, ...others] = group.blockers;
+  return /* @__PURE__ */ jsx_runtime28.jsxs("h3", {
+    className: "m-0 flex items-baseline gap-1.5 px-1 py-0.5 text-[0.78125rem] font-semibold text-foreground",
+    children: [
+      first ? /* @__PURE__ */ jsx_runtime28.jsx("span", {
+        className: "flex-none font-mono font-medium text-muted-foreground",
+        children: group.blockers.map((blocker) => blocker.ref).join(", ")
+      }) : /* @__PURE__ */ jsx_runtime28.jsx("span", {
+        className: "min-w-0 wrap-anywhere",
+        children: "Deferred by you"
+      }),
+      first && others.length === 0 && first.title && /* @__PURE__ */ jsx_runtime28.jsx("span", {
+        className: "min-w-0 wrap-anywhere",
+        children: first.title
+      }),
+      /* @__PURE__ */ jsx_runtime28.jsxs("span", {
+        className: "ml-auto flex-none font-medium text-muted-foreground tabular-nums",
+        children: [
+          group.cards.length,
+          /* @__PURE__ */ jsx_runtime28.jsx("span", {
+            className: "sr-only",
+            children: group.cards.length === 1 ? " issue" : " issues"
+          })
+        ]
+      })
+    ]
+  });
+}
+function WaitingRow({
+  groups,
+  count,
+  isOpen,
+  render
+}) {
+  return /* @__PURE__ */ jsx_runtime28.jsxs("details", {
+    className: "wait-fold mt-0.5 rounded-xl border border-border [&[open]>summary_.icon]:rotate-90",
+    open: isOpen,
+    onToggle: (event) => screen.setWaitingOpen(event.currentTarget.open),
+    children: [
+      /* @__PURE__ */ jsx_runtime28.jsxs("summary", {
+        className: "flex min-h-[38px] cursor-pointer list-none items-center gap-2 rounded-[11px] px-3 py-1.5 text-[0.78125rem] font-medium text-card-foreground hover:bg-[color-mix(in_srgb,var(--fg3)_10%,transparent)] hover:text-foreground phone:min-h-11 [&::-webkit-details-marker]:hidden [&_.icon]:size-[13px] [&_.icon]:flex-none [&_.icon]:transition-transform [&_.icon]:duration-150 [&_.icon]:ease-[ease]",
+        children: [
+          /* @__PURE__ */ jsx_runtime28.jsx(Icon, {
+            name: "chevron"
+          }),
+          /* @__PURE__ */ jsx_runtime28.jsx("span", {
+            children: "Waiting"
+          }),
+          /* @__PURE__ */ jsx_runtime28.jsxs("span", {
+            className: "font-semibold tabular-nums",
+            children: [
+              count,
+              /* @__PURE__ */ jsx_runtime28.jsx("span", {
+                className: "sr-only",
+                children: count === 1 ? " issue" : " issues"
+              })
+            ]
+          }),
+          /* @__PURE__ */ jsx_runtime28.jsx("span", {
+            className: "ml-auto font-normal text-muted-foreground",
+            children: "No act from you now"
+          })
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime28.jsx("div", {
+        className: "flex flex-col gap-2.5 px-2 pt-1 pb-2.5",
+        children: groups.map((group) => /* @__PURE__ */ jsx_runtime28.jsxs("div", {
+          className: "flex flex-col gap-1.5",
+          children: [
+            /* @__PURE__ */ jsx_runtime28.jsx(WaitHead, {
+              group
+            }),
+            /* @__PURE__ */ jsx_runtime28.jsx("div", {
+              className: "ml-1.5 flex flex-col gap-2 border-l border-l-border-strong pl-3",
+              children: group.cards.map(render)
+            })
+          ]
+        }, group.key))
+      })
+    ]
+  });
+}
 var cardAt = (target) => target instanceof Element ? target.closest(".card[data-key]") : null;
 var useColumnEvents = (columns) => import_react29.useEffect(() => {
   const board = columns.current;
@@ -42320,6 +42498,7 @@ function Board() {
   const startFailures = useScreen((state) => state.startFailures);
   const menu = useScreen((state) => state.menu);
   const columnStops = useScreen((state) => state.columnStops);
+  const waitingOpen = useScreen((state) => state.waitingOpen);
   const columns = import_react29.useRef(null);
   const isPipeline = shell.tab === "pipeline";
   useRescue(menu);
@@ -42466,7 +42645,7 @@ function Board() {
       ]
     }, id);
   };
-  const { needs, running, idle, human } = board.columns;
+  const { needs, waiting, running, idle, human } = board.columns;
   const agents = () => COLUMNS.map(({ key, name, note, empty: [emptyTitle, emptyText] }) => {
     const cards = board.columns[key];
     const id = `col-${key}`;
@@ -42482,7 +42661,9 @@ function Board() {
       cards: item.cards,
       place: { column: key, isCompact: true, level: "h3" }
     } : { kind: "card", card: item.card, place: { column: key, isCompact: true, level: "h3" } }) : cards.map((card) => ({ kind: "card", card, place: { column: key, isCompact: false, level: "h3" } }));
-    const stop = stopOf(id, items);
+    const held = key === "needs" ? waitGroups(waiting) : [];
+    const heldItems = held.flatMap((group) => group.cards.map((card) => ({ kind: "card", card, place: WAIT_PLACE })));
+    const stop = stopOf(id, waitingOpen ? [...items, ...heldItems] : items);
     return /* @__PURE__ */ jsx_runtime28.jsxs("section", {
       className: `col col-${key} ${COL.now}`,
       id,
@@ -42506,7 +42687,7 @@ function Board() {
         }),
         /* @__PURE__ */ jsx_runtime28.jsx("div", {
           className: `col-body ${BODY.now}`,
-          children: cards.length === 0 ? /* @__PURE__ */ jsx_runtime28.jsxs("div", {
+          children: cards.length === 0 && held.length === 0 ? /* @__PURE__ */ jsx_runtime28.jsxs("div", {
             className: cn("empty mt-1 flex flex-col items-center gap-1 rounded-xl border px-5 py-8 text-center", key === "needs" ? "border-solid border-[color-mix(in_srgb,var(--ready)_25%,transparent)] bg-[color-mix(in_srgb,var(--ready)_5%,transparent)] [&_.icon]:text-ready" : "border-dashed border-border-strong [&_.icon]:text-muted-foreground", "[&_.icon]:mb-1.5 [&_.icon]:size-[22px]"),
             tabIndex: -1,
             children: [
@@ -42524,6 +42705,11 @@ function Board() {
             ]
           }) : key === "needs" ? /* @__PURE__ */ jsx_runtime28.jsxs(jsx_runtime28.Fragment, {
             children: [
+              cards.length === 0 && /* @__PURE__ */ jsx_runtime28.jsx("p", {
+                className: "empty m-0 mt-1 rounded-xl border border-solid border-[color-mix(in_srgb,var(--ready)_25%,transparent)] bg-[color-mix(in_srgb,var(--ready)_5%,transparent)] px-3 py-2.5 text-[0.8125rem] font-semibold text-foreground",
+                tabIndex: -1,
+                children: emptyTitle
+              }),
               groups.map((each, at) => /* @__PURE__ */ jsx_runtime28.jsxs("div", {
                 className: cn("group flex flex-col gap-2", at > 0 && "mt-0.5"),
                 "data-group": each.key,
@@ -42547,6 +42733,12 @@ function Board() {
                   each.cards.map((card) => cardOf(card, { column: "needs", isCompact: each.isCompact, level: "h4" }, stop))
                 ]
               }, each.key)),
+              held.length > 0 && /* @__PURE__ */ jsx_runtime28.jsx(WaitingRow, {
+                groups: held,
+                count: waiting.length,
+                isOpen: waitingOpen,
+                render: (card) => cardOf(card, WAIT_PLACE, waitingOpen ? stop : undefined)
+              }),
               /* @__PURE__ */ jsx_runtime28.jsx("div", {
                 className: "tail-wrap sticky bottom-0 z-3 -mx-3 bg-[linear-gradient(to_bottom,transparent,var(--panel)_35%)] px-3 pt-2.5 pb-3",
                 hidden: measure.text === "",
@@ -42579,12 +42771,13 @@ function Board() {
   });
   const where = new Map([
     ...needs.map((card) => [card, "needs"]),
+    ...waiting.map((card) => [card, "waiting"]),
     ...running.map((card) => [card, "running"]),
     ...idle.map((card) => [card, "idle"])
   ]);
   const placeOf = (card) => ({ column: where.get(card) ?? "idle", isCompact: true, level: "h3" });
   const stages = () => {
-    const { stages: list, hold } = pipeline([...needs, ...running, ...idle], board.flow);
+    const { stages: list, hold } = pipeline([...needs, ...waiting, ...running, ...idle], board.flow);
     const holdItems = hold.map((card) => ({
       kind: "card",
       card,
@@ -44046,6 +44239,7 @@ function AgentRow({ card, board }) {
 function Home() {
   const board = useShellStore((state) => state.inputs.board);
   const needs = board?.columns.needs ?? [];
+  const waiting = board?.columns.waiting.length ?? 0;
   const running = board?.columns.running ?? [];
   const spot = import_react33.useRef(null);
   const lists = { "home-needs": import_react33.useRef(null), "home-agents": import_react33.useRef(null) };
@@ -44122,6 +44316,11 @@ function Home() {
                 id: "home-needs-empty",
                 hidden: board === null || needs.length > 0,
                 children: "No issue needs you."
+              }),
+              waiting > 0 && /* @__PURE__ */ jsx_runtime34.jsx("p", {
+                className: EMPTY4,
+                id: "home-waiting",
+                children: `${waiting} ${waiting === 1 ? "issue waits" : "issues wait"}. No act from you now.`
               })
             ]
           }),

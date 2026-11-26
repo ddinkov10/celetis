@@ -5,23 +5,34 @@ import { actionsOf, copyWhat } from './actions.ts';
 import { closeDetails, openDetails, screen, setTab } from './state.ts';
 
 export const STOPS = '.card[data-key], .epic-row';
-export const isStop = (node: Element) => !node.closest('.epic-children[hidden]');
+export const FOLD = '.wait-fold > summary';
+export const isStop = (node: Element) => !node.closest('.epic-children[hidden], details:not([open])');
+export const reachable = (node: HTMLElement | null | undefined) =>
+  node?.closest('.epic-children[hidden]')?.closest('.epic-group')?.querySelector<HTMLElement>('.epic-row') ??
+  node?.closest('details:not([open])')?.querySelector<HTMLElement>('summary') ??
+  node;
 export const columnId = (col: Element) => col.id || col.getAttribute('aria-labelledby') || 'hold';
 export const stopKey = (node: HTMLElement) => node.dataset.key ?? node.dataset.group ?? '';
-export const columnStop = (column: string | null | undefined) =>
-  [...document.querySelectorAll<HTMLElement>('#columns .col')]
-    .find((col) => columnId(col) === column)
-    ?.querySelector<HTMLElement>(`:is(${STOPS})[tabindex="0"], .empty`);
+export const columnStop = (column: string | null | undefined) => {
+  const col = [...document.querySelectorAll<HTMLElement>('#columns .col')].find((each) => columnId(each) === column);
+  return col?.querySelector<HTMLElement>(`:is(${STOPS})[tabindex="0"]`) ?? col?.querySelector<HTMLElement>('.empty');
+};
 
 export const move = (across: number, down: number) => {
-  const lists = [...document.querySelectorAll<HTMLElement>('#columns .col')].map((col) =>
-    [...col.querySelectorAll<HTMLElement>(STOPS)].filter(isStop),
-  );
-  const current = (document.activeElement as HTMLElement | null)?.closest?.<HTMLElement>(STOPS) ?? null;
-  const at = lists.findIndex((list) => current !== null && list.includes(current));
+  const cols = [...document.querySelectorAll<HTMLElement>('#columns .col')];
+  const lists = cols.map((col) => [...col.querySelectorAll<HTMLElement>(STOPS)].filter(isStop));
+  const active = document.activeElement as HTMLElement | null;
+  const current = active?.closest?.<HTMLElement>(STOPS) ?? null;
+  const fold = active?.closest?.(FOLD) ?? null;
+  const at = fold
+    ? cols.findIndex((col) => col.contains(fold))
+    : lists.findIndex((list) => current !== null && list.includes(current));
   const list = lists[at];
-  if (!list || !current) return lists.flat()[0]?.focus();
-  const row = list.indexOf(current);
+  if (!list || (!current && !fold)) return lists.flat()[0]?.focus();
+  const row = current
+    ? list.indexOf(current)
+    : list.filter((node) => node.compareDocumentPosition(fold as Node) & Node.DOCUMENT_POSITION_FOLLOWING).length;
+  if (down && !current) return list[down > 0 ? row : row - 1]?.focus();
   if (down) return list[Math.min(Math.max(row + down, 0), list.length - 1)]?.focus();
   for (let next = at + across; next >= 0 && next < lists.length; next += across) {
     const other = lists[next] as HTMLElement[];

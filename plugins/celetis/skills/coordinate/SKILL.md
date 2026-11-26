@@ -52,7 +52,7 @@ did not act on it. For each note:
    - `dialog`: apply part 6.
    - `quota-wait`, and an ended run (`ended, <outcome>, code <code>`): report it. Act only under an
      instruction of part 10.
-   - An ended run whose issue has a hold (`needs-info` or `ready-for-human`): read the issue with
+   - An ended run whose issue has a hold (`needs-info`, `ready-for-human`, or `deferred`): read the issue with
      its comments (`celetis --agent <host> issue <n> view`, the `history` of its JSON; on exit 6 report the `issue: blocked:` line), and report the hold and the act that its last
      hold comment names, for example a `## Stopped` comment. When an instruction of the maintainer
      covers an assist run of the issue (part 10, with its rule after the end of an assist run),

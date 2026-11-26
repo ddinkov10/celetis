@@ -77,6 +77,7 @@ export const labels = [
   'needs-info',
   'ready-for-agent',
   'ready-for-human',
+  'deferred',
   'wontfix',
   'hold-landing',
 ] as const;
@@ -98,6 +99,7 @@ export const headings = {
 export type Kind = 'general' | 'during-the-build';
 
 export const marker = (kind: Kind) => `<!-- celetis-before-landing ${kind} -->`;
+export const deferredMarker = '<!-- celetis-deferred -->';
 
 export type CommandName =
   | 'agents'
@@ -284,6 +286,16 @@ export const issueActs = {
     prerequisite: 'two open issues, not pull requests; the child has no other parent',
     writes: 'the sub-issue link, then the refresh hint of each issue; no write when the link exists',
   },
+  'blocked-by': {
+    words: ['blocked-by', '<blocker>'],
+    flags: [optional('--remove')],
+    read: false,
+    argument: 'key',
+    purpose: 'Records that the issue is blocked by another issue, or with `--remove` that it is not.',
+    prerequisite: 'two issues, not pull requests; the blocker is another issue',
+    writes:
+      'the native blocked-by relation, then the refresh hint of the issue; no write when the relation already matches',
+  },
   epic: {
     words: ['epic', '<file>'],
     flags: [],
@@ -405,6 +417,24 @@ export const issueActs = {
     purpose: 'Hands an issue to the human with no comment.',
     prerequisite: 'open',
     writes: 'adds or retains `ready-for-human`, then removes `ready-for-agent` when present',
+  },
+  defer: {
+    words: ['defer', '<file>'],
+    flags: [],
+    read: false,
+    argument: 'file',
+    purpose: 'Records, from a file, why the maintainer put the issue off, and stops its work until undefer.',
+    prerequisite: 'open; not an epic',
+    writes: 'a `## Stopped` comment with the deferral marker, then `deferred`; no write when the label is on',
+  },
+  undefer: {
+    words: ['undefer'],
+    flags: [],
+    read: false,
+    argument: 'none',
+    purpose: 'Brings a deferred issue back to its former state.',
+    prerequisite: 'open',
+    writes: 'removes `deferred` when present',
   },
   hold: {
     words: ['hold'],
@@ -570,7 +600,7 @@ export const commands: readonly Entry[] = [
         ...changes,
       }),
     ],
-    `Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. \`run <n>\` starts the next step of the issue, \`run resume <n>\` opens the saved session of a step with no progress again, \`run assist <n>\` opens an assist session for an issue with \`needs-info\` or \`ready-for-human\`, in the main checkout, as a run with no step-end watch, and \`run retry <n> <wait-id>\` wakes the quota waiter of the issue for one attempt cycle. Each session tab of a run, also of \`run resume\`, of \`run assist\`, and of \`run retry\`, opens in the background: the focus of the Herdr app does not move. An accepted start prints \`run: #<n>: accepted as run <run id> of the daemon PID <pid>; read its progress: celetis daemon status\`, and an accepted Retry prints \`run: #<n>: Retry requested; the waiting run starts one bounded attempt cycle\`; both exit ${exits.done}. A refusal prints the line of the daemon, on stdout for code ${exits.done} and on stderr otherwise, and exits with its code: for example ${exits.prerequisite} for a busy issue lock, ${exits.blocked} for a failed GitHub read of the issue, and ${exits.done} for an end of \`run <n>\` at its first decision, such as a finished issue. \`run assist\` exits ${exits.prerequisite} for an issue with no hold, for a closed issue, when each default agent is blocked or the host is not available, when the plugin needs a contract version that the engine does not serve, and when the skill \`assist\` of the plugin cannot be read. With no daemon, it exits ${exits.prerequisite} and starts nothing. It exits ${exits.prerequisite} when the daemon runs another revision of the engine or an update removed this engine version, and ${exits.blocked} when the daemon does not answer or the outcome is unknown. Any other form exits ${exits.usage} with the usage line`,
+    `Each form sends one request to the master daemon of the repository of the current folder and returns at its answer. \`run <n>\` starts the next step of the issue, \`run resume <n>\` opens the saved session of a step with no progress again, \`run assist <n>\` opens an assist session for an issue with \`needs-info\`, \`ready-for-human\`, or \`deferred\`, in the main checkout, as a run with no step-end watch, and \`run retry <n> <wait-id>\` wakes the quota waiter of the issue for one attempt cycle. Each session tab of a run, also of \`run resume\`, of \`run assist\`, and of \`run retry\`, opens in the background: the focus of the Herdr app does not move. An accepted start prints \`run: #<n>: accepted as run <run id> of the daemon PID <pid>; read its progress: celetis daemon status\`, and an accepted Retry prints \`run: #<n>: Retry requested; the waiting run starts one bounded attempt cycle\`; both exit ${exits.done}. A refusal prints the line of the daemon, on stdout for code ${exits.done} and on stderr otherwise, and exits with its code: for example ${exits.prerequisite} for a busy issue lock, ${exits.blocked} for a failed GitHub read of the issue, and ${exits.done} for an end of \`run <n>\` at its first decision, such as a finished issue. \`run assist\` exits ${exits.prerequisite} for an issue with no hold, for a closed issue, when each default agent is blocked or the host is not available, when the plugin needs a contract version that the engine does not serve, and when the skill \`assist\` of the plugin cannot be read. With no daemon, it exits ${exits.prerequisite} and starts nothing. It exits ${exits.prerequisite} when the daemon runs another revision of the engine or an update removed this engine version, and ${exits.blocked} when the daemon does not answer or the outcome is unknown. Any other form exits ${exits.usage} with the usage line`,
   ),
   entry(
     'run',
@@ -747,7 +777,7 @@ export const commands: readonly Entry[] = [
         ...('names' in act ? { names: act.names } : {}),
       }),
     ),
-    `Makes each issue write of a session in the repository of the checkout: ${issueActList}. Its acts \`view\` and \`list\` read and write nothing: \`view\` prints the JSON of an issue, with its parent, its children, and its history, and \`view --latest\` prints the body of the newest comment whose first line is the heading; \`list\` prints the open issues as JSON, and \`list --state closed\` prints the closed issues; \`--label\` keeps only the issues with that label. \`link\` makes the child a sub-issue of the epic under the epic lock, and writes nothing when the link exists. The acts other than the reads, \`create\`, \`comment\`, \`link\`, and \`sync\` are the workflow writes that the engine reads. With the local tracker, each write act pulls the local issues from origin before it writes and pushes them after it writes; when origin cannot be reached, the write stays local, the act prints a warning, and it keeps its exit code. \`sync\` pulls and pushes the local issues on request: it exits ${exits.blocked} when origin cannot be reached, and ${exits.prerequisite} with the GitHub tracker. \`create\` prints the URL of the new issue before any other write: a URL on stdout means that the issue exists, also on a nonzero exit. \`comment\` refuses a file whose first line is a lifecycle heading, \`## Held\`, \`## Released\`, or the effort marker, and names the act for that write. The assistance act records an attributed \`## Human steps done\` report before removing present blocking labels; it adds no label and preserves build state. Lifecycle acts write the comment heading before label changes. Each act refuses unmet prerequisites. \`state\` writes nothing and prints lifecycle facts. \`epic-state\` writes nothing and prints the current declaration, child snapshot, history, and holds. Epic definition writes preserve the complete parent body; guarded completion publishes its accepted record before closing and leaves readiness labels unchanged. \`docs/issue-tracker.md\`, "Conventions", gives each act`,
+    `Makes each issue write of a session in the repository of the checkout: ${issueActList}. Its acts \`view\` and \`list\` read and write nothing: \`view\` prints the JSON of an issue, with its parent, its children, and its history, and \`view --latest\` prints the body of the newest comment whose first line is the heading; \`list\` prints the open issues as JSON, and \`list --state closed\` prints the closed issues; \`--label\` keeps only the issues with that label. \`link\` makes the child a sub-issue of the epic under the epic lock, and writes nothing when the link exists. \`blocked-by\` records the blocker of an issue in the tracker under the epic lock, and writes nothing when the relation already matches; a closed issue is valid on either side. The acts other than the reads, \`create\`, \`comment\`, \`link\`, \`blocked-by\`, and \`sync\` are the workflow writes that the engine reads. With the local tracker, each write act pulls the local issues from origin before it writes and pushes them after it writes; when origin cannot be reached, the write stays local, the act prints a warning, and it keeps its exit code. \`sync\` pulls and pushes the local issues on request: it exits ${exits.blocked} when origin cannot be reached, and ${exits.prerequisite} with the GitHub tracker. \`create\` prints the URL of the new issue before any other write: a URL on stdout means that the issue exists, also on a nonzero exit. \`comment\` refuses a file whose first line is a lifecycle heading, \`## Held\`, \`## Released\`, or the effort marker, and names the act for that write. The assistance act records an attributed \`## Human steps done\` report before removing present blocking labels; it adds no label and preserves build state. Lifecycle acts write the comment heading before label changes. Each act refuses unmet prerequisites. \`state\` writes nothing and prints lifecycle facts. \`epic-state\` writes nothing and prints the current declaration, child snapshot, history, and holds. Epic definition writes preserve the complete parent body; guarded completion publishes its accepted record before closing and leaves readiness labels unchanged. \`docs/issue-tracker.md\`, "Conventions", gives each act`,
   ),
   entry(
     'next-step',

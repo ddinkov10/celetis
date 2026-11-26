@@ -6,6 +6,7 @@ import { type IssueKey, parseKey } from '../tracker/key.ts';
 import { writeRefreshHint } from '../tracker/refresh-hints.ts';
 import {
   type Authored,
+  type Blocker,
   type Child,
   type Edit,
   type Issue,
@@ -56,6 +57,12 @@ function parentKey(apiUrl: string, parentUrl: string | null): IssueKey | null {
   return parentUrl.startsWith(prefix) ? parseKey(parentUrl.slice(prefix.length)) : null;
 }
 
+function blockerCount(summary: unknown): number | null {
+  const total =
+    typeof summary === 'object' && summary !== null ? (summary as Record<string, unknown>).total_blocked_by : undefined;
+  return Number.isSafeInteger(total) && (total as number) >= 0 ? (total as number) : null;
+}
+
 export function parseIssue(raw: unknown): Issue {
   const issue = record(raw);
   const { state, labels, body, comments, closed_at: closedAt, pull_request: pull } = issue;
@@ -82,6 +89,7 @@ export function parseIssue(raw: unknown): Issue {
     updatedAt: text(issue.updated_at),
     closedAt: closedAt === null ? null : text(closedAt),
     pull: Boolean(pull),
+    blockerCount: blockerCount(issue.issue_dependencies_summary),
   };
 }
 
@@ -92,6 +100,26 @@ function parseChild(raw: unknown): Child {
   if (key === null || Object.hasOwn(child, 'pull_request') || (state !== 'open' && state !== 'closed'))
     throw malformed();
   return { key, title: text(child.title), url: text(child.html_url), state };
+}
+
+const foreignIssue = /^https:\/\/[^/]+\/([^/]+\/[^/]+)\/issues\/([1-9][0-9]*)$/;
+
+function parseBlocker(raw: unknown, repository: string): Blocker {
+  const item = record(raw);
+  const { state } = item;
+  const url = text(item.html_url);
+  const number = integer(item.number);
+  if (state !== 'open' && state !== 'closed') throw malformed();
+  const title = text(item.title);
+  const key = url.startsWith(`${repository}/issues/`) ? issueKey(number) : null;
+  if (key !== null) {
+    if (url !== githubForms.issueUrl(repository, key)) throw malformed();
+    return { key, ref: `#${key}`, title: trusted(item.author_association) ? title : '', url, state };
+  }
+  const foreign = foreignIssue.exec(url);
+  if (foreign === null || foreign[2] !== String(number)) throw malformed();
+  // The association of a foreign issue is with its own repository, so its title is never read.
+  return { key: null, ref: `${foreign[1]}#${number}`, title: '', url, state };
 }
 
 function author(user: unknown): string | null {
@@ -239,14 +267,27 @@ export function githubTracker(client: Client): Tracker {
     return parsed(endpoint, () => parse(entries));
   }
 
+  let known: string | undefined;
+
   async function project(): Promise<string> {
+    if (known !== undefined) return known;
     const raw = await get('', record);
-    return parsed('', () => {
+    known = parsed('', () => {
       const url = githubForms.repository(raw.html_url);
       if (!Number.isSafeInteger(raw.id) || Number(raw.id) <= 0 || raw.full_name !== new URL(url).pathname.slice(1))
         throw malformed();
       return url;
     });
+    return known;
+  }
+
+  async function listBlockers(n: IssueKey) {
+    const endpoint = `issues/${n}/dependencies/blocked_by?per_page=100`;
+    const items = await pages(endpoint);
+    const home = await project();
+    return parsed(endpoint, () =>
+      items.map((raw) => ({ id: integer(record(raw).id), blocker: parseBlocker(raw, home) })),
+    );
   }
 
   const adapter: Tracker = {
@@ -330,6 +371,21 @@ export function githubTracker(client: Client): Tracker {
       const id = await get(`issues/${child}`, (raw) => integer(record(raw).id));
       await send('POST', `issues/${epic}/sub_issues`, { fields: { sub_issue_id: id } });
       await writeRefreshHint(cwd, child);
+    },
+    async blockers(n: IssueKey) {
+      return (await listBlockers(n)).map(({ blocker }) => blocker);
+    },
+    async addBlocker(n: IssueKey, blocker: IssueKey) {
+      if ((await listBlockers(n)).some((item) => item.blocker.key === blocker)) return;
+      const id = await get(`issues/${blocker}`, (raw) => integer(record(raw).id));
+      await send('POST', `issues/${n}/dependencies/blocked_by`, { fields: { issue_id: id } });
+    },
+    async removeBlocker(n: IssueKey, blocker: IssueKey) {
+      const found = (await listBlockers(n)).find((item) => item.blocker.key === blocker);
+      if (found === undefined) return;
+      await send('DELETE', `issues/${n}/dependencies/blocked_by/${found.id}`).catch((error: unknown) => {
+        if (!(error instanceof GitHubError && error.notFound)) throw error;
+      });
     },
     issue: (n: IssueKey) => get(`issues/${n}`, (raw) => readable(n, raw)),
     issues: async (state: Issue['state'], label?: string) =>

@@ -221,10 +221,10 @@ decoration.
 ### Primary
 
 - **Beacon Orange** (`beacon-orange`): the color of "needs you". It marks the Needs you column
-  glyph, the `need you` count, a waiting card's border and pulse, the current lane segment of a
-  waiting or blocked card, the dot and the words of a human session at an unseen ended turn, and the
+  glyph, the `need you` count, the border and pulse of a card in the state `waits`, the current lane
+  segment of a card in Needs you that waits or is blocked, the dot and the words of a human session at an unseen ended turn, and the
   orange dot of the tab icon. `beacon-tint` is the lighter
-  partner that tints the backgrounds of waiting cards and act lines. Light theme: `beacon-orange-light`
+  partner that tints the backgrounds of cards in the state `waits` and act lines. Light theme: `beacon-orange-light`
   for text and marks, `beacon-tint-light` for tints.
 
 ### Secondary
@@ -462,8 +462,18 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
 - **More below:** the button at the foot of Needs you. It is full width and 34px high, with a Card
   Slate fill, a 1px strong hairline, an 8px radius, Raise, and Ink Muted text at 500, 12.5px. Hover
   moves to Ink text and a 60% Ink Faint border.
-- **Waiting card:** a 55% Beacon Orange border, a 6% orange tint, and a slow pulse of the tint
-  (3s). This card is the beacon of the tower.
+- **Waits card:** the card of the state `waits`, an agent that waits for your answer. It has a 55%
+  Beacon Orange border, a 6% orange tint, and a slow pulse of the tint (3s). This card is the beacon
+  of the tower.
+- **Waiting row:** a native `details` at the foot of Needs you, with a 1px hairline and a 12px
+  radius, closed at each load. Its summary is 38px high (44px on a phone), in 12.5px at 500 and Ink
+  Muted: a 13px chevron (90° down open, 0.15s), `Waiting`, the count at 600, and `No act from you
+  now` in Ink Faint at the end. Hover gives a 10% Ink Faint fill and Ink text. Each group has a head
+  in 12.5px at 600 and Ink: the blocker refs in Geist Mono at 500 and Ink Faint, else `Deferred by
+  you`, then the count in Ink Faint. Its cards sit beside a 1px strong left hairline, indented 12px, as
+  the children of an epic. A waiting card is compact, with no Beacon Orange, no fill, and no shadow,
+  also in Pipeline. Its current lane segment is Ink, its status is Ink Muted, and its Open agent button is
+  a ghost button.
 - **Compact card:** a one-row variant for Idle, Pipeline, and the last two groups of Needs you. In
   Pipeline, the main button keeps its label, and a card that needs you has a 3px Beacon Orange inside
   left edge.

@@ -993,6 +993,9 @@
   .rounded-\[10px\] {
     border-radius: 10px;
   }
+  .rounded-\[11px\] {
+    border-radius: 11px;
+  }
   .rounded-\[12px\] {
     border-radius: 12px;
   }
@@ -2009,6 +2012,12 @@
       box-shadow: 0 0 0 1px color-mix(in srgb,var(--fg3) 80%,transparent),var(--raise);
     }
   }
+  .\[box-shadow\:0_0_0_1px_color-mix\(in_srgb\,var\(--fg3\)_80\%\,transparent\)\] {
+    box-shadow: 0 0 0 1px var(--fg3);
+    @supports (color: color-mix(in lab, red, red)) {
+      box-shadow: 0 0 0 1px color-mix(in srgb,var(--fg3) 80%,transparent);
+    }
+  }
   .\[box-shadow\:0_0_0_1px_color-mix\(in_srgb\,var\(--needs\)_80\%\,transparent\)\,var\(--raise\)\] {
     box-shadow: 0 0 0 1px var(--needs),var(--raise);
     @supports (color: color-mix(in lab, red, red)) {
@@ -2432,6 +2441,14 @@
   @media (hover: hover) {
     .hover\:border-border-strong:hover {
       border-color: var(--line-strong);
+    }
+    .hover\:bg-\[color-mix\(in_srgb\,var\(--fg3\)_10\%\,transparent\)\]:hover {
+      background-color: var(--fg3);
+    }
+    @supports (color: color-mix(in lab, red, red)) {
+      .hover\:bg-\[color-mix\(in_srgb\,var\(--fg3\)_10\%\,transparent\)\]:hover {
+        background-color: color-mix(in srgb,var(--fg3) 10%,transparent);
+      }
     }
     .hover\:bg-accent:hover {
       background-color: var(--fill-strong);
@@ -3400,6 +3417,19 @@
   .\[\&_\.icon\]\:text-working .icon {
     color: var(--working);
   }
+  .\[\&_\.icon\]\:transition-transform .icon {
+    transition-property: transform, translate, scale, rotate;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
+  }
+  .\[\&_\.icon\]\:duration-150 .icon {
+    --tw-duration: 150ms;
+    transition-duration: 150ms;
+  }
+  .\[\&_\.icon\]\:ease-\[ease\] .icon {
+    --tw-ease: ease;
+    transition-timing-function: ease;
+  }
   .\[\&_\.icon\]\:\[transition\:transform_0\.15s\] .icon {
     transition: transform 0.15s;
   }
@@ -3525,6 +3555,9 @@
     width: 9px;
     height: 9px;
   }
+  .\[\&\:\:-webkit-details-marker\]\:hidden::-webkit-details-marker {
+    display: none;
+  }
   .\[\&\:hover\]\:gap-\[5px\]:hover {
     gap: 5px;
   }
@@ -3635,6 +3668,9 @@
   }
   .\[\&\>svg\]\:pointer-events-none > svg {
     pointer-events: none;
+  }
+  .\[\&\[open\]\>summary_\.icon\]\:rotate-90[open] > summary .icon {
+    rotate: 90deg;
   }
   a.\[a\&\:hover\]\:underline:hover {
     text-decoration-line: underline;

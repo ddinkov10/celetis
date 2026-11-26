@@ -48,13 +48,21 @@ function describeStop(n: IssueKey, next: Stop): Described {
       return { line: `stop #${n} is closed as wontfix.`, row: null };
     case 'finished':
       return { line: `stop #${n} is finished.`, row: { state: 'done', reason: null, act: null } };
+    case 'deferred':
+      return blocked(
+        'is deferred',
+        'deferred by you',
+        `Run celetis --agent <host> issue ${n} undefer to bring it back.`,
+      );
     case 'needs-info':
       return blocked('needs info', 'needs info', 'Answer the questions on the issue, then remove the label.');
     case 'ready-for-human':
       return blocked(
         'is ready-for-human',
         next.variant === 'landing-refused' ? 'landing refused' : 'ready for your step',
-        'Do the human step (e.g. the hotfix ship checklist), then remove the label.',
+        next.variant === 'landing-refused'
+          ? 'Do the human step (e.g. the hotfix ship checklist), then remove the label.'
+          : 'Read the latest ## Stopped or ## Before landing comment, do its act, then remove the label.',
       );
     case 'human-step':
       return blocked('has an open human step', 'human step open', humanStepActs[next.variant]);

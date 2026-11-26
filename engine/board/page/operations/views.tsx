@@ -13,20 +13,31 @@ import {
 } from 'react';
 import type { IssueKey } from '../../../lib/tracker/key.ts';
 import type { Action, Card as CardData, Column, ParentEpic } from '../../types.ts';
-import { COLUMNS, groupEpics, groupNeeds, isYourTurn, LIVE, pipeline, stateLabel, tail } from '../../view.ts';
+import {
+  COLUMNS,
+  groupEpics,
+  groupNeeds,
+  isYourTurn,
+  LIVE,
+  pipeline,
+  stateLabel,
+  tail,
+  type WaitGroup,
+  waitGroups,
+} from '../../view.ts';
 import { Icon } from '../app/icon.tsx';
 import { shellStore, useShellStore } from '../store.ts';
 import { Badge } from '../ui/badge.tsx';
 import { actionsOf } from './actions.ts';
 import { Card, type CardProps, type Env, UnseenDot } from './card.tsx';
 import { indexCards, layoutOf } from './cards.ts';
-import { columnId, columnStop, isStop, STOPS, showHints, stopKey } from './keys.ts';
+import { columnId, columnStop, FOLD, isStop, reachable, STOPS, showHints, stopKey } from './keys.ts';
 import { IconButton, Mark, Timed, useKeptScroll } from './parts.tsx';
 import { closeDetails, openDetails, type ScreenState, screen, useScreen, view } from './state.ts';
 
 type Held = {
   node: HTMLElement;
-  kind: 'card' | 'control' | 'tail' | 'epic' | 'pill' | 'menu';
+  kind: 'card' | 'control' | 'tail' | 'epic' | 'pill' | 'menu' | 'fold';
   key: string;
   column?: string;
   label?: string;
@@ -52,6 +63,7 @@ const markOf = (active: Element | null, menu: ScreenState['menu']): Held | null 
   if (!col) return null;
   const column = columnId(col);
   if (active.closest('.tail')) return { node: active, kind: 'tail', key: '', column };
+  if (active.matches(FOLD)) return { node: active, kind: 'fold', key: '', column };
   const row = active.closest<HTMLElement>('.epic-row');
   if (row) return { node: active, kind: 'epic', key: row.dataset.group ?? '', column };
   const card = active.closest<HTMLElement>('.card[data-key]');
@@ -69,8 +81,6 @@ const markOf = (active: Element | null, menu: ScreenState['menu']): Held | null 
 };
 
 const shown = (node: HTMLElement | null | undefined) => (node?.checkVisibility() ? node : null);
-const reachable = (node: HTMLElement | null | undefined) =>
-  node?.closest('.epic-children[hidden]')?.closest('.epic-group')?.querySelector<HTMLElement>('.epic-row') ?? node;
 
 const targetOf = (mark: Held): HTMLElement | null | undefined => {
   const one = (selector: string) => document.querySelector<HTMLElement>(selector);
@@ -80,6 +90,8 @@ const targetOf = (mark: Held): HTMLElement | null | undefined => {
   switch (mark.kind) {
     case 'tail':
       return shown(one('.col-needs .tail')) ?? stop;
+    case 'fold':
+      return one(FOLD) ?? stop;
     case 'epic':
       return one(`.epic-row[data-group="${CSS.escape(mark.key)}"]`) ?? stop;
     case 'pill': {
@@ -90,7 +102,7 @@ const targetOf = (mark: Held): HTMLElement | null | undefined => {
       const control = [...(card?.querySelectorAll<HTMLElement>('button, a') ?? [])].find(
         (node) => (node.getAttribute('aria-label') ?? node.textContent?.trim()) === mark.label,
       );
-      return control ?? reachable(card) ?? stop;
+      return reachable(control ?? card) ?? stop;
     }
     default:
       return reachable(card) ?? stop;
@@ -139,7 +151,7 @@ const measureOf = (columns: HTMLElement, isPipeline: boolean): Measure => {
         (columns.parentElement as HTMLElement).getBoundingClientRect().bottom,
       ) - (wrap.hidden ? 0 : wrap.offsetHeight);
     for (const node of body.querySelectorAll<HTMLElement>('.card[data-key]')) {
-      if (node.getBoundingClientRect().bottom <= bottom + 1) continue;
+      if (node.closest('.wait-fold') || node.getBoundingClientRect().bottom <= bottom + 1) continue;
       below.add(node.dataset.key ?? '');
       const group = node.closest<HTMLElement>('.group');
       const name = group?.dataset.group ?? '';
@@ -327,6 +339,68 @@ function HumanPill({
 
 type Place = Pick<CardProps, 'column' | 'isCompact' | 'level' | 'isHold'>;
 
+const WAIT_PLACE: Place = { column: 'waiting', isCompact: true, level: 'h4' };
+
+function WaitHead({ group }: { group: WaitGroup }) {
+  const [first, ...others] = group.blockers;
+  return (
+    <h3 className="m-0 flex items-baseline gap-1.5 px-1 py-0.5 text-[0.78125rem] font-semibold text-foreground">
+      {first ? (
+        <span className="flex-none font-mono font-medium text-muted-foreground">
+          {group.blockers.map((blocker) => blocker.ref).join(', ')}
+        </span>
+      ) : (
+        <span className="min-w-0 wrap-anywhere">Deferred by you</span>
+      )}
+      {first && others.length === 0 && first.title && <span className="min-w-0 wrap-anywhere">{first.title}</span>}
+      <span className="ml-auto flex-none font-medium text-muted-foreground tabular-nums">
+        {group.cards.length}
+        <span className="sr-only">{group.cards.length === 1 ? ' issue' : ' issues'}</span>
+      </span>
+    </h3>
+  );
+}
+
+function WaitingRow({
+  groups,
+  count,
+  isOpen,
+  render,
+}: {
+  groups: WaitGroup[];
+  count: number;
+  isOpen: boolean;
+  render: (card: CardData) => ReactNode;
+}) {
+  return (
+    <details
+      className="wait-fold mt-0.5 rounded-xl border border-border [&[open]>summary_.icon]:rotate-90"
+      open={isOpen}
+      onToggle={(event) => screen.setWaitingOpen(event.currentTarget.open)}
+    >
+      <summary className="flex min-h-[38px] cursor-pointer list-none items-center gap-2 rounded-[11px] px-3 py-1.5 text-[0.78125rem] font-medium text-card-foreground hover:bg-[color-mix(in_srgb,var(--fg3)_10%,transparent)] hover:text-foreground phone:min-h-11 [&::-webkit-details-marker]:hidden [&_.icon]:size-[13px] [&_.icon]:flex-none [&_.icon]:transition-transform [&_.icon]:duration-150 [&_.icon]:ease-[ease]">
+        <Icon name="chevron" />
+        <span>Waiting</span>
+        <span className="font-semibold tabular-nums">
+          {count}
+          <span className="sr-only">{count === 1 ? ' issue' : ' issues'}</span>
+        </span>
+        <span className="ml-auto font-normal text-muted-foreground">No act from you now</span>
+      </summary>
+      <div className="flex flex-col gap-2.5 px-2 pt-1 pb-2.5">
+        {groups.map((group) => (
+          <div key={group.key} className="flex flex-col gap-1.5">
+            <WaitHead group={group} />
+            <div className="ml-1.5 flex flex-col gap-2 border-l border-l-border-strong pl-3">
+              {group.cards.map(render)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 const cardAt = (target: EventTarget | null) =>
   target instanceof Element ? target.closest<HTMLElement>('.card[data-key]') : null;
 
@@ -410,6 +484,7 @@ export function Board() {
   const startFailures = useScreen((state) => state.startFailures);
   const menu = useScreen((state) => state.menu);
   const columnStops = useScreen((state) => state.columnStops);
+  const waitingOpen = useScreen((state) => state.waitingOpen);
   const columns = useRef<HTMLDivElement>(null);
   const isPipeline = shell.tab === 'pipeline';
   useRescue(menu);
@@ -549,7 +624,7 @@ export function Board() {
     );
   };
 
-  const { needs, running, idle, human } = board.columns;
+  const { needs, waiting, running, idle, human } = board.columns;
   const agents = () =>
     COLUMNS.map(({ key, name, note, empty: [emptyTitle, emptyText] }) => {
       const cards = board.columns[key];
@@ -580,7 +655,11 @@ export function Board() {
             : cards.map(
                 (card): Item => ({ kind: 'card', card, place: { column: key, isCompact: false, level: 'h3' } }),
               );
-      const stop = stopOf(id, items);
+      const held = key === 'needs' ? waitGroups(waiting) : [];
+      const heldItems = held.flatMap((group) =>
+        group.cards.map((card): Item => ({ kind: 'card', card, place: WAIT_PLACE })),
+      );
+      const stop = stopOf(id, waitingOpen ? [...items, ...heldItems] : items);
       return (
         <section key={key} className={`col col-${key} ${COL.now}`} id={id} aria-labelledby={`h-${key}`}>
           <header className={HEAD.now} title={note}>
@@ -591,7 +670,7 @@ export function Board() {
             <Badge variant="column">{cards.length}</Badge>
           </header>
           <div className={`col-body ${BODY.now}`}>
-            {cards.length === 0 ? (
+            {cards.length === 0 && held.length === 0 ? (
               <div
                 className={cn(
                   'empty mt-1 flex flex-col items-center gap-1 rounded-xl border px-5 py-8 text-center',
@@ -612,6 +691,14 @@ export function Board() {
               </div>
             ) : key === 'needs' ? (
               <>
+                {cards.length === 0 && (
+                  <p
+                    className="empty m-0 mt-1 rounded-xl border border-solid border-[color-mix(in_srgb,var(--ready)_25%,transparent)] bg-[color-mix(in_srgb,var(--ready)_5%,transparent)] px-3 py-2.5 text-[0.8125rem] font-semibold text-foreground"
+                    tabIndex={-1}
+                  >
+                    {emptyTitle}
+                  </p>
+                )}
                 {groups.map((each, at) => (
                   // biome-ignore lint/a11y/useSemanticElements: a fieldset would change the DOM that the old readers and the styles find
                   <div
@@ -637,6 +724,14 @@ export function Board() {
                     )}
                   </div>
                 ))}
+                {held.length > 0 && (
+                  <WaitingRow
+                    groups={held}
+                    count={waiting.length}
+                    isOpen={waitingOpen}
+                    render={(card) => cardOf(card, WAIT_PLACE, waitingOpen ? stop : undefined)}
+                  />
+                )}
                 <div
                   className="tail-wrap sticky bottom-0 z-3 -mx-3 bg-[linear-gradient(to_bottom,transparent,var(--panel)_35%)] px-3 pt-2.5 pb-3"
                   hidden={measure.text === ''}
@@ -670,12 +765,13 @@ export function Board() {
 
   const where = new Map<CardData, Column>([
     ...needs.map((card): [CardData, Column] => [card, 'needs']),
+    ...waiting.map((card): [CardData, Column] => [card, 'waiting']),
     ...running.map((card): [CardData, Column] => [card, 'running']),
     ...idle.map((card): [CardData, Column] => [card, 'idle']),
   ]);
   const placeOf = (card: CardData): Place => ({ column: where.get(card) ?? 'idle', isCompact: true, level: 'h3' });
   const stages = () => {
-    const { stages: list, hold } = pipeline([...needs, ...running, ...idle], board.flow);
+    const { stages: list, hold } = pipeline([...needs, ...waiting, ...running, ...idle], board.flow);
     const holdItems: Item[] = hold.map((card) => ({
       kind: 'card',
       card,

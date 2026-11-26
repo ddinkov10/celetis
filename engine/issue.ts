@@ -3,6 +3,7 @@ import { HostError } from './lib/command/errors.ts';
 import { commandInput, createOperation, locateCheckouts } from './lib/command/operation.ts';
 import type { Config, Host } from './lib/config/core.ts';
 import {
+  deferredMarker,
   type ExitClass,
   type ExitCode,
   exits,
@@ -56,7 +57,7 @@ type Writes = Readonly<{ comment?: string; add?: readonly Label[]; remove?: read
 type Write = Readonly<{ send(): Promise<void>; flags: readonly string[]; close?: boolean }>;
 type EngineAct = Exclude<
   IssueAct,
-  'epic' | 'epic-state' | 'complete-epic' | 'create' | 'comment' | 'view' | 'list' | 'link' | 'sync'
+  'epic' | 'epic-state' | 'complete-epic' | 'create' | 'comment' | 'view' | 'list' | 'link' | 'blocked-by' | 'sync'
 >;
 type Act = Readonly<{
   ready(context: Context): boolean;
@@ -132,6 +133,14 @@ const acts: Readonly<Record<EngineAct, Act>> = {
     ready: open,
     writes: () => ({ add: ['ready-for-human'], remove: ['ready-for-agent'] }),
   },
+  defer: {
+    ready: (context) => open(context) && context.found.kind !== 'epic',
+    writes: ({ data, text }) =>
+      data.labels.includes('deferred')
+        ? {}
+        : { comment: `${headings.stopped}\n${deferredMarker}\n\n${text}`, add: ['deferred'] },
+  },
+  undefer: { ready: open, writes: () => ({ remove: ['deferred'] }) },
   assisted: {
     ready: ({ data, found }) =>
       data.state === 'open' &&
@@ -405,6 +414,40 @@ async function linkIssue(argv: string[], explicit: string | undefined): Promise<
   return exits.done;
 }
 
+async function blockedByIssue(argv: string[], explicit: string | undefined): Promise<ExitCode> {
+  const [number = '', , handle = '', flag] = argv;
+  const n = parseHandle(number);
+  const blocker = parseHandle(handle);
+  const remove = flag === '--remove';
+  if (n === null || blocker === null || argv.length !== (flag === undefined ? 3 : 4) || (flag !== undefined && !remove))
+    die('usage', usageText('issue'));
+  if (n === blocker) die('prerequisite', `#${n} cannot be blocked by itself`);
+  const { operation, main, config } = await enter(explicit);
+  const common = operation.checkout.common ?? die('usage', 'run the command inside a Git checkout');
+  await synced(services(config, main).tracker, () =>
+    withEpicLock(common, n, undefined, async (signal) => {
+      const gh = services(config, main, signal).tracker;
+      const checked = remove ? [n] : [n, blocker];
+      for (const key of checked) {
+        const issue = await gh.issue(key).catch(unreadable(gh, `#${key}`));
+        if (issue.pull) die('prerequisite', `#${key} is a pull request; blocked-by takes an issue`);
+      }
+      await (remove ? gh.removeBlocker(n, blocker) : gh.addBlocker(n, blocker)).catch((error: unknown) => {
+        const details = [gh.stderr(), error instanceof Error ? error.message : String(error)];
+        if (error instanceof TrackerError && error.refused)
+          die('blocked', `${gh.name} refused the relation; nothing changed`, ...details);
+        die(
+          'blocked',
+          `the blocked-by relation of #${n} and #${blocker} has no readable answer; the relation can exist, so run issue ${n} blocked-by ${blocker}${remove ? ' --remove' : ''} again (it writes nothing when the relation matches) or read issue ${n} view before another write`,
+          ...details,
+        );
+      });
+      process.stderr.write(gh.stderr());
+    }),
+  );
+  return exits.done;
+}
+
 async function execute(argv: string[], explicit: string | undefined): Promise<ExitCode> {
   if (argv[0] === 'create') return createIssue(argv, explicit);
   if (argv[0] === 'sync') return syncIssues(argv, explicit);
@@ -412,6 +455,7 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
   if (argv[1] === 'comment') return commentIssue(argv, explicit);
   if (argv[1] === 'view') return viewIssue(argv, explicit);
   if (argv[1] === 'link') return linkIssue(argv, explicit);
+  if (argv[1] === 'blocked-by') return blockedByIssue(argv, explicit);
   const [number = '', name = '', argument = '', flag] = argv;
   const n = parseHandle(number);
   const known = Object.hasOwn(acts, name) ? (name as EngineAct) : undefined;
@@ -539,6 +583,12 @@ async function execute(argv: string[], explicit: string | undefined): Promise<Ex
       }
     } catch (error) {
       const details = [gh.stderr(), error instanceof Error ? error.message : String(error)];
+      if (done === 0 && name === 'defer' && !(error instanceof TrackerError && error.refused))
+        die(
+          'blocked',
+          `#${n}: the comment write has no readable answer; it can exist, so read the issue before you run defer again`,
+          ...details,
+        );
       if (done === 0) die('blocked', `#${n}: the write failed; nothing changed`, ...details);
       const left = writes.slice(done);
       const flags = left.flatMap((write) => write.flags);

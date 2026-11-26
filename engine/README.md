@@ -157,11 +157,11 @@ and that refusal ends auto mode, as each other invalid field does.
 opens in the background ([Sessions](#sessions)). A Resume press of the board types this form.
 
 **The form `run assist <n>`** asks the daemon to open an assist session for an issue with
-`needs-info` or `ready-for-human`, in the main checkout, in a new tab `#<n> assist` that opens in
+`needs-info`, `ready-for-human`, or `deferred`, in the main checkout, in a new tab `#<n> assist` that opens in
 the background. The run takes the issue lock, then reads the issue: an unreadable issue refuses
 with code 6, a closed issue refuses with `daemon: #<n> is closed; no assist session starts`, and an
 issue with no hold refuses with
-`daemon: #<n> has no hold (needs-info or ready-for-human); no assist session starts`, both with code
+`daemon: #<n> has no hold (needs-info, ready-for-human, or deferred); no assist session starts`, both with code
 3. The session starts the skill `assist` with the input `#<n> coordinator`, with no saved session
 record, so the record of a stopped step stays for `run resume <n>`. The run has no step-end watch,
 as a resume run, and ends with the session. The direct command `celetis assist <n>` is no run.

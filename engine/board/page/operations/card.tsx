@@ -14,7 +14,7 @@ import { copy } from '../ui.ts';
 import { actionsOf, copyWhat, menuName, menuOf, runEntries } from './actions.ts';
 import { type Launch, SLOW_START, SLOW_START_TEXT } from './cards.ts';
 import { HeldPanel } from './held.tsx';
-import { columnId, columnStop } from './keys.ts';
+import { columnId, columnStop, reachable } from './keys.ts';
 import { ActionButton, GateLabel, IconButton, Link, Mark, Num, PrChips, Timed, WARNING } from './parts.tsx';
 import { type MenuKind, type ScreenState, screen, useScreen } from './state.ts';
 
@@ -72,7 +72,7 @@ const segOf = (state: string, cardState: string | null) =>
       ? `w-5 ${SEG_NOW[cardState ?? ''] ?? 'bg-foreground [box-shadow:none]'}`
       : 'w-3.5 bg-transparent [box-shadow:inset_0_0_0_1px_var(--fg3)]';
 
-function Track({ card, flow }: { card: CardData; flow: Board['flow'] }) {
+function Track({ card, flow, isMuted }: { card: CardData; flow: Board['flow']; isMuted: boolean }) {
   const steps = laneTrack(card, flow);
   if (!steps) return null;
   const at = steps.findIndex((step) => step.state === 'now');
@@ -87,7 +87,7 @@ function Track({ card, flow }: { card: CardData; flow: Board['flow'] }) {
         .join(' · ')}
     >
       {steps.map((step) => (
-        <i key={step.name} className={`h-1.5 rounded-[3px] ${segOf(step.state, card.state)}`} />
+        <i key={step.name} className={`h-1.5 rounded-[3px] ${segOf(step.state, isMuted ? null : card.state)}`} />
       ))}
     </span>
   );
@@ -146,12 +146,14 @@ function Status({
   env,
   hasGlyph = true,
   isShort = false,
+  isMuted = false,
   className,
 }: {
   card: CardData;
   env: Env;
   hasGlyph?: boolean;
   isShort?: boolean;
+  isMuted?: boolean;
   className?: string;
 }) {
   const quiet = isShort ? 'text-muted-foreground' : 'text-card-foreground';
@@ -176,7 +178,7 @@ function Status({
         className={cn(
           STATUS,
           'min-w-0 gap-[7px] [&>:last-child]:flex-[0_1_auto] [&>:last-child]:overflow-hidden',
-          STATE_TEXT[card.state] ?? quiet,
+          isMuted ? 'text-card-foreground' : (STATE_TEXT[card.state] ?? quiet),
           card.state === 'starts' && '[&_.icon]:animate-turn [&_.icon]:text-working',
           className,
         )}
@@ -339,8 +341,10 @@ const finalFocus = (trigger: RefObject<HTMLElement | null>, key: string, column:
   if (active !== null && active !== document.body && !active.closest('[data-slot="dropdown-menu-content"]'))
     return false;
   return (
-    (trigger.current?.isConnected ? trigger.current : null) ??
-    document.querySelector<HTMLElement>(`#tp-board .card[data-key="${CSS.escape(key)}"]`) ??
+    reachable(
+      (trigger.current?.isConnected ? trigger.current : null) ??
+        document.querySelector<HTMLElement>(`#tp-board .card[data-key="${CSS.escape(key)}"]`),
+    ) ??
     columnStop(column.current) ??
     true
   );
@@ -411,6 +415,11 @@ export type CardProps = Readonly<{
 }>;
 
 const RINGS = {
+  flat: {
+    none: '[box-shadow:none]',
+    fg: '[box-shadow:0_0_0_1px_color-mix(in_srgb,var(--fg3)_80%,transparent)]',
+    needs: '[box-shadow:none]',
+  },
   plain: {
     none: '[box-shadow:var(--raise)]',
     fg: '[box-shadow:0_0_0_1px_color-mix(in_srgb,var(--fg3)_80%,transparent),var(--raise)]',
@@ -424,7 +433,7 @@ const RINGS = {
   },
 } as const;
 
-const lookOf = (isSelected: boolean, isWaits: boolean, isStripe: boolean) =>
+const lookOf = (isSelected: boolean, isWaits: boolean, isStripe: boolean, isFlat: boolean) =>
   cn(
     isSelected
       ? isWaits
@@ -436,7 +445,8 @@ const lookOf = (isSelected: boolean, isWaits: boolean, isStripe: boolean) =>
     isWaits
       ? "isolate bg-[color-mix(in_srgb,var(--needs-tint)_6%,var(--card))] [--fg3:var(--fg2)] before:pointer-events-none before:absolute before:inset-0 before:z-[-1] before:animate-attention before:rounded-[inherit] before:bg-[color-mix(in_srgb,var(--needs-tint)_10%,transparent)] before:content-[''] motion-reduce:before:opacity-70"
       : '[&:hover]:bg-card-hover',
-    RINGS[isStripe ? 'stripe' : 'plain'][isSelected ? (isWaits ? 'needs' : 'fg') : 'none'],
+    isFlat && 'bg-transparent',
+    RINGS[isFlat ? 'flat' : isStripe ? 'stripe' : 'plain'][isSelected ? (isWaits ? 'needs' : 'fg') : 'none'],
   );
 
 const OPEN = {
@@ -473,6 +483,7 @@ export const Card = memo(function Card({
   const actions = actionsOf(card);
   const [main] = actions;
   const isQuiet = column !== 'needs';
+  const isWaiting = column === 'waiting';
   const text = card.title || `Issue #${card.number}`;
   const Heading = level;
   const title = (
@@ -556,7 +567,7 @@ export const Card = memo(function Card({
       ? 'compact flex-col grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-[5px] py-2.5 pr-2.5 pl-3'
       : 'flex flex-col gap-2 px-3.5 py-3',
     'relative flex-none transition-[border-color,background-color] duration-150 ease-[ease]',
-    lookOf(isSelected, isWaits, isPipeline && column === 'needs'),
+    lookOf(isSelected, isWaits, isPipeline && column === 'needs', isWaiting),
     isHold && 'w-[340px] phone:w-auto',
     isSelected && 'is-selected',
     isUnseen && 'is-unseen',
@@ -588,6 +599,7 @@ export const Card = memo(function Card({
             env={env}
             hasGlyph={card.state === 'starts'}
             isShort
+            isMuted={isWaiting}
             className="flex-[0_1_auto] whitespace-nowrap"
           />
         </div>
@@ -625,7 +637,7 @@ export const Card = memo(function Card({
             </span>
           </>
         )}
-        <Track card={card} flow={env.flow} />
+        <Track card={card} flow={env.flow} isMuted={isWaiting} />
         {headAct && <AsideChip action={headAct} />}
         <DropdownMenuTrigger
           ref={more}
@@ -649,7 +661,7 @@ export const Card = memo(function Card({
       {refusal && <p className={warning}>{refusal}</p>}
       {card.state === 'held' && <HeldPanel card={card} />}
       <div className="flex min-h-7 items-center justify-between gap-2.5 cq-360:flex-col cq-360:items-stretch">
-        <Status card={card} env={env} />
+        <Status card={card} env={env} isMuted={isWaiting} />
         <div className="flex flex-none items-center gap-2 cq-360:justify-end">
           {card.state !== 'starts' && (
             <Timed

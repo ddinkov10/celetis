@@ -10,6 +10,14 @@ export type Pull = {
   review: string | null;
 };
 export type ParentEpic = { number: IssueKey; title: string };
+export type HoldBlocker = Readonly<{ ref: string; title: string }>;
+export type RowHold = Readonly<{
+  text: string;
+  reason: string | null;
+  open: readonly HoldBlocker[];
+  closed: readonly HoldBlocker[];
+}> &
+  Readonly<{ place: 'act'; group: null } | { place: 'waiting'; group: string }>;
 export type HeldView = Readonly<{
   state: 'held' | 'released';
   head: string;
@@ -35,4 +43,5 @@ export type IssueRow = {
   pr: Pull | null;
   held: HeldView | null;
   holdable: boolean;
+  rowHold: RowHold | null;
 };

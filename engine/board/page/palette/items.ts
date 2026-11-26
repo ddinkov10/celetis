@@ -116,6 +116,7 @@ export const paletteItems = (): PaletteItem[] => {
   const goTo: PaletteItem[] = [];
   for (const [column, group] of [
     ['needs', 'Needs you'],
+    ['waiting', 'Waiting'],
     ['running', 'Running'],
     ['idle', 'Run the next step'],
     ['human', 'Human sessions'],
@@ -175,7 +176,12 @@ export const paletteItems = (): PaletteItem[] => {
     }
   }
   const epics = new Map<IssueKey, string>();
-  for (const card of [...shown.columns.needs, ...shown.columns.running, ...shown.columns.idle])
+  for (const card of [
+    ...shown.columns.needs,
+    ...shown.columns.waiting,
+    ...shown.columns.running,
+    ...shown.columns.idle,
+  ])
     if (card.epic) epics.set(card.epic.number, card.epic.title);
   for (const [number, title] of epics)
     goTo.push({

@@ -142,6 +142,7 @@ const issueCard = (issue: IssueRow, extra: Partial<Card>): Card => ({
   hold: issue.holdable,
   epic: issue.epic,
   pr: issue.pr,
+  rowHold: issue.rowHold,
   ...extra,
 });
 
@@ -177,7 +178,7 @@ const PLACERS: Record<
     }),
   ],
   blocked: (issue, { isOpen }) => [
-    'needs',
+    issue.rowHold?.place === 'waiting' ? 'waiting' : 'needs',
     issueCard(issue, { state: 'blocked', reason: issue.reason, act: issue.act, assist: isOpen }),
   ],
   held: (issue, { landings }) => [
@@ -254,6 +255,7 @@ const placeSession = (
       ...(kept && { warning: kept }),
       epic: issue?.epic ?? null,
       pr: issue?.pr ?? null,
+      rowHold: null,
       waitFor,
       turn: session.turn,
       screen: session.screen ?? [],
@@ -266,6 +268,7 @@ const rank = (card: Card) => (card.urgent ? 0 : 2) + (card.waitFor === 'dialog' 
 
 const ORDER: Record<Column, (a: Card, b: Card) => number> = {
   needs: (a, b) => rank(a) - rank(b) || time(a.since) - time(b.since),
+  waiting: (a, b) => compareKeys(a.number as IssueKey, b.number as IssueKey),
   running: (a, b) => time(b.since) - time(a.since),
   idle: (a, b) => compareKeys(b.number as IssueKey, a.number as IssueKey),
   human: (a, b) =>
@@ -290,7 +293,7 @@ export const place = ({
   runs?: readonly RunRow[];
   landings?: readonly LandingRow[];
 }): Placement => {
-  const columns: Columns = { needs: [], running: [], idle: [], human: [] };
+  const columns: Columns = { needs: [], waiting: [], running: [], idle: [], human: [] };
   const issues = board?.issues ?? [];
   const byNumber = new Map(issues.map((issue) => [issue.number, issue]));
   const busy = new Set(sessions.map((session) => session.issue));

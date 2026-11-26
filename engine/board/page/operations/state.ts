@@ -26,6 +26,7 @@ export type ScreenState = Readonly<{
   pressing: ReadonlySet<string>;
   menu: Readonly<{ key: string; kind: MenuKind; isCompact: boolean }> | null;
   columnStops: ReadonlyMap<string, string>;
+  waitingOpen: boolean;
   now: number;
 }>;
 export type MenuKind = 'actions' | 'run';
@@ -52,6 +53,7 @@ let state: ScreenState = {
   pressing: new Set(),
   menu: null,
   columnStops: new Map(),
+  waitingOpen: false,
   now: Date.now(),
 };
 
@@ -171,10 +173,13 @@ const accept = (next: Board) => {
     stops,
     refusals,
     startFailures,
+    waitingOpen: state.waitingOpen && project(next, launches).columns.waiting.length > 0,
     seen: state.seen ?? new Map(),
   });
   if (isFirst) markAllSeen();
-  if (state.menu !== null && !index().byKey.has(state.menu.key)) emitFor('quiet', { ...state, menu: null });
+  const menuCard = state.menu && index().byKey.get(state.menu.key);
+  if (state.menu !== null && (!menuCard || (menuCard.column === 'waiting' && view() === 'now' && !state.waitingOpen)))
+    emitFor('quiet', { ...state, menu: null });
 };
 
 export const pressId = (card: Card, action: Action) => `${keyOf(card)} ${action.id}`;
@@ -278,14 +283,21 @@ export const openDetails = (key: string) => {
     ?.focus({ preventScroll: true });
 };
 
+const setWaitingOpen = (isOpen: boolean) => {
+  if (state.waitingOpen !== isOpen) emit({ ...state, waitingOpen: isOpen });
+};
+
 const revealCard = (key: string) => {
   const shown = board();
   const entry = index().byKey.get(key);
+  if (entry?.column === 'waiting') setWaitingOpen(true);
   if (!shown || entry?.column !== 'idle' || !entry.card.epic || state.openEpics.has(entry.card.epic.number)) return;
   const { columns, flow } = shown;
   if (
     view() === 'pipeline' &&
-    pipeline([...columns.needs, ...columns.running, ...columns.idle], flow).hold.includes(entry.card)
+    pipeline([...columns.needs, ...columns.waiting, ...columns.running, ...columns.idle], flow).hold.includes(
+      entry.card,
+    )
   )
     return;
   screen.setEpicOpen(entry.card.epic.number, true);
@@ -351,6 +363,7 @@ export const screen = {
   setEpicOpen: (epic: IssueKey, isOpen: boolean) =>
     setEpicsOpen((open) => (isOpen ? open.add(epic) : open.delete(epic))),
   setEpicsOpen,
+  setWaitingOpen,
   launches: () => state.launches,
   setLaunches: (change: (launches: Map<IssueKey, Launch>) => void) =>
     emit({ ...state, launches: edited(new Map(state.launches), change) }),

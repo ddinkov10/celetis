@@ -364,7 +364,7 @@ A row gets its `state` by the first rule that matches:
 | 4 | is in the set-aside record | `aside` | `path`: the lane worktree, when it is dirty. `act`: `celetis --agent <host> run resume <n>` |
 | 5 | has a dirty lane worktree | `dirty` | `path`: the lane worktree |
 | 6 | has a row in the record for its `run` line: no progress, or a refused skip | `stuck` | `act`: `celetis --agent <host> run resume <n>` |
-| 7 | has `needs-info` or `ready-for-human`, two or more lane labels, an open human step, or a hotfix to land by hand | `blocked` | `reason`, from the first match in the order of the resolver (`docs/issue-tracker.md`, "Resolving an issue's state"): `needs info` for `needs-info`; for `ready-for-human`, `landing refused` while a landing refusal is current, else `ready for your step`; `several lane labels` for two or more lane labels; `human step open` for a `## Before landing` comment with no completion evidence; `land by hand` for a hotfix whose stop is cleared. `act`: the act that the `stop` line of the issue names |
+| 7 | has `deferred`, `needs-info`, or `ready-for-human`, two or more lane labels, an open human step, or a hotfix to land by hand | `blocked` | `reason`, from the first match in the order of the resolver (`docs/issue-tracker.md`, "Resolving an issue's state"): `deferred by you` for `deferred`; `needs info` for `needs-info`; for `ready-for-human`, `landing refused` while a landing refusal is current, else the text of its hold (`blockers not read`, `waits for #<n>`, `blockers closed: #<n>`, the first sentence of the newest hold comment of the engine login, or `no reason recorded`); `several lane labels` for two or more lane labels; `human step open` for a `## Before landing` comment with no completion evidence; `land by hand` for a hotfix whose stop is cleared. `act`: the act that the `stop` line of the issue names, except for a hold of `ready-for-human` with no landing refusal and for `deferred`, where `act` is the act of `rowHoldOf` of `engine/lib/resolver/hold.ts` |
 | 8 | has a `run` line | `ready` | |
 
 `picker` holds the version of the local order beside `order`. Its `usage` is the confirmed usage
@@ -501,8 +501,9 @@ older history for inspection.
 
 ## The cards
 
-The page has three columns, Needs you, Running, and Idle, a strip of human sessions above them, and
-a landed-history panel.
+The placement has four columns, Needs you, Waiting, Running, and Idle. The page shows three columns, Needs you,
+Running, and Idle (`COLUMNS` of `engine/board/view.ts`), and `waiting` shows as a row of Needs you. The page also has a
+strip of human sessions above the columns, and a landed-history panel.
 
 **The sessions.** A session is a live terminal of herdr-core with all of these facts:
 
@@ -610,7 +611,7 @@ no row, show the link label, else the tab name, as the title, with no link and n
 | `aside` | Idle | `set-aside` | none: the details show `act` | Resume, and Run; Open shell when `path` is set |
 | `dirty` | Needs you | `dirty tree` | `path` | Open shell, and Set aside |
 | `stuck` | Needs you | `no progress` | none: the details show `act` | Resume, and a quiet Run again, and Set aside |
-| `blocked` | Needs you | `reason` | `act` | Open agent |
+| `blocked` | Needs you, or Waiting when `rowHold.place` is `waiting` | `reason` | `act` | Open agent |
 | `held` | Needs you | `held` | `act` | none: the held line has Land and Discard |
 | `ready` | Needs you when `started` or `urgent`, else Idle | none: the card shows `next <step>` | none | Run |
 
@@ -658,7 +659,7 @@ to the card of its row, and Run starts the step again.
   that list has no track, so a card at `triage` has no track.
 
 **The order.** Needs you has the urgent cards first, then the dialogs, then the longest wait first.
-Running has the newest first, and Idle has the highest number first. In Idle, and in each Pipeline stage for its Idle cards, the cards of one epic (`epic` of the card) take one group row at the place of their first card; Needs you, Running, and Not in a step never group. History follows remote trunk traversal order.
+Waiting has the lowest issue number first, and `waitGroups` groups its cards by `rowHold.group`, the group of the lowest open blocker first and `deferred` last. A `dirty`, `stuck`, `aside`, or `starting` card keeps its place, also when its row is deferred. Running has the newest first, and Idle has the highest number first. In Idle, and in each Pipeline stage for its Idle cards, the cards of one epic (`epic` of the card) take one group row at the place of their first card; Needs you, Running, and Not in a step never group. History follows remote trunk traversal order.
 Human sessions has the order of their titles, with numbers in numeric order, and two sessions
 with one title in the order of their terminal ids.
 
@@ -1350,7 +1351,8 @@ loads nothing from the network.
   `Open #<n> <title>`, which shows the details of the card in Operations. `Agents now` has one row for
   each card of the column Running: the button `#<n> <title>` over the line of the step, the agent
   name, and the state, which shows the details in the same way. A list with no row shows
-  `No issue needs you.` or `No agent works now.` in its place. `System` reads four facts from the
+  `No issue needs you.` or `No agent works now.` in its place. Under the list of `Needs you`, with one or
+  more waiting cards, one line says `<n> issues wait. No act from you now.` (`1 issue waits. No act from you now.` for one). `System` reads four facts from the
   document and sends nothing: `Auto mode` (`on`, `off`, or `stopping`), `Queue` (`empty` or
   `<n> issues`), `Agents` (the names of the available agents, or `none`), and `Herdr` (`up`,
   `down`, or `checking`). Home has no control. The tiles are at 4 columns from 1200 px, 2 columns
@@ -1358,6 +1360,16 @@ loads nothing from the network.
   the title, Needs you, the tiles, Agents now, and System; the Tab order of its controls follows
   it. The Home item of the sidebar carries a badge with the length of the column Needs you, which
   hides at 0.
+- In Agents, the Waiting row follows the groups of Needs you. It is one native `details`, closed at
+  each load and not stored, and it does not render with no waiting card. When the last waiting card
+  leaves, the row forgets its open state. Its `summary` shows `Waiting`, the count, and
+  `No act from you now`. Each group of `waitGroups` has an `h3` head: the `ref` and the title of one
+  blocker (the `ref` alone when the title is empty), the `ref` values of several blockers, or `Deferred by you`, then the count. A waiting card
+  is compact, at level `h4`, and has no Beacon Orange, no fill, and no shadow, also in Pipeline. With
+  no Act now card, `No issue needs you` shows above the row. `j` and `k` skip the cards of a closed
+  row and visit the cards of an open row, and from the `summary` they go to the next or the previous
+  card. A search or a details open of a waiting card opens the row. The details show `Reason` when
+  the hold has one, and `Waits for` or `Blockers closed` with the `ref` values.
 - Control holds each control of the product. Its title is `Control`, and it has five sections in
   this order, each with a heading, one line that says what the section does, and its body:
   `Agents` (the agent order), `Automation` (the state of auto mode and the command that changes
@@ -1594,7 +1606,7 @@ loads nothing from the network.
 - The tab Agents shows Human sessions, then Needs you, Running, and Idle as one scroll list. Needs
   you groups its cards by reason, in this order: Waits for your
   answer, Stuck (no progress, a dirty tree), Your input on the issue (the `blocked` cards), Paused by
-  usage limits, and Ready to run. The first two groups show full cards, and the other groups show one row for each card,
+  usage limits, and Ready to run. The Waiting row follows the groups. The first two groups show full cards, and the other groups show one row for each card,
   as Idle does. The label of a group stays in view while the column scrolls. When cards are below
   the fold, a line at the foot of the column names them, for example
   `3 more below: 1 need your input on the issue, 2 ready to run`; a press scrolls to the first of them.

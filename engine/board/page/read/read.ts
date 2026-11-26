@@ -76,7 +76,7 @@ const notify = (cards: Card[]) => {
 };
 
 const startNotices = (columns: Columns) => {
-  const cards = [...columns.needs, ...columns.running, ...columns.idle];
+  const cards = [...columns.needs, ...columns.waiting, ...columns.running, ...columns.idle];
   const now = new Map<IssueKey, string | null>();
   for (const card of cards) if (card.state === 'starts' && card.number !== null) now.set(card.number, card.step);
   const lines: string[] = [];

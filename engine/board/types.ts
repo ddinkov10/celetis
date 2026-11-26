@@ -12,7 +12,7 @@ import type { AgentChoice, AgentDecision, AgentOrder, Host, UsageBlock } from '.
 import type { CoordinatorAction, CoordinatorKey, CoordinatorState } from '../lib/coordinator/types.ts';
 import type { PluginHost, Registry } from '../lib/host/names.ts';
 import type { QueueAction, QueueView } from '../lib/queue/types.ts';
-import type { HeldView, IssueRow, ParentEpic, Pull } from '../lib/resolver/types.ts';
+import type { HeldView, HoldBlocker, IssueRow, ParentEpic, Pull, RowHold } from '../lib/resolver/types.ts';
 import type { DialogKind, TerminalStatus } from '../lib/terminal/types.ts';
 import type { TrackerKind } from '../lib/tracker/grammar.ts';
 import type { IssueKey } from '../lib/tracker/key.ts';
@@ -25,6 +25,7 @@ export type {
   Flow,
   HeldView,
   History,
+  HoldBlocker,
   IssueKey,
   IssueRow,
   LandedIssue,
@@ -32,6 +33,7 @@ export type {
   Pull,
   QuotaState,
   QuotaWait,
+  RowHold,
   Trends,
   UpdateStage,
 };
@@ -181,6 +183,7 @@ export type Card = {
   stop?: { reason: string | null };
   epic: ParentEpic | null;
   pr: Pull | null;
+  rowHold: RowHold | null;
   waitFor?: string | null;
   turn?: number;
   screen?: string[];
@@ -193,7 +196,7 @@ export type Card = {
   hold?: boolean;
   landing?: 'runs' | 'waits' | null;
 };
-export type Column = 'needs' | 'running' | 'idle' | 'human';
+export type Column = 'needs' | 'waiting' | 'running' | 'idle' | 'human';
 export type Columns = Record<Column, Card[]>;
 export type Placement = { noRun: string | null; columns: Columns };
 export type Board = Placement & {

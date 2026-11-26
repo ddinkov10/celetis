@@ -39,6 +39,7 @@ type Variant<R extends Stop['reason']> = Extract<Stop, { reason: R; variant: str
 const plainReasons: Record<Plain, true> = {
   wontfix: true,
   finished: true,
+  deferred: true,
   'needs-info': true,
   epic: true,
   'land-by-hand': true,

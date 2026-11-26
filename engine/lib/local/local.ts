@@ -11,6 +11,7 @@ import type { IssueKey } from '../tracker/key.ts';
 import { writeRefreshHint } from '../tracker/refresh-hints.ts';
 import {
   type Authored,
+  type Blocker,
   type Child,
   type Issue,
   issueData,
@@ -26,6 +27,7 @@ import {
   editComment,
   FormatError,
   labelChange,
+  noOp,
   type Snapshot,
   setMetadata,
   setStatus,
@@ -38,6 +40,7 @@ const repository = 'local';
 const bugRefs = 'refs/bugs/';
 const parentKey = 'celetis-parent';
 const reasonKey = 'celetis-state-reason';
+const blockersKey = 'celetis-blocked-by';
 
 // A local ID is 64 hexadecimal characters (checkBug), so its first 7 are a key of the local grammar.
 const keyOf = (id: string) => id.slice(0, 7) as IssueKey;
@@ -112,7 +115,20 @@ function issueOf(bug: Bug, shot: Snapshot): Issue {
     updatedAt: time(shot.updatedAt),
     closedAt: shot.closedAt === null ? null : time(shot.closedAt),
     pull: false,
+    blockerCount: null,
   };
+}
+
+function blockerIds(bug: Bug): string[] {
+  const value = bug.packs
+    .flatMap((pack) => pack.ops)
+    .filter((op) => Object.hasOwn(op.metadata, blockersKey))
+    .at(-1)?.metadata[blockersKey];
+  if (value === undefined || value === '') return [];
+  const ids = value.split(' ');
+  if (!ids.every((id) => /^[0-9a-f]{64}$/.test(id)))
+    throw new FormatError(`the ${blockersKey} metadata is not a list of local issue IDs`, bug.id);
+  return ids;
 }
 
 function authored(shot: Snapshot, author: (identity: string) => string | null): Authored[] {
@@ -179,6 +195,11 @@ export function localTracker(main: string, signal?: AbortSignal): Tracker {
     } catch (error) {
       throw failure(error, n, id);
     }
+  }
+
+  async function writeBlockers(n: IssueKey, id: string, ids: readonly string[]) {
+    await write(n, id, [{ type: noOp, fields: {}, metadata: { [blockersKey]: ids.join(' ') } }]);
+    await writeRefreshHint(main, n);
   }
 
   type Refusal = Readonly<{ ref: string; rule: string }>;
@@ -267,6 +288,30 @@ export function localTracker(main: string, signal?: AbortSignal): Tracker {
       ]);
       await writeRefreshHint(main, child);
     }),
+    blockers: guard(async (n: IssueKey) => {
+      const { bug } = await load(n);
+      const known = await store.bugIds();
+      return Promise.all(
+        blockerIds(bug).map(async (id): Promise<Blocker> => {
+          if (!known.has(id)) throw failure(new FormatError(`${blockersKey} names no local issue: ${id}`, bug.id));
+          const { issue } = await load(keyOf(id));
+          return { key: issue.key, ref: `#${issue.key}`, title: issue.title, url: issue.url, state: issue.state };
+        }),
+      );
+    }),
+    addBlocker: guard(async (n: IssueKey, blocker: IssueKey) => {
+      const { bug } = await load(n);
+      const added = (await load(blocker)).bug.id;
+      const ids = blockerIds(bug);
+      if (ids.includes(added)) return;
+      await writeBlockers(n, bug.id, [...ids, added]);
+    }),
+    removeBlocker: guard(async (n: IssueKey, blocker: IssueKey) => {
+      const { bug } = await load(n);
+      const ids = blockerIds(bug);
+      const kept = ids.filter((id) => keyOf(id) !== blocker);
+      if (kept.length < ids.length) await writeBlockers(n, bug.id, kept);
+    }),
     timelines: guard(async (issues: readonly Issue[]) => {
       const self = await store.self();
       const entries = new Map((await all()).map(({ issue, shot }) => [issue.key, entriesOf(shot, self)]));
@@ -336,6 +381,7 @@ export function localTracker(main: string, signal?: AbortSignal): Tracker {
         updatedAt: at,
         closedAt: null,
         pull: false,
+        blockerCount: null,
       };
     }),
     comment: guard(async (n: IssueKey, text: string) => {

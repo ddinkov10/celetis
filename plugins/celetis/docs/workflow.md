@@ -531,6 +531,7 @@ gives the start, the port rules, the cards, the keys, and the errors.
 | The case that the script prints | The maintainer's act | Then |
 |---|---|---|
 | The issue needs info, or the issue is `ready-for-human` | do what the printed line says; for `ready-for-human`, the latest `## Stopped` or `## Before landing` comment names the act, and "A stop", gives the act after a refused landing. The card of an issue with a current landing refusal reads `landing refused`: its `## Landing refused` comment names the cause | the next step starts with a Run press or with `celetis --agent <host> run <n>`; auto mode starts it only when its gate is `auto` and `autoLanes` permits its lane |
+| The issue is deferred | to bring it back, run `celetis --agent <host> issue <n> undefer` | the issue resolves as it did before the deferral |
 | The issue has several lane labels | keep one lane label and remove the others | as the first row |
 | The issue has an open human step | do what the printed line says: the latest `## Before landing` comment names the act. The line names the evidence that is missing: a `## Human steps done` report and the removal of `ready-for-human` after the comment, the report, or the removal (`docs/issue-tracker.md`, "Completing a human precondition") | as the first row |
 | The issue waits for a landing by hand | run `land` in your own shell, from the main checkout, as the line says | none: the landing finishes the issue |

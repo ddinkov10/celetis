@@ -1488,8 +1488,8 @@ async function prepareAssist(
   if (next.kind === 'observed') die(lineOf(n, next), exits.blocked);
   if (next.kind === 'stop' && (next.reason === 'finished' || next.reason === 'wontfix'))
     die(`#${n} is closed; no assist session starts`, exits.prerequisite);
-  if (next.kind !== 'stop' || (next.reason !== 'needs-info' && next.reason !== 'ready-for-human'))
-    die(`#${n} has no hold (needs-info or ready-for-human); no assist session starts`, exits.prerequisite);
+  if (next.kind !== 'stop' || !['needs-info', 'ready-for-human', 'deferred'].includes(next.reason))
+    die(`#${n} has no hold (needs-info, ready-for-human, or deferred); no assist session starts`, exits.prerequisite);
   const host = await interactiveHost(io.operation, 'assist', 'celetis');
   await preflight(async () => {
     stopped();

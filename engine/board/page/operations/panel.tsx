@@ -116,7 +116,17 @@ function Ask({ card, actions, registry }: { card: Card; actions: Action[]; regis
   );
 }
 
-function Steps({ card, flow, auto }: { card: Card; flow: Flow | null; auto: DaemonView['auto'] }) {
+function Steps({
+  card,
+  flow,
+  auto,
+  isWaiting,
+}: {
+  card: Card;
+  flow: Flow | null;
+  auto: DaemonView['auto'];
+  isWaiting: boolean;
+}) {
   const track = laneTrack(card, flow);
   if (!track) return null;
   return (
@@ -139,7 +149,7 @@ function Steps({ card, flow, auto }: { card: Card; flow: Flow | null; auto: Daem
                 'grid size-4 place-items-center text-muted-foreground [&_.icon]:size-3.5',
                 step.state === 'done' &&
                   'rounded-[50%] bg-accent text-card-foreground [&_.icon]:size-[11px] [&_.icon]:stroke-2',
-                step.state === 'now' && cn('text-foreground', NODE_TONES[card.state as string]),
+                step.state === 'now' && cn('text-foreground', !isWaiting && NODE_TONES[card.state as string]),
               )}
             >
               <Icon
@@ -255,7 +265,7 @@ const effortFacts = (pair: StartPair<RowSource> | null | undefined): Fact[] =>
       ]
     : [];
 
-function Details({ card }: { card: Card }) {
+function Details({ card, isWaiting }: { card: Card; isWaiting: boolean }) {
   const { flow, registry, daemon } = screen.read() as Board;
   const actions = detailActions(card);
   const hasHelp = actions.some((action) => action.help);
@@ -282,6 +292,17 @@ function Details({ card }: { card: Card }) {
             [card.act, COPIES[card.state as string] as string],
           ],
         card.act && !COPIES[card.state as string] && ['Your act', card.act],
+        card.rowHold?.reason && [
+          'Reason',
+          <span className="block py-1.5 leading-[1.125rem] [overflow-wrap:anywhere] whitespace-normal">
+            {card.rowHold.reason}
+          </span>,
+        ],
+        card.rowHold?.open.length
+          ? ['Waits for', card.rowHold.open.map((blocker) => blocker.ref).join(', ')]
+          : card.rowHold?.closed.length
+            ? ['Blockers closed', card.rowHold.closed.map((blocker) => blocker.ref).join(', ')]
+            : null,
         ...effortFacts(card.effort),
         ['Updated', clock(card.since)],
       ];
@@ -338,7 +359,7 @@ function Details({ card }: { card: Card }) {
             <span
               className={cn(
                 'inline-flex min-h-6 items-center gap-1.5 rounded-[7px] py-1 pr-[9px] pl-[7px] text-[0.75rem] leading-[1.25] font-medium [&_.icon]:size-[13px]',
-                (state && (state !== 'waits' || asks) ? TONES[state] : undefined) ?? MUTED_TONE,
+                (state && !isWaiting && (state !== 'waits' || asks) ? TONES[state] : undefined) ?? MUTED_TONE,
                 state === 'starts' && '[&_.icon]:animate-turn [&_.icon]:text-working',
               )}
             >
@@ -399,7 +420,7 @@ function Details({ card }: { card: Card }) {
             <PrChips pr={card.pr} />
           </Section>
         )}
-        <Steps card={card} flow={flow} auto={daemon.auto} />
+        <Steps card={card} flow={flow} auto={daemon.auto} isWaiting={isWaiting} />
         <Section title={isSession ? 'Session' : 'Issue'}>
           <Facts rows={facts} />
         </Section>
@@ -440,7 +461,7 @@ export function Panel() {
       data-state={card ? (card.state ?? 'next') : undefined}
       data-key={card ? (details ?? undefined) : undefined}
     >
-      {card && <Details key={details} card={card} />}
+      {card && <Details key={details} card={card} isWaiting={entry?.column === 'waiting'} />}
     </section>
   );
 }

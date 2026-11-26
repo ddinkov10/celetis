@@ -113,6 +113,7 @@ function AgentRow({ card, board }: { card: BoardCard; board: Board }) {
 export function Home() {
   const board = useShellStore((state) => state.inputs.board);
   const needs = board?.columns.needs ?? [];
+  const waiting = board?.columns.waiting.length ?? 0;
   const running = board?.columns.running ?? [];
   const spot = useRef<Spot | null>(null);
   const lists = { 'home-needs': useRef<HTMLUListElement>(null), 'home-agents': useRef<HTMLUListElement>(null) };
@@ -179,6 +180,11 @@ export function Home() {
           <p className={EMPTY} id="home-needs-empty" hidden={board === null || needs.length > 0}>
             No issue needs you.
           </p>
+          {waiting > 0 && (
+            <p className={EMPTY} id="home-waiting">
+              {`${waiting} ${waiting === 1 ? 'issue waits' : 'issues wait'}. No act from you now.`}
+            </p>
+          )}
         </Card>
         <div className="grid min-w-0 gap-3 phone:order-3">
           <Card className={PAD} id="home-agents" aria-labelledby="home-agents-title">
