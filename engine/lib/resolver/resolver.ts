@@ -10,7 +10,7 @@ import type { RecoveryAuthority } from '../run/quota-recovery.ts';
 import { services } from '../services/services.ts';
 import { isRecorded, issueLock, landLock, lockHolder } from '../state/locks.ts';
 import { laneFolder } from '../state/state.ts';
-import { compareKeys, type IssueKey } from '../tracker/key.ts';
+import { compareIssues, compareKeys, type IssueKey } from '../tracker/key.ts';
 import { type Issue, issueData, type Tracker, TrackerError } from '../tracker/tracker.ts';
 import { decisionOf, type EffortDecision, startPair } from '../workflow/effort.ts';
 import { holdOf } from '../workflow/hold.ts';
@@ -278,6 +278,8 @@ function shownRow(
       title: issue.title,
       url: issue.url,
       type,
+      createdAt: issue.createdAt,
+      comments: issue.comments,
       updatedAt: issue.updatedAt,
       reason: shown.reason,
       act: shown.act,
@@ -375,12 +377,13 @@ export async function nextBoard(
           ? new Map(open.filter((f) => f.issue.labels.includes('epic')).map((f) => [f.issue.key, asEpic(f.issue)]))
           : await parentEpics(read.tracker, open);
       const rows: Shown[] = [];
-      for (const fetched of open.sort((a, b) => compareKeys(a.issue.key, b.issue.key))) {
+      for (const fetched of open) {
         const { parent } = fetched.issue;
         const epic = parent === null ? null : (epics.get(parent) ?? null);
         const row = shownRow(fetched, prs, dirtyLanes, epic, operation.mainConfig);
         if (row !== null) rows.push(row);
       }
+      rows.sort((a, b) => compareIssues(a.row, b.row));
       return { rows, closed };
     } catch {
       return null;

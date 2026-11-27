@@ -23,6 +23,16 @@ export function compareKeys(a: IssueKey, b: IssueKey): number {
   return grammar().compare(a, b);
 }
 
+type Created = Readonly<{ number: IssueKey; createdAt: string | null }>;
+
+export function compareIssues(a: Created, b: Created): number {
+  if (grammar().kind === 'local') {
+    const delta = Date.parse(a.createdAt ?? '') - Date.parse(b.createdAt ?? '');
+    if (delta) return delta;
+  }
+  return compareKeys(a.number, b.number);
+}
+
 export function keySource(): string {
   return `(?:${grammar().pattern})`;
 }

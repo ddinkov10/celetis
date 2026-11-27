@@ -28,7 +28,7 @@ import { stateOutcome } from '../lib/state/state.ts';
 import { type Exec, LINK, listTerminals, readScreen, terminalState } from '../lib/terminal/terminal.ts';
 import type { Terminal, TerminalStatus } from '../lib/terminal/types.ts';
 import { grammar } from '../lib/tracker/grammar.ts';
-import { compareKeys, type IssueKey, keySource, parseKey } from '../lib/tracker/key.ts';
+import { compareIssues, compareKeys, type IssueKey, keySource, parseKey } from '../lib/tracker/key.ts';
 import { visualLink } from '../lib/workflow/visual.ts';
 import type { CoordinatorReads } from './coordinator.ts';
 import type { Reads } from './reads.ts';
@@ -131,6 +131,8 @@ const issueCard = (issue: IssueRow, extra: Partial<Card>): Card => ({
   gate: null,
   state: null,
   since: issue.updatedAt,
+  createdAt: issue.createdAt,
+  comments: issue.comments,
   act: null,
   reason: null,
   urgent: issue.urgent,
@@ -240,6 +242,8 @@ const placeSession = (
       gate: null,
       state,
       since: session.since as string,
+      createdAt: issue?.createdAt ?? null,
+      comments: issue?.comments ?? null,
       act: null,
       reason: null,
       urgent: issue?.urgent === true,
@@ -266,11 +270,13 @@ const placeSession = (
 
 const rank = (card: Card) => (card.urgent ? 0 : 2) + (card.waitFor === 'dialog' ? 0 : 1);
 
+type Created = Pick<IssueRow, 'number' | 'createdAt'>;
+
 const ORDER: Record<Column, (a: Card, b: Card) => number> = {
   needs: (a, b) => rank(a) - rank(b) || time(a.since) - time(b.since),
   waiting: (a, b) => compareKeys(a.number as IssueKey, b.number as IssueKey),
   running: (a, b) => time(b.since) - time(a.since),
-  idle: (a, b) => compareKeys(b.number as IssueKey, a.number as IssueKey),
+  idle: (a, b) => compareIssues(b as Created, a as Created),
   human: (a, b) =>
     a.title.localeCompare(b.title, undefined, { numeric: true }) ||
     (a.sessionId as string).localeCompare(b.sessionId as string),
@@ -608,12 +614,13 @@ export const createPlacement = ({
         }),
     );
     const history = await historyOf(terminals);
+    const kind = reads.document?.grammar ?? grammar().kind;
     return {
       ...placed,
       history,
       flow: reads.document?.flow ?? null,
       tracker: reads.document?.tracker ?? null,
-      grammar: reads.document?.grammar ?? grammar().kind,
+      grammar: kind,
       daemon: daemonView(daemon),
       agents: reads.document?.agents ?? null,
       registry,
@@ -632,6 +639,10 @@ export const createPlacement = ({
       source: { readAt: reads.readAt, error: readError() },
       repo: basename(main),
       trends: trends(),
+      revisions:
+        kind === 'local'
+          ? Object.fromEntries(reads.revisions())
+          : Object.fromEntries((reads.document?.issues ?? []).map((issue) => [issue.number, issue.updatedAt])),
     };
   };
 

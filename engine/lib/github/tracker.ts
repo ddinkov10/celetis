@@ -78,6 +78,7 @@ const issue: z.ZodType<Issue> = z
     labels: z.array(labelName),
     body: z.string().nullable(),
     comments: z.custom<number>((value) => typeof value === 'number'),
+    created_at: z.string(),
     updated_at: z.string(),
     closed_at: z.string().nullable(),
     pull_request: z.custom<object | null>((value) => typeof value === 'object').optional(),
@@ -92,6 +93,7 @@ const issue: z.ZodType<Issue> = z
     labels: raw.labels,
     body: raw.body,
     comments: raw.comments,
+    createdAt: raw.created_at,
     updatedAt: raw.updated_at,
     closedAt: raw.closed_at,
     pull: Boolean(raw.pull_request),
@@ -379,6 +381,7 @@ export function githubTracker(client: Client): Tracker {
       };
     },
     history: (n: IssueKey) => timeline(n, parseHistory),
+    files: async () => [],
     async children(n: IssueKey) {
       const endpoint = `issues/${n}/sub_issues?per_page=100`;
       const items = await pages(endpoint);

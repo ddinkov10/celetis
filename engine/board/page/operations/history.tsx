@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { cn } from 'cn';
 import { useState } from 'react';
-import { grammar } from '../../../lib/tracker/grammar.ts';
 import type { IssueKey } from '../../../lib/tracker/key.ts';
 import type { BoardHistory, HistoryRow } from '../../types.ts';
 import { clock } from '../../view.ts';
@@ -13,7 +12,7 @@ import { TabsContent } from '../ui/tabs.tsx';
 import { SERVER_DOWN } from '../ui.ts';
 import { act } from './actions.ts';
 import { Link, useKeptFocus, useKeptScroll, WARNING } from './parts.tsx';
-import { screen, useScreen } from './state.ts';
+import { openIssue, screen, useScreen } from './state.ts';
 
 const NOTE = 'my-3.5 text-[0.75rem] text-muted-foreground';
 const ACTION = 'w-7 p-0 [grid-area:action] phone:min-h-11 phone:min-w-11';
@@ -105,28 +104,23 @@ function Landed({
             )}
             <p className={NOTE}>Latest 20 issues.</p>
             {history.entries.length ? (
-              <ol className="m-0 list-none p-0">
+              <ol className="m-0 grid list-none grid-cols-[minmax(46px,max-content)_minmax(0,1fr)_auto] gap-x-2.5 p-0">
                 {history.entries.map((entry) => (
                   <li
                     key={entry.number}
-                    className="grid grid-cols-[46px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-1.5 border-b border-border py-4 text-[0.8125rem] [grid-template-areas:'number_title_action''number_meta_action'] [&:hover]:bg-secondary"
+                    className="col-span-3 grid grid-cols-subgrid items-center gap-y-1.5 border-b border-border py-4 text-[0.8125rem] [grid-template-areas:'title_title_action'_'._meta_action'] [&:hover]:bg-secondary"
                   >
-                    <Link
-                      className={cn(
-                        'font-mono text-[0.75rem] text-muted-foreground [align-self:start] [grid-area:number]',
-                        LINK,
-                      )}
-                      url={entry.url}
-                    >{`#${entry.number}`}</Link>
-                    <Link
-                      className={cn(
-                        'text-foreground [align-self:end] [overflow-wrap:anywhere] [grid-area:title]',
-                        LINK,
-                      )}
-                      url={entry.url}
+                    <button
+                      type="button"
+                      className="group/open grid cursor-pointer grid-cols-subgrid items-baseline rounded-md phone:min-h-11 border-0 bg-transparent p-0 text-left text-[0.8125rem] [grid-area:title] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid"
+                      data-history-key={entry.number}
+                      onClick={() => openIssue(entry.number, 'conversation', 'history')}
                     >
-                      {entry.title}
-                    </Link>
+                      <span className="font-mono text-[0.75rem] text-muted-foreground">{`#${entry.number}`}</span>
+                      <span className="text-foreground [overflow-wrap:anywhere] group-hover/open:underline group-hover/open:underline-offset-[3px]">
+                        {entry.title}
+                      </span>
+                    </button>
                     <span className="flex items-baseline gap-1.5 text-[0.75rem] text-muted-foreground [align-self:start] [grid-area:meta]">
                       <CommitLink entry={entry} />
                       <span aria-hidden="true">·</span>
@@ -139,11 +133,7 @@ function Landed({
                 ))}
               </ol>
             ) : (
-              <p className={NOTE}>
-                {grammar().kind === 'local'
-                  ? 'The local tracker does not list landed issues.'
-                  : `No landed issues found on ${history.trunk}.`}
-              </p>
+              <p className={NOTE}>{`No landed issues found on ${history.trunk}.`}</p>
             )}
             {history.url && (
               <Link
@@ -180,17 +170,20 @@ export function History() {
   const presses = useScreen((state) => state.visualPresses);
   const { isError } = useQuery(viewOptions);
   const kept = useKeptFocus<HTMLDivElement>((box, lost) => {
+    const historyKey = lost.dataset.historyKey;
     const visual = lost.dataset.visual;
     const href = lost.getAttribute('href');
     const label = lost.getAttribute('aria-label');
     const match = [...box.querySelectorAll<HTMLElement>('a, button, [data-visual]')].find((node) =>
-      visual
-        ? node.dataset.visual === visual
-        : href
-          ? node.getAttribute('href') === href &&
-            node.className === lost.className &&
-            node.getAttribute('aria-label') === label
-          : node.getAttribute('aria-label') === label,
+      historyKey
+        ? node.dataset.historyKey === historyKey
+        : visual
+          ? node.dataset.visual === visual
+          : href
+            ? node.getAttribute('href') === href &&
+              node.className === lost.className &&
+              node.getAttribute('aria-label') === label
+            : node.getAttribute('aria-label') === label,
     );
     return match ?? box.querySelector<HTMLElement>('button');
   });

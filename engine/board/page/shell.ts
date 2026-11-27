@@ -1,9 +1,20 @@
+import type { IssueKey } from '../../lib/tracker/key.ts';
+
 export const AREAS = ['home', 'operations', 'control', 'throughput'] as const;
 export type Area = (typeof AREAS)[number];
 export const TABS = ['agents', 'pipeline', 'queue', 'history'] as const;
 export type Tab = (typeof TABS)[number];
 export type Pane = 'chat' | 'agents';
-export type Shell = Readonly<{ area: Area; tab: Tab; details: string | null; pane: Pane }>;
+export type DetailsTab = 'status' | 'conversation';
+export type Opener = 'card' | 'history' | 'link';
+export type Shell = Readonly<{
+  area: Area;
+  tab: Tab;
+  details: string | null;
+  detailsTab: DetailsTab;
+  opener: Opener | null;
+  pane: Pane;
+}>;
 
 export const AREA_ICONS: Record<Area, string> = {
   home: 'home',
@@ -29,9 +40,21 @@ export const readShell = (stored: { area: string | null; tab: string | null }): 
     area: member(AREAS, stored.area) ?? 'home',
     tab: tab === undefined || tab === 'pipeline' ? 'agents' : tab,
     details: null,
+    detailsTab: 'status',
+    opener: null,
     pane: 'chat',
   };
 };
+
+export const readFragment = (hash: string): { number: string; tab: DetailsTab | null } | null => {
+  const fields = new URLSearchParams(hash.replace(/^#/, ''));
+  const number = fields.get('issue');
+  const tab = fields.get('tab');
+  return number === null ? null : { number, tab: tab === 'conversation' || tab === 'status' ? tab : null };
+};
+
+export const fragmentOf = (number: IssueKey | null, tab: DetailsTab): string =>
+  number === null ? '' : `#${new URLSearchParams({ issue: number, tab })}`;
 
 export const isChatShown = (shell: Shell, isPhone: boolean): boolean =>
   shell.area === 'operations' && shell.details === null && (isPhone ? shell.pane === 'chat' : shell.tab !== 'pipeline');

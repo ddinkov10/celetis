@@ -2,16 +2,40 @@
 {
   "schema": 1,
   "name": "name-the-tabs-of-the-session-in-each-child-browser-brief",
-  "description": "A design-review child judged the fixture board tab that sibling children of the same session opened as not the session's, and the review read no page",
+  "description": "Design-review children judged a tab of their own session as not the session's, because the brief did not list the current tabs, and the reviews read no page",
   "tags": [
     "process",
     "ui",
-    "test"
+    "test",
+    "recurring"
   ],
   "date": "2026-11-14",
   "status": "active",
-  "source": "The implement session of #321 on Claude Code, Task 5 (the design review) and its task review, 2026-11-14",
+  "source": "The implement session of #336 on Claude Code, Task 8 design review, 2026-11-25\n\nThe implement session of #321 on Claude Code, Task 5 (the design review) and its task review, 2026-11-14",
   "incidents": [
+    {
+      "id": "d97908a5-1e6e-46d4-b3f6-2cc635e5e048",
+      "date": "2026-11-25",
+      "action": "The Task 8 implementer wrote the brief of critique Assessment A with the claim that the background browser held one about:blank tab, while its own probe tab was still on the fixture board page.",
+      "expected": "The tab list of the brief equals the tabs of the browser at the dispatch (lesson name-the-tabs-of-the-session-in-each-child-browser-brief).",
+      "observed": "Assessment A found one tab with URL http://127.0.0.1:4813/#issue=e50d0f7&tab=conversation, treated it as not the session's, and returned a source-only review: \"The brief says the tab list holds one about:blank tab. It held one different tab.\" The implementer reset the tab and ran A again.",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "The brief says the tab list holds one about:blank tab. It held one different tab.",
+        "reference": "https://github.com/ddinkov10/celetis/issues/336"
+      },
+      "inference": "Implementer report: it did not list the tabs before it wrote the brief. The rule was in its task brief, so the label is not-followed; an alternative is that the rule does not say to list the tabs again after the coordinator's own probe.",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "4aabed0",
+      "brief": ".superpowers/sdd/336/task-8-brief.md of the lane (Lesson rules of Task 8 carry the lesson with its digest)",
+      "lesson": {
+        "name": "name-the-tabs-of-the-session-in-each-child-browser-brief",
+        "revision": "4aabed0",
+        "digest": "968e46f90338156867f73934e6964227858cad21fa7c19a66f1429f114bc1f0c"
+      }
+    },
     {
       "id": "11636c11-a4bf-4a52-beb3-9ef186a00393",
       "date": "2026-11-14",
@@ -30,7 +54,7 @@
       "revision": "1660473"
     }
   ],
-  "recurrences": 0,
+  "recurrences": 1,
   "reviews": [
     {
       "id": "6b3e7fd3-fc10-4696-ac73-b81036ebe5a0",
@@ -45,27 +69,46 @@
         "state": "proposed",
         "detail": "An owner line in browser.md that counts the tabs opened by the children of one coordinating session as the session's, or a brief field that lists them. This structural work needs separate authorization; this review changes lesson data only."
       }
+    },
+    {
+      "id": "183be5a4-b2b2-4ffb-8f1c-5eded0a0fd68",
+      "requestDigest": "a44ea011b9dfcd4992c889dccaf3b04e61864dace4d23deea9bd2add3eb76a59",
+      "date": "2026-11-26",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #336; claude child opus/high\n\nMerge (reviewer rules): the proposal states the same rule as the active lesson name-the-tabs-of-the-session-in-each-child-browser-brief, and its incident cites that lesson as the expected behavior. Its evidence is observed tool output of #336 (the child line that the brief named one about:blank tab while another tab was open). The survivor keeps both incidents and the prior review, and extends the rule to a tab list taken right before each brief, also after the coordinator's own browser acts. It widens no permission and skips no check: a child that meets an unlisted page still stops as browser.md, \"The session's own browser\", says. The #336 cause stays the implementer's report, with its alternative.",
+      "related": [
+        "list-the-tabs-before-each-child-browser-brief",
+        "name-the-tabs-of-the-session-in-each-child-browser-brief"
+      ],
+      "followUp": {
+        "state": "proposed",
+        "detail": "An owner line in browser.md, or a brief field, that holds the tab list taken right before each child browser brief, also after the coordinator's own browser acts. This structural work needs separate authorization; this review changes lesson data only."
+      }
     }
   ]
 }
 ---
-# Name the tabs of the session in each child browser brief
+# List the current tabs of the session in each child browser brief
 
 ## What happened
 
 In #321, Tasks 1-3 of a subagent build and their reviews used the background browser `playwright` on the lane fixture board at http://127.0.0.1:4621/ and left a tab on it. The Task 5 implementer and its critique Assessment A listed the tabs, saw that tab, and treated it as a page that the session did not open (browser.md, "The session's own browser"). They made no browser call, and the design review read no state of its brief. The task reviewer opened a new tab on the same browser with no busy message and judged the call wrong; the coordinator confirmed that the only tab was the fixture board.
 
+In the Task 8 design review of #336, the task brief carried this lesson. The implementer wrote the brief of critique Assessment A and said that the background browser held one `about:blank` tab, while its own probe tab was still on the fixture board (http://127.0.0.1:4813/#issue=e50d0f7&tab=conversation). Assessment A found that tab, treated it as not the session's, and returned a review from the source only: "The brief says the tab list holds one about:blank tab. It held one different tab." The implementer reset the tab and ran Assessment A again.
+
 ## Root cause
 
-Inferred: a child read "the session" of browser.md as itself rather than as the coordinating session and all of its children. The brief did not list the tabs that the session already held. Leftover tabs of earlier children made the case possible.
+Inferred for #321: a child read "the session" of browser.md as itself rather than as the coordinating session and all of its children. The brief did not list the tabs that the session already held. Leftover tabs of earlier children made the case possible.
+
+For #336, the implementer reports that it did not list the tabs before it wrote the brief, although the lesson was in its task brief (diagnosis: not-followed). Alternative: the earlier rule named only the tabs of earlier children, and did not say that the coordinator's own probe tabs count or that the list is taken again right before each brief.
 
 ## Fix
 
-Proposed (text): when a coordinator gives a browser act to a child, the brief lists the tabs that earlier children of the session opened (by URL) and states that they are the session's; each child closes the tabs it opened before it returns. No structural enforcement exists: tab ownership is not recorded by the browser server, so the rule stays text. A structural follow-up could add an owner line to browser.md for child agents (needs separate authorization).
+Proposed (text): right before each child browser brief, the coordinator lists the tabs with the browser tool, also after its own browser acts, and copies each listed URL and its purpose into the brief, with the statement that those tabs are the session's. The coordinator closes or resets its own probe tabs before the dispatch, and each child closes the tabs it opened before it returns. No structural enforcement exists: tab ownership is not recorded by the browser server, and an agent writes the brief, so the rule stays text. A structural follow-up could add an owner line to browser.md for child agents (needs separate authorization).
 
 ## Rule
 
-Applies when a coordinating session gives a browser act to a child agent and earlier children of the same session used that browser. Action: in the brief, name each tab that the session's children opened (its URL and purpose) and state that those tabs are the session's; tell each child to close the tabs it opened before it returns. Check: before the child's first browser call, the coordinator lists the tabs, the brief names each listed page, and a child that meets an unlisted page still stops as browser.md says.
+Applies when a coordinating session gives a browser act to a child agent after any browser act of the session: its own or one of an earlier child. Action: list the tabs with the browser tool right before the brief is written; in the brief, name each listed tab (its URL and purpose) and state that those tabs are the session's; close or reset the coordinator's own probe tabs before the dispatch, or list them too; tell each child to close the tabs it opened before it returns. Check: a tab list taken after the brief is written and before the dispatch equals the tab list of the brief, and a child that meets an unlisted page still stops as browser.md says.
 
 ## Related lessons
 

@@ -15,6 +15,7 @@ import {
   type Blocker,
   type Child,
   type Issue,
+  type IssueFile,
   issueData,
   owned,
   type Tracker,
@@ -113,6 +114,7 @@ function issueOf(bug: Bug, shot: Snapshot): Issue {
     labels: shot.labels,
     body: shot.body,
     comments: shot.comments.length,
+    createdAt: time(shot.createdAt),
     updatedAt: time(shot.updatedAt),
     closedAt: shot.closedAt === null ? null : time(shot.closedAt),
     pull: false,
@@ -239,6 +241,30 @@ export function localTracker(main: string, signal?: AbortSignal): Tracker {
     };
   }
 
+  async function blobSizes(hashes: readonly string[]): Promise<ReadonlyMap<string, number>> {
+    const sizes = new Map<string, number>();
+    if (hashes.length === 0) return sizes;
+    const check = await run(
+      'git',
+      ['--no-optional-locks', 'cat-file', '--batch-check=%(objectname) %(objecttype) %(objectsize)'],
+      { cwd: main, signal, input: `${hashes.join('\n')}\n` },
+    );
+    for (const line of check.code === 0 ? check.stdout.split('\n') : []) {
+      const [name = '', type, size = ''] = line.trim().split(' ');
+      if (type === 'blob' && /^\d+$/.test(size)) sizes.set(name, Number(size));
+    }
+    return sizes;
+  }
+
+  async function blobOf(hash: string): Promise<Uint8Array | null> {
+    const blob = await run('git', ['--no-optional-locks', 'cat-file', 'blob', hash], {
+      cwd: main,
+      signal,
+      bytes: true,
+    });
+    return blob.code === 0 ? new Uint8Array(Buffer.from(blob.stdout, 'latin1')) : null;
+  }
+
   async function blobHash(bytes: Uint8Array): Promise<string> {
     const result = await run(
       'git',
@@ -271,6 +297,19 @@ export function localTracker(main: string, signal?: AbortSignal): Tracker {
     history: reported(async (n: IssueKey) => {
       const { shot } = await load(n);
       return authored(shot, await names());
+    }),
+    files: reported(async (n: IssueKey, limit: number, total: number) => {
+      const { shot } = await load(n);
+      const sizes = await blobSizes(shot.files);
+      const files: IssueFile[] = [];
+      let read = 0;
+      for (const hash of shot.files) {
+        const size = sizes.get(hash);
+        const fits = size !== undefined && size <= limit && read + size <= total;
+        if (fits) read += size;
+        files.push({ hash, bytes: fits ? await blobOf(hash) : null });
+      }
+      return files;
     }),
     children: reported(async (n: IssueKey) => {
       const { bug } = await load(n);
@@ -379,6 +418,7 @@ export function localTracker(main: string, signal?: AbortSignal): Tracker {
         labels: [...new Set(names)].sort(),
         body,
         comments: 0,
+        createdAt: at,
         updatedAt: at,
         closedAt: null,
         pull: false,

@@ -34,6 +34,8 @@ export type IssueRow = {
   step: Step | null;
   started: boolean;
   urgent: boolean;
+  createdAt: string;
+  comments: number;
   updatedAt: string;
   path?: string;
   reason: string | null;

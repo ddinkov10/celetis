@@ -93,6 +93,13 @@
         "files": ["http://127.0.0.1:*/"],
         "createdAt": "2026-11-22T08:17:23.281Z",
         "reason": "The gate mark (auto, or auto off while auto mode is off) of each auto step of the lane track is the existing mark of base 8365fe7 (engine/board/page/panel.ts); the spec of #363, rule 8, keeps its look."
+      },
+      {
+        "rule": "overused-font",
+        "value": "geist mono",
+        "files": ["http://127.0.0.1:*", "http://127.0.0.1:*/"],
+        "createdAt": "2026-11-26T22:44:23.276Z",
+        "reason": "DESIGN.md Typography pins Geist Mono for numbers, paths, and identifiers; the dense Board holds many mono identifiers, so Geist Mono is its primary font. #336 preserves the type system."
       }
     ]
   }

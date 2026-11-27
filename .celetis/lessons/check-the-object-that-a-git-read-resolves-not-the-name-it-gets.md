@@ -15,7 +15,7 @@
       "id": "2b9f0c1e-6a4d-4f7e-9c3b-8d5e1a7f4c22",
       "date": "2026-11-25",
       "action": "fileOf of engine/lib/local/local.ts checked the size of an operation-named hash with `git cat-file -s <hash>` and then read the bytes with `git cat-file blob <hash>`.",
-      "expected": "Only a blob object of at most 10 MiB that the operation names is read and embedded (README rule 12, ADR-0141 decision 2).",
+      "expected": "Only a blob object of at most 10 MiB that the operation names is read and embedded (README rule 12, ADR-0149 decision 2).",
       "observed": "A reviewer probe named an annotated tag on an 11 MiB PNG blob: `blob size 11534336 tag type tag tag size 130`, then `files [{...,\"bytes\":11534336}]` and one embedded image. After the fix dcfd5b5 (one `cat-file --batch-check` with %(objecttype), read only type blob) the probe gave bytes null.",
       "source": {
         "kind": "tool-output",

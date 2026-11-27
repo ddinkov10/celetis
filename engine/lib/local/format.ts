@@ -66,9 +66,11 @@ export type Snapshot = Readonly<{
   comments: readonly Comment[];
   events: readonly SnapshotEvent[];
   metadata: ReadonlyMap<string, Readonly<Record<string, string>>>;
+  createdAt: number;
   updatedAt: number;
   closedAt: number | null;
   closeOp: string | null;
+  files: readonly string[];
 }>;
 
 const rules = {
@@ -419,6 +421,7 @@ export function checkIdentity(ref: string, chain: readonly IdentityCommit[]): Id
 }
 
 const text = (op: Op, name: string) => String(op.fields[name]);
+const blobHash = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 const list = (op: Op, name: string): readonly string[] => {
   const value = op.fields[name];
   return Array.isArray(value) ? value.map(String) : [];
@@ -439,9 +442,12 @@ export function snapshot(bug: Bug): Snapshot {
   const byId = new Map<string, { body: string }>();
   const events: ({ kind: 'comment'; comment: Comment } | Extract<SnapshotEvent, { kind: 'label' }>)[] = [];
   const metadata = new Map<string, Record<string, string>>();
+  const files = new Set<string>();
 
   for (const { op } of replay) if (Object.keys(op.metadata).length > 0) metadata.set(op.id, { ...op.metadata });
   for (const { op, author: by } of replay) {
+    if (op.type === create || op.type === addComment || op.type === editComment)
+      for (const hash of list(op, 'files')) if (blobHash.test(hash)) files.add(hash);
     switch (op.type) {
       case setTitle:
         title = text(op, 'title');
@@ -501,8 +507,10 @@ export function snapshot(bug: Bug): Snapshot {
     comments: comments.map((c) => ({ ...c })),
     events: events.map((e) => (e.kind === 'comment' ? { kind: 'comment', ...e.comment } : e)),
     metadata,
+    createdAt: createOp.timestamp,
     updatedAt: replay.at(-1)?.op.timestamp ?? createOp.timestamp,
     closedAt,
     closeOp,
+    files: [...files],
   };
 }

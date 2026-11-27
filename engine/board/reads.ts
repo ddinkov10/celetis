@@ -1,4 +1,5 @@
 import type { QueueView } from '../lib/queue/types.ts';
+import { grammar } from '../lib/tracker/grammar.ts';
 import { compareKeys, type IssueKey } from '../lib/tracker/key.ts';
 import { firstLine } from './requests.ts';
 import type { Document } from './types.ts';
@@ -13,6 +14,7 @@ export type Reads = {
   readonly checkedFrom: number;
   readonly pending: Promise<void> | null;
   readError(): string | null;
+  revisions(): ReadonlyMap<IssueKey, string>;
   refresh(): Promise<void>;
   target(keys: Iterable<IssueKey>): void;
   setQueue(view: QueueView): void;
@@ -25,11 +27,13 @@ export const createReads = ({
   read,
   readTargets,
   hints,
+  revisions,
   now,
 }: {
   read: (signal: AbortSignal) => Promise<Document>;
   readTargets: (keys: readonly IssueKey[], previous: Document, signal: AbortSignal) => Promise<Document>;
   hints: () => Promise<ReadonlyMap<string, IssueKey> | null>;
+  revisions: (signal: AbortSignal) => Promise<ReadonlyMap<IssueKey, string>>;
   now: () => number;
 }): Reads => {
   let board: Document | null = null;
@@ -49,6 +53,8 @@ export const createReads = ({
   let nextCheck: ReturnType<typeof setTimeout> | undefined;
   let nextHint: ReturnType<typeof setTimeout> | undefined;
   let seenHints = new Set<string>();
+  let polled: ReadonlyMap<IssueKey, string> | null = null;
+  let pollFailing = false;
 
   const readData = async (full: boolean, numbers: IssueKey[]) => {
     const from = now();
@@ -141,6 +147,22 @@ export const createReads = ({
     if (now() - askedAt >= BACKGROUND_MS) void refresh();
     else nextCheck = setTimeout(check, askedAt + BACKGROUND_MS - now());
   };
+  const pollRevisions = async () => {
+    try {
+      const next = await revisions(AbortSignal.timeout(10_000));
+      if (stopped) return;
+      if (polled) {
+        const last = polled;
+        target(new Set([...last.keys(), ...next.keys()].filter((key) => last.get(key) !== next.get(key))));
+      }
+      polled = next;
+      pollFailing = false;
+    } catch (cause) {
+      if (stopped || pollFailing) return;
+      pollFailing = true;
+      console.error(`board: the ref poll failed: ${firstLine(cause instanceof Error ? cause.message : String(cause))}`);
+    }
+  };
   const pollHints = async (initial = false) => {
     const listed = await hints();
     if (stopped) return;
@@ -149,6 +171,7 @@ export const createReads = ({
       seenHints = new Set(listed.keys());
       if (!initial) target(numbers);
     }
+    if (grammar().kind === 'local') await pollRevisions();
     if (initial) {
       ready = true;
       void refresh();
@@ -179,6 +202,7 @@ export const createReads = ({
       return pending;
     },
     readError,
+    revisions: () => polled ?? new Map(),
     refresh,
     target,
     setQueue: (view) => {

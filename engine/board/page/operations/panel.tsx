@@ -1,13 +1,16 @@
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { cn } from 'cn';
-import { Fragment, type ReactElement, type ReactNode, useRef } from 'react';
+import { Fragment, type ReactElement, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import type { Registry } from '../../../lib/host/names.ts';
+import type { IssueKey } from '../../../lib/tracker/key.ts';
 import type { RowSource, StartPair } from '../../../lib/workflow/effort.ts';
-import type { Action, Board, Card, DaemonView, Flow } from '../../types.ts';
+import type { Action, Board, Card, DaemonView, Flow, HistoryRow } from '../../types.ts';
 import {
   agentOf,
   clock,
   diffText,
   gateOf,
+  keyOf,
   LIVE,
   laneTrack,
   levelSource,
@@ -17,13 +20,18 @@ import {
   stateLabel,
 } from '../../view.ts';
 import { Icon } from '../app/icon.tsx';
+import { issueKey, readIssue } from '../query.ts';
+import type { Opener } from '../shell.ts';
 import { useShellStore } from '../store.ts';
+import { Badge } from '../ui/badge.tsx';
 import { buttonVariants } from '../ui/button.tsx';
 import { Separator } from '../ui/separator.tsx';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs.tsx';
 import { copy, safeUrl } from '../ui.ts';
 import { detailActions, onTracker } from './actions.ts';
+import { Conversation } from './conversation.tsx';
 import { ActionButton, GateLabel, IconButton, Mark, Num, PrChips, Timed, useKeptFocus, WARNING } from './parts.tsx';
-import { closeDetails, screen, useScreen } from './state.ts';
+import { closeDetails, numberOf, screen, setDetailsTab, useScreen } from './state.ts';
 
 // The class sec-label has no rule: the detect scenario reads it to leave the 11.5px aside of the label alone.
 const SECTION_LABEL =
@@ -265,16 +273,22 @@ const effortFacts = (pair: StartPair<RowSource> | null | undefined): Fact[] =>
       ]
     : [];
 
-function Details({ card, isWaiting }: { card: Card; isWaiting: boolean }) {
+type Parts = Readonly<{
+  number: IssueKey | null;
+  head: ReactNode;
+  open: ReactNode;
+  title: ReactNode;
+  status: ReactNode;
+}>;
+
+function cardParts(card: Card, isWaiting: boolean): Parts {
   const { flow, registry, daemon } = screen.read() as Board;
   const actions = detailActions(card);
   const hasHelp = actions.some((action) => action.help);
   const firstGroup = actions.findIndex((action, at) => action.group && action.group !== actions[at - 1]?.group);
-  const on = onTracker();
   const { state } = card;
   const asks = state === 'waits' && (card.number !== null || card.waitFor === 'dialog');
   const isSession = Boolean(card.sessionId);
-  const open = safeUrl(card.url);
   const facts: (Fact | null | false | '' | undefined)[] = isSession
     ? [
         ['Agent', agentOf(card, registry)?.name ?? 'unknown'],
@@ -306,39 +320,223 @@ function Details({ card, isWaiting }: { card: Card; isWaiting: boolean }) {
         ...effortFacts(card.effort),
         ['Updated', clock(card.since)],
       ];
+  const status = (
+    <>
+      {asks ? (
+        <Ask card={card} actions={actions} registry={registry} />
+      ) : actions.length ? (
+        <div
+          className={cn(
+            'flex flex-wrap gap-2',
+            hasHelp && 'grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1.5',
+          )}
+        >
+          {actions.map((action, index) => (
+            <Fragment key={action.id}>
+              {action.group && action.group !== actions[index - 1]?.group && (
+                <span
+                  className={cn(
+                    'mt-1 basis-full text-[0.6875rem] leading-none font-semibold tracking-[0.07em] text-muted-foreground uppercase',
+                    hasHelp && '[grid-column:1/-1]',
+                  )}
+                >
+                  {action.group}
+                </span>
+              )}
+              <ActionButton
+                card={card}
+                action={action}
+                className={cn(
+                  'phone:min-h-11',
+                  hasHelp && firstGroup !== -1 && index >= firstGroup && 'justify-self-start [grid-column:1/-1]',
+                )}
+              />
+              {action.help && <span className="self-center text-[0.75rem] text-muted-foreground">{action.help}</span>}
+            </Fragment>
+          ))}
+        </div>
+      ) : null}
+      {prFacts(card.pr).length > 0 && (
+        <Section title="Pull request">
+          <PrChips pr={card.pr} />
+        </Section>
+      )}
+      <Steps card={card} flow={flow} auto={daemon.auto} isWaiting={isWaiting} />
+      <Section title={isSession ? 'Session' : 'Issue'}>
+        <Facts rows={facts} />
+      </Section>
+      {isSession && !asks && card.screen?.length ? (
+        <Section title="Screen" aside="the last lines of its pane">
+          <Screen card={card} />
+        </Section>
+      ) : null}
+    </>
+  );
+  return {
+    number: card.number,
+    head: (
+      <>
+        <Mark card={card} registry={registry} identifiedByText />
+        {card.number === null ? (
+          <span className="font-sans whitespace-nowrap text-muted-foreground tabular-nums">human session</span>
+        ) : (
+          <Num url={card.url}>{`#${card.number}`}</Num>
+        )}
+        {[card.type, card.step === card.type ? null : card.step].map(
+          (part, at) =>
+            part && (
+              <Fragment key={at}>
+                <span className="opacity-60">·</span>
+                <span>{part}</span>
+              </Fragment>
+            ),
+        )}
+      </>
+    ),
+    open: <OpenLink url={safeUrl(card.url)} shortcut />,
+    title: (
+      <>
+        <Title>{card.title || (card.number === null ? 'A session' : `Issue #${card.number}`)}</Title>
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[0.78125rem] text-muted-foreground">
+          <span
+            className={cn(
+              'inline-flex min-h-6 items-center gap-1.5 rounded-[7px] py-1 pr-[9px] pl-[7px] text-[0.75rem] leading-[1.25] font-medium [&_.icon]:size-[13px]',
+              (state && !isWaiting && (state !== 'waits' || asks) ? TONES[state] : undefined) ?? MUTED_TONE,
+              state === 'starts' && '[&_.icon]:animate-turn [&_.icon]:text-working',
+            )}
+          >
+            <Icon name={state ? (PILL_ICONS[state] ?? 'pending') : 'pending'} />
+            <span className="[overflow-wrap:anywhere] whitespace-normal first-letter:uppercase">
+              {state ? stateLabel(card) : `next: ${card.step}`}
+            </span>
+          </span>
+          {card.state !== 'starts' && (
+            <>
+              <span>since</span>
+              <Timed
+                iso={card.since}
+                isFine={Boolean(card.sessionId) && LIVE.has(card.state as string)}
+                className="font-mono text-[0.75rem] leading-none font-normal normal-nums"
+              />
+            </>
+          )}
+        </div>
+        {card.warning && <p className={WARNING}>{card.warning}</p>}
+      </>
+    ),
+    status,
+  };
+}
+
+const Title = ({ children }: { children: ReactNode }) => (
+  <h2
+    className="m-0 text-[1.03125rem] leading-[1.4] font-semibold tracking-[-0.016em] text-pretty text-foreground [overflow-wrap:anywhere]"
+    id="panel-title"
+  >
+    {children}
+  </h2>
+);
+
+const CLOSED = 'm-0 text-[0.8125rem] text-muted-foreground';
+
+const useIssue = (number: IssueKey) =>
+  useQuery({
+    queryKey: issueKey(number, screen.read()?.revisions[number] ?? null),
+    queryFn: readIssue,
+    placeholderData: keepPreviousData,
+  });
+
+function IssueTitle({ number }: { number: IssueKey }) {
+  const { data, error } = useIssue(number);
+  const status = error?.cause;
+  useEffect(() => {
+    if (status === 404 || status === 400) closeDetails(false);
+  }, [status]);
+  return (
+    <>
+      <Title>{data?.title || `Issue #${number}`}</Title>
+      {data && (
+        <div className="mt-2.5 flex">
+          <Badge variant="secondary">{data.state === 'open' ? 'Open' : 'Closed'}</Badge>
+        </div>
+      )}
+    </>
+  );
+}
+
+function IssueStatus({ number }: { number: IssueKey }) {
+  const { data } = useIssue(number);
+  if (!data) return null;
+  return (
+    <p className={CLOSED}>
+      {data.state === 'open'
+        ? 'This issue has no card on the board. No run belongs to it.'
+        : 'This issue is closed. No run belongs to it.'}
+    </p>
+  );
+}
+
+function OpenLink({ url, shortcut }: { url: string | null; shortcut: boolean }) {
+  const on = onTracker();
+  return url ? (
+    <a
+      data-slot="button"
+      className={buttonVariants({ variant: 'icon', size: 'icon', className: 'phone:size-11' })}
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      title={`Open the issue${on}${shortcut ? ' (o)' : ''}`}
+      aria-label={`Open the issue${on}`}
+    >
+      <Icon name="open" />
+    </a>
+  ) : null;
+}
+
+const IssueOpen = ({ number }: { number: IssueKey }) => (
+  <OpenLink url={safeUrl(useIssue(number).data?.url)} shortcut={false} />
+);
+
+const closedParts = (source: Exclude<Source, { kind: 'card' }>): Parts =>
+  source.kind === 'landed'
+    ? {
+        number: source.entry.number,
+        head: <Num url={source.entry.url}>{`#${source.entry.number}`}</Num>,
+        open: <OpenLink url={safeUrl(source.entry.url)} shortcut={false} />,
+        title: (
+          <>
+            <Title>{source.entry.title}</Title>
+            <p className="mt-2.5 mb-0 text-[0.78125rem] text-muted-foreground">
+              {`Landed on ${source.trunk} in ${source.entry.sha.slice(0, 7)}, ${clock(source.entry.committedAt, true)}`}
+            </p>
+          </>
+        ),
+        status: <p className={CLOSED}>This issue is closed. No run belongs to it.</p>,
+      }
+    : {
+        number: source.number,
+        head: <Num url={null}>{`#${source.number}`}</Num>,
+        open: <IssueOpen number={source.number} />,
+        title: <IssueTitle number={source.number} />,
+        status: <IssueStatus number={source.number} />,
+      };
+
+function Details({ source }: { source: Source }) {
+  const { number, head, open, title, status } =
+    source.kind === 'card' ? cardParts(source.card, source.isWaiting) : closedParts(source);
+  const tab = useShellStore((shell) => shell.shell.detailsTab);
+  const revision = number === null ? null : (screen.read()?.revisions[number] ?? null);
+  const [counted, setCounted] = useState<Readonly<{ revision: string | null; comments: number }> | null>(null);
+  const onCount = useCallback((comments: number) => setCounted({ revision, comments }), [revision]);
+  const comments =
+    counted?.revision === revision ? counted.comments : source.kind === 'card' ? source.card.comments : null;
   return (
     <>
       <div className="relative flex min-h-12 flex-none items-center gap-1 pr-2.5 pb-px pl-4 phone:min-h-14">
         <div className="flex min-w-0 flex-1 items-center gap-[7px] overflow-hidden font-mono text-[0.71875rem] leading-none font-normal whitespace-nowrap text-muted-foreground phone:[&_a]:inline-flex phone:[&_a]:min-h-11 phone:[&_a]:items-center">
-          <Mark card={card} registry={registry} identifiedByText />
-          {card.number === null ? (
-            <span className="font-sans whitespace-nowrap text-muted-foreground tabular-nums">human session</span>
-          ) : (
-            <Num url={card.url}>{`#${card.number}`}</Num>
-          )}
-          {[card.type, card.step === card.type ? null : card.step].map(
-            (part, at) =>
-              part && (
-                <Fragment key={at}>
-                  <span className="opacity-60">·</span>
-                  <span>{part}</span>
-                </Fragment>
-              ),
-          )}
+          {head}
         </div>
-        {open && (
-          <a
-            data-slot="button"
-            className={buttonVariants({ variant: 'icon', size: 'icon', className: 'phone:size-11' })}
-            href={open}
-            target="_blank"
-            rel="noreferrer"
-            title={`Open the issue${on} (o)`}
-            aria-label={`Open the issue${on}`}
-          >
-            <Icon name="open" />
-          </a>
-        )}
+        {open}
         <IconButton
           name="close"
           label="Close the details (Esc)"
@@ -348,99 +546,60 @@ function Details({ card, isWaiting }: { card: Card; isWaiting: boolean }) {
         <Separator className="absolute inset-x-0 bottom-0" />
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pt-4 pb-[22px] phone:scroll-pb-[calc(var(--dock)+8px)]">
-        <div>
-          <h2
-            className="m-0 text-[1.03125rem] leading-[1.4] font-semibold tracking-[-0.016em] text-pretty text-foreground [overflow-wrap:anywhere]"
-            id="panel-title"
+        <div>{title}</div>
+        {number === null ? (
+          status
+        ) : (
+          <Tabs
+            value={tab}
+            onValueChange={(value) => setDetailsTab(value === 'conversation' ? 'conversation' : 'status')}
+            className="flex-col gap-5"
           >
-            {card.title || (card.number === null ? 'A session' : `Issue #${card.number}`)}
-          </h2>
-          <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[0.78125rem] text-muted-foreground">
-            <span
-              className={cn(
-                'inline-flex min-h-6 items-center gap-1.5 rounded-[7px] py-1 pr-[9px] pl-[7px] text-[0.75rem] leading-[1.25] font-medium [&_.icon]:size-[13px]',
-                (state && !isWaiting && (state !== 'waits' || asks) ? TONES[state] : undefined) ?? MUTED_TONE,
-                state === 'starts' && '[&_.icon]:animate-turn [&_.icon]:text-working',
-              )}
-            >
-              <Icon name={state ? (PILL_ICONS[state] ?? 'pending') : 'pending'} />
-              <span className="[overflow-wrap:anywhere] whitespace-normal first-letter:uppercase">
-                {state ? stateLabel(card) : `next: ${card.step}`}
-              </span>
-            </span>
-            {card.state !== 'starts' && (
-              <>
-                <span>since</span>
-                <Timed
-                  iso={card.since}
-                  isFine={Boolean(card.sessionId) && LIVE.has(card.state as string)}
-                  className="font-mono text-[0.75rem] leading-none font-normal normal-nums"
-                />
-              </>
-            )}
-          </div>
-          {card.warning && <p className={WARNING}>{card.warning}</p>}
-        </div>
-        {asks ? (
-          <Ask card={card} actions={actions} registry={registry} />
-        ) : actions.length ? (
-          <div
-            className={cn(
-              'flex flex-wrap gap-2',
-              hasHelp && 'grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1.5',
-            )}
-          >
-            {actions.map((action, index) => (
-              <Fragment key={action.id}>
-                {action.group && action.group !== actions[index - 1]?.group && (
-                  <span
-                    className={cn(
-                      'mt-1 basis-full text-[0.6875rem] leading-none font-semibold tracking-[0.07em] text-muted-foreground uppercase',
-                      hasHelp && '[grid-column:1/-1]',
-                    )}
-                  >
-                    {action.group}
-                  </span>
-                )}
-                <ActionButton
-                  card={card}
-                  action={action}
-                  className={cn(
-                    'phone:min-h-11',
-                    hasHelp && firstGroup !== -1 && index >= firstGroup && 'justify-self-start [grid-column:1/-1]',
-                  )}
-                />
-                {action.help && <span className="self-center text-[0.75rem] text-muted-foreground">{action.help}</span>}
-              </Fragment>
-            ))}
-          </div>
-        ) : null}
-        {prFacts(card.pr).length > 0 && (
-          <Section title="Pull request">
-            <PrChips pr={card.pr} />
-          </Section>
+            <TabsList loopFocus aria-label="Card details" className="self-start phone:self-stretch">
+              <TabsTrigger value="status">Status</TabsTrigger>
+              <TabsTrigger value="conversation">
+                Conversation {comments !== null && <Badge variant="secondary">{comments}</Badge>}
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="status" className="flex flex-col gap-5">
+              {status}
+            </TabsContent>
+            <TabsContent value="conversation" className="flex flex-col gap-4">
+              <Conversation number={number} revision={revision} onCount={onCount} />
+            </TabsContent>
+          </Tabs>
         )}
-        <Steps card={card} flow={flow} auto={daemon.auto} isWaiting={isWaiting} />
-        <Section title={isSession ? 'Session' : 'Issue'}>
-          <Facts rows={facts} />
-        </Section>
-        {isSession && !asks && card.screen?.length ? (
-          <Section title="Screen" aside="the last lines of its pane">
-            <Screen card={card} />
-          </Section>
-        ) : null}
       </div>
     </>
   );
 }
 
+export type Source =
+  | { kind: 'card'; card: Card; isWaiting: boolean }
+  | { kind: 'landed'; entry: HistoryRow; trunk: string }
+  | { kind: 'issue'; number: IssueKey };
+
+export const sourceOf = (key: string, opener: Opener | null): Source | null => {
+  const shown = screen.index().byKey.get(key);
+  if (shown) return { kind: 'card', card: shown.card, isWaiting: shown.column === 'waiting' };
+  const history = screen.read()?.history;
+  const entry = history?.entries.find((each) => keyOf({ number: each.number, sessionId: null }) === key);
+  if (history && entry) return { kind: 'landed', entry, trunk: history.trunk };
+  const number = opener === 'link' ? numberOf(key) : null;
+  return number === null ? null : { kind: 'issue', number };
+};
+
 export function Panel() {
-  const details = useShellStore((state) => state.shell.details);
+  const { details, opener } = useShellStore((state) => state.shell);
   useScreen((state) => state);
-  const entry = details === null ? undefined : screen.index().byKey.get(details);
+  const found = details === null ? null : sourceOf(details, opener);
   const last = useRef<{ key: string; card: Card } | null>(null);
-  if (details !== null && entry) last.current = { key: details, card: entry.card };
-  const card = details === null ? null : (entry?.card ?? (last.current?.key === details ? last.current.card : null));
+  if (details !== null && found?.kind === 'card') last.current = { key: details, card: found.card };
+  const source: Source | null =
+    found ??
+    (details !== null && last.current?.key === details
+      ? { kind: 'card', card: last.current.card, isWaiting: false }
+      : null);
   const kept = useKeptFocus<HTMLElement>((box, lost) => {
     const label = lost.getAttribute('aria-label');
     if (!label) return null;
@@ -449,6 +608,7 @@ export function Panel() {
       box.querySelector<HTMLElement>('[aria-label^="Close the details"]')
     );
   });
+  const state = source === null ? undefined : source.kind === 'card' ? (source.card.state ?? 'next') : 'closed';
   return (
     <section
       {...kept}
@@ -456,12 +616,12 @@ export function Panel() {
       id="panel"
       aria-label="Card details"
       tabIndex={-1}
-      hidden={card === null}
-      aria-labelledby={card ? 'panel-title' : undefined}
-      data-state={card ? (card.state ?? 'next') : undefined}
-      data-key={card ? (details ?? undefined) : undefined}
+      hidden={source === null}
+      aria-labelledby={source ? 'panel-title' : undefined}
+      data-state={state}
+      data-key={source ? (details ?? undefined) : undefined}
     >
-      {card && <Details key={details} card={card} isWaiting={entry?.column === 'waiting'} />}
+      {source && <Details key={details} source={source} />}
     </section>
   );
 }

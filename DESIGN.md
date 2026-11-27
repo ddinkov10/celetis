@@ -492,10 +492,44 @@ Compact, quiet, and exact. A button reads as a tool, not as an invitation.
   beside a 1px strong left hairline, indented 12px. It uses no signal color.
 - **History row:** an issue number in Geist Mono and Ink Faint, the title, the short commit and its
   time in Ink Faint, and one 28px icon control (44px on a phone) that holds the visual action in all
-  its states; it names itself by `aria-label` and `title`. The open `History` button keeps a Veil
+  its states; it names itself by `aria-label` and `title`. The number and the title are one button
+  that opens the details of the issue. The list is the grid and each row is a subgrid, so the number
+  column has one width for all rows and the titles start at one x. The open `History` button keeps a Veil
   Strong fill and a strong hairline.
 - **Column:** Console Grey, a hairline border, a 16px radius, and a 46px head with a state glyph and
   a count.
+
+### Details panel
+
+The details of a card or of a landed issue open in the center in place of the chat: a Console Grey
+region with a strong hairline and a 16px radius, scrolling in its own box. The head is 48px high
+(56px on a phone) and holds the number in Geist Mono, the open control, and the close control. Under
+it come the Headline title, one line of state (the step and age of a card, or
+`Landed on <trunk> in <sha>, <time>` of a landed issue), and the tabs.
+
+- **Tabs:** Status and Conversation, in the look of the Pane tabs (a Veil track, 26px tabs, 44px on a
+  phone). Conversation carries the count of its comments as a Veil chip. Only the selected tab is in
+  the Tab order, and ArrowLeft and ArrowRight move between them. A card opens on Status. A key with no
+  card opens on Conversation, and its Status holds one line. The open issue and its tab are in the URL
+  fragment `#issue=<key>&tab=<tab>`.
+- **Conversation:** a meta row, then one timeline.
+  - The meta row holds the state chip (`Open` or `Closed`) and the labels. The state chip is a Veil
+    chip with Ink text, not an Ink fill: an Ink fill means the main action of a card (the Ink Action
+    Rule). The labels are outline chips.
+  - The timeline is an ordered list, oldest first, with 16px between items and a hairline between
+    them. The first item is headed `Description` (12px, 500). A comment shows its author (500, Ink)
+    and its time (Geist Mono, 11.5px, Ink Faint) above its body. A label change is one line: `Added`
+    or `Removed`, the label as an outline chip, and the time.
+  - `New` is the one Ink-filled chip of the timeline. It marks each item that the last content did not
+    hold, and a hidden `role="status"` line announces the count.
+  - The Markdown of a body is 13px on 1.5 in Ink, with 12px blocks of gap and no browser margin.
+    Headings are 600 (16.5px, 14px, then 13px) with 4px more above. A list indents 18px. A quote has
+    a 2px strong hairline and 18px of padding. A paragraph, an item, and a quote wrap as pretty text.
+    Code is Geist Mono, 12px, on Veil, and a block scrolls on its own row. A table has hairline cells;
+    its words wrap at spaces, never inside a word, and its box scrolls when the table is still wider.
+    The box is a region named from its first header cells (`Table: Tab, Shows`) with a tab stop.
+  - A state text in Ink Muted takes the place of the timeline: `Loading the issue…`, `No description.`,
+    or the warning `Cannot read the issue: <cause>`.
 
 ### Trend tile
 

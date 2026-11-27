@@ -1185,15 +1185,15 @@ function getFragmentInstanceOrTextInstanceSiblings(fiber) {
   findFragmentInstanceOrTextInstanceSiblings(result, fiber, parentHostFiber.child, { foundSelf: false });
   return result;
 }
-function findFragmentInstanceOrTextInstanceSiblings(result, self, child, state) {
+function findFragmentInstanceOrTextInstanceSiblings(result, self2, child, state) {
   for (;child !== null; ) {
-    if (child === self)
+    if (child === self2)
       state.foundSelf = true;
     else if (child.tag === 5 || child.tag === 27 || child.tag === 6) {
       if (state.foundSelf)
         return result[1] = child, true;
       result[0] = child;
-    } else if ((child.tag !== 22 || child.memoizedState === null) && findFragmentInstanceOrTextInstanceSiblings(result, self, child.child, state))
+    } else if ((child.tag !== 22 || child.memoizedState === null) && findFragmentInstanceOrTextInstanceSiblings(result, self2, child.child, state))
       return true;
     child = child.sibling;
   }
@@ -12611,6 +12611,93 @@ var require_with_selector = __commonJS(function(exports, module) {
   }
 });
 
+// engine/node_modules/extend/index.js
+var require_extend = __commonJS(function(exports, module) {
+  var hasOwn = Object.prototype.hasOwnProperty;
+  var toStr = Object.prototype.toString;
+  var defineProperty = Object.defineProperty;
+  var gOPD = Object.getOwnPropertyDescriptor;
+  var isArray = function isArray(arr) {
+    if (typeof Array.isArray === "function") {
+      return Array.isArray(arr);
+    }
+    return toStr.call(arr) === "[object Array]";
+  };
+  var isPlainObject = function isPlainObject(obj) {
+    if (!obj || toStr.call(obj) !== "[object Object]") {
+      return false;
+    }
+    var hasOwnConstructor = hasOwn.call(obj, "constructor");
+    var hasIsPrototypeOf = obj.constructor && obj.constructor.prototype && hasOwn.call(obj.constructor.prototype, "isPrototypeOf");
+    if (obj.constructor && !hasOwnConstructor && !hasIsPrototypeOf) {
+      return false;
+    }
+    var key;
+    for (key in obj) {}
+    return typeof key === "undefined" || hasOwn.call(obj, key);
+  };
+  var setProperty = function setProperty(target, options) {
+    if (defineProperty && options.name === "__proto__") {
+      defineProperty(target, options.name, {
+        enumerable: true,
+        configurable: true,
+        value: options.newValue,
+        writable: true
+      });
+    } else {
+      target[options.name] = options.newValue;
+    }
+  };
+  var getProperty = function getProperty(obj, name) {
+    if (name === "__proto__") {
+      if (!hasOwn.call(obj, name)) {
+        return;
+      } else if (gOPD) {
+        return gOPD(obj, name).value;
+      }
+    }
+    return obj[name];
+  };
+  module.exports = function extend() {
+    var options, name, src, copy, copyIsArray, clone;
+    var target = arguments[0];
+    var i = 1;
+    var length = arguments.length;
+    var deep = false;
+    if (typeof target === "boolean") {
+      deep = target;
+      target = arguments[1] || {};
+      i = 2;
+    }
+    if (target == null || typeof target !== "object" && typeof target !== "function") {
+      target = {};
+    }
+    for (;i < length; ++i) {
+      options = arguments[i];
+      if (options != null) {
+        for (name in options) {
+          src = getProperty(target, name);
+          copy = getProperty(options, name);
+          if (target !== copy) {
+            if (deep && copy && (isPlainObject(copy) || (copyIsArray = isArray(copy)))) {
+              if (copyIsArray) {
+                copyIsArray = false;
+                clone = src && isArray(src) ? src : [];
+              } else {
+                clone = src && isPlainObject(src) ? src : {};
+              }
+              setProperty(target, { name, newValue: extend(deep, clone, copy) });
+            } else if (typeof copy !== "undefined") {
+              setProperty(target, { name, newValue: copy });
+            }
+          }
+        }
+      }
+    }
+    return target;
+  };
+});
+
 // engine/node_modules/@base-ui/utils/platform/os.mjs
 var exports_os = {};
 __export(exports_os, {
@@ -12640,6 +12727,32 @@ __export(exports_screen_reader, {
 var exports_env = {};
 __export(exports_env, {
   jsdom: () => jsdom
+});
+
+// engine/node_modules/property-information/lib/util/types.js
+var exports_types = {};
+__export(exports_types, {
+  boolean: () => boolean,
+  booleanish: () => booleanish,
+  commaOrSpaceSeparated: () => commaOrSpaceSeparated,
+  commaSeparated: () => commaSeparated,
+  number: () => number,
+  overloadedBoolean: () => overloadedBoolean,
+  spaceSeparated: () => spaceSeparated
+});
+
+// engine/node_modules/micromark/lib/constructs.js
+var exports_constructs = {};
+__export(exports_constructs, {
+  attentionMarkers: () => attentionMarkers,
+  contentInitial: () => contentInitial,
+  disable: () => disable,
+  document: () => document3,
+  flow: () => flow2,
+  flowInitial: () => flowInitial,
+  insideSpan: () => insideSpan,
+  string: () => string2,
+  text: () => text5
 });
 
 // engine/board/page/main.tsx
@@ -12936,6 +13049,9 @@ function replaceData(prevData, data, options) {
     return replaceEqualDeep(prevData, data);
   }
   return data;
+}
+function keepPreviousData(previousData) {
+  return previousData;
 }
 function addToEnd(items, item, max = 0) {
   const newItems = [...items, item];
@@ -14977,7 +15093,7 @@ function useQuery(options, queryClient) {
   return useBaseQuery(options, QueryObserver, queryClient);
 }
 // engine/board/page/app/app.tsx
-var import_react34 = __toESM(require_react());
+var import_react37 = __toESM(require_react());
 
 // engine/board/page/operations/stop.tsx
 var import_react5 = __toESM(require_react());
@@ -25377,6 +25493,20 @@ var readBoard = async ({ signal }) => {
     throw new Error(response.statusText);
   return await response.json();
 };
+var issueKey = (n, revision) => ["issue", n, revision];
+var readIssue = async ({
+  queryKey: [, n],
+  signal
+}) => {
+  const response = await fetch(`/api/issue?key=${encodeURIComponent(n)}`, { signal });
+  if (!response.ok) {
+    const answer = await response.json().catch(() => null);
+    throw new Error(typeof answer?.error === "string" ? answer.error : response.statusText, {
+      cause: response.status
+    });
+  }
+  return await response.json();
+};
 var pollOptions = {
   queryKey: boardKey,
   queryFn: readBoard,
@@ -25407,9 +25537,18 @@ var readShell = (stored) => {
     area: member(AREAS, stored.area) ?? "home",
     tab: tab === undefined || tab === "pipeline" ? "agents" : tab,
     details: null,
+    detailsTab: "status",
+    opener: null,
     pane: "chat"
   };
 };
+var readFragment = (hash) => {
+  const fields = new URLSearchParams(hash.replace(/^#/, ""));
+  const number = fields.get("issue");
+  const tab = fields.get("tab");
+  return number === null ? null : { number, tab: tab === "conversation" || tab === "status" ? tab : null };
+};
+var fragmentOf = (number, tab) => number === null ? "" : `#${new URLSearchParams({ issue: number, tab })}`;
 var isChatShown = (shell, isPhone) => shell.area === "operations" && shell.details === null && (isPhone ? shell.pane === "chat" : shell.tab !== "pipeline");
 var FIND_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
 var badgeText = (count) => count === 0 ? "" : count > 999 ? "999+" : String(count);
@@ -28281,8 +28420,10 @@ var accept = (next) => {
     waitingOpen: state2.waitingOpen && project(next, launches).columns.waiting.length > 0,
     seen: state2.seen ?? new Map
   });
-  if (isFirst)
+  if (isFirst) {
     markAllSeen();
+    openFragment();
+  }
   const menuCard = state2.menu && index4().byKey.get(state2.menu.key);
   if (state2.menu !== null && (!menuCard || menuCard.column === "waiting" && view() === "now" && !state2.waitingOpen))
     emitFor("quiet", { ...state2, menu: null });
@@ -28314,6 +28455,10 @@ var fail = () => {
     emit2({ ...state2, read: { ...state2.read, queue: null } });
 };
 var shell = () => shellStore.get().shell;
+var numberOf = (key) => {
+  const entry = index4().byKey.get(key);
+  return entry ? entry.card.number : parseKey(key.slice(2));
+};
 var PANEL_FOCUS = '[data-slot="button"]';
 var hiddenFocus = null;
 document.addEventListener("focusout", (event) => {
@@ -28329,7 +28474,7 @@ var setShell = (next, active = document.activeElement) => {
   const wasInBoard = active instanceof HTMLElement && Boolean(document.getElementById("tp-board")?.contains(active));
   const leavesQueue = next.tab !== "queue" && active instanceof HTMLElement && Boolean(document.getElementById("queue")?.contains(active));
   const activeId = active?.id;
-  shellStore.setShell(next);
+  shellStore.setShell(next.details === null ? { ...next, opener: null } : next);
   const now = document.activeElement;
   const isHidden = wasInPanel || wasInBoard && document.getElementById("tp-board") === null;
   const isLost = active instanceof HTMLElement && (leavesQueue || (active.isConnected ? !active.checkVisibility() : isHidden));
@@ -28358,12 +28503,19 @@ var showChat = () => setShell({
   pane: "chat",
   tab: shell().tab === "pipeline" ? "agents" : shell().tab
 });
-var openDetails = (key) => {
+var openDetails = (key, tab = "status") => {
   if (!screen.index().byKey.has(key))
     return;
   revealCard(key);
   markSeen(key);
-  setShell({ ...shell(), area: "operations", details: key, pane: "chat" });
+  setShell({
+    ...shell(),
+    area: "operations",
+    details: key,
+    detailsTab: shell().details === key ? shell().detailsTab : tab,
+    opener: "card",
+    pane: "chat"
+  });
   const selected = document.querySelector(`#tp-board [data-key="${CSS.escape(key)}"]`);
   if (shell().tab === "pipeline")
     selected?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -28388,20 +28540,59 @@ var revealCard = (key) => {
     return;
   screen.setEpicOpen(entry.card.epic.number, true);
 };
+var openIssue = (number, tab, opener) => {
+  setShell({
+    ...shell(),
+    area: "operations",
+    details: keyOf({ number, sessionId: null }),
+    detailsTab: tab,
+    opener,
+    pane: "chat"
+  });
+  document.getElementById("panel").querySelector(PANEL_FOCUS)?.focus({ preventScroll: true });
+};
 function closeDetails(refocus) {
-  const key = shell().details;
+  const { details: key, opener } = shell();
+  const number = key === null ? null : numberOf(key);
   const isBack = refocus && key !== null;
+  const isCard = opener === "card";
+  const active = document.activeElement;
   setShell({
     ...shell(),
     details: null,
-    ...isBack && (shell().tab === "queue" || shell().tab === "history") ? { tab: "agents" } : {},
+    detailsTab: "status",
+    ...isBack && isCard && (shell().tab === "queue" || shell().tab === "history") ? { tab: "agents" } : {},
     ...isBack && phone.matches ? { pane: "agents" } : {}
-  });
-  if (isBack) {
+  }, active);
+  if (!isBack)
+    return;
+  if (isCard)
     revealCard(key);
-    document.querySelector(`#tp-board [data-key="${CSS.escape(key)}"]`)?.focus({ preventScroll: true });
-  }
+  const target = isCard ? document.querySelector(`#tp-board [data-key="${CSS.escape(key)}"]`) : opener === "history" && number !== null ? document.querySelector(`[data-history-key="${CSS.escape(number)}"]`) : null;
+  ((target?.checkVisibility()) ? target : areaStop()).focus({ preventScroll: true });
 }
+var openFragment = () => {
+  const asked = readFragment(location.hash);
+  if (asked === null)
+    return;
+  const number = parseKey(asked.number);
+  if (number === null)
+    return history.replaceState(history.state, "", location.pathname + location.search);
+  const key = keyOf({ number, sessionId: null });
+  if (index4().byKey.has(key))
+    return openDetails(key, asked.tab ?? "status");
+  const isLanded = state2.read?.history?.entries.some((entry) => entry.number === number);
+  openIssue(number, asked.tab ?? "conversation", isLanded ? "history" : "link");
+};
+var written = { details: shell().details, tab: shell().detailsTab };
+shellStore.subscribe(() => {
+  const { details, detailsTab } = shell();
+  if (details === written.details && detailsTab === written.tab)
+    return;
+  written = { details, tab: detailsTab };
+  history.replaceState(history.state, "", location.pathname + location.search + fragmentOf(details === null ? null : numberOf(details), detailsTab));
+});
+var setDetailsTab = (detailsTab) => setShell({ ...shell(), detailsTab });
 var focusNeed = () => {
   const shown = board();
   if (!shown)
@@ -34353,3320 +34544,8 @@ async function openIntake() {
   }
 }
 
-// engine/board/page/queue/state.ts
-var import_react14 = __toESM(require_react());
-var recordedHost = (record) => record?.choice?.kind === "explicit" ? record.choice.host : null;
-var chosenHost = (record) => record?.choice ? recordedHost(record) : agent || null;
-var board2 = null;
-var submitted = null;
-var agent = "";
-var busy2 = false;
-var uncertain = false;
-var retired = new Set;
-var listeners8 = new Set;
-var snapshot3 = {
-  board: board2,
-  submitted,
-  agent,
-  isBusy: busy2,
-  isUncertain: uncertain,
-  state: "empty",
-  isAuthoritative: false,
-  chosen: null,
-  available: []
-};
-var cards = () => Object.values(board2?.columns ?? {}).flat();
-var available = () => cards().flatMap(({ number, ...card }) => number !== null && !card.sessionId && card.run && card.step ? [{ ...card, number }] : []);
-var find = (number) => cards().find((card) => card.number === number);
-var expected = () => ({
-  id: submitted?.record?.id ?? null,
-  revision: submitted?.record?.revision ?? 0,
-  current: submitted?.record?.numbers[0] ?? null
-});
-var authoritative = () => Boolean(submitted && !uncertain && !board2?.source.error);
-function accept3(view) {
-  const old = submitted?.record;
-  const next = view.record;
-  if (next && (retired.has(next.id) || old?.id === next.id && next.revision < old.revision))
-    return;
-  if (!next && old) {
-    submitted = {
-      ...submitted,
-      error: view.error ?? "The queue record is unavailable. Refresh before acting.",
-      actions: { add: false, edit: false, continue: false, retry: false }
-    };
-    return;
-  }
-  if (old && next && old.id !== next.id)
-    retired.add(old.id);
-  submitted = view;
-}
-var request = async (action) => {
-  if (busy2 || !authoritative())
-    return;
-  busy2 = true;
-  announce("Saving the queue");
-  emit4();
-  try {
-    const response = await fetch("/api/queue", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        action,
-        ...action.kind === "add" && chosenHost(submitted?.record) ? { agent: chosenHost(submitted?.record) } : {}
-      }),
-      signal: AbortSignal.timeout(150000)
-    });
-    if (!response.ok)
-      throw new Error((await response.json()).error);
-    accept3(await response.json());
-    announce(action.kind === "add" ? `#${action.number} is saved in the queue` : "The queue is saved");
-  } catch (error) {
-    uncertain = true;
-    toast("Queue action needs a refresh", {
-      detail: error instanceof Error ? error.message : String(error),
-      isError: true
-    });
-    try {
-      const response = await fetch("/api/queue", { signal: AbortSignal.timeout(30000) });
-      if (!response.ok)
-        throw new Error("Queue state is unavailable");
-      const view = await response.json();
-      accept3(view);
-      uncertain = !view.actions.add && !view.actions.edit && !view.actions.continue && !view.actions.retry;
-    } catch {
-      uncertain = true;
-    }
-    announce("Check the saved queue before another attempt");
-  } finally {
-    busy2 = false;
-    emit4();
-  }
-};
-var stateOf = () => {
-  const record = submitted?.record;
-  if (!record?.numbers.length)
-    return "empty";
-  if (record.state === "me-gate")
-    return "me-gate";
-  if (record.state === "error" || submitted?.error && !submitted.owner)
-    return "error";
-  const observed = cards().some((card) => card.number === record.numbers[0] && card.sessionId && card.step === record.current?.step && card.state !== null && card.state !== "starts");
-  return record.state === "running" && observed ? "running" : "starting";
-};
-var hostAvailable = (host) => {
-  const next = host ?? (board2?.next?.kind === "start" ? board2.next.host : null);
-  return next === null || !!board2 && knownAgent(board2.registry, next) && board2.agents?.[next]?.available === true;
-};
-function emit4() {
-  if (!board2)
-    return;
-  shellStore.setInputs({ queueCount: submitted?.record?.numbers.length ?? 0 });
-  snapshot3 = {
-    board: board2,
-    submitted,
-    agent,
-    isBusy: busy2,
-    isUncertain: uncertain,
-    state: stateOf(),
-    isAuthoritative: authoritative(),
-    chosen: chosenHost(submitted?.record),
-    available: available()
-  };
-  for (const listener of listeners8)
-    listener();
-}
-function update2(next) {
-  board2 = next;
-  const before = submitted?.record?.numbers.length;
-  if (board2.queue) {
-    accept3(board2.queue);
-    if (!board2.source.error && Object.values(board2.queue.actions).some(Boolean))
-      uncertain = false;
-  }
-  emit4();
-  if (before !== undefined && submitted?.record && before > submitted.record.numbers.length)
-    announce(`${submitted.record.numbers.length} issues remain in the queue`);
-}
-var queueStore = {
-  get: () => snapshot3,
-  subscribe: (listener) => {
-    listeners8.add(listener);
-    return () => {
-      listeners8.delete(listener);
-    };
-  },
-  update: update2,
-  act: request,
-  expected,
-  setAgent: (value) => {
-    agent = value;
-    emit4();
-  },
-  hostAvailable,
-  find,
-  refresh: () => shellStore.handlers().readAgain()
-};
-var useQueue = (select) => import_react14.useSyncExternalStore(queueStore.subscribe, () => select(snapshot3));
-
-// engine/board/page/read/read.ts
-var shell4 = () => shellStore.get().shell;
-var settings2 = () => shellStore.get().settings;
-var needsKeys = null;
-var starting = null;
-var startupWarnings = new Map;
-var coordinatorLine = null;
-var { seenTurn: seenTurn2 } = screen;
-var faviconColors = () => {
-  const style = getComputedStyle(document.documentElement);
-  const token = (name) => style.getPropertyValue(name).trim();
-  return { tile: token("--card"), bar: token("--fg"), needs: token("--needs"), works: token("--working") };
-};
-var drawFavicon = () => {
-  const board = screen.board();
-  if (board)
-    document.getElementById("favicon").href = favicon(tone(board, seenTurn2), faviconColors());
-};
-var systemNotice = (title, body, tag, open) => {
-  const isAway = document.hidden || !document.hasFocus();
-  if (!settings2().notify || !isAway || !("Notification" in window) || Notification.permission !== "granted")
-    return;
-  const shown = new Notification(title, { body, tag, icon: favicon("needs", faviconColors()) });
-  shown.addEventListener("click", () => {
-    window.focus();
-    open();
-  });
-};
-var notify = (cards) => {
-  const keys = new Set(cards.map((card) => keyOf(card)));
-  const fresh = needsKeys === null ? [] : cards.filter((card) => !needsKeys.has(keyOf(card)) && !(card.sessionId === null && card.number !== null && starting?.has(card.number)));
-  for (const card of fresh) {
-    const { title, body } = notice(card);
-    systemNotice(title, body, keyOf(card), () => {
-      if (shell4().tab === "pipeline")
-        setTab("agents");
-      openDetails(keyOf(card));
-    });
-  }
-  needsKeys = keys;
-  return fresh.map((card) => isYourTurn(card, seenTurn2) ? turnLine(card) : notice(card).title);
-};
-var startNotices = (columns) => {
-  const cards = [...columns.needs, ...columns.waiting, ...columns.running, ...columns.idle];
-  const now = new Map;
-  for (const card of cards)
-    if (card.state === "starts" && card.number !== null)
-      now.set(card.number, card.step);
-  const lines = [];
-  const before = starting;
-  const previousWarnings = startupWarnings;
-  starting = now;
-  startupWarnings = new Map(cards.flatMap((card) => card.number !== null && card.warning ? [[card.number, card.warning]] : []));
-  if (before === null)
-    return lines;
-  for (const [number, warning] of startupWarnings)
-    if (previousWarnings.get(number) !== warning)
-      lines.push(warning.startsWith(`#${number}: `) ? warning : `#${number}: ${warning}`);
-  for (const [number, step] of now)
-    if (!before.has(number))
-      lines.push(step ? `#${number} is starting the ${step} step` : `#${number} is starting a session`);
-  for (const [number, step] of before) {
-    if (now.has(number))
-      continue;
-    const card = cards.find((other) => other.number === number);
-    if (card?.sessionId)
-      lines.push(step ? `#${number} started the ${step} step` : `#${number} opened a session`);
-  }
-  return lines;
-};
-var drawStatus = (isDown) => {
-  const data = screen.read();
-  if (data?.picker)
-    agentStore.update(data.picker, data.registry);
-  document.body.toggleAttribute("data-stale", isDown);
-  coordinator.down(isDown);
-};
-var drawNow = (all, work, home) => {
-  shellStore.setInputs({ badges: { home, operations: all, agents: work } });
-};
-var drawRead = (next) => {
-  queueStore.update(next);
-  const waiting = needsYou(next, seenTurn2);
-  document.title = pageTitle(next.repo, waiting.length);
-  drawFavicon();
-  drawNow(waiting.length, waiting.filter(isCard).length, next.columns.needs.length);
-  shellStore.setInputs({ board: next });
-  const lines = [
-    ...notify(waiting.filter(isCard)),
-    ...startNotices(next.columns),
-    ...coordinatorLine ? [coordinatorLine] : []
-  ];
-  coordinatorLine = null;
-  if (lines.length)
-    announce(lines.join(". "));
-  const { details } = shell4();
-  if (details !== null && !screen.index().byKey.has(details))
-    closeDetails(false);
-  showHints(document.activeElement?.closest?.("#columns .card[data-key]")?.dataset.key ?? null);
-};
-var tick = () => {
-  drawIntake();
-};
-var last = "";
-var render2 = () => {
-  drawIntake();
-  const next = screen.board();
-  const cards = JSON.stringify([
-    next.repo,
-    next.noRun,
-    next.agents,
-    next.next,
-    next.starts,
-    next.flow,
-    next.tracker,
-    next.grammar,
-    next.columns,
-    next.history,
-    next.source.error,
-    next.queue,
-    next.coordinator.state,
-    next.daemon.auto,
-    next.terminal.ok,
-    next.trends,
-    next.columns.human.map((card) => [card.sessionId, card.turn, isYourTurn(card, seenTurn2)]),
-    [...screen.startFailures()],
-    [...screen.asides().keys()],
-    [...screen.stops().keys()],
-    [...screen.refusals()],
-    [...screen.launches()].filter(([, entry]) => entry.phase === "pending").map(([number, entry]) => [number, entry.step])
-  ]);
-  if (cards === last) {
-    queueStore.update(next);
-    return;
-  }
-  drawRead(next);
-  last = cards;
-};
-var waiters = [];
-var settle = () => {
-  for (const resolve of waiters.splice(0))
-    resolve();
-};
-var readAgain2 = () => {
-  if (isReconnecting2())
-    return Promise.resolve();
-  const next = new Promise((resolve) => waiters.push(resolve));
-  queryClient.cancelQueries({ queryKey: boardKey }).then(() => queryClient.invalidateQueries({ queryKey: boardKey }));
-  return next;
-};
-var accept4 = (next) => {
-  coordinatorLine = coordinator.update(next.coordinator);
-  screen.accept({ ...next, coordinator: coordinator.view() });
-  render2();
-  drawStatus(false);
-};
-var fail2 = () => {
-  if (isReconnecting2())
-    return;
-  screen.fail();
-  drawStatus(true);
-  const board = screen.board();
-  if (board)
-    queueStore.update(board);
-};
-var dataAt = 0;
-var errorAt = 0;
-var onRead = ({ data: next, dataUpdatedAt, errorUpdatedAt }) => {
-  const isNew = dataUpdatedAt !== dataAt && next !== undefined;
-  const isFailed = errorUpdatedAt !== errorAt;
-  if (!isNew && !isFailed)
-    return;
-  dataAt = dataUpdatedAt;
-  errorAt = errorUpdatedAt;
-  try {
-    if (isNew)
-      accept4(next);
-    else
-      fail2();
-    tick();
-  } finally {
-    settle();
-  }
-};
-function startRead() {
-  const observer = new QueryObserver(queryClient, pollOptions);
-  const reconnect = () => {
-    drawIntake();
-    observer.setOptions({ ...pollOptions, enabled: false });
-    queryClient.cancelQueries({ queryKey: boardKey });
-    settle();
-    screen.fail();
-    const board = screen.board();
-    if (board)
-      queueStore.update(board);
-  };
-  const connected = () => {
-    drawIntake();
-    observer.setOptions({ ...pollOptions, enabled: true });
-  };
-  updateStore.handle({ reconnect, connected });
-  updateStore.start();
-  let drawnSettings = settings2();
-  shellStore.subscribe(() => {
-    if (settings2() === drawnSettings)
-      return;
-    drawnSettings = settings2();
-    drawFavicon();
-  });
-  coordinator.handle({
-    reveal: showChat,
-    changed: (next) => {
-      if (!screen.read())
-        return;
-      screen.setCoordinator(next);
-      render2();
-    },
-    notify: (title, open) => systemNotice(title, "", "coordinator", open)
-  });
-  let drawnShell = shellStore.get();
-  const followShell = () => {
-    drawnShell = shellStore.get();
-    const { area } = shell4();
-    if (area !== "control") {
-      updateStore.dismiss();
-      agentStore.closeMenu();
-    }
-  };
-  shellStore.subscribe(() => {
-    const next = shellStore.get();
-    if (next.shell !== drawnShell.shell || next.isPhone !== drawnShell.isPhone)
-      followShell();
-  });
-  let drawnTurns = screen.get().turns;
-  screen.subscribe(() => {
-    const was = drawnTurns;
-    drawnTurns = screen.get().turns;
-    if (drawnTurns !== was && screen.get().read)
-      render2();
-  });
-  addEventListener("blur", () => screen.markAllSeen());
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden)
-      screen.markAllSeen();
-    else
-      readAgain2();
-  });
-  shellStore.handle({
-    go: (area) => {
-      setArea(area);
-      if (area === "operations" && shellStore.get().inputs.badges.operations > 0)
-        focusNeed();
-    },
-    showChat,
-    agents: () => setPane("agents"),
-    intake: () => void openIntake(),
-    agentOrder,
-    readAgain: readAgain2,
-    isReconnecting: isReconnecting2,
-    open: openDetails
-  });
-  screen.handle({ openChat: coordinator.open, render: render2 });
-  drawIntake();
-  showHints(null);
-  setInterval(tick, 1000);
-  followShell();
-  drawStatus(false);
-  observer.subscribe(onRead);
-}
-
-// engine/board/page/toast/toaster.tsx
-var import_react15 = __toESM(require_react());
-var jsx_runtime9 = __toESM(require_jsx_runtime());
-var ROOT = "fixed bottom-12 left-1/2 z-20 flex w-max max-w-[min(560px,calc(100vw-32px))] items-center gap-2.5 rounded-xl bg-card py-2.5 pr-2 pl-3 text-[0.8125rem] leading-[1.45] text-foreground [box-shadow:var(--float)] [overflow-wrap:anywhere] [transform:translate(calc(-50%_+_var(--toast-swipe-movement-x,0px)),var(--toast-swipe-movement-y,0px))] animate-rise data-ending-style:hidden phone:bottom-[calc(var(--dock)+12px)]";
-var MARK = "grid size-5 flex-none place-items-center rounded-sm [&_.icon]:size-[13px]";
-var OK = "bg-[color-mix(in_srgb,var(--ready)_14%,transparent)] text-ready";
-var ERROR = "bg-[color-mix(in_srgb,var(--danger)_14%,transparent)] text-destructive";
-var DETAIL = "m-0 mt-px block text-[0.78125rem] text-card-foreground first-letter:uppercase";
-var CODE = "rounded-xs bg-accent px-[5px] py-px font-mono text-[0.75rem] leading-[1.4] font-normal text-foreground";
-var withCode = (text) => {
-  const node = [];
-  text.split("`").forEach((part, index) => {
-    if (part)
-      node.push(index % 2 ? /* @__PURE__ */ jsx_runtime9.jsx("code", {
-        className: CODE,
-        children: part
-      }, index) : part);
-  });
-  return node;
-};
-function ToastItem({ toast }) {
-  const isError = toast.type === "error";
-  const detail = toast.data?.detail ?? "";
-  const close = import_react15.useRef(null);
-  const [tookOver] = import_react15.useState(isFocusInToast);
-  import_react15.useLayoutEffect(() => {
-    if (tookOver)
-      close.current?.focus({ preventScroll: true });
-  }, [tookOver]);
-  return /* @__PURE__ */ jsx_runtime9.jsxs(ToastRoot, {
-    toast,
-    className: ROOT,
-    children: [
-      /* @__PURE__ */ jsx_runtime9.jsx("span", {
-        className: cn(MARK, isError ? ERROR : OK),
-        children: /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
-          name: isError ? "alert" : "check"
-        })
-      }),
-      /* @__PURE__ */ jsx_runtime9.jsxs("div", {
-        children: [
-          /* @__PURE__ */ jsx_runtime9.jsx(ToastTitle, {
-            render: /* @__PURE__ */ jsx_runtime9.jsx("strong", {}),
-            className: "block font-semibold"
-          }),
-          detail ? /* @__PURE__ */ jsx_runtime9.jsx(ToastDescription, {
-            className: DETAIL,
-            children: withCode(detail)
-          }) : null
-        ]
-      }),
-      /* @__PURE__ */ jsx_runtime9.jsx(ToastClose, {
-        ref: close,
-        render: /* @__PURE__ */ jsx_runtime9.jsx(Button2, {
-          variant: "icon",
-          size: "icon",
-          className: "px-1.5 py-px [border:0]",
-          "aria-label": "Close"
-        }),
-        children: /* @__PURE__ */ jsx_runtime9.jsx(Icon, {
-          name: "close"
-        })
-      })
-    ]
-  });
-}
-function ToastList() {
-  const { toasts } = useToastManager();
-  return /* @__PURE__ */ jsx_runtime9.jsx(ViewBoundary, {
-    snapshot: toasts,
-    fallback: null,
-    children: toasts.map((toast) => /* @__PURE__ */ jsx_runtime9.jsx(ToastItem, {
-      toast
-    }, toast.id))
-  });
-}
-function Toaster() {
-  return /* @__PURE__ */ jsx_runtime9.jsx(ToastProvider, {
-    toastManager,
-    limit: 1,
-    children: /* @__PURE__ */ jsx_runtime9.jsx(ToastPortal, {
-      children: /* @__PURE__ */ jsx_runtime9.jsx(ToastViewport, {
-        onKeyDown: (event) => {
-          if (event.key !== "Escape")
-            return;
-          event.preventDefault();
-          event.stopPropagation();
-          if (event.target === event.currentTarget)
-            toastManager.close();
-        },
-        onPointerEnter: (event) => event.pointerType !== "touch" && holdTimer("pointer", true),
-        onPointerMove: (event) => event.pointerType !== "touch" && holdTimer("pointer", true),
-        onPointerLeave: () => holdTimer("pointer", false),
-        onFocus: (event) => {
-          if (event.relatedTarget instanceof Element && !event.currentTarget.contains(event.relatedTarget))
-            rememberOrigin(event.relatedTarget);
-          if (event.target.matches(":focus-visible"))
-            holdTimer("focus", true);
-        },
-        onBlur: (event) => {
-          if (!event.currentTarget.contains(event.relatedTarget) && !event.currentTarget.contains(document.activeElement))
-            holdTimer("focus", false);
-        },
-        children: /* @__PURE__ */ jsx_runtime9.jsx(ToastList, {})
-      })
-    })
-  });
-}
-
-// engine/board/page/update/update.tsx
-var import_react16 = __toESM(require_react());
-var jsx_runtime10 = __toESM(require_jsx_runtime());
-var POPUP2 = "fixed z-[100] m-0 max-h-[calc(100dvh-24px)] w-[min(272px,calc(100vw-24px))] overflow-auto rounded-[12px] border border-border bg-card pt-[18px] pr-[18px] pb-4 pl-[18px] text-foreground [box-shadow:var(--float)] [font:inherit] [position-anchor:--update] [position-try-fallbacks:flip-block] [inset:calc(anchor(--update_bottom)+8px)_auto_auto_anchor(--update_left)] [scrollbar-color:var(--fg3)_var(--card)] phone:[position-anchor:--bar] phone:[position-try-fallbacks:none] phone:[inset:auto_12px_calc(anchor(--bar_top)+8px)_auto]";
-var NO_GUARDS = "[&>[data-base-ui-focus-guard]]:hidden";
-var NOTE = "m-[10px_0_0] text-[0.75rem] wrap-anywhere whitespace-pre-wrap";
-var ACTION = "w-full min-h-[34px] phone:min-h-11 aria-disabled:cursor-wait aria-disabled:opacity-50";
-var useUpdate = () => import_react16.useSyncExternalStore(updateStore.subscribe, updateStore.get);
-var control = () => document.getElementById("update-open");
-var titleNode = () => document.getElementById("update-title");
-var prior = null;
-var keepTabOrder = (event) => {
-  for (const node of event.currentTarget.querySelectorAll("[data-tabindex]")) {
-    const tabIndex = node.getAttribute("data-tabindex");
-    node.removeAttribute("data-tabindex");
-    if (tabIndex)
-      node.setAttribute("tabindex", tabIndex);
-    else
-      node.removeAttribute("tabindex");
-  }
-};
-function ControlBody({ shown }) {
-  const name = `${shown.label}, Celetis`;
-  return /* @__PURE__ */ jsx_runtime10.jsxs("button", {
-    type: "button",
-    className: cn("inline-flex min-h-6 flex-none items-center gap-[7px] rounded-[6px] [border:0] px-2 py-0 font-sans text-[0.75rem] leading-none font-normal [anchor-name:--update] aria-disabled:cursor-wait aria-disabled:bg-[var(--fill)] aria-disabled:text-working phone:min-h-11 phone:min-w-11 [&_.icon]:size-[13px]", shown.isAccent ? "bg-[color-mix(in_srgb,var(--needs-tint)_10%,transparent)] text-needs [&:hover]:bg-[color-mix(in_srgb,var(--needs-tint)_13%,transparent)]" : "bg-transparent text-muted-foreground [&:hover:not([aria-disabled=true])]:bg-accent [&:hover:not([aria-disabled=true])]:text-foreground", !shown.isAccent && !shown.isChecking && "-ms-2"),
-    id: "update-open",
-    "aria-controls": "update-dialog",
-    "aria-expanded": shown.isOpen,
-    "aria-disabled": shown.isChecking,
-    "aria-label": name,
-    title: name,
-    onClick: () => {
-      const isRepeat = shown.isOpen && !shown.isChecking;
-      const focused = document.activeElement;
-      updateStore.press();
-      if (!isRepeat)
-        return;
-      prior = focused;
-      titleNode()?.focus();
-    },
-    children: [
-      /* @__PURE__ */ jsx_runtime10.jsx(Icon, {
-        name: "refresh"
-      }),
-      /* @__PURE__ */ jsx_runtime10.jsx("span", {
-        className: "label",
-        children: shown.label
-      })
-    ]
-  });
-}
-function UpdateControl() {
-  const shown = useUpdate();
-  return /* @__PURE__ */ jsx_runtime10.jsx(ViewBoundary, {
-    snapshot: shown,
-    fallback: null,
-    children: /* @__PURE__ */ jsx_runtime10.jsx(ControlBody, {
-      shown
-    })
-  });
-}
-function Content({ shown }) {
-  const focusedBefore = document.activeElement;
-  const start = import_react16.useRef(null);
-  const check = import_react16.useRef(null);
-  import_react16.useLayoutEffect(() => {
-    if (focusedBefore === start.current && !shown.showStart || focusedBefore === check.current && !shown.showCheck)
-      titleNode()?.focus();
-  });
-  return /* @__PURE__ */ jsx_runtime10.jsxs(jsx_runtime10.Fragment, {
-    children: [
-      /* @__PURE__ */ jsx_runtime10.jsx(DialogTitle, {
-        id: "update-title",
-        tabIndex: -1,
-        className: "text-[0.875rem] leading-[1.4] font-semibold",
-        children: shown.title
-      }),
-      /* @__PURE__ */ jsx_runtime10.jsxs(DialogDescription, {
-        id: "update-description",
-        className: "m-[6px_0_0] text-[0.78125rem] leading-[1.5] text-muted-foreground",
-        children: [
-          shown.description,
-          shown.release ? /* @__PURE__ */ jsx_runtime10.jsx("span", {
-            id: "update-release",
-            className: "mt-[10px] block font-mono text-[0.6875rem] leading-[1.6] whitespace-pre-line wrap-anywhere text-card-foreground",
-            children: shown.release
-          }) : null
-        ]
-      }),
-      /* @__PURE__ */ jsx_runtime10.jsx("p", {
-        id: "update-progress",
-        "aria-hidden": "true",
-        className: cn("m-[12px_0_0] text-[0.75rem] text-working", shown.isProgressBusy ? "before:mr-2 before:inline-block before:h-[7px] before:w-[7px] before:rounded-[50%] before:bg-current before:content-['']" : "absolute h-px w-px overflow-hidden [clip-path:inset(50%)]"),
-        children: shown.progress
-      }),
-      /* @__PURE__ */ jsx_runtime10.jsx("p", {
-        id: "update-error",
-        className: cn(NOTE, "whitespace-pre-line text-[color:var(--danger)]"),
-        hidden: !shown.diagnostic,
-        children: shown.diagnostic
-      }),
-      /* @__PURE__ */ jsx_runtime10.jsx("p", {
-        id: "update-recovery",
-        className: cn(NOTE, "text-card-foreground"),
-        hidden: !shown.recovery,
-        children: shown.recovery
-      }),
-      /* @__PURE__ */ jsx_runtime10.jsxs("div", {
-        className: "mt-[18px] grid gap-1.5",
-        children: [
-          /* @__PURE__ */ jsx_runtime10.jsx(Button2, {
-            ref: start,
-            variant: "primary",
-            size: "action",
-            className: ACTION,
-            id: "update-start",
-            hidden: !shown.showStart,
-            "aria-disabled": shown.isStartDisabled,
-            onClick: updateStore.confirm,
-            children: shown.startLabel
-          }),
-          /* @__PURE__ */ jsx_runtime10.jsx(Button2, {
-            ref: check,
-            variant: "primary",
-            size: "action",
-            className: ACTION,
-            id: "update-check",
-            hidden: !shown.showCheck,
-            "aria-disabled": shown.isCheckDisabled,
-            onClick: updateStore.check,
-            children: "Check again"
-          }),
-          /* @__PURE__ */ jsx_runtime10.jsx(Button2, {
-            variant: "secondary",
-            size: "action",
-            className: cn("bg-transparent text-card-foreground [&:hover]:bg-[var(--fill)] [&:hover]:text-foreground", ACTION),
-            id: "update-later",
-            onClick: updateStore.close,
-            children: shown.later
-          })
-        ]
-      })
-    ]
-  });
-}
-function UpdateDialog() {
-  const shown = useUpdate();
-  const popup = import_react16.useRef(null);
-  const seen = import_react16.useRef({ isOpen: false, wasInside: false });
-  if (shown.isOpen !== seen.current.isOpen) {
-    const active = document.activeElement;
-    if (shown.isOpen)
-      prior = active;
-    else
-      seen.current.wasInside = popup.current?.contains(active) ?? false;
-    seen.current.isOpen = shown.isOpen;
-  }
-  import_react16.useLayoutEffect(() => {
-    if (shown.isOpen)
-      queueMicrotask(() => updateStore.get().isOpen && titleNode()?.focus());
-    else if (seen.current.wasInside)
-      (prior instanceof HTMLElement && prior.isConnected && !prior.hidden ? prior : control())?.focus();
-  }, [shown.isOpen]);
-  return /* @__PURE__ */ jsx_runtime10.jsxs(jsx_runtime10.Fragment, {
-    children: [
-      /* @__PURE__ */ jsx_runtime10.jsx("p", {
-        className: "sr-only",
-        id: "update-status",
-        role: "status",
-        "aria-live": "polite",
-        children: shown.status
-      }),
-      /* @__PURE__ */ jsx_runtime10.jsx("div", {
-        className: cn("contents", NO_GUARDS),
-        children: /* @__PURE__ */ jsx_runtime10.jsx(DialogRoot, {
-          modal: false,
-          disablePointerDismissal: true,
-          open: shown.isOpen,
-          onOpenChange: (next, details) => {
-            if (details.reason === "escape-key" && !popup.current?.contains(details.event.target)) {
-              details.cancel();
-              return;
-            }
-            if (!next)
-              updateStore.close();
-          },
-          children: /* @__PURE__ */ jsx_runtime10.jsx(DialogPortal, {
-            keepMounted: true,
-            className: NO_GUARDS,
-            children: /* @__PURE__ */ jsx_runtime10.jsx(DialogPopup, {
-              ref: popup,
-              id: "update-dialog",
-              className: POPUP2,
-              initialFocus: false,
-              finalFocus: false,
-              onBlur: keepTabOrder,
-              children: /* @__PURE__ */ jsx_runtime10.jsx(ViewBoundary, {
-                snapshot: shown,
-                fallback: null,
-                children: /* @__PURE__ */ jsx_runtime10.jsx(Content, {
-                  shown
-                })
-              })
-            })
-          })
-        })
-      })
-    ]
-  });
-}
-
-// engine/board/page/app/keys.ts
-var import_react17 = __toESM(require_react());
-var settings3 = () => shellStore.get().settings;
-var KEYS2 = {
-  r: () => void shellStore.refresh(),
-  "?": () => {
-    agentStore.closeMenu();
-    shellStore.setInputs({ moreOpen: false });
-    openShortcuts();
-  },
-  "/": () => {
-    agentStore.closeMenu();
-    shellStore.setInputs({ moreOpen: false });
-    openPalette();
-  }
-};
-function useGlobalKeys() {
-  import_react17.useEffect(() => {
-    const onKey = (event) => {
-      if (event.defaultPrevented || event.target instanceof Node && document.getElementById("update-dialog")?.contains(event.target))
-        return;
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        agentStore.closeMenu();
-        shellStore.setInputs({ moreOpen: false });
-        if (!paletteStore.get().isOpen)
-          openPalette();
-        return;
-      }
-      if (document.getElementById("agent-picker")?.contains(event.target))
-        return;
-      if (event.metaKey || event.ctrlKey || event.altKey || isShortcutsOpen() || paletteStore.get().isOpen || screen.get().stopFor !== null)
-        return;
-      if (event.target.closest?.("input, textarea, select, [contenteditable]"))
-        return;
-      if (event.key === "Escape" && shellStore.get().inputs.moreOpen)
-        return;
-      if (event.key === "Escape" && updateStore.dismiss()) {
-        event.preventDefault();
-        return;
-      }
-      if (handleKey(event))
-        return;
-      const press = settings3().keys && KEYS2[event.key];
-      if (!press)
-        return;
-      event.preventDefault();
-      press();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, []);
-}
-
-// engine/board/page/coordinator/button.tsx
-var jsx_runtime11 = __toESM(require_jsx_runtime());
-var MARKS = {
-  none: "bg-transparent shadow-[inset_0_0_0_1.5px_var(--fg3)]",
-  starting: "bg-transparent shadow-[inset_0_0_0_1.5px_var(--working)]",
-  works: "bg-working",
-  "turn-ended": "bg-card-foreground",
-  dialog: "rounded-[1.5px] bg-needs [transform:rotate(45deg)]"
-};
-function ChatMark({ state, stale, className }) {
-  return /* @__PURE__ */ jsx_runtime11.jsx("i", {
-    className: cn("size-[7px] flex-none rounded-[50%]", MARKS[state], stale && "opacity-55", className),
-    "aria-hidden": "true"
-  });
-}
-function ChatButton() {
-  const mirror = useCoordinator((state) => state.mirror);
-  const isDialog = mirror.state === "dialog";
-  return /* @__PURE__ */ jsx_runtime11.jsxs(Button2, {
-    type: "button",
-    variant: "secondary",
-    size: "action",
-    id: "pane-chat",
-    className: cn("gap-[7px] phone:min-h-11", isDialog && "bg-[color-mix(in_srgb,var(--needs-tint)_10%,transparent)] border-[color-mix(in_srgb,var(--needs)_45%,transparent)] [&:hover]:bg-[color-mix(in_srgb,var(--needs-tint)_10%,transparent)] [&:hover]:border-[color-mix(in_srgb,var(--needs)_45%,transparent)]"),
-    "data-state": mirror.state,
-    "data-stale": mirror.stale ? "" : undefined,
-    "data-new": mirror.unseen ? "" : undefined,
-    "aria-label": mirror.label,
-    title: mirror.title,
-    onClick: () => coordinator.open(),
-    children: [
-      /* @__PURE__ */ jsx_runtime11.jsx(Icon, {
-        name: "message"
-      }),
-      /* @__PURE__ */ jsx_runtime11.jsx("span", {
-        className: "label",
-        children: "Chat"
-      }),
-      /* @__PURE__ */ jsx_runtime11.jsx(ChatMark, {
-        state: mirror.state,
-        stale: mirror.stale
-      }),
-      /* @__PURE__ */ jsx_runtime11.jsx("span", {
-        className: cn("font-normal", mirror.stale ? "text-muted-foreground" : isDialog ? "text-foreground" : "text-card-foreground"),
-        children: mirror.words
-      }),
-      mirror.unseen && /* @__PURE__ */ jsx_runtime11.jsx("i", {
-        className: "-ml-0.5 size-[7px] flex-none rounded-[50%] bg-foreground shadow-[0_0_0_3px_color-mix(in_srgb,var(--fg)_14%,transparent)]",
-        "aria-hidden": "true"
-      })
-    ]
-  });
-}
-
-// engine/board/page/coordinator/panel.tsx
-var import_react21 = __toESM(require_react());
-
-// engine/board/page/operations/parts.tsx
+// engine/board/page/operations/panel.tsx
 var import_react18 = __toESM(require_react());
-var jsx_runtime12 = __toESM(require_jsx_runtime());
-var WARNING = "m-0 rounded-lg border border-[color-mix(in_srgb,var(--amber)_30%,transparent)] bg-[color-mix(in_srgb,var(--amber)_9%,transparent)] px-2.5 py-2 text-[0.75rem] leading-[1.45] text-foreground [overflow-wrap:anywhere]";
-var MARK2 = "grid min-h-[18px] w-[18px] flex-none place-items-center rounded-xs";
-var LETTER = `${MARK2} font-sans text-[0.6875rem] leading-none font-semibold text-foreground`;
-var BOXED = "bg-accent [box-shadow:inset_0_0_0_1px_var(--line-strong)]";
-var NUM = "whitespace-nowrap text-card-foreground tabular-nums";
-var NUM_LINK = `inline-flex min-h-6 min-w-6 items-center [&:hover]:text-foreground ${TAP}`;
-var CHIP = "inline-flex min-h-[22px] items-center gap-1.5 rounded-sm border pr-2 pl-1.5 font-sans text-[0.71875rem] leading-none font-medium whitespace-nowrap [&_.icon]:size-3";
-var CHIP_LINK = `[&:hover]:border-border-strong [&:hover]:text-foreground ${TAP}`;
-var NEUTRAL = "border-border bg-secondary text-card-foreground";
-var GOOD = "border-[color-mix(in_srgb,var(--ready)_28%,transparent)] bg-[color-mix(in_srgb,var(--ready)_8%,transparent)] text-ready";
-var WAITING = `${NEUTRAL} [&_.icon]:text-muted-foreground`;
-var CHIP_TONES = {
-  pr: `${NEUTRAL} font-mono font-normal`,
-  "checks-pass": GOOD,
-  "checks-fail": "border-[color-mix(in_srgb,var(--danger)_30%,transparent)] bg-[color-mix(in_srgb,var(--danger)_8%,transparent)] text-destructive",
-  "checks-pending": WAITING,
-  "review-approved": GOOD,
-  "review-changes": "border-[color-mix(in_srgb,var(--amber)_30%,transparent)] bg-[color-mix(in_srgb,var(--amber)_8%,transparent)] text-caution",
-  "review-required": WAITING
-};
-var GATE = "inline-flex min-h-[18px] cursor-help items-center rounded-xs px-1.5 font-sans text-[0.6875rem] leading-none font-medium";
-var GATE_ON = "bg-[color-mix(in_srgb,var(--ready)_13%,transparent)] text-ready";
-var GATE_OFF = "border border-dashed border-border-strong bg-transparent text-card-foreground";
-function Link({
-  className,
-  anchorClassName,
-  url,
-  label,
-  title,
-  children
-}) {
-  const href = safeUrl(url);
-  const shared = { "aria-label": label, title };
-  return href ? /* @__PURE__ */ jsx_runtime12.jsx("a", {
-    ...shared,
-    className: cn(className, anchorClassName) || undefined,
-    href,
-    target: "_blank",
-    rel: "noreferrer",
-    children
-  }) : /* @__PURE__ */ jsx_runtime12.jsx("span", {
-    ...shared,
-    className: className || undefined,
-    children
-  });
-}
-function Num({
-  url,
-  className,
-  children
-}) {
-  return /* @__PURE__ */ jsx_runtime12.jsx(Link, {
-    className: cn(NUM, className),
-    anchorClassName: NUM_LINK,
-    url,
-    children
-  });
-}
-function Timed({
-  iso,
-  isFine = false,
-  suffix = "",
-  className = ""
-}) {
-  const now = useScreen((state) => state.now);
-  return /* @__PURE__ */ jsx_runtime12.jsx("time", {
-    className: cn("time tabular-nums", className),
-    dateTime: iso,
-    title: clock(iso, true),
-    children: `${age(iso, now, isFine)}${suffix}`
-  });
-}
-function Mark({
-  card,
-  registry,
-  identifiedByText = false
-}) {
-  const agent = agentOf(card, registry);
-  if (agent) {
-    const known = knownAgent(registry, card.agent) ? card.agent : null;
-    return /* @__PURE__ */ jsx_runtime12.jsx("span", {
-      className: cn(LETTER, (known === null || known === "opencode") && BOXED),
-      title: agent.name,
-      children: known ? /* @__PURE__ */ jsx_runtime12.jsx("img", {
-        className: known === "opencode" ? "size-3 object-contain" : "size-[18px] object-contain",
-        src: AGENT_ICONS[known],
-        alt: identifiedByText ? "" : agent.name
-      }) : agent.letter
-    });
-  }
-  const name = Object.hasOwn(TYPES, card.type) ? TYPES[card.type] : card.number === null ? "terminal" : "nolane";
-  return /* @__PURE__ */ jsx_runtime12.jsx("span", {
-    className: `${MARK2} text-card-foreground [&_.icon]:size-[13px]`,
-    title: !card.type && card.number !== null ? "No lane yet" : undefined,
-    children: /* @__PURE__ */ jsx_runtime12.jsx(Icon, {
-      name
-    })
-  });
-}
-var chipIcon = (kind) => kind === "pr" ? "pr" : kind.startsWith("checks-fail") ? "xcircle" : kind.startsWith("checks-pass") || kind === "review-approved" ? "check" : "clock";
-function PrChips({ pr }) {
-  const items = prFacts(pr);
-  if (items.length === 0)
-    return null;
-  return /* @__PURE__ */ jsx_runtime12.jsx("div", {
-    className: "flex flex-wrap gap-1.5",
-    children: items.map((item) => /* @__PURE__ */ jsx_runtime12.jsxs(Link, {
-      className: cn(CHIP, CHIP_TONES[item.kind]),
-      anchorClassName: CHIP_LINK,
-      url: item.url,
-      children: [
-        /* @__PURE__ */ jsx_runtime12.jsx(Icon, {
-          name: chipIcon(item.kind)
-        }),
-        item.text
-      ]
-    }, item.kind))
-  });
-}
-function GateLabel({ mode, className = "" }) {
-  const on = mode === "on";
-  return /* @__PURE__ */ jsx_runtime12.jsx("span", {
-    className: cn(GATE, on ? GATE_ON : GATE_OFF, className),
-    title: on ? "Auto mode of the daemon starts this step by itself" : "Auto mode is off: this step waits for Run.",
-    children: on ? "auto" : "auto off"
-  });
-}
-function IconButton({
-  name,
-  label,
-  press,
-  className = "",
-  title = label
-}) {
-  return /* @__PURE__ */ jsx_runtime12.jsx(Button2, {
-    variant: "icon",
-    size: "icon",
-    className,
-    "aria-label": label,
-    title,
-    onClick: (event) => {
-      event.stopPropagation();
-      press(event);
-    },
-    children: /* @__PURE__ */ jsx_runtime12.jsx(Icon, {
-      name
-    })
-  });
-}
-function ActionButton({
-  card,
-  action,
-  isQuiet = false,
-  className: extra = ""
-}) {
-  const isBusy = useScreen((state) => state.pressing.has(pressId(card, action)));
-  const variant = isQuiet || action.isGhost ? "secondary" : "primary";
-  const shared = {
-    title: action.title,
-    "aria-label": action.name,
-    "aria-disabled": action.isDisabled ? "true" : undefined
-  };
-  const inner = /* @__PURE__ */ jsx_runtime12.jsxs(jsx_runtime12.Fragment, {
-    children: [
-      /* @__PURE__ */ jsx_runtime12.jsx(Icon, {
-        name: action.icon
-      }),
-      /* @__PURE__ */ jsx_runtime12.jsx("span", {
-        className: "label",
-        children: isBusy && action.busy ? action.busy : action.label
-      })
-    ]
-  });
-  if (action.href)
-    return /* @__PURE__ */ jsx_runtime12.jsx("a", {
-      ...shared,
-      "data-slot": "button",
-      className: buttonVariants({ variant, size: "action", className: extra }),
-      href: safeUrl(action.href) ?? undefined,
-      target: "_blank",
-      rel: "noreferrer",
-      onClick: (event) => event.stopPropagation(),
-      children: inner
-    });
-  return /* @__PURE__ */ jsx_runtime12.jsx(Button2, {
-    variant,
-    size: "action",
-    className: extra,
-    ...shared,
-    "aria-busy": isBusy ? "true" : undefined,
-    onClick: (event) => {
-      event.stopPropagation();
-      screen.press(card, action);
-    },
-    children: inner
-  });
-}
-var useKeptScroll = (find, content) => {
-  const tops = import_react18.useRef(new Map);
-  const scrolling = import_react18.useRef(new WeakSet);
-  const was = import_react18.useRef(content);
-  if (was.current !== content)
-    tops.current = new Map(find().map((node) => [node, node.scrollTop]));
-  import_react18.useEffect(() => {
-    const start = (event) => scrolling.current.add(event.target);
-    const end = (event) => scrolling.current.delete(event.target);
-    document.addEventListener("scroll", start, true);
-    document.addEventListener("scrollend", end, true);
-    return () => {
-      document.removeEventListener("scroll", start, true);
-      document.removeEventListener("scrollend", end, true);
-    };
-  }, []);
-  import_react18.useLayoutEffect(() => {
-    if (was.current !== content) {
-      for (const [node, top] of tops.current)
-        if (node.isConnected && !scrolling.current.has(node))
-          node.scrollTop = top;
-    }
-    was.current = content;
-  });
-};
-var useKeptFocus = (find) => {
-  const ref = import_react18.useRef(null);
-  const focused = import_react18.useRef(null);
-  const held = import_react18.useRef(false);
-  held.current = ref.current?.contains(document.activeElement) ?? false;
-  import_react18.useLayoutEffect(() => {
-    const lost = focused.current;
-    if (!ref.current || !lost || lost.isConnected)
-      return;
-    focused.current = null;
-    if (held.current && document.activeElement === document.body)
-      find(ref.current, lost)?.focus({ preventScroll: true });
-  });
-  return {
-    ref,
-    onFocus: (event) => {
-      focused.current = event.target;
-    },
-    onBlur: (event) => {
-      if (event.relatedTarget)
-        focused.current = null;
-    }
-  };
-};
-
-// engine/board/page/ui/textarea.tsx
-var jsx_runtime13 = __toESM(require_jsx_runtime());
-function Textarea({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime13.jsx("textarea", {
-    "data-slot": "textarea",
-    className: cn("field-sizing-content max-h-42 min-h-11 w-full resize-none border-0 bg-transparent px-3.5 pt-[11px] pb-1 text-foreground caret-ring outline-none [font:inherit] placeholder:text-muted-foreground", className),
-    ...props
-  });
-}
-
-// engine/board/page/coordinator/log.tsx
-var import_react20 = __toESM(require_react());
-
-// engine/node_modules/use-stick-to-bottom/dist/useStickToBottom.js
-var import_react19 = __toESM(require_react(), 1);
-/*!---------------------------------------------------------------------------------------------
- *  Copyright (c) StackBlitz. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-var DEFAULT_SPRING_ANIMATION = {
-  damping: 0.7,
-  stiffness: 0.05,
-  mass: 1.25
-};
-var STICK_TO_BOTTOM_OFFSET_PX = 70;
-var SIXTY_FPS_INTERVAL_MS = 1000 / 60;
-var RETAIN_ANIMATION_DURATION_MS = 350;
-var mouseDown2 = false;
-globalThis.document?.addEventListener("mousedown", () => {
-  mouseDown2 = true;
-});
-globalThis.document?.addEventListener("mouseup", () => {
-  mouseDown2 = false;
-});
-globalThis.document?.addEventListener("click", () => {
-  mouseDown2 = false;
-});
-var useStickToBottom = (options = {}) => {
-  const [escapedFromLock, updateEscapedFromLock] = import_react19.useState(false);
-  const [isAtBottom, updateIsAtBottom] = import_react19.useState(options.initial !== false);
-  const [isNearBottom, setIsNearBottom] = import_react19.useState(false);
-  const optionsRef = import_react19.useRef(null);
-  optionsRef.current = options;
-  const isSelecting = import_react19.useCallback(() => {
-    if (!mouseDown2) {
-      return false;
-    }
-    const selection = window.getSelection();
-    if (!selection || !selection.rangeCount) {
-      return false;
-    }
-    const range = selection.getRangeAt(0);
-    return range.commonAncestorContainer.contains(scrollRef.current) || scrollRef.current?.contains(range.commonAncestorContainer);
-  }, []);
-  const setIsAtBottom = import_react19.useCallback((isAtBottom) => {
-    state.isAtBottom = isAtBottom;
-    updateIsAtBottom(isAtBottom);
-  }, []);
-  const setEscapedFromLock = import_react19.useCallback((escapedFromLock) => {
-    state.escapedFromLock = escapedFromLock;
-    updateEscapedFromLock(escapedFromLock);
-  }, []);
-  const state = import_react19.useMemo(() => {
-    let lastCalculation;
-    return {
-      escapedFromLock,
-      isAtBottom,
-      resizeDifference: 0,
-      accumulated: 0,
-      velocity: 0,
-      listeners: new Set,
-      get scrollTop() {
-        return scrollRef.current?.scrollTop ?? 0;
-      },
-      set scrollTop(scrollTop) {
-        if (scrollRef.current) {
-          const { scrollBehavior } = getComputedStyle(scrollRef.current);
-          if (scrollBehavior !== "auto") {
-            scrollRef.current.style.scrollBehavior = "auto";
-          }
-          scrollRef.current.scrollTop = scrollTop;
-          state.ignoreScrollToTop = scrollRef.current.scrollTop;
-          if (scrollBehavior !== "auto") {
-            scrollRef.current.style.scrollBehavior = scrollBehavior;
-          }
-        }
-      },
-      get targetScrollTop() {
-        if (!scrollRef.current || !contentRef.current) {
-          return 0;
-        }
-        return scrollRef.current.scrollHeight - 1 - scrollRef.current.clientHeight;
-      },
-      get calculatedTargetScrollTop() {
-        if (!scrollRef.current || !contentRef.current) {
-          return 0;
-        }
-        const { targetScrollTop } = this;
-        if (!options.targetScrollTop) {
-          return targetScrollTop;
-        }
-        if (lastCalculation?.targetScrollTop === targetScrollTop) {
-          return lastCalculation.calculatedScrollTop;
-        }
-        const calculatedScrollTop = Math.max(Math.min(options.targetScrollTop(targetScrollTop, {
-          scrollElement: scrollRef.current,
-          contentElement: contentRef.current
-        }), targetScrollTop), 0);
-        lastCalculation = { targetScrollTop, calculatedScrollTop };
-        requestAnimationFrame(() => {
-          lastCalculation = undefined;
-        });
-        return calculatedScrollTop;
-      },
-      get scrollDifference() {
-        return this.calculatedTargetScrollTop - this.scrollTop;
-      },
-      get isNearBottom() {
-        return this.scrollDifference <= STICK_TO_BOTTOM_OFFSET_PX;
-      }
-    };
-  }, []);
-  const scrollToBottom = import_react19.useCallback((scrollOptions = {}) => {
-    if (typeof scrollOptions === "string") {
-      scrollOptions = { animation: scrollOptions };
-    }
-    if (!scrollOptions.preserveScrollPosition) {
-      setIsAtBottom(true);
-    }
-    const waitElapsed = Date.now() + (Number(scrollOptions.wait) || 0);
-    const behavior = mergeAnimations(optionsRef.current, scrollOptions.animation);
-    const { ignoreEscapes = false } = scrollOptions;
-    let durationElapsed;
-    let startTarget = state.calculatedTargetScrollTop;
-    if (scrollOptions.duration instanceof Promise) {
-      scrollOptions.duration.finally(() => {
-        durationElapsed = Date.now();
-      });
-    } else {
-      durationElapsed = waitElapsed + (scrollOptions.duration ?? 0);
-    }
-    const next = async () => {
-      const promise = new Promise(requestAnimationFrame).then(() => {
-        if (!state.isAtBottom) {
-          state.animation = undefined;
-          return false;
-        }
-        const { scrollTop } = state;
-        const tick = performance.now();
-        const tickDelta = (tick - (state.lastTick ?? tick)) / SIXTY_FPS_INTERVAL_MS;
-        state.animation || (state.animation = { behavior, promise, ignoreEscapes });
-        if (state.animation.behavior === behavior) {
-          state.lastTick = tick;
-        }
-        if (isSelecting()) {
-          return next();
-        }
-        if (waitElapsed > Date.now()) {
-          return next();
-        }
-        if (scrollTop < Math.min(startTarget, state.calculatedTargetScrollTop)) {
-          if (state.animation?.behavior === behavior) {
-            if (behavior === "instant") {
-              state.scrollTop = state.calculatedTargetScrollTop;
-              return next();
-            }
-            state.velocity = (behavior.damping * state.velocity + behavior.stiffness * state.scrollDifference) / behavior.mass;
-            state.accumulated += state.velocity * tickDelta;
-            state.scrollTop += state.accumulated;
-            if (state.scrollTop !== scrollTop) {
-              state.accumulated = 0;
-            }
-          }
-          return next();
-        }
-        if (durationElapsed > Date.now()) {
-          startTarget = state.calculatedTargetScrollTop;
-          return next();
-        }
-        state.animation = undefined;
-        if (state.scrollTop < state.calculatedTargetScrollTop) {
-          return scrollToBottom({
-            animation: mergeAnimations(optionsRef.current, optionsRef.current.resize),
-            ignoreEscapes,
-            duration: Math.max(0, durationElapsed - Date.now()) || undefined
-          });
-        }
-        return state.isAtBottom;
-      });
-      return promise.then((isAtBottom) => {
-        requestAnimationFrame(() => {
-          if (!state.animation) {
-            state.lastTick = undefined;
-            state.velocity = 0;
-          }
-        });
-        return isAtBottom;
-      });
-    };
-    if (scrollOptions.wait !== true) {
-      state.animation = undefined;
-    }
-    if (state.animation?.behavior === behavior) {
-      return state.animation.promise;
-    }
-    return next();
-  }, [setIsAtBottom, isSelecting, state]);
-  const stopScroll = import_react19.useCallback(() => {
-    setEscapedFromLock(true);
-    setIsAtBottom(false);
-  }, [setEscapedFromLock, setIsAtBottom]);
-  const handleScroll = import_react19.useCallback(({ target }) => {
-    if (target !== scrollRef.current) {
-      return;
-    }
-    const { scrollTop, ignoreScrollToTop } = state;
-    let { lastScrollTop = scrollTop } = state;
-    state.lastScrollTop = scrollTop;
-    state.ignoreScrollToTop = undefined;
-    if (ignoreScrollToTop && ignoreScrollToTop > scrollTop) {
-      lastScrollTop = ignoreScrollToTop;
-    }
-    setIsNearBottom(state.isNearBottom);
-    setTimeout(() => {
-      if (state.resizeDifference || scrollTop === ignoreScrollToTop) {
-        return;
-      }
-      if (isSelecting()) {
-        setEscapedFromLock(true);
-        setIsAtBottom(false);
-        return;
-      }
-      const isScrollingDown = scrollTop > lastScrollTop;
-      const isScrollingUp = scrollTop < lastScrollTop;
-      if (state.animation?.ignoreEscapes) {
-        state.scrollTop = lastScrollTop;
-        return;
-      }
-      if (isScrollingUp) {
-        setEscapedFromLock(true);
-        setIsAtBottom(false);
-      }
-      if (isScrollingDown) {
-        setEscapedFromLock(false);
-      }
-      if (!state.escapedFromLock && state.isNearBottom) {
-        setIsAtBottom(true);
-      }
-    }, 1);
-  }, [setEscapedFromLock, setIsAtBottom, isSelecting, state]);
-  const handleWheel = import_react19.useCallback(({ target, deltaY }) => {
-    let element = target;
-    while (!["scroll", "auto"].includes(getComputedStyle(element).overflow)) {
-      if (!element.parentElement) {
-        return;
-      }
-      element = element.parentElement;
-    }
-    if (element === scrollRef.current && deltaY < 0 && scrollRef.current.scrollHeight > scrollRef.current.clientHeight && !state.animation?.ignoreEscapes) {
-      setEscapedFromLock(true);
-      setIsAtBottom(false);
-    }
-  }, [setEscapedFromLock, setIsAtBottom, state]);
-  const scrollRef = useRefCallback((scroll) => {
-    scrollRef.current?.removeEventListener("scroll", handleScroll);
-    scrollRef.current?.removeEventListener("wheel", handleWheel);
-    scroll?.addEventListener("scroll", handleScroll, { passive: true });
-    scroll?.addEventListener("wheel", handleWheel, { passive: true });
-  }, []);
-  const contentRef = useRefCallback((content) => {
-    state.resizeObserver?.disconnect();
-    state.resizeObserver = undefined;
-    if (!content) {
-      return;
-    }
-    let previousHeight;
-    state.resizeObserver = new ResizeObserver(([entry]) => {
-      const { height } = entry.contentRect;
-      const difference = height - (previousHeight ?? height);
-      state.resizeDifference = difference;
-      if (state.scrollTop > state.targetScrollTop) {
-        state.scrollTop = state.targetScrollTop;
-      }
-      setIsNearBottom(state.isNearBottom);
-      if (difference >= 0) {
-        const animation = mergeAnimations(optionsRef.current, previousHeight ? optionsRef.current.resize : optionsRef.current.initial);
-        scrollToBottom({
-          animation,
-          wait: true,
-          preserveScrollPosition: true,
-          duration: animation === "instant" ? undefined : RETAIN_ANIMATION_DURATION_MS
-        });
-      } else {
-        if (state.isNearBottom) {
-          setEscapedFromLock(false);
-          setIsAtBottom(true);
-        }
-      }
-      previousHeight = height;
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          if (state.resizeDifference === difference) {
-            state.resizeDifference = 0;
-          }
-        }, 1);
-      });
-    });
-    state.resizeObserver?.observe(content);
-  }, []);
-  return {
-    contentRef,
-    scrollRef,
-    scrollToBottom,
-    stopScroll,
-    isAtBottom: isAtBottom || isNearBottom,
-    isNearBottom,
-    escapedFromLock,
-    state
-  };
-};
-function useRefCallback(callback, deps) {
-  const result = import_react19.useCallback((ref) => {
-    result.current = ref;
-    return callback(ref);
-  }, deps);
-  return result;
-}
-var animationCache = new Map;
-function mergeAnimations(...animations) {
-  const result = { ...DEFAULT_SPRING_ANIMATION };
-  let instant = false;
-  for (const animation of animations) {
-    if (animation === "instant") {
-      instant = true;
-      continue;
-    }
-    if (typeof animation !== "object") {
-      continue;
-    }
-    instant = false;
-    result.damping = animation.damping ?? result.damping;
-    result.stiffness = animation.stiffness ?? result.stiffness;
-    result.mass = animation.mass ?? result.mass;
-  }
-  const key = JSON.stringify(result);
-  if (!animationCache.has(key)) {
-    animationCache.set(key, Object.freeze(result));
-  }
-  return instant ? "instant" : animationCache.get(key);
-}
-
-// engine/node_modules/@base-ui/react/collapsible/root/CollapsibleRoot.mjs
-var React104 = __toESM(require_react(), 1);
-
-// engine/node_modules/@base-ui/react/collapsible/root/useCollapsibleRoot.mjs
-var React102 = __toESM(require_react(), 1);
-"use client";
-function useCollapsibleRoot(parameters) {
-  const {
-    open: openParam,
-    defaultOpen = false,
-    onOpenChange,
-    disabled
-  } = parameters;
-  const [open, setOpen] = useControlled({
-    controlled: openParam,
-    default: defaultOpen,
-    name: "Collapsible",
-    state: "open"
-  });
-  const {
-    mounted,
-    setMounted,
-    transitionStatus
-  } = useTransitionStatus(open, true, true);
-  const defaultPanelId = useBaseUiId();
-  const [registeredPanelId, setPanelIdState] = React102.useState();
-  const panelId = registeredPanelId === null ? undefined : registeredPanelId ?? defaultPanelId;
-  const handleTrigger = useStableCallback((event) => {
-    const nextOpen = !open;
-    const eventDetails = createChangeEventDetails(triggerPress, event.nativeEvent);
-    onOpenChange(nextOpen, eventDetails);
-    if (eventDetails.isCanceled) {
-      return;
-    }
-    setOpen(nextOpen);
-  });
-  return React102.useMemo(() => ({
-    defaultPanelId,
-    disabled,
-    handleTrigger,
-    mounted,
-    open,
-    panelId,
-    setMounted,
-    setOpen,
-    setPanelIdState,
-    transitionStatus
-  }), [defaultPanelId, disabled, handleTrigger, mounted, open, panelId, setMounted, setOpen, setPanelIdState, transitionStatus]);
-}
-
-// engine/node_modules/@base-ui/react/collapsible/root/CollapsibleRootContext.mjs
-var React103 = __toESM(require_react(), 1);
-"use client";
-var CollapsibleRootContext = /* @__PURE__ */ React103.createContext(undefined);
-if (false)
-  ;
-function useCollapsibleRootContext() {
-  const context = React103.useContext(CollapsibleRootContext);
-  if (context === undefined) {
-    throw new Error(formatErrorMessage_default(15));
-  }
-  return context;
-}
-
-// engine/node_modules/@base-ui/react/collapsible/panel/CollapsiblePanelDataAttributes.mjs
-var open4 = "data-open";
-var closed3 = "data-closed";
-var startingStyle5 = startingStyle;
-var endingStyle5 = endingStyle;
-
-// engine/node_modules/@base-ui/react/collapsible/trigger/CollapsibleTriggerDataAttributes.mjs
-var panelOpen = "data-panel-open";
-
-// engine/node_modules/@base-ui/react/utils/collapsibleOpenStateMapping.mjs
-var PANEL_OPEN_HOOK = {
-  [open4]: ""
-};
-var PANEL_CLOSED_HOOK = {
-  [closed3]: ""
-};
-var triggerOpenStateMapping = {
-  open(value) {
-    if (value) {
-      return {
-        [panelOpen]: ""
-      };
-    }
-    return null;
-  }
-};
-var collapsibleOpenStateMapping = {
-  open(value) {
-    if (value) {
-      return PANEL_OPEN_HOOK;
-    }
-    return PANEL_CLOSED_HOOK;
-  }
-};
-
-// engine/node_modules/@base-ui/react/collapsible/root/stateAttributesMapping.mjs
-var collapsibleStateAttributesMapping = {
-  ...collapsibleOpenStateMapping,
-  ...transitionStatusMapping
-};
-
-// engine/node_modules/@base-ui/react/collapsible/root/CollapsibleRoot.mjs
-var import_jsx_runtime28 = __toESM(require_jsx_runtime(), 1);
-"use client";
-var CollapsibleRoot = /* @__PURE__ */ React104.forwardRef(function CollapsibleRoot(componentProps, forwardedRef) {
-  const {
-    render,
-    className,
-    defaultOpen = false,
-    disabled = false,
-    onOpenChange: onOpenChangeProp,
-    open,
-    style,
-    ...elementProps
-  } = componentProps;
-  const onOpenChange = useStableCallback(onOpenChangeProp);
-  const collapsible = useCollapsibleRoot({
-    open,
-    defaultOpen,
-    onOpenChange,
-    disabled
-  });
-  const state = React104.useMemo(() => ({
-    open: collapsible.open,
-    disabled: collapsible.disabled,
-    transitionStatus: collapsible.transitionStatus
-  }), [collapsible.open, collapsible.disabled, collapsible.transitionStatus]);
-  const contextValue = React104.useMemo(() => ({
-    ...collapsible,
-    onOpenChange,
-    state
-  }), [collapsible, onOpenChange, state]);
-  const element = useRenderElement("div", componentProps, {
-    state,
-    ref: forwardedRef,
-    props: elementProps,
-    stateAttributesMapping: collapsibleStateAttributesMapping
-  });
-  return /* @__PURE__ */ import_jsx_runtime28.jsx(CollapsibleRootContext.Provider, {
-    value: contextValue,
-    children: element
-  });
-});
-if (false)
-  ;
-// engine/node_modules/@base-ui/react/collapsible/trigger/CollapsibleTrigger.mjs
-var React105 = __toESM(require_react(), 1);
-"use client";
-var stateAttributesMapping = {
-  ...triggerOpenStateMapping,
-  ...transitionStatusMapping
-};
-var CollapsibleTrigger = /* @__PURE__ */ React105.forwardRef(function CollapsibleTrigger(componentProps, forwardedRef) {
-  const {
-    panelId,
-    open,
-    handleTrigger,
-    state,
-    disabled: contextDisabled
-  } = useCollapsibleRootContext();
-  const {
-    className,
-    disabled = contextDisabled,
-    render,
-    nativeButton = true,
-    style,
-    ...elementProps
-  } = componentProps;
-  const {
-    getButtonProps,
-    buttonRef
-  } = useButton({
-    disabled,
-    native: nativeButton
-  });
-  const element = useRenderElement("button", componentProps, {
-    state,
-    ref: [forwardedRef, buttonRef],
-    props: [{
-      "aria-controls": open ? panelId : undefined,
-      "aria-expanded": open,
-      onClick: handleTrigger
-    }, elementProps, getButtonProps],
-    stateAttributesMapping
-  });
-  return element;
-});
-if (false)
-  ;
-// engine/node_modules/@base-ui/react/collapsible/panel/CollapsiblePanel.mjs
-var React107 = __toESM(require_react(), 1);
-
-// engine/node_modules/@base-ui/react/collapsible/panel/useCollapsiblePanel.mjs
-var React106 = __toESM(require_react(), 1);
-"use client";
-var EMPTY_DIMENSIONS = {
-  height: undefined,
-  width: undefined
-};
-function useCollapsiblePanel(parameters) {
-  const {
-    externalRef,
-    hiddenUntilFound,
-    id: idParam,
-    keepMounted,
-    mounted,
-    onOpenChange,
-    open,
-    setMounted,
-    setOpen,
-    transitionStatus
-  } = parameters;
-  const panelRef = React106.useRef(null);
-  const animationTypeRef = React106.useRef(null);
-  const [dimensions, setDimensionsUnwrapped] = React106.useState(EMPTY_DIMENSIONS);
-  const lastMeasuredDimensionsRef = React106.useRef(EMPTY_DIMENSIONS);
-  const shouldSkipNextOpenRef = React106.useRef(false);
-  const shouldPreventMountAnimationRef = React106.useRef(open);
-  const shouldPreventActivityResumeAnimationRef = React106.useRef(false);
-  const [forcePanelIdle, setForcePanelIdle] = React106.useState(false);
-  const pendingTemporaryStyleRestoreRef = React106.useRef(null);
-  const mergedPanelRef = useMergedRefs(externalRef, panelRef);
-  const latestOpenRef = useValueAsRef(open);
-  const runOnceCloseAnimationsFinish = useAnimationsFinished(panelRef);
-  const hidden = !open && !mounted;
-  const panelTransitionStatus = forcePanelIdle ? "idle" : transitionStatus;
-  const shouldPreventOpenAnimation = open && (shouldPreventMountAnimationRef.current || shouldPreventActivityResumeAnimationRef.current);
-  const renderedDimensions = !open && mounted && animationTypeRef.current === "css-animation" && dimensions.height === undefined && dimensions.width === undefined ? lastMeasuredDimensionsRef.current : dimensions;
-  const shouldPersistHiddenTransitionStyles = hiddenUntilFound && hidden && animationTypeRef.current !== "css-animation";
-  const setDimensions = useStableCallback((nextDimensions, shouldCacheMeasurement = true) => {
-    if (shouldCacheMeasurement) {
-      lastMeasuredDimensionsRef.current = nextDimensions;
-    }
-    setDimensionsUnwrapped(nextDimensions);
-  });
-  const restorePendingTemporaryStyle = useStableCallback(() => {
-    pendingTemporaryStyleRestoreRef.current?.();
-    pendingTemporaryStyleRestoreRef.current = null;
-  });
-  const setPendingTemporaryStyleRestore = useStableCallback((restore) => {
-    restorePendingTemporaryStyle();
-    pendingTemporaryStyleRestoreRef.current = () => {
-      pendingTemporaryStyleRestoreRef.current = null;
-      restore();
-    };
-  });
-  const markActivityResumeAnimationSuppressed = useStableCallback(() => {
-    if (open && mounted && animationTypeRef.current === "css-animation") {
-      shouldPreventActivityResumeAnimationRef.current = true;
-    }
-  });
-  useIsoLayoutEffect(() => {
-    if (!forcePanelIdle || transitionStatus === "starting") {
-      return;
-    }
-    setForcePanelIdle(false);
-  }, [forcePanelIdle, transitionStatus]);
-  React106.useEffect(() => {
-    return () => {
-      markActivityResumeAnimationSuppressed();
-      restorePendingTemporaryStyle();
-    };
-  }, [markActivityResumeAnimationSuppressed, restorePendingTemporaryStyle]);
-  useIsoLayoutEffect(() => {
-    if (!open) {
-      shouldPreventMountAnimationRef.current = false;
-      shouldPreventActivityResumeAnimationRef.current = false;
-    }
-    const panel = panelRef.current;
-    if (!panel) {
-      return;
-    }
-    if (!open && pendingTemporaryStyleRestoreRef.current) {
-      restorePendingTemporaryStyle();
-    }
-    const animationType = getAnimationType(panel, shouldPreventOpenAnimation);
-    animationTypeRef.current = animationType;
-    if (open && transitionStatus === "idle" && shouldPreventMountAnimationRef.current && animationType === "css-animation") {
-      lastMeasuredDimensionsRef.current = getDimensions2(panel);
-      return;
-    }
-    if (open && transitionStatus === "starting") {
-      const skipNextOpen = shouldSkipNextOpenRef.current;
-      shouldSkipNextOpenRef.current = false;
-      if (animationType === "none") {
-        setDimensions(getDimensions2(panel));
-        setForcePanelIdle(true);
-        return;
-      }
-      if (animationType === "css-transition") {
-        const restoreLayoutStyles = resetLayoutStyles(panel);
-        setDimensions(getDimensions2(panel));
-        if (!skipNextOpen) {
-          return restoreLayoutStyles;
-        }
-        const restoreTransitionDuration = setTemporaryStyle(panel, "transition-duration", "0s");
-        setPendingTemporaryStyleRestore(restoreTransitionDuration);
-        setForcePanelIdle(true);
-        return restoreLayoutStyles;
-      }
-      setDimensions(getDimensions2(panel));
-      const restoreAnimationName = setTemporaryStyle(panel, "animation-name", "none");
-      if (!skipNextOpen) {
-        restoreAnimationName();
-        return;
-      }
-      const restoreAnimationDuration = setTemporaryStyle(panel, "animation-duration", "0s");
-      restoreAnimationName();
-      setPendingTemporaryStyleRestore(restoreAnimationDuration);
-      setForcePanelIdle(true);
-      return;
-    }
-    if (!open && mounted && (transitionStatus === "idle" || transitionStatus === "starting")) {
-      if (animationType === "none") {
-        setDimensions(EMPTY_DIMENSIONS, false);
-        setMounted(false);
-        return;
-      }
-      setDimensions(getDimensions2(panel));
-      return;
-    }
-    if (transitionStatus !== "ending") {
-      return;
-    }
-    if (animationType === "none") {
-      setMounted(false);
-      return;
-    }
-    const nextDimensions = getDimensions2(panel);
-    const hasMeasuredSize = nextDimensions.height > 0 || nextDimensions.width > 0;
-    if (!hasMeasuredSize) {
-      setMounted(false);
-      return;
-    }
-    setDimensions(nextDimensions);
-    if (animationType === "css-animation") {
-      const restoreAnimationName = setTemporaryStyle(panel, "animation-name", "none");
-      restoreAnimationName();
-    }
-    return;
-  }, [mounted, open, restorePendingTemporaryStyle, setDimensions, setMounted, setPendingTemporaryStyleRestore, shouldPreventOpenAnimation, transitionStatus]);
-  useOpenChangeComplete({
-    enabled: open && mounted && panelTransitionStatus === "idle",
-    open: true,
-    ref: panelRef,
-    onComplete() {
-      if (!open) {
-        return;
-      }
-      setDimensions(EMPTY_DIMENSIONS, false);
-    }
-  });
-  React106.useEffect(() => {
-    if (open || !mounted || panelTransitionStatus !== "ending") {
-      return;
-    }
-    const panel = panelRef.current;
-    if (!panel) {
-      setMounted(false);
-      setDimensions(EMPTY_DIMENSIONS, false);
-      return;
-    }
-    const abortController = new AbortController;
-    let endingStyleFrame = -1;
-    function handleComplete() {
-      if (latestOpenRef.current) {
-        return;
-      }
-      setMounted(false);
-      setDimensions(EMPTY_DIMENSIONS, false);
-    }
-    endingStyleFrame = AnimationFrame.request(() => {
-      runOnceCloseAnimationsFinish(handleComplete, abortController.signal);
-    });
-    return () => {
-      AnimationFrame.cancel(endingStyleFrame);
-      abortController.abort();
-    };
-  }, [latestOpenRef, mounted, open, panelTransitionStatus, runOnceCloseAnimationsFinish, setDimensions, setMounted]);
-  useIsoLayoutEffect(() => {
-    const panel = panelRef.current;
-    if (!panel || !hiddenUntilFound || !hidden) {
-      return;
-    }
-    panel.setAttribute("hidden", "until-found");
-  }, [hidden, hiddenUntilFound]);
-  React106.useEffect(function registerBeforeMatchListener() {
-    const panel = panelRef.current;
-    if (!panel) {
-      return;
-    }
-    const revealDecisionTimeout = Timeout.create();
-    let revertRevealFrame = -1;
-    const scheduleRevealRevert = (revertSkippedMotion, restoreStartingStyle) => {
-      revealDecisionTimeout.start(0, () => {
-        if (latestOpenRef.current) {
-          return;
-        }
-        revertRevealFrame = AnimationFrame.request(() => {
-          if (latestOpenRef.current) {
-            return;
-          }
-          if (revertSkippedMotion) {
-            shouldSkipNextOpenRef.current = false;
-          }
-          if (restoreStartingStyle) {
-            panel.setAttribute(startingStyle5, "");
-          }
-          panel.setAttribute("hidden", "until-found");
-        });
-      });
-    };
-    const handleBeforeMatch = (event) => {
-      const eventDetails = createChangeEventDetails(none, event);
-      onOpenChange(true, eventDetails);
-      if (eventDetails.isCanceled) {
-        scheduleRevealRevert(false, false);
-        return;
-      }
-      shouldSkipNextOpenRef.current = true;
-      const hadStartingStyle = panel.hasAttribute(startingStyle5);
-      panel.removeAttribute(startingStyle5);
-      setOpen(true);
-      scheduleRevealRevert(true, hadStartingStyle);
-    };
-    const cleanupBeforeMatchListener = addEventListener2(panel, "beforematch", handleBeforeMatch);
-    return () => {
-      revealDecisionTimeout.clear();
-      AnimationFrame.cancel(revertRevealFrame);
-      cleanupBeforeMatchListener();
-    };
-  }, [latestOpenRef, onOpenChange, setOpen]);
-  const shouldRender = keepMounted || hiddenUntilFound || mounted || open;
-  return {
-    height: renderedDimensions.height,
-    props: {
-      ...shouldPersistHiddenTransitionStyles ? {
-        [startingStyle5]: ""
-      } : undefined,
-      hidden,
-      id: idParam
-    },
-    ref: mergedPanelRef,
-    shouldPreventOpenAnimation,
-    shouldRender,
-    transitionStatus: panelTransitionStatus,
-    width: renderedDimensions.width
-  };
-}
-function getDimensions2(element) {
-  return {
-    height: element.scrollHeight,
-    width: element.scrollWidth
-  };
-}
-function getAnimationType(element, hasSuppressedMountAnimation) {
-  const panelStyles = getWindow(element).getComputedStyle(element);
-  const hasAnimation = (panelStyles.animationName.split(",").map((name) => name.trim()).some((name) => name !== "" && name !== "none") || hasSuppressedMountAnimation) && hasNonZeroDuration(panelStyles.animationDuration);
-  const hasTransition = hasNonZeroDuration(panelStyles.transitionDuration);
-  if (hasAnimation && hasTransition) {
-    if (false) {}
-    return "css-transition";
-  }
-  if (hasTransition) {
-    return "css-transition";
-  }
-  if (hasAnimation) {
-    return "css-animation";
-  }
-  return "none";
-}
-function hasNonZeroDuration(value) {
-  return value.split(",").map((part) => part.trim()).some((part) => part !== "" && Number.parseFloat(part) > 0);
-}
-function setTemporaryStyle(element, property, value) {
-  const previousValue = element.style.getPropertyValue(property);
-  const previousPriority = element.style.getPropertyPriority(property);
-  element.style.setProperty(property, value);
-  return () => {
-    if (previousValue === "") {
-      element.style.removeProperty(property);
-      return;
-    }
-    element.style.setProperty(property, previousValue, previousPriority);
-  };
-}
-function resetLayoutStyles(element) {
-  const originalLayoutStyles = {
-    "justify-content": element.style.justifyContent,
-    "align-items": element.style.alignItems,
-    "align-content": element.style.alignContent,
-    "justify-items": element.style.justifyItems
-  };
-  Object.keys(originalLayoutStyles).forEach((key) => {
-    element.style.setProperty(key, "initial", "important");
-  });
-  function restoreLayoutStyles() {
-    Object.entries(originalLayoutStyles).forEach(([key, value]) => {
-      if (value === "") {
-        element.style.removeProperty(key);
-        return;
-      }
-      element.style.setProperty(key, value);
-    });
-  }
-  const frame = AnimationFrame.request(restoreLayoutStyles);
-  return () => {
-    AnimationFrame.cancel(frame);
-    restoreLayoutStyles();
-  };
-}
-
-// engine/node_modules/@base-ui/react/collapsible/panel/CollapsiblePanelCssVars.mjs
-var collapsiblePanelHeight = "--collapsible-panel-height";
-var collapsiblePanelWidth = "--collapsible-panel-width";
-
-// engine/node_modules/@base-ui/react/collapsible/panel/CollapsiblePanel.mjs
-"use client";
-var CollapsiblePanel = /* @__PURE__ */ React107.forwardRef(function CollapsiblePanel(componentProps, forwardedRef) {
-  const {
-    className,
-    hiddenUntilFound: hiddenUntilFoundProp,
-    keepMounted: keepMountedProp,
-    render,
-    id: idProp,
-    style,
-    ...elementProps
-  } = componentProps;
-  if (false) {}
-  const {
-    defaultPanelId,
-    mounted,
-    onOpenChange,
-    open,
-    setMounted,
-    setPanelIdState,
-    setOpen,
-    state,
-    transitionStatus
-  } = useCollapsibleRootContext();
-  const hiddenUntilFound = hiddenUntilFoundProp ?? false;
-  const keepMounted = keepMountedProp ?? false;
-  const registeredId = idProp || undefined;
-  const id = registeredId ?? defaultPanelId;
-  useIsoLayoutEffect(() => {
-    setPanelIdState((currentId) => registeredId ?? (currentId === null ? undefined : currentId));
-    return () => {
-      setPanelIdState((currentId) => currentId === registeredId ? null : currentId);
-    };
-  }, [registeredId, setPanelIdState]);
-  const {
-    height,
-    props,
-    ref,
-    shouldPreventOpenAnimation,
-    shouldRender,
-    transitionStatus: panelTransitionStatus,
-    width
-  } = useCollapsiblePanel({
-    externalRef: forwardedRef,
-    hiddenUntilFound,
-    id,
-    keepMounted,
-    mounted,
-    onOpenChange,
-    open,
-    setMounted,
-    setOpen,
-    transitionStatus
-  });
-  const panelState = {
-    ...state,
-    transitionStatus: panelTransitionStatus
-  };
-  const resolvedStyle = resolveStyle(style, panelState);
-  const element = useRenderElement("div", {
-    ...componentProps,
-    style: undefined
-  }, {
-    state: panelState,
-    ref,
-    props: [
-      props,
-      {
-        style: {
-          [collapsiblePanelHeight]: height === undefined ? "auto" : `${height}px`,
-          [collapsiblePanelWidth]: width === undefined ? "auto" : `${width}px`
-        }
-      },
-      elementProps,
-      resolvedStyle ? {
-        style: resolvedStyle
-      } : undefined,
-      shouldPreventOpenAnimation ? {
-        style: {
-          animationName: "none"
-        }
-      } : undefined
-    ],
-    stateAttributesMapping: collapsibleStateAttributesMapping
-  });
-  if (!shouldRender) {
-    return null;
-  }
-  return element;
-});
-if (false)
-  ;
-// engine/board/page/ui/collapsible.tsx
-var jsx_runtime14 = __toESM(require_jsx_runtime());
-function Collapsible(props) {
-  return /* @__PURE__ */ jsx_runtime14.jsx(CollapsibleRoot, {
-    "data-slot": "collapsible",
-    ...props
-  });
-}
-function CollapsibleTrigger2({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime14.jsx(CollapsibleTrigger, {
-    "data-slot": "collapsible-trigger",
-    className: cn(className),
-    ...props
-  });
-}
-function CollapsibleContent({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime14.jsx(CollapsiblePanel, {
-    "data-slot": "collapsible-content",
-    className: cn(className),
-    ...props
-  });
-}
-
-// engine/board/page/coordinator/entries.tsx
-var jsx_runtime15 = __toESM(require_jsx_runtime());
-var VERBS = { runs: "Running", done: "Used", failed: "Failed", waits: "Waiting" };
-var MARKS2 = { runs: "works", done: "check", failed: "xcircle", waits: "target" };
-var INLINE_CODE = "rounded-[4px] bg-secondary px-1 py-px font-mono text-[0.75rem] leading-none font-normal";
-var TEXT = "m-0 rounded-lg bg-secondary p-2.5 font-mono text-[0.75rem] leading-[1.55] font-normal whitespace-pre-wrap [overflow-wrap:anywhere]";
-var TRIGGER = "flex min-h-7 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-0 py-1 text-left text-muted-foreground [font:inherit] [&:hover]:text-foreground phone:min-h-11 aria-expanded:[&_.i-chevron]:[transform:rotate(90deg)] [&_.i-chevron]:ml-auto [&_.i-chevron]:[transition:transform_0.2s_ease-out] [&_.i-works]:animate-turn-slow [&_.i-works]:text-working";
-var SUMMARY = "min-w-0 truncate font-mono text-[0.71875rem] leading-[1.4] font-normal";
-var STACK = "[&_:is(li,blockquote)>*+*]:mt-[7px]";
-var HEADINGS = ["h3", "h4", "h5", "h6"];
-var seconds = (calls) => {
-  const starts = calls.map((call) => Date.parse(call.startedAt ?? ""));
-  const ends = calls.map((call) => Date.parse(call.endedAt ?? ""));
-  if ([...starts, ...ends].some(Number.isNaN))
-    return null;
-  return Math.round((Math.max(...ends) - Math.min(...starts)) / 1000);
-};
-var steps = (count) => `${count} step${count === 1 ? "" : "s"}`;
-function Inline({ parts }) {
-  return parts.map((part, at) => {
-    if (typeof part === "string")
-      return part;
-    if (part.k === "link")
-      return /* @__PURE__ */ jsx_runtime15.jsx(Link, {
-        className: "underline underline-offset-2",
-        url: part.href,
-        children: /* @__PURE__ */ jsx_runtime15.jsx(Inline, {
-          parts: part.c
-        })
-      }, at);
-    const Tag = part.k;
-    return /* @__PURE__ */ jsx_runtime15.jsx(Tag, {
-      className: Tag === "code" ? INLINE_CODE : undefined,
-      children: /* @__PURE__ */ jsx_runtime15.jsx(Inline, {
-        parts: part.c
-      })
-    }, at);
-  });
-}
-function Block({ part }) {
-  switch (part.k) {
-    case "p":
-      return /* @__PURE__ */ jsx_runtime15.jsx("p", {
-        className: "m-0",
-        children: /* @__PURE__ */ jsx_runtime15.jsx(Inline, {
-          parts: part.c
-        })
-      });
-    case "h": {
-      const Heading = HEADINGS[part.level - 1] ?? "h6";
-      return /* @__PURE__ */ jsx_runtime15.jsx(Heading, {
-        className: "m-0 font-sans text-[0.84375rem] leading-[1.3] font-semibold",
-        children: /* @__PURE__ */ jsx_runtime15.jsx(Inline, {
-          parts: part.c
-        })
-      });
-    }
-    case "code":
-      return /* @__PURE__ */ jsx_runtime15.jsx("pre", {
-        className: TEXT,
-        children: part.text
-      });
-    case "list": {
-      const items = part.items.map((item, at) => /* @__PURE__ */ jsx_runtime15.jsx("li", {
-        children: /* @__PURE__ */ jsx_runtime15.jsx(Blocks, {
-          parts: item
-        })
-      }, at));
-      return part.ordered ? /* @__PURE__ */ jsx_runtime15.jsx("ol", {
-        className: "m-0 pl-[18px]",
-        start: part.start ?? undefined,
-        children: items
-      }) : /* @__PURE__ */ jsx_runtime15.jsx("ul", {
-        className: "m-0 pl-[18px]",
-        children: items
-      });
-    }
-    case "quote":
-      return /* @__PURE__ */ jsx_runtime15.jsx("blockquote", {
-        className: "m-0 border-l-2 border-border-strong pl-[18px] text-card-foreground",
-        children: /* @__PURE__ */ jsx_runtime15.jsx(Blocks, {
-          parts: part.c
-        })
-      });
-    case "rule":
-      return /* @__PURE__ */ jsx_runtime15.jsx("hr", {
-        className: "m-0 border-0 border-t border-border"
-      });
-  }
-}
-function Blocks({ parts }) {
-  return parts.map((part, at) => /* @__PURE__ */ jsx_runtime15.jsx(Block, {
-    part
-  }, at));
-}
-function Text({ value }) {
-  return /* @__PURE__ */ jsx_runtime15.jsxs(jsx_runtime15.Fragment, {
-    children: [
-      /* @__PURE__ */ jsx_runtime15.jsx("pre", {
-        className: TEXT,
-        children: value.text
-      }),
-      value.cut > 0 && /* @__PURE__ */ jsx_runtime15.jsx("p", {
-        className: "m-0 text-[0.75rem] text-muted-foreground",
-        children: `(${value.cut} characters left out)`
-      })
-    ]
-  });
-}
-function Call({ call, onToggle }) {
-  const row = `c:${call.id}`;
-  const isOpen = useCoordinator((state) => state.openRows.get(row) ?? false);
-  return /* @__PURE__ */ jsx_runtime15.jsxs(Collapsible, {
-    open: isOpen,
-    onOpenChange: (value) => onToggle(row, value),
-    "data-state": call.state,
-    render: /* @__PURE__ */ jsx_runtime15.jsx("li", {}),
-    children: [
-      /* @__PURE__ */ jsx_runtime15.jsxs(CollapsibleTrigger2, {
-        className: cn(TRIGGER, call.state === "done" && "[&_.i-check]:text-ready", call.state === "failed" && "[&_.i-xcircle]:text-destructive", call.state === "waits" && "[&_.i-target]:text-needs"),
-        "data-row": row,
-        children: [
-          /* @__PURE__ */ jsx_runtime15.jsx(Icon, {
-            name: MARKS2[call.state]
-          }),
-          /* @__PURE__ */ jsx_runtime15.jsx("span", {
-            className: cn("flex-none", call.state === "runs" && "text-card-foreground", call.state === "failed" && "text-destructive"),
-            children: VERBS[call.state]
-          }),
-          " ",
-          /* @__PURE__ */ jsx_runtime15.jsx("span", {
-            className: "flex-none font-medium text-card-foreground",
-            children: call.tool
-          }),
-          " ",
-          /* @__PURE__ */ jsx_runtime15.jsx("span", {
-            className: SUMMARY,
-            children: call.summary
-          }),
-          /* @__PURE__ */ jsx_runtime15.jsx(Icon, {
-            name: "chevron"
-          })
-        ]
-      }),
-      /* @__PURE__ */ jsx_runtime15.jsxs(CollapsibleContent, {
-        keepMounted: true,
-        className: "flex flex-col gap-2 pt-1 pb-2 pl-6",
-        render: /* @__PURE__ */ jsx_runtime15.jsx("div", {}),
-        children: [
-          /* @__PURE__ */ jsx_runtime15.jsx(Text, {
-            value: call.input
-          }),
-          call.result && /* @__PURE__ */ jsx_runtime15.jsxs(jsx_runtime15.Fragment, {
-            children: [
-              /* @__PURE__ */ jsx_runtime15.jsx("p", {
-                className: "m-0 text-[0.75rem] font-medium text-card-foreground",
-                children: call.state === "failed" ? "Error:" : "Result:"
-              }),
-              /* @__PURE__ */ jsx_runtime15.jsx(Text, {
-                value: call.result
-              })
-            ]
-          })
-        ]
-      })
-    ]
-  });
-}
-function Run({ entry, onToggle }) {
-  const isLive = entry.calls.some((call) => call.state === "runs" || call.state === "waits");
-  const failed = entry.calls.filter((call) => call.state === "failed").length;
-  const time = isLive ? null : seconds(entry.calls);
-  const words = isLive ? `Running ${steps(entry.calls.length)}` : `Ran ${steps(entry.calls.length)}${failed ? `, ${failed} failed` : ""}${time === null ? "" : ` · ${time}s`}`;
-  const row = `s:${entry.id}`;
-  const isOpen = useCoordinator((state) => state.openRows.get(row) ?? isLive);
-  return /* @__PURE__ */ jsx_runtime15.jsxs(Collapsible, {
-    open: isOpen,
-    onOpenChange: (value) => onToggle(row, value),
-    "data-state": isLive ? "runs" : failed ? "failed" : "done",
-    render: /* @__PURE__ */ jsx_runtime15.jsx("li", {}),
-    children: [
-      /* @__PURE__ */ jsx_runtime15.jsxs(CollapsibleTrigger2, {
-        className: cn(TRIGGER, isLive && "text-card-foreground", !isLive && !failed && "[&_.i-check]:text-ready", failed && "[&_.i-alert]:text-destructive"),
-        "data-row": row,
-        children: [
-          /* @__PURE__ */ jsx_runtime15.jsx(Icon, {
-            name: isLive ? "works" : failed ? "alert" : "check"
-          }),
-          /* @__PURE__ */ jsx_runtime15.jsx("span", {
-            className: "flex-none",
-            children: words
-          }),
-          /* @__PURE__ */ jsx_runtime15.jsx(Icon, {
-            name: "chevron"
-          })
-        ]
-      }),
-      /* @__PURE__ */ jsx_runtime15.jsx(CollapsibleContent, {
-        keepMounted: true,
-        className: "m-0 mt-0.5 flex list-none flex-col p-0 pl-6",
-        render: /* @__PURE__ */ jsx_runtime15.jsx("ol", {}),
-        children: entry.calls.map((call) => /* @__PURE__ */ jsx_runtime15.jsx(Call, {
-          call,
-          onToggle
-        }, call.id))
-      })
-    ]
-  });
-}
-function Entry({ entry, onToggle }) {
-  switch (entry.kind) {
-    case "you":
-      return /* @__PURE__ */ jsx_runtime15.jsx("li", {
-        className: "flex justify-end",
-        children: /* @__PURE__ */ jsx_runtime15.jsx("p", {
-          className: "m-0 max-w-[80%] rounded-2xl bg-accent px-3 py-[7px] whitespace-pre-wrap phone:max-w-[90%]",
-          title: entry.at ? clock(entry.at, true) : undefined,
-          children: entry.text
-        })
-      });
-    case "agent":
-      return /* @__PURE__ */ jsx_runtime15.jsx("li", {
-        className: cn("flex flex-col gap-[7px]", STACK),
-        children: /* @__PURE__ */ jsx_runtime15.jsx(Blocks, {
-          parts: entry.blocks
-        })
-      });
-    case "note":
-      return /* @__PURE__ */ jsx_runtime15.jsx("li", {
-        className: "self-center rounded-[999px] bg-secondary px-2.5 py-0.5 text-[0.75rem] text-muted-foreground",
-        children: `${entry.text.replace(/\.$/, "")}${entry.at ? ` · ${clock(entry.at)}` : ""}`
-      });
-    case "steps":
-      return /* @__PURE__ */ jsx_runtime15.jsx(Run, {
-        entry,
-        onToggle
-      });
-  }
-}
-function KeyButton({ name }) {
-  const busy = useCoordinator((state) => state.busy);
-  const { cap, name: words } = KEYS[name];
-  const differs = cap !== words;
-  const wait = busy && busy !== "key" ? `Wait: ${IN_FLIGHT[busy]}` : null;
-  return /* @__PURE__ */ jsx_runtime15.jsx("button", {
-    type: "button",
-    className: "inline-grid min-h-7 min-w-8 place-items-center rounded-lg border border-b-2 border-border-strong bg-secondary px-2 py-0 text-foreground [transition:background-color_0.15s,transform_0.1s] [&:hover]:bg-accent active:[transform:scale(0.97)] aria-disabled:cursor-not-allowed aria-disabled:opacity-[0.42] phone:min-h-11 phone:min-w-11",
-    "data-key": name,
-    "aria-label": differs ? words : undefined,
-    "aria-disabled": wait !== null,
-    "aria-busy": busy === "key",
-    title: wait ?? `Press ${words} in the session`,
-    onClick: () => void coordinator.pressKey(name),
-    children: /* @__PURE__ */ jsx_runtime15.jsx(Kbd, {
-      className: "h-auto min-w-0 border-0 bg-transparent p-0 font-mono text-[0.75rem] leading-none font-medium",
-      "aria-hidden": differs ? true : undefined,
-      children: cap
-    })
-  });
-}
-function Ask({ item }) {
-  return /* @__PURE__ */ jsx_runtime15.jsx("li", {
-    children: /* @__PURE__ */ jsx_runtime15.jsxs("div", {
-      className: "flex flex-col gap-2 rounded-[10px] bg-[color-mix(in_srgb,var(--needs-tint)_9%,transparent)] px-3 pt-2 pb-3",
-      role: "group",
-      "aria-labelledby": "coordinator-ask-name",
-      children: [
-        /* @__PURE__ */ jsx_runtime15.jsxs("p", {
-          className: "m-0 flex min-h-7 items-center gap-2 font-semibold text-[color-mix(in_srgb,var(--fg)_20%,var(--needs))] phone:flex-wrap phone:gap-y-0.5",
-          children: [
-            /* @__PURE__ */ jsx_runtime15.jsx(Icon, {
-              name: "target"
-            }),
-            /* @__PURE__ */ jsx_runtime15.jsx("span", {
-              id: "coordinator-ask-name",
-              children: item.call ? `Waiting on you: ${item.call.tool}` : "Waiting on you"
-            }),
-            item.call && /* @__PURE__ */ jsx_runtime15.jsxs(jsx_runtime15.Fragment, {
-              children: [
-                " ",
-                /* @__PURE__ */ jsx_runtime15.jsx("span", {
-                  className: "min-w-0 truncate font-mono text-[0.75rem] leading-[1.4] font-normal text-card-foreground phone:flex-[1_0_100%] phone:pl-6",
-                  children: item.call.summary
-                })
-              ]
-            })
-          ]
-        }),
-        item.lines.length > 0 && /* @__PURE__ */ jsx_runtime15.jsx("pre", {
-          className: cn(TEXT, "ml-6 bg-transparent p-0 text-[0.75rem] leading-[1.6] phone:ml-0"),
-          children: item.lines.join(`
-`)
-        }),
-        item.keys.length > 0 && /* @__PURE__ */ jsx_runtime15.jsx("div", {
-          className: "ml-6 flex flex-wrap gap-1.5 phone:ml-0 phone:grid phone:grid-cols-4",
-          children: item.keys.map((key) => /* @__PURE__ */ jsx_runtime15.jsx(KeyButton, {
-            name: key
-          }, key))
-        })
-      ]
-    })
-  });
-}
-function Item({ item, onToggle }) {
-  switch (item.kind) {
-    case "entry":
-      return /* @__PURE__ */ jsx_runtime15.jsx(Entry, {
-        entry: item.entry,
-        onToggle
-      });
-    case "answer":
-      return /* @__PURE__ */ jsx_runtime15.jsxs("li", {
-        className: "flex items-center gap-2 text-muted-foreground [&_.i-check]:text-ready",
-        children: [
-          /* @__PURE__ */ jsx_runtime15.jsx(Icon, {
-            name: item.isAnswered ? "check" : "target"
-          }),
-          /* @__PURE__ */ jsx_runtime15.jsx("span", {
-            children: item.words
-          })
-        ]
-      });
-    case "ask":
-      return /* @__PURE__ */ jsx_runtime15.jsx(Ask, {
-        item
-      });
-    case "works":
-      return /* @__PURE__ */ jsx_runtime15.jsxs("li", {
-        className: "flex items-center gap-2 text-card-foreground [&_.i-works]:animate-turn-slow [&_.i-works]:text-working",
-        children: [
-          /* @__PURE__ */ jsx_runtime15.jsx(Icon, {
-            name: "works"
-          }),
-          /* @__PURE__ */ jsx_runtime15.jsx("span", {
-            children: "The coordinator works"
-          })
-        ]
-      });
-    case "empty":
-      return /* @__PURE__ */ jsx_runtime15.jsxs("li", {
-        className: "my-auto py-12 text-center",
-        children: [
-          /* @__PURE__ */ jsx_runtime15.jsx("p", {
-            className: "m-0 font-semibold",
-            children: item.title
-          }),
-          /* @__PURE__ */ jsx_runtime15.jsx("p", {
-            className: "m-0 mt-1 text-[0.78125rem] text-muted-foreground",
-            children: item.text
-          })
-        ]
-      });
-  }
-}
-function Entries({ items, onToggle }) {
-  return items.map((item) => /* @__PURE__ */ jsx_runtime15.jsx(Item, {
-    item,
-    onToggle
-  }, item.key));
-}
-
-// engine/board/page/coordinator/log.tsx
-var jsx_runtime16 = __toESM(require_jsx_runtime());
-var CoordinatorLog = import_react20.memo(function CoordinatorLog() {
-  const entries = useCoordinator((state) => state.entries);
-  const answers = useCoordinator((state) => state.answers);
-  const lines = useCoordinator((state) => state.lines);
-  const shown = useCoordinator((state) => state.shown);
-  const view = useCoordinator((state) => state.view);
-  const scrollAsks = useCoordinator((state) => state.scrollAsks);
-  const sessionId = useCoordinator((state) => state.view.sessionId);
-  const { scrollRef, contentRef, scrollToBottom, stopScroll, isAtBottom, state } = useStickToBottom({
-    initial: "instant",
-    resize: "instant"
-  });
-  const heldAtEnd = import_react20.useRef(null);
-  const openedHeight = import_react20.useRef(null);
-  const toEnd = import_react20.useRef(null);
-  const reachEnd = import_react20.useCallback(() => {
-    openedHeight.current = null;
-    const log = scrollRef.current;
-    if (heldAtEnd.current === null || !log) {
-      scrollToBottom("instant");
-      return;
-    }
-    log.scrollTop = log.scrollHeight;
-    heldAtEnd.current = true;
-  }, [scrollRef, scrollToBottom]);
-  import_react20.useLayoutEffect(() => {
-    if (scrollAsks > 0)
-      reachEnd();
-  }, [scrollAsks, reachEnd]);
-  const lastSession = import_react20.useRef(sessionId);
-  const sessionAtEnd = import_react20.useRef(false);
-  const readerAbove = import_react20.useRef(false);
-  const sessionTop = import_react20.useRef(false);
-  import_react20.useLayoutEffect(() => {
-    if (lastSession.current === sessionId)
-      return;
-    lastSession.current = sessionId;
-    if (sessionId === null)
-      return;
-    sessionTop.current = readerAbove.current;
-    if (readerAbove.current) {
-      if (scrollRef.current)
-        scrollRef.current.scrollTop = 0;
-    } else {
-      sessionAtEnd.current = true;
-      const { scrollTop } = state;
-      state.scrollTop = scrollTop;
-    }
-    const selection = document.getSelection();
-    if (selection === null || selection.isCollapsed || !scrollRef.current?.contains(selection.anchorNode))
-      heldAtEnd.current = null;
-  }, [sessionId, scrollRef, state]);
-  import_react20.useLayoutEffect(() => {
-    if (!sessionAtEnd.current || entries.length === 0)
-      return;
-    sessionAtEnd.current = false;
-    reachEnd();
-  }, [entries, reachEnd]);
-  import_react20.useEffect(() => {
-    const log = scrollRef.current;
-    const content = contentRef.current;
-    if (!log || !content)
-      return;
-    const observer = new ResizeObserver((changes) => {
-      if (sessionTop.current && state.isAtBottom)
-        stopScroll();
-      if (state.isAtBottom)
-        openedHeight.current = null;
-      if (openedHeight.current !== null) {
-        if (content.offsetHeight <= openedHeight.current && !changes.some((change) => change.target === log))
-          return;
-        openedHeight.current = null;
-        scrollToBottom("instant");
-        return;
-      }
-      if (!state.isAtBottom)
-        return;
-      if (heldAtEnd.current !== null)
-        stopScroll();
-      else if (changes.some((change) => change.target === log))
-        scrollToBottom("instant");
-    });
-    observer.observe(log);
-    observer.observe(content);
-    return () => observer.disconnect();
-  }, [scrollRef, contentRef, scrollToBottom, state, stopScroll]);
-  import_react20.useEffect(() => {
-    const log = scrollRef.current;
-    if (!log)
-      return;
-    let lastTop = log.scrollTop;
-    const onScroll = () => {
-      const isAtEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 4;
-      if (log.scrollTop < lastTop - 1)
-        openedHeight.current = null;
-      if (log.scrollTop > lastTop + 1 || isAtEnd)
-        sessionTop.current = false;
-      if (log.scrollTop < lastTop - 1 && !isAtEnd)
-        readerAbove.current = true;
-      else if (isAtEnd)
-        readerAbove.current = false;
-      if (heldAtEnd.current !== null) {
-        if (log.scrollTop < lastTop - 1 && !isAtEnd)
-          heldAtEnd.current = false;
-        else if (isAtEnd || log.scrollTop > lastTop + 1 && state.isNearBottom)
-          heldAtEnd.current = true;
-      }
-      lastTop = log.scrollTop;
-    };
-    const onSelection = () => {
-      const selection = document.getSelection();
-      const isHeld = selection !== null && !selection.isCollapsed && scrollRef.current?.contains(selection.anchorNode);
-      if (isHeld && heldAtEnd.current === null) {
-        heldAtEnd.current = state.isAtBottom || openedHeight.current !== null;
-        openedHeight.current = null;
-        if (state.isAtBottom)
-          stopScroll();
-      }
-      if (!isHeld && heldAtEnd.current !== null) {
-        const wasAtEnd = heldAtEnd.current;
-        heldAtEnd.current = null;
-        if (wasAtEnd)
-          scrollToBottom("instant");
-      }
-    };
-    log.addEventListener("scroll", onScroll, { passive: true });
-    document.addEventListener("selectionchange", onSelection);
-    return () => {
-      log.removeEventListener("scroll", onScroll);
-      document.removeEventListener("selectionchange", onSelection);
-    };
-  }, [scrollRef, scrollToBottom, state, stopScroll]);
-  const toEndHadFocus = toEnd.current !== null && document.activeElement === toEnd.current;
-  import_react20.useLayoutEffect(() => {
-    if (isAtBottom && toEndHadFocus)
-      scrollRef.current?.focus({ preventScroll: true });
-  }, [isAtBottom, toEndHadFocus, scrollRef]);
-  const onToggle = (row, isOpen) => {
-    const wasFollowing = state.isAtBottom || openedHeight.current !== null;
-    coordinator.setRowOpen(row, isOpen);
-    openedHeight.current = null;
-    if (!isOpen || !wasFollowing)
-      return;
-    stopScroll();
-    if (heldAtEnd.current === null && state.isNearBottom)
-      openedHeight.current = contentRef.current?.offsetHeight ?? null;
-  };
-  const goToEnd = () => {
-    scrollRef.current?.focus({ preventScroll: true });
-    reachEnd();
-  };
-  const keys = view.actions.includes("key") ? view.keys : [];
-  const items = logItems({ entries, answers, dialog: shown === "dialog" ? { lines, keys } : null, state: shown });
-  return /* @__PURE__ */ jsx_runtime16.jsxs(jsx_runtime16.Fragment, {
-    children: [
-      /* @__PURE__ */ jsx_runtime16.jsx("div", {
-        ref: scrollRef,
-        className: "m-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-[max(20px,calc((100%-72ch)/2))] pt-[18px] pb-7 font-sans text-[0.8125rem] leading-[1.55] font-normal text-foreground [overflow-wrap:anywhere] group-data-[stale]/co:opacity-70 focus-visible:rounded-none focus-visible:outline-offset-[-2px] phone:scroll-pb-[calc(var(--dock)+8px)] phone:px-3.5 phone:pt-4 phone:pb-6",
-        id: "coordinator-log",
-        role: "log",
-        tabIndex: 0,
-        "aria-label": "Conversation with the coordinator",
-        children: /* @__PURE__ */ jsx_runtime16.jsx("ol", {
-          ref: contentRef,
-          className: "m-0 flex min-h-full list-none flex-col gap-3.5 p-0",
-          children: /* @__PURE__ */ jsx_runtime16.jsx(Entries, {
-            items,
-            onToggle
-          })
-        })
-      }),
-      /* @__PURE__ */ jsx_runtime16.jsxs(Button2, {
-        ref: toEnd,
-        type: "button",
-        variant: "secondary",
-        size: "action",
-        className: "absolute bottom-2.5 left-1/2 border-border-strong bg-card shadow-raise [&:hover]:bg-card [transform:translateX(-50%)] active:scale-100 active:[transform:translateX(-50%)_scale(0.97)] phone:absolute phone:min-h-11 [&_.icon]:[transform:rotate(90deg)]",
-        id: "coordinator-to-end",
-        hidden: isAtBottom,
-        onClick: goToEnd,
-        children: [
-          /* @__PURE__ */ jsx_runtime16.jsx(Icon, {
-            name: "chevron"
-          }),
-          /* @__PURE__ */ jsx_runtime16.jsx("span", {
-            className: "label",
-            children: "Go to the end"
-          })
-        ]
-      })
-    ]
-  });
-});
-
-// engine/board/page/coordinator/panel.tsx
-var jsx_runtime17 = __toESM(require_jsx_runtime());
-var LIVE2 = "bg-[color-mix(in_srgb,var(--working)_12%,transparent)] text-[color-mix(in_srgb,var(--fg)_30%,var(--working))] [&_.time]:text-inherit";
-var NEEDS = "bg-[color-mix(in_srgb,var(--needs-tint)_12%,transparent)] text-[color-mix(in_srgb,var(--fg)_20%,var(--needs))] [&_.time]:text-inherit";
-var gate = (reason, title) => ({ "aria-disabled": reason !== null, title: reason ?? title });
-var sendOnEnter = (event) => {
-  if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing || event.keyCode === 229)
-    return;
-  event.preventDefault();
-  event.currentTarget.form?.requestSubmit();
-};
-var focusEntry = () => {
-  const target = ["coordinator-field", "coordinator-start"].map((id) => document.getElementById(id)).find((node) => node.checkVisibility());
-  (target ?? document.getElementById("coordinator-log")).focus({ preventScroll: true });
-};
-var submit = (event) => {
-  event.preventDefault();
-  coordinator.send();
-};
-function CoordinatorPanel() {
-  const state = useCoordinator((each) => each);
-  const {
-    view,
-    shown,
-    aged,
-    isOpen,
-    isDown,
-    busy,
-    line,
-    host,
-    chatAt,
-    chatError,
-    linesAt,
-    linesError,
-    text,
-    focusAsks
-  } = state;
-  const root = import_react21.useRef(null);
-  const hadFocus = root.current?.contains(document.activeElement) === true;
-  import_react21.useLayoutEffect(() => {
-    if (focusAsks > 0)
-      focusEntry();
-  }, [focusAsks]);
-  import_react21.useLayoutEffect(() => {
-    if (!isOpen || !hadFocus)
-      return;
-    const active = document.activeElement;
-    if (active instanceof HTMLElement && root.current?.contains(active) && active.checkVisibility())
-      return;
-    focusEntry();
-  });
-  const ended = shown === "ended";
-  const absent = shown === "none" || ended;
-  const can = (action) => view.actions.includes(action) && !ended;
-  const cause = view.error ?? (isDown ? SERVER_DOWN : null);
-  const chatCause = isOpen ? chatError ?? cause : null;
-  const linesCause = isOpen && shown === "dialog" ? linesError : null;
-  const banner = bannerOf({ ended, chatCause, linesCause, chatAt, linesAt, timeOf });
-  const age = absent ? null : view.since;
-  const wait = busy ? `Wait: ${IN_FLIGHT[busy]}` : null;
-  const block = sendBlock({ busy, state: shown, canSay: can("say"), text });
-  const [hint, tone] = hintOf({ text, busy, line, state: shown });
-  const startLine = line?.act === "open" ? line.text : null;
-  return /* @__PURE__ */ jsx_runtime17.jsxs("section", {
-    ref: root,
-    className: "coordinator group/co flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-border-strong bg-panel",
-    id: "coordinator",
-    "aria-labelledby": "coordinator-title",
-    "data-state": shown,
-    "data-stale": ended || chatCause !== null || linesCause !== null || aged ? "" : undefined,
-    hidden: !isOpen,
-    children: [
-      /* @__PURE__ */ jsx_runtime17.jsxs("header", {
-        className: "flex min-h-12 flex-none flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-border py-2 pr-2.5 pl-5",
-        children: [
-          /* @__PURE__ */ jsx_runtime17.jsx("h2", {
-            className: "font-sans text-[0.875rem] leading-none font-semibold tracking-[-0.012em] text-foreground",
-            id: "coordinator-title",
-            children: "Coordinator"
-          }),
-          /* @__PURE__ */ jsx_runtime17.jsx("span", {
-            className: "font-mono text-[0.71875rem] leading-none font-normal text-muted-foreground",
-            id: "coordinator-host",
-            children: host
-          }),
-          /* @__PURE__ */ jsx_runtime17.jsxs("span", {
-            className: cn("inline-flex min-h-6 items-center gap-1.5 rounded-md py-1 pr-[9px] pl-[7px] font-sans text-[0.75rem] leading-[1.25] font-medium [&_.time]:font-mono [&_.time]:text-[0.75rem] [&_.time]:leading-none [&_.time]:font-normal [&_.time]:normal-nums", shown === "works" || shown === "starting" ? LIVE2 : shown === "dialog" ? NEEDS : "bg-secondary text-card-foreground [&_.time]:text-muted-foreground"),
-            id: "coordinator-head-state",
-            children: [
-              /* @__PURE__ */ jsx_runtime17.jsx("span", {
-                children: WORDS[shown]
-              }),
-              age && /* @__PURE__ */ jsx_runtime17.jsx(Timed, {
-                iso: age,
-                isFine: shown === "starting" || shown === "works" || shown === "dialog"
-              })
-            ]
-          }),
-          /* @__PURE__ */ jsx_runtime17.jsxs("span", {
-            className: "ml-auto flex items-center gap-1.5",
-            children: [
-              /* @__PURE__ */ jsx_runtime17.jsx(Button2, {
-                type: "button",
-                variant: "quiet",
-                size: "action",
-                className: "phone:min-h-11",
-                id: "coordinator-interrupt",
-                hidden: !can("interrupt"),
-                "aria-busy": busy === "interrupt",
-                ...gate(busy && busy !== "interrupt" ? wait : null, "Press the stop key in the session"),
-                onClick: () => coordinator.interrupt(),
-                children: /* @__PURE__ */ jsx_runtime17.jsx("span", {
-                  className: "label",
-                  children: "Interrupt"
-                })
-              }),
-              /* @__PURE__ */ jsx_runtime17.jsx(Button2, {
-                type: "button",
-                variant: "quiet",
-                size: "action",
-                className: "phone:min-h-11",
-                id: "coordinator-end",
-                hidden: !can("end"),
-                "aria-busy": busy === "end",
-                ...gate(busy && busy !== "end" ? wait : null, "Send the exit request of the host to the session"),
-                onClick: () => coordinator.end(),
-                children: /* @__PURE__ */ jsx_runtime17.jsx("span", {
-                  className: "label",
-                  children: "End session"
-                })
-              }),
-              /* @__PURE__ */ jsx_runtime17.jsxs(Button2, {
-                type: "button",
-                variant: "quiet",
-                size: "action",
-                className: "phone:min-h-11",
-                id: "coordinator-go",
-                title: "Show the tab of the session in the Herdr app",
-                hidden: !can("go") || !view.sessionId,
-                onClick: () => coordinator.go(),
-                children: [
-                  /* @__PURE__ */ jsx_runtime17.jsx(Icon, {
-                    name: "go"
-                  }),
-                  /* @__PURE__ */ jsx_runtime17.jsx("span", {
-                    className: "label",
-                    children: "Go"
-                  })
-                ]
-              })
-            ]
-          })
-        ]
-      }),
-      /* @__PURE__ */ jsx_runtime17.jsx("p", {
-        className: "m-0 flex-none border-b border-border bg-secondary px-5 py-2 text-[0.78125rem] text-foreground [overflow-wrap:anywhere] data-[tone=error]:shadow-[inset_3px_0_var(--danger)]",
-        id: "coordinator-banner",
-        role: "status",
-        "data-tone": ended ? "plain" : "error",
-        hidden: banner === null,
-        children: banner
-      }),
-      /* @__PURE__ */ jsx_runtime17.jsx("div", {
-        className: "relative flex min-h-0 flex-1",
-        children: /* @__PURE__ */ jsx_runtime17.jsx(CoordinatorLog, {})
-      }),
-      /* @__PURE__ */ jsx_runtime17.jsxs("div", {
-        className: "flex flex-none flex-col gap-2 px-[max(14px,calc((100%-104ch)/2-14px))] pb-3.5 font-mono text-[0.78125rem] leading-[1.5] font-normal phone:px-2.5 phone:pb-2.5",
-        children: [
-          /* @__PURE__ */ jsx_runtime17.jsxs("form", {
-            className: "flex flex-col overflow-hidden rounded-xl border border-border-strong bg-card font-sans text-[0.8125rem] leading-[1.5] shadow-raise has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-solid has-[textarea:focus-visible]:outline-ring has-[textarea[aria-invalid=true]]:border-[color-mix(in_srgb,var(--danger)_55%,transparent)]",
-            id: "coordinator-form",
-            hidden: absent,
-            onSubmit: submit,
-            children: [
-              /* @__PURE__ */ jsx_runtime17.jsx(Textarea, {
-                className: "w-auto",
-                id: "coordinator-field",
-                rows: 1,
-                "aria-label": "Message to the coordinator",
-                "aria-describedby": "coordinator-hint",
-                "aria-invalid": text.length > LIMIT || line?.act === "say" && line.tone === "error",
-                placeholder: "Write to the coordinator",
-                value: text,
-                onChange: (event) => coordinator.setText(event.target.value),
-                onKeyDown: sendOnEnter
-              }),
-              /* @__PURE__ */ jsx_runtime17.jsxs("div", {
-                className: "flex items-center gap-2.5 pt-1 pr-2 pb-2 pl-3.5",
-                children: [
-                  /* @__PURE__ */ jsx_runtime17.jsx("p", {
-                    className: "m-0 flex-1 text-[0.75rem] text-muted-foreground [overflow-wrap:anywhere] whitespace-pre-line data-[tone=error]:text-destructive",
-                    id: "coordinator-hint",
-                    "data-tone": tone,
-                    role: tone === "plain" ? undefined : tone === "error" ? "alert" : "status",
-                    children: hint
-                  }),
-                  /* @__PURE__ */ jsx_runtime17.jsx(Button2, {
-                    type: "submit",
-                    variant: "primary",
-                    size: "action",
-                    className: "phone:min-h-11",
-                    id: "coordinator-send",
-                    "aria-busy": busy === "say",
-                    ...gate(block, "Send the message (Enter)"),
-                    children: /* @__PURE__ */ jsx_runtime17.jsx("span", {
-                      className: "label",
-                      children: busy === "say" ? "Sending" : "Send"
-                    })
-                  })
-                ]
-              })
-            ]
-          }),
-          /* @__PURE__ */ jsx_runtime17.jsxs("div", {
-            className: "flex flex-wrap items-center gap-x-3 gap-y-2 font-sans text-[0.78125rem] leading-[1.5]",
-            id: "coordinator-start-block",
-            hidden: !(absent && view.actions.includes("open")),
-            children: [
-              /* @__PURE__ */ jsx_runtime17.jsx("p", {
-                className: "m-0 flex-[1_1_100%] text-destructive [overflow-wrap:anywhere] whitespace-pre-line",
-                id: "coordinator-start-text",
-                role: startLine ? "alert" : undefined,
-                hidden: startLine === null,
-                children: startLine
-              }),
-              /* @__PURE__ */ jsx_runtime17.jsx(Button2, {
-                type: "button",
-                variant: "primary",
-                size: "action",
-                className: "phone:min-h-11",
-                id: "coordinator-start",
-                ...gate(wait, "Start a coordinator session in a quiet tab of the Herdr app"),
-                onClick: () => coordinator.start(),
-                children: /* @__PURE__ */ jsx_runtime17.jsx("span", {
-                  className: "label",
-                  children: ended ? "Start a new session" : "Start a session"
-                })
-              })
-            ]
-          })
-        ]
-      })
-    ]
-  });
-}
-
-// engine/board/page/queue/queue.tsx
-var import_react23 = __toESM(require_react());
-
-// engine/board/page/ui/focused-key.ts
-var import_react22 = __toESM(require_react());
-function useFocusedKey(root, keyOf) {
-  const key = import_react22.useRef(null);
-  import_react22.useEffect(() => {
-    const node = root.current;
-    if (!node)
-      return;
-    const onIn = ({ target }) => {
-      key.current = target instanceof HTMLElement ? keyOf(target) : null;
-    };
-    const onOut = ({ relatedTarget }) => {
-      if (relatedTarget instanceof Node && node.contains(relatedTarget))
-        return;
-      queueMicrotask(() => {
-        if (!node.contains(document.activeElement))
-          key.current = null;
-      });
-    };
-    node.addEventListener("focusin", onIn);
-    node.addEventListener("focusout", onOut);
-    return () => {
-      node.removeEventListener("focusin", onIn);
-      node.removeEventListener("focusout", onOut);
-    };
-  }, [root, keyOf]);
-  return key;
-}
-
-// engine/board/page/queue/queue.tsx
-var jsx_runtime18 = __toESM(require_jsx_runtime());
-var DISABLED = "aria-disabled:cursor-default aria-disabled:opacity-50";
-var PHONE_TAP = "phone:min-h-11 phone:min-w-11";
-var PRESS = "active:scale-none active:[transform:scale(0.97)] aria-disabled:active:scale-none aria-disabled:active:[transform:none]";
-var ICON_PRESS = "active:scale-none aria-disabled:active:scale-none";
-var NUMBER = "block font-mono text-[0.6875rem] leading-[normal] text-muted-foreground";
-var TITLE = "block font-medium wrap-anywhere text-foreground";
-var EMPTY3 = "m-0 border-t border-t-border px-4 py-5 text-muted-foreground";
-var NOTE2 = "mt-1.5 mb-0 max-w-[65ch] text-card-foreground";
-var LIST = "m-0 list-none";
-var PICKER_NOTE = "mt-1 mb-5 text-muted-foreground";
-var SUBHEAD = "text-[0.8125rem]";
-var TONE = "text-working group-data-[state=me-gate]/queue:text-needs";
-var SECTION = "group/queue min-h-0 min-w-0 flex-1 overflow-y-auto text-foreground phone:scroll-pb-[calc(var(--dock)+8px)]";
-var SEGMENT = `min-h-[26px] rounded-[7px] border-0 bg-transparent px-2.5 py-0 text-[0.78125rem] leading-none font-medium whitespace-nowrap text-card-foreground phone:min-h-11 phone:px-2 [&:hover:not([aria-disabled=true])]:text-foreground aria-pressed:bg-card aria-pressed:text-foreground aria-pressed:[box-shadow:var(--raise)] ${DISABLED}`;
-var scrollOffset = 0;
-var controlKey = (node) => node.dataset.control ?? null;
-var isEnabled = (node) => node.getAttribute("aria-disabled") !== "true";
-var pressed3 = (action) => (event) => {
-  if (isEnabled(event.currentTarget))
-    action();
-};
-function TextButton({
-  text,
-  control,
-  label,
-  isDisabled = false,
-  action
-}) {
-  return /* @__PURE__ */ jsx_runtime18.jsx(Button2, {
-    variant: "secondary",
-    size: "action",
-    className: `${PHONE_TAP} ${DISABLED} ${PRESS}`,
-    "data-control": control,
-    "aria-label": label,
-    "aria-disabled": isDisabled,
-    onClick: pressed3(action),
-    children: text
-  });
-}
-function IconControl({
-  name,
-  label,
-  control,
-  className = "",
-  isDisabled,
-  action
-}) {
-  return /* @__PURE__ */ jsx_runtime18.jsx(Button2, {
-    variant: "icon",
-    size: "icon",
-    className: `size-[30px] p-1.5 ${PHONE_TAP} ${DISABLED} ${ICON_PRESS} ${className}`,
-    "aria-label": label,
-    title: label,
-    "data-control": control,
-    "aria-disabled": isDisabled,
-    onClick: (event) => {
-      event.stopPropagation();
-      pressed3(action)(event);
-    },
-    children: /* @__PURE__ */ jsx_runtime18.jsx(Icon, {
-      name
-    })
-  });
-}
-function Row({
-  number,
-  index,
-  numbers,
-  queue
-}) {
-  const { submitted, state, isBusy, isAuthoritative } = queue;
-  const next = submitted?.next;
-  const step = next?.kind === "run" ? next.step : submitted?.record?.current?.step;
-  const isLocked = isBusy || !isAuthoritative || !submitted?.actions.edit;
-  return /* @__PURE__ */ jsx_runtime18.jsxs("li", {
-    className: `flex min-w-0 items-center gap-3 py-4${index > 1 ? " border-t border-t-border" : ""}`,
-    "data-number": number,
-    children: [
-      /* @__PURE__ */ jsx_runtime18.jsx("span", {
-        className: `w-5 flex-[0_0_20px] text-center font-mono text-[0.75rem] leading-[normal] ${index === 0 ? TONE : "text-muted-foreground"}`,
-        children: index + 1
-      }),
-      /* @__PURE__ */ jsx_runtime18.jsxs("div", {
-        className: "grid min-w-0 flex-1 grid-cols-[1fr] gap-1",
-        children: [
-          /* @__PURE__ */ jsx_runtime18.jsx("span", {
-            className: NUMBER,
-            children: `#${number}`
-          }),
-          /* @__PURE__ */ jsx_runtime18.jsx("span", {
-            className: TITLE,
-            children: queueStore.find(number)?.title ?? `Issue #${number}`
-          }),
-          /* @__PURE__ */ jsx_runtime18.jsx("span", {
-            className: `text-[0.6875rem] ${index === 0 ? TONE : "text-muted-foreground"}`,
-            children: index === 0 ? `${state === "me-gate" ? "Waiting for approval" : state === "error" ? "Stopped" : state === "running" ? "Running" : "Saved · starting"}${step ? ` · ${step}` : ""}` : "Waiting"
-          })
-        ]
-      }),
-      index > 0 && /* @__PURE__ */ jsx_runtime18.jsxs("div", {
-        className: "flex flex-none gap-0.5",
-        children: [
-          ["up", "down"].map((direction) => /* @__PURE__ */ jsx_runtime18.jsx(IconControl, {
-            name: "chevron",
-            label: `Move #${number} ${direction}`,
-            control: `${direction}-${number}`,
-            className: direction === "up" ? "[&_.icon]:[transform:rotate(-90deg)]" : "[&_.icon]:[transform:rotate(90deg)]",
-            isDisabled: isLocked || (direction === "up" ? index === 1 : index === numbers.length - 1),
-            action: () => queueStore.act({ kind: "move", number, direction, expected: queueStore.expected() })
-          }, direction)),
-          /* @__PURE__ */ jsx_runtime18.jsx(IconControl, {
-            name: "close",
-            label: `Remove #${number} from queue`,
-            control: `remove-${number}`,
-            isDisabled: isLocked,
-            action: () => queueStore.act({ kind: "remove", number, expected: queueStore.expected() })
-          })
-        ]
-      })
-    ]
-  });
-}
-var headingText = ({ isBusy, state, submitted }) => {
-  const first = submitted?.record?.numbers[0];
-  if (isBusy)
-    return "Saving the queue";
-  if (state === "empty")
-    return "Ready for work";
-  if (state === "starting")
-    return `Starting #${first}`;
-  if (state === "running")
-    return `Running #${first}`;
-  return state === "me-gate" ? "Your approval is needed" : "The queue stopped";
-};
-function QueueBody() {
-  const root = import_react23.useRef(null);
-  const focused = useFocusedKey(root, controlKey);
-  const queue = useQueue((state) => state);
-  const { board, submitted, isBusy, isUncertain, state, isAuthoritative, chosen, available } = queue;
-  import_react23.useLayoutEffect(() => {
-    if (!root.current)
-      return;
-    root.current.scrollTop = scrollOffset;
-    scrollOffset = root.current.scrollTop;
-  }, []);
-  import_react23.useLayoutEffect(() => {
-    const section = root.current;
-    const key = focused.current;
-    if (!section || key === null)
-      return;
-    const active = document.activeElement;
-    if (active instanceof HTMLElement && section.contains(active) && controlKey(active) === key && isEnabled(active))
-      return;
-    const controls = [...section.querySelectorAll("[data-control]")].filter(isEnabled);
-    const target = controls.find((control) => controlKey(control) === key) ?? controls.find((control) => /^(up|down|remove|add)-/.test(controlKey(control) ?? "")) ?? section.querySelector('[data-control="heading"]');
-    target?.focus({ preventScroll: true });
-  });
-  if (!board)
-    return /* @__PURE__ */ jsx_runtime18.jsx("section", {
-      ref: root,
-      className: SECTION,
-      id: "queue"
-    });
-  const record = submitted?.record;
-  const numbers = record?.numbers ?? [];
-  const first = numbers[0];
-  const next = submitted?.next;
-  const warning = !isAuthoritative ? "The queue state is unavailable. Refresh before acting." : submitted?.error ?? board.noRun;
-  const choices = [["", "Default order", true]];
-  for (const host of Object.keys(board.registry))
-    choices.push([host, board.registry[host].short, board.agents?.[host]?.available === true]);
-  return /* @__PURE__ */ jsx_runtime18.jsxs("section", {
-    ref: root,
-    className: SECTION,
-    id: "queue",
-    "data-state": state,
-    "aria-busy": isBusy,
-    onScroll: (event) => {
-      scrollOffset = event.currentTarget.scrollTop;
-    },
-    children: [
-      /* @__PURE__ */ jsx_runtime18.jsx("header", {
-        className: "flex flex-wrap items-center justify-between gap-2 px-4 pt-4",
-        children: /* @__PURE__ */ jsx_runtime18.jsxs("div", {
-          className: "flex min-w-0 items-baseline gap-2.5",
-          children: [
-            /* @__PURE__ */ jsx_runtime18.jsx("h2", {
-              className: "text-[0.875rem] font-semibold",
-              children: "Issue queue"
-            }),
-            /* @__PURE__ */ jsx_runtime18.jsx("span", {
-              className: "whitespace-nowrap text-muted-foreground tabular-nums",
-              children: `${numbers.length} remaining`
-            })
-          ]
-        })
-      }),
-      /* @__PURE__ */ jsx_runtime18.jsxs("div", {
-        className: "px-4 pt-4",
-        children: [
-          /* @__PURE__ */ jsx_runtime18.jsx("h3", {
-            tabIndex: -1,
-            "data-control": "heading",
-            className: "text-[1.03125rem] font-semibold group-data-[state=error]/queue:text-destructive group-data-[state=me-gate]/queue:text-needs group-data-[state=running]/queue:text-working",
-            children: headingText(queue)
-          }),
-          /* @__PURE__ */ jsx_runtime18.jsx("p", {
-            className: NOTE2,
-            children: state === "starting" ? "Your issue is saved. Waiting for a verified session." : state === "me-gate" ? "Continue starts the displayed step. Later issues stay queued." : "Add issues at any time. Finished issues leave automatically."
-          }),
-          warning && /* @__PURE__ */ jsx_runtime18.jsx("p", {
-            className: `${NOTE2} wrap-anywhere`,
-            role: "alert",
-            children: warning
-          }),
-          record?.act && /* @__PURE__ */ jsx_runtime18.jsx("p", {
-            className: `${NOTE2} wrap-anywhere`,
-            children: record.act
-          }),
-          /* @__PURE__ */ jsx_runtime18.jsxs("section", {
-            className: "mt-6",
-            children: [
-              /* @__PURE__ */ jsx_runtime18.jsx("h4", {
-                className: SUBHEAD,
-                children: "Current issue"
-              }),
-              first ? /* @__PURE__ */ jsx_runtime18.jsx("ol", {
-                className: `${LIST} p-0`,
-                children: /* @__PURE__ */ jsx_runtime18.jsx(Row, {
-                  number: first,
-                  index: 0,
-                  numbers,
-                  queue
-                })
-              }) : /* @__PURE__ */ jsx_runtime18.jsx("p", {
-                className: `${NOTE2} pt-4`,
-                children: "No issue is running."
-              })
-            ]
-          })
-        ]
-      }),
-      /* @__PURE__ */ jsx_runtime18.jsxs("div", {
-        className: "flex flex-wrap items-center justify-between gap-3 p-4",
-        children: [
-          /* @__PURE__ */ jsx_runtime18.jsxs("div", {
-            className: "flex min-w-0 flex-wrap items-center gap-2 text-card-foreground phone:flex-col phone:items-start phone:gap-1.5",
-            children: [
-              /* @__PURE__ */ jsx_runtime18.jsx("span", {
-                children: "Agent"
-              }),
-              /* @__PURE__ */ jsx_runtime18.jsx("div", {
-                className: "inline-flex max-w-full gap-0.5 rounded-[9px] bg-secondary p-0.5",
-                role: "group",
-                "aria-label": "Queue agent",
-                children: choices.map(([value, text, isUsable]) => /* @__PURE__ */ jsx_runtime18.jsx("button", {
-                  type: "button",
-                  className: SEGMENT,
-                  "data-control": `agent-${value || "default"}`,
-                  "aria-pressed": (chosen ?? "") === value,
-                  "aria-disabled": !isUsable || numbers.length > 0 || isBusy || !isAuthoritative,
-                  onClick: pressed3(() => queueStore.setAgent(value)),
-                  children: text
-                }, value || "default"))
-              })
-            ]
-          }),
-          submitted?.actions.continue && next?.kind === "run" ? /* @__PURE__ */ jsx_runtime18.jsx(TextButton, {
-            text: "Continue queue",
-            control: "continue",
-            isDisabled: isBusy || !isAuthoritative,
-            action: () => queueStore.act({ kind: "continue", step: next.step, expected: queueStore.expected() })
-          }) : submitted?.actions.retry ? /* @__PURE__ */ jsx_runtime18.jsx(TextButton, {
-            text: "Try again",
-            control: "retry",
-            isDisabled: isBusy || !isAuthoritative,
-            action: () => queueStore.act({
-              kind: "retry",
-              step: next?.kind === "run" ? next.step : null,
-              expected: queueStore.expected()
-            })
-          }) : null,
-          isUncertain && /* @__PURE__ */ jsx_runtime18.jsx(TextButton, {
-            text: "Refresh queue",
-            control: "refresh",
-            isDisabled: isBusy,
-            action: () => queueStore.refresh()
-          })
-        ]
-      }),
-      /* @__PURE__ */ jsx_runtime18.jsxs("div", {
-        className: "flex min-w-0 flex-col border-t border-t-border",
-        children: [
-          /* @__PURE__ */ jsx_runtime18.jsxs("section", {
-            className: "pt-4",
-            children: [
-              /* @__PURE__ */ jsx_runtime18.jsx("h3", {
-                className: `px-4 ${SUBHEAD}`,
-                children: "Up next"
-              }),
-              numbers.length > 1 ? /* @__PURE__ */ jsx_runtime18.jsx("ol", {
-                className: `${LIST} px-4 pb-4`,
-                "aria-label": "Waiting issues",
-                start: 2,
-                children: numbers.slice(1).map((number, index) => /* @__PURE__ */ jsx_runtime18.jsx(Row, {
-                  number,
-                  index: index + 1,
-                  numbers,
-                  queue
-                }, number))
-              }) : /* @__PURE__ */ jsx_runtime18.jsx("p", {
-                className: EMPTY3,
-                children: "No issue waits."
-              })
-            ]
-          }),
-          /* @__PURE__ */ jsx_runtime18.jsxs("section", {
-            className: "min-w-0 border-t border-t-border p-4",
-            children: [
-              /* @__PURE__ */ jsx_runtime18.jsx("h3", {
-                className: SUBHEAD,
-                children: "Add from the board"
-              }),
-              /* @__PURE__ */ jsx_runtime18.jsx("p", {
-                className: PICKER_NOTE,
-                children: "Add puts the issue at the end of the queue, and starts the queue when it is empty."
-              }),
-              available.map((card) => {
-                const { number } = card;
-                const isSelected = numbers.includes(number);
-                return /* @__PURE__ */ jsx_runtime18.jsxs("div", {
-                  className: "flex items-center gap-5 border-t border-t-border py-3.5",
-                  children: [
-                    /* @__PURE__ */ jsx_runtime18.jsxs("div", {
-                      className: "min-w-0 flex-1",
-                      children: [
-                        /* @__PURE__ */ jsx_runtime18.jsx("span", {
-                          className: NUMBER,
-                          children: `#${number}`
-                        }),
-                        /* @__PURE__ */ jsx_runtime18.jsx("span", {
-                          className: `${TITLE} mt-1`,
-                          children: card.title
-                        }),
-                        /* @__PURE__ */ jsx_runtime18.jsx("span", {
-                          className: "mt-[3px] block font-mono text-[0.71875rem] leading-[1.2] text-muted-foreground",
-                          children: `next ${card.step} · ${card.state ? stateLabel(card) : "ready"}`
-                        })
-                      ]
-                    }),
-                    /* @__PURE__ */ jsx_runtime18.jsx(TextButton, {
-                      text: isSelected ? "In queue" : "Add",
-                      control: `add-${number}`,
-                      label: `Add #${number} to queue`,
-                      isDisabled: isSelected || isBusy || !isAuthoritative || !submitted?.actions.add || !queueStore.hostAvailable(chosen) || Boolean(board.noRun),
-                      action: () => queueStore.act({ kind: "add", number, step: card.step, expected: queueStore.expected() })
-                    })
-                  ]
-                }, number);
-              }),
-              !available.length && /* @__PURE__ */ jsx_runtime18.jsx("p", {
-                className: PICKER_NOTE,
-                children: "No runnable issues are available."
-              })
-            ]
-          })
-        ]
-      })
-    ]
-  });
-}
-function Queue() {
-  const snapshot = useQueue((state) => state);
-  return /* @__PURE__ */ jsx_runtime18.jsx(ViewBoundary, {
-    snapshot,
-    fallback: /* @__PURE__ */ jsx_runtime18.jsx("section", {
-      className: SECTION,
-      id: "queue"
-    }),
-    children: /* @__PURE__ */ jsx_runtime18.jsx(QueueBody, {})
-  });
-}
 
 // engine/node_modules/@base-ui/react/use-render/useRender.mjs
 function useRender(params) {
@@ -37701,17 +34580,54 @@ function Badge({
   });
 }
 
+// engine/node_modules/@base-ui/react/separator/Separator.mjs
+var React102 = __toESM(require_react(), 1);
+"use client";
+var Separator = /* @__PURE__ */ React102.forwardRef(function SeparatorComponent(componentProps, forwardedRef) {
+  const {
+    className,
+    render,
+    orientation = "horizontal",
+    style,
+    ...elementProps
+  } = componentProps;
+  const state = {
+    orientation
+  };
+  const element = useRenderElement("div", componentProps, {
+    state,
+    ref: forwardedRef,
+    props: [{
+      role: "separator",
+      "aria-orientation": orientation
+    }, elementProps]
+  });
+  return element;
+});
+if (false)
+  ;
+// engine/board/page/ui/separator.tsx
+var jsx_runtime9 = __toESM(require_jsx_runtime());
+function Separator2({ className, orientation = "horizontal", ...props }) {
+  return /* @__PURE__ */ jsx_runtime9.jsx(Separator, {
+    "data-slot": "separator",
+    orientation,
+    className: cn("shrink-0 bg-border data-horizontal:h-px data-horizontal:w-full data-vertical:w-px data-vertical:self-stretch", className),
+    ...props
+  });
+}
+
 // engine/node_modules/@base-ui/react/tabs/root/TabsRoot.mjs
-var React109 = __toESM(require_react(), 1);
+var React104 = __toESM(require_react(), 1);
 
 // engine/node_modules/@base-ui/react/tabs/root/TabsRootContext.mjs
-var React108 = __toESM(require_react(), 1);
+var React103 = __toESM(require_react(), 1);
 "use client";
-var TabsRootContext = /* @__PURE__ */ React108.createContext(undefined);
+var TabsRootContext = /* @__PURE__ */ React103.createContext(undefined);
 if (false)
   ;
 function useTabsRootContext() {
-  const context = React108.useContext(TabsRootContext);
+  const context = React103.useContext(TabsRootContext);
   if (context === undefined) {
     throw new Error(formatErrorMessage_default(64));
   }
@@ -37729,9 +34645,9 @@ var tabsStateAttributesMapping = {
 };
 
 // engine/node_modules/@base-ui/react/tabs/root/TabsRoot.mjs
-var import_jsx_runtime29 = __toESM(require_jsx_runtime(), 1);
+var import_jsx_runtime28 = __toESM(require_jsx_runtime(), 1);
 "use client";
-var TabsRoot = /* @__PURE__ */ React109.forwardRef(function TabsRoot(componentProps, forwardedRef) {
+var TabsRoot = /* @__PURE__ */ React104.forwardRef(function TabsRoot(componentProps, forwardedRef) {
   const {
     className,
     defaultValue: defaultValueProp = 0,
@@ -37743,8 +34659,8 @@ var TabsRoot = /* @__PURE__ */ React109.forwardRef(function TabsRoot(componentPr
     ...elementProps
   } = componentProps;
   const hasExplicitDefaultValueProp = componentProps.defaultValue !== undefined;
-  const tabPanelRefs = React109.useRef([]);
-  const [mountedTabPanels, setMountedTabPanels] = React109.useState(() => new Map);
+  const tabPanelRefs = React104.useRef([]);
+  const [mountedTabPanels, setMountedTabPanels] = React104.useState(() => new Map);
   const [value, setValue] = useControlled({
     controlled: valueProp,
     default: defaultValueProp,
@@ -37752,10 +34668,10 @@ var TabsRoot = /* @__PURE__ */ React109.forwardRef(function TabsRoot(componentPr
     state: "value"
   });
   const isControlled = valueProp !== undefined;
-  const [tabMap, setTabMap] = React109.useState(() => new Map);
-  const lastKnownTabElementRef = React109.useRef(undefined);
-  const getTabElementBySelectedValue = React109.useCallback((selectedValue) => findTabElement(tabMap, selectedValue), [tabMap]);
-  const [activationDirectionState, setActivationDirectionState] = React109.useState(() => ({
+  const [tabMap, setTabMap] = React104.useState(() => new Map);
+  const lastKnownTabElementRef = React104.useRef(undefined);
+  const getTabElementBySelectedValue = React104.useCallback((selectedValue) => findTabElement(tabMap, selectedValue), [tabMap]);
+  const [activationDirectionState, setActivationDirectionState] = React104.useState(() => ({
     previousValue: value,
     tabActivationDirection: "none"
   }));
@@ -37811,10 +34727,10 @@ var TabsRoot = /* @__PURE__ */ React109.forwardRef(function TabsRoot(componentPr
       });
     };
   });
-  const getTabPanelIdByValue = React109.useCallback((tabValue) => {
+  const getTabPanelIdByValue = React104.useCallback((tabValue) => {
     return mountedTabPanels.get(tabValue);
   }, [mountedTabPanels]);
-  const getTabIdByPanelValue = React109.useCallback((tabPanelValue) => {
+  const getTabIdByPanelValue = React104.useCallback((tabPanelValue) => {
     for (const tabMetadata of tabMap.values()) {
       if (tabPanelValue === tabMetadata.value) {
         return tabMetadata.id;
@@ -37822,7 +34738,7 @@ var TabsRoot = /* @__PURE__ */ React109.forwardRef(function TabsRoot(componentPr
     }
     return;
   }, [tabMap]);
-  const tabsContextValue = React109.useMemo(() => ({
+  const tabsContextValue = React104.useMemo(() => ({
     getTabElementBySelectedValue,
     getTabIdByPanelValue,
     getTabPanelIdByValue,
@@ -37833,7 +34749,7 @@ var TabsRoot = /* @__PURE__ */ React109.forwardRef(function TabsRoot(componentPr
     tabActivationDirection,
     value
   }), [getTabElementBySelectedValue, getTabIdByPanelValue, getTabPanelIdByValue, onValueChange, orientation, registerMountedTabPanel, setTabMap, tabActivationDirection, value]);
-  const selectedTabMetadata = React109.useMemo(() => {
+  const selectedTabMetadata = React104.useMemo(() => {
     for (const tabMetadata of tabMap.values()) {
       if (tabMetadata.value === value) {
         return tabMetadata;
@@ -37841,7 +34757,7 @@ var TabsRoot = /* @__PURE__ */ React109.forwardRef(function TabsRoot(componentPr
     }
     return;
   }, [tabMap, value]);
-  const firstEnabledTabValue = React109.useMemo(() => {
+  const firstEnabledTabValue = React104.useMemo(() => {
     for (const tabMetadata of tabMap.values()) {
       if (!tabMetadata.disabled) {
         return tabMetadata.value;
@@ -37849,10 +34765,10 @@ var TabsRoot = /* @__PURE__ */ React109.forwardRef(function TabsRoot(componentPr
     }
     return;
   }, [tabMap]);
-  const shouldNotifyInitialValueChangeRef = React109.useRef(!hasExplicitDefaultValueProp);
-  const initialDefaultValueRef = React109.useRef(defaultValueProp);
-  const shouldHonorDisabledDefaultValueRef = React109.useRef(hasExplicitDefaultValueProp);
-  const didRegisterTabsRef = React109.useRef(false);
+  const shouldNotifyInitialValueChangeRef = React104.useRef(!hasExplicitDefaultValueProp);
+  const initialDefaultValueRef = React104.useRef(defaultValueProp);
+  const shouldHonorDisabledDefaultValueRef = React104.useRef(hasExplicitDefaultValueProp);
+  const didRegisterTabsRef = React104.useRef(false);
   useIsoLayoutEffect(() => {
     if (isControlled) {
       return;
@@ -37913,9 +34829,9 @@ var TabsRoot = /* @__PURE__ */ React109.forwardRef(function TabsRoot(componentPr
     props: elementProps,
     stateAttributesMapping: tabsStateAttributesMapping
   });
-  return /* @__PURE__ */ import_jsx_runtime29.jsx(TabsRootContext.Provider, {
+  return /* @__PURE__ */ import_jsx_runtime28.jsx(TabsRootContext.Provider, {
     value: tabsContextValue,
-    children: /* @__PURE__ */ import_jsx_runtime29.jsx(CompositeList, {
+    children: /* @__PURE__ */ import_jsx_runtime28.jsx(CompositeList, {
       elementsRef: tabPanelRefs,
       children: element
     })
@@ -37955,13 +34871,13 @@ function computeActivationDirection(oldValue, newValue, orientation, tabMap) {
   return "none";
 }
 // engine/node_modules/@base-ui/react/tabs/tab/TabsTab.mjs
-var React112 = __toESM(require_react(), 1);
+var React107 = __toESM(require_react(), 1);
 
 // engine/node_modules/@base-ui/react/internals/composite/constants.mjs
 var ACTIVE_COMPOSITE_ITEM = "data-composite-item-active";
 
 // engine/node_modules/@base-ui/react/internals/composite/item/useCompositeItem.mjs
-var React110 = __toESM(require_react(), 1);
+var React105 = __toESM(require_react(), 1);
 "use client";
 function useCompositeItem(params = {}) {
   const {
@@ -37974,7 +34890,7 @@ function useCompositeItem(params = {}) {
     index
   } = useCompositeListItem(params);
   const isHighlighted = highlightedIndex === index;
-  const itemRef = React110.useRef(null);
+  const itemRef = React105.useRef(null);
   const mergedRef = useMergedRefs(ref, itemRef);
   const compositeProps = {
     tabIndex: isHighlighted ? 0 : -1,
@@ -38000,13 +34916,13 @@ function useCompositeItem(params = {}) {
 }
 
 // engine/node_modules/@base-ui/react/tabs/list/TabsListContext.mjs
-var React111 = __toESM(require_react(), 1);
+var React106 = __toESM(require_react(), 1);
 "use client";
-var TabsListContext = /* @__PURE__ */ React111.createContext(undefined);
+var TabsListContext = /* @__PURE__ */ React106.createContext(undefined);
 if (false)
   ;
 function useTabsListContext() {
-  const context = React111.useContext(TabsListContext);
+  const context = React106.useContext(TabsListContext);
   if (context === undefined) {
     throw new Error(formatErrorMessage_default(65));
   }
@@ -38015,7 +34931,7 @@ function useTabsListContext() {
 
 // engine/node_modules/@base-ui/react/tabs/tab/TabsTab.mjs
 "use client";
-var TabsTab = /* @__PURE__ */ React112.forwardRef(function TabsTab(componentProps, forwardedRef) {
+var TabsTab = /* @__PURE__ */ React107.forwardRef(function TabsTab(componentProps, forwardedRef) {
   const {
     className,
     disabled = false,
@@ -38043,7 +34959,7 @@ var TabsTab = /* @__PURE__ */ React112.forwardRef(function TabsTab(componentProp
     onHighlightedIndexChange
   } = useCompositeRootContext();
   const id = useBaseUiId(idProp);
-  const tabMetadata = React112.useMemo(() => ({
+  const tabMetadata = React107.useMemo(() => ({
     disabled,
     id,
     value
@@ -38056,8 +34972,8 @@ var TabsTab = /* @__PURE__ */ React112.forwardRef(function TabsTab(componentProp
     metadata: tabMetadata
   });
   const active = value === activeTabValue;
-  const isNavigatingRef = React112.useRef(false);
-  const unobserveTabElementRef = React112.useRef(null);
+  const isNavigatingRef = React107.useRef(false);
+  const unobserveTabElementRef = React107.useRef(null);
   const observeTabElement = useStableCallback((element) => {
     unobserveTabElementRef.current?.();
     unobserveTabElementRef.current = element ? registerTabResizeObserverElement(element) : null;
@@ -38090,8 +35006,8 @@ var TabsTab = /* @__PURE__ */ React112.forwardRef(function TabsTab(componentProp
     focusableWhenDisabled: true
   });
   const tabPanelId = getTabPanelIdByValue(value);
-  const isPressingRef = React112.useRef(false);
-  const isMainButtonRef = React112.useRef(false);
+  const isPressingRef = React107.useRef(false);
+  const isMainButtonRef = React107.useRef(false);
   function activate(event) {
     onValueChange(value, createChangeEventDetails(none, event.nativeEvent, undefined, {
       activationDirection: "none"
@@ -38156,20 +35072,20 @@ var TabsTab = /* @__PURE__ */ React112.forwardRef(function TabsTab(componentProp
 if (false)
   ;
 // engine/node_modules/@base-ui/react/tabs/panel/TabsPanel.mjs
-var React113 = __toESM(require_react(), 1);
+var React108 = __toESM(require_react(), 1);
 
 // engine/node_modules/@base-ui/react/tabs/panel/TabsPanelDataAttributes.mjs
 var index5 = "data-index";
-var startingStyle6 = startingStyle;
-var endingStyle6 = endingStyle;
+var startingStyle5 = startingStyle;
+var endingStyle5 = endingStyle;
 
 // engine/node_modules/@base-ui/react/tabs/panel/TabsPanel.mjs
 "use client";
-var stateAttributesMapping2 = {
+var stateAttributesMapping = {
   ...tabsStateAttributesMapping,
   ...transitionStatusMapping
 };
-var TabsPanel = /* @__PURE__ */ React113.forwardRef(function TabsPanel(componentProps, forwardedRef) {
+var TabsPanel = /* @__PURE__ */ React108.forwardRef(function TabsPanel(componentProps, forwardedRef) {
   const {
     className,
     value,
@@ -38204,7 +35120,7 @@ var TabsPanel = /* @__PURE__ */ React113.forwardRef(function TabsPanel(component
     tabActivationDirection,
     transitionStatus
   };
-  const panelRef = React113.useRef(null);
+  const panelRef = React108.useRef(null);
   const element = useRenderElement("div", componentProps, {
     state,
     ref: [forwardedRef, listItemRef, panelRef],
@@ -38217,7 +35133,7 @@ var TabsPanel = /* @__PURE__ */ React113.forwardRef(function TabsPanel(component
       inert: inertValue(!open),
       [index5]: index
     }, elementProps],
-    stateAttributesMapping: stateAttributesMapping2
+    stateAttributesMapping
   });
   useOpenChangeComplete({
     open,
@@ -38243,13 +35159,13 @@ var TabsPanel = /* @__PURE__ */ React113.forwardRef(function TabsPanel(component
 if (false)
   ;
 // engine/node_modules/@base-ui/react/tabs/list/TabsList.mjs
-var React116 = __toESM(require_react(), 1);
+var React111 = __toESM(require_react(), 1);
 
 // engine/node_modules/@base-ui/react/internals/composite/root/CompositeRoot.mjs
-var React115 = __toESM(require_react(), 1);
+var React110 = __toESM(require_react(), 1);
 
 // engine/node_modules/@base-ui/react/internals/composite/root/useCompositeRoot.mjs
-var React114 = __toESM(require_react(), 1);
+var React109 = __toESM(require_react(), 1);
 
 // engine/node_modules/@base-ui/utils/isElementDisabled.mjs
 function isElementDisabled(element) {
@@ -38273,13 +35189,13 @@ function useCompositeRoot(params) {
     disabledIndices,
     modifierKeys = EMPTY_ARRAY
   } = params;
-  const [internalHighlightedIndex, internalSetHighlightedIndex] = React114.useState(0);
+  const [internalHighlightedIndex, internalSetHighlightedIndex] = React109.useState(0);
   const isGrid = grid != null;
-  const rootRef = React114.useRef(null);
+  const rootRef = React109.useRef(null);
   const mergedRef = useMergedRefs(rootRef, externalRef);
-  const elementsRef = React114.useRef([]);
-  const hasSetDefaultIndexRef = React114.useRef(false);
-  const highlightedElementRef = React114.useRef(null);
+  const elementsRef = React109.useRef([]);
+  const hasSetDefaultIndexRef = React109.useRef(false);
+  const highlightedElementRef = React109.useRef(null);
   const highlightedIndex = externalHighlightedIndex ?? internalHighlightedIndex;
   const onHighlightedIndexChange = useStableCallback((index, shouldScrollIntoView = false) => {
     highlightedElementRef.current = elementsRef.current[index] ?? null;
@@ -38484,7 +35400,7 @@ function isModifierKeySet(event, ignoredModifierKeys) {
 }
 
 // engine/node_modules/@base-ui/react/internals/composite/root/CompositeRoot.mjs
-var import_jsx_runtime30 = __toESM(require_jsx_runtime(), 1);
+var import_jsx_runtime29 = __toESM(require_jsx_runtime(), 1);
 "use client";
 function CompositeRoot(componentProps) {
   const {
@@ -38539,15 +35455,15 @@ function CompositeRoot(componentProps) {
     props: [defaultProps, ...props, elementProps],
     stateAttributesMapping
   });
-  const contextValue = React115.useMemo(() => ({
+  const contextValue = React110.useMemo(() => ({
     highlightedIndex,
     onHighlightedIndexChange,
     highlightItemOnHover,
     relayKeyboardEvent
   }), [highlightedIndex, onHighlightedIndexChange, highlightItemOnHover, relayKeyboardEvent]);
-  return /* @__PURE__ */ import_jsx_runtime30.jsx(CompositeRootContext.Provider, {
+  return /* @__PURE__ */ import_jsx_runtime29.jsx(CompositeRootContext.Provider, {
     value: contextValue,
-    children: /* @__PURE__ */ import_jsx_runtime30.jsx(CompositeList, {
+    children: /* @__PURE__ */ import_jsx_runtime29.jsx(CompositeList, {
       elementsRef,
       onMapChange: (newMap) => {
         onMapChangeProp?.(newMap);
@@ -38559,9 +35475,9 @@ function CompositeRoot(componentProps) {
 }
 
 // engine/node_modules/@base-ui/react/tabs/list/TabsList.mjs
-var import_jsx_runtime31 = __toESM(require_jsx_runtime(), 1);
+var import_jsx_runtime30 = __toESM(require_jsx_runtime(), 1);
 "use client";
-var TabsList = /* @__PURE__ */ React116.forwardRef(function TabsList(componentProps, forwardedRef) {
+var TabsList = /* @__PURE__ */ React111.forwardRef(function TabsList(componentProps, forwardedRef) {
   const {
     activateOnFocus = false,
     className,
@@ -38575,11 +35491,11 @@ var TabsList = /* @__PURE__ */ React116.forwardRef(function TabsList(componentPr
     setTabMap,
     tabActivationDirection
   } = useTabsRootContext();
-  const [highlightedTabIndex, setHighlightedTabIndex] = React116.useState(0);
-  const [tabsListElement, setTabsListElement] = React116.useState(null);
-  const indicatorUpdateListenersRef = React116.useRef(new Set);
-  const tabResizeObserverElementsRef = React116.useRef(new Set);
-  const resizeObserverRef = React116.useRef(null);
+  const [highlightedTabIndex, setHighlightedTabIndex] = React111.useState(0);
+  const [tabsListElement, setTabsListElement] = React111.useState(null);
+  const indicatorUpdateListenersRef = React111.useRef(new Set);
+  const tabResizeObserverElementsRef = React111.useRef(new Set);
+  const resizeObserverRef = React111.useRef(null);
   useIsoLayoutEffect(() => {
     if (typeof ResizeObserver === "undefined") {
       return;
@@ -38623,15 +35539,15 @@ var TabsList = /* @__PURE__ */ React116.forwardRef(function TabsList(componentPr
     "aria-orientation": orientation === "vertical" ? "vertical" : undefined,
     role: "tablist"
   };
-  const tabsListContextValue = React116.useMemo(() => ({
+  const tabsListContextValue = React111.useMemo(() => ({
     activateOnFocus,
     registerIndicatorUpdateListener,
     registerTabResizeObserverElement,
     tabsListElement
   }), [activateOnFocus, registerIndicatorUpdateListener, registerTabResizeObserverElement, tabsListElement]);
-  return /* @__PURE__ */ import_jsx_runtime31.jsx(TabsListContext.Provider, {
+  return /* @__PURE__ */ import_jsx_runtime30.jsx(TabsListContext.Provider, {
     value: tabsListContextValue,
-    children: /* @__PURE__ */ import_jsx_runtime31.jsx(CompositeRoot, {
+    children: /* @__PURE__ */ import_jsx_runtime30.jsx(CompositeRoot, {
       render,
       className,
       style,
@@ -38652,263 +35568,12624 @@ var TabsList = /* @__PURE__ */ React116.forwardRef(function TabsList(componentPr
 if (false)
   ;
 // engine/board/page/ui/tabs.tsx
-var jsx_runtime19 = __toESM(require_jsx_runtime());
+var jsx_runtime10 = __toESM(require_jsx_runtime());
 function Tabs({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime19.jsx(TabsRoot, {
+  return /* @__PURE__ */ jsx_runtime10.jsx(TabsRoot, {
     "data-slot": "tabs",
     className: cn("group/tabs flex", className),
     ...props
   });
 }
+function enterOnSelected(event) {
+  const list = event.currentTarget;
+  if (list.contains(event.relatedTarget) || !event.target.matches(":focus-visible"))
+    return;
+  const selected = list.querySelector('[role="tab"][aria-selected="true"]');
+  if (selected && selected !== event.target)
+    selected.focus();
+}
 function TabsList2({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime19.jsx(TabsList, {
+  return /* @__PURE__ */ jsx_runtime10.jsx(TabsList, {
     "data-slot": "tabs-list",
+    onFocus: enterOnSelected,
     className: cn("flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-[9px] border border-border bg-secondary p-0.5 phone:flex-1", className),
     ...props
   });
 }
 function TabsTrigger({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime19.jsx(TabsTab, {
+  return /* @__PURE__ */ jsx_runtime10.jsx(TabsTab, {
     "data-slot": "tabs-trigger",
     className: cn("inline-flex min-h-[26px] flex-none items-center gap-1.5 rounded-[7px] border-0 bg-transparent px-2.5 py-0 text-[0.78125rem] leading-none font-medium whitespace-nowrap text-muted-foreground focus-visible:-outline-offset-2 aria-selected:bg-card aria-selected:text-foreground aria-selected:shadow-raise [&:hover]:text-foreground phone:min-h-11 phone:flex-[1_0_auto] phone:justify-center", className),
     ...props
   });
 }
 function TabsContent(props) {
-  return /* @__PURE__ */ jsx_runtime19.jsx(TabsPanel, {
+  return /* @__PURE__ */ jsx_runtime10.jsx(TabsPanel, {
     "data-slot": "tabs-content",
     ...props
   });
 }
 
-// engine/board/page/operations/history.tsx
-var import_react24 = __toESM(require_react());
-var jsx_runtime20 = __toESM(require_jsx_runtime());
-var NOTE3 = "my-3.5 text-[0.75rem] text-muted-foreground";
-var ACTION2 = "w-7 p-0 [grid-area:action] phone:min-h-11 phone:min-w-11";
-var LINK = "[a&:hover]:underline [a&:hover]:underline-offset-[3px]";
-var makeVisual = async (number) => {
-  if (screen.visualPresses().has(number))
-    return;
-  screen.setVisualPresses((presses) => presses.add(number));
-  await act("/api/visual", { number }, "Make visual failed");
-  screen.setVisualPresses((presses) => presses.delete(number));
+// engine/board/page/operations/conversation.tsx
+var import_react17 = __toESM(require_react());
+
+// engine/board/page/operations/markdown.tsx
+var import_react16 = __toESM(require_react());
+
+// engine/node_modules/devlop/lib/default.js
+function ok() {}
+function unreachable() {}
+
+// engine/node_modules/comma-separated-tokens/index.js
+function stringify(values, options) {
+  const settings = options || {};
+  const input = values[values.length - 1] === "" ? [...values, ""] : values;
+  return input.join((settings.padRight ? " " : "") + "," + (settings.padLeft === false ? "" : " ")).trim();
+}
+
+// engine/node_modules/estree-util-is-identifier-name/lib/index.js
+var nameRe = /^[$_\p{ID_Start}][$_\u{200C}\u{200D}\p{ID_Continue}]*$/u;
+var nameReJsx = /^[$_\p{ID_Start}][-$_\u{200C}\u{200D}\p{ID_Continue}]*$/u;
+var emptyOptions = {};
+function name(name, options) {
+  const settings = options || emptyOptions;
+  const re = settings.jsx ? nameReJsx : nameRe;
+  return re.test(name);
+}
+// engine/node_modules/hast-util-whitespace/lib/index.js
+var re = /[ \t\n\f\r]/g;
+function whitespace(thing) {
+  return typeof thing === "object" ? thing.type === "text" ? empty(thing.value) : false : empty(thing);
+}
+function empty(value) {
+  return value.replace(re, "") === "";
+}
+// engine/node_modules/property-information/lib/util/schema.js
+class Schema {
+  constructor(property, normal, space) {
+    this.normal = normal;
+    this.property = property;
+    if (space) {
+      this.space = space;
+    }
+  }
+}
+Schema.prototype.normal = {};
+Schema.prototype.property = {};
+Schema.prototype.space = undefined;
+
+// engine/node_modules/property-information/lib/util/merge.js
+function merge(definitions, space) {
+  const property = {};
+  const normal = {};
+  for (const definition of definitions) {
+    Object.assign(property, definition.property);
+    Object.assign(normal, definition.normal);
+  }
+  return new Schema(property, normal, space);
+}
+
+// engine/node_modules/property-information/lib/normalize.js
+function normalize(value) {
+  return value.toLowerCase();
+}
+
+// engine/node_modules/property-information/lib/util/info.js
+class Info {
+  constructor(property, attribute) {
+    this.attribute = attribute;
+    this.property = property;
+  }
+}
+Info.prototype.attribute = "";
+Info.prototype.booleanish = false;
+Info.prototype.boolean = false;
+Info.prototype.commaOrSpaceSeparated = false;
+Info.prototype.commaSeparated = false;
+Info.prototype.defined = false;
+Info.prototype.mustUseProperty = false;
+Info.prototype.number = false;
+Info.prototype.overloadedBoolean = false;
+Info.prototype.property = "";
+Info.prototype.spaceSeparated = false;
+Info.prototype.space = undefined;
+
+// engine/node_modules/property-information/lib/util/types.js
+var powers = 0;
+var boolean = increment();
+var booleanish = increment();
+var overloadedBoolean = increment();
+var number = increment();
+var spaceSeparated = increment();
+var commaSeparated = increment();
+var commaOrSpaceSeparated = increment();
+function increment() {
+  return 2 ** ++powers;
+}
+
+// engine/node_modules/property-information/lib/util/defined-info.js
+var checks = Object.keys(exports_types);
+
+class DefinedInfo extends Info {
+  constructor(property, attribute, mask, space) {
+    let index = -1;
+    super(property, attribute);
+    mark(this, "space", space);
+    if (typeof mask === "number") {
+      while (++index < checks.length) {
+        const check = checks[index];
+        mark(this, checks[index], (mask & exports_types[check]) === exports_types[check]);
+      }
+    }
+  }
+}
+DefinedInfo.prototype.defined = true;
+function mark(values, key, value) {
+  if (value) {
+    values[key] = value;
+  }
+}
+
+// engine/node_modules/property-information/lib/util/create.js
+function create(definition) {
+  const properties = {};
+  const normals = {};
+  for (const [property, value] of Object.entries(definition.properties)) {
+    const info = new DefinedInfo(property, definition.transform(definition.attributes || {}, property), value, definition.space);
+    if (definition.mustUseProperty && definition.mustUseProperty.includes(property)) {
+      info.mustUseProperty = true;
+    }
+    properties[property] = info;
+    normals[normalize(property)] = property;
+    normals[normalize(info.attribute)] = property;
+  }
+  return new Schema(properties, normals, definition.space);
+}
+
+// engine/node_modules/property-information/lib/aria.js
+var aria = create({
+  properties: {
+    ariaActiveDescendant: null,
+    ariaAtomic: booleanish,
+    ariaAutoComplete: null,
+    ariaBusy: booleanish,
+    ariaChecked: booleanish,
+    ariaColCount: number,
+    ariaColIndex: number,
+    ariaColSpan: number,
+    ariaControls: spaceSeparated,
+    ariaCurrent: null,
+    ariaDescribedBy: spaceSeparated,
+    ariaDetails: null,
+    ariaDisabled: booleanish,
+    ariaDropEffect: spaceSeparated,
+    ariaErrorMessage: null,
+    ariaExpanded: booleanish,
+    ariaFlowTo: spaceSeparated,
+    ariaGrabbed: booleanish,
+    ariaHasPopup: null,
+    ariaHidden: booleanish,
+    ariaInvalid: null,
+    ariaKeyShortcuts: null,
+    ariaLabel: null,
+    ariaLabelledBy: spaceSeparated,
+    ariaLevel: number,
+    ariaLive: null,
+    ariaModal: booleanish,
+    ariaMultiLine: booleanish,
+    ariaMultiSelectable: booleanish,
+    ariaOrientation: null,
+    ariaOwns: spaceSeparated,
+    ariaPlaceholder: null,
+    ariaPosInSet: number,
+    ariaPressed: booleanish,
+    ariaReadOnly: booleanish,
+    ariaRelevant: null,
+    ariaRequired: booleanish,
+    ariaRoleDescription: spaceSeparated,
+    ariaRowCount: number,
+    ariaRowIndex: number,
+    ariaRowSpan: number,
+    ariaSelected: booleanish,
+    ariaSetSize: number,
+    ariaSort: null,
+    ariaValueMax: number,
+    ariaValueMin: number,
+    ariaValueNow: number,
+    ariaValueText: null,
+    role: null
+  },
+  transform(_, property) {
+    return property === "role" ? property : "aria-" + property.slice(4).toLowerCase();
+  }
+});
+
+// engine/node_modules/property-information/lib/util/case-sensitive-transform.js
+function caseSensitiveTransform(attributes, attribute) {
+  return attribute in attributes ? attributes[attribute] : attribute;
+}
+
+// engine/node_modules/property-information/lib/util/case-insensitive-transform.js
+function caseInsensitiveTransform(attributes, property) {
+  return caseSensitiveTransform(attributes, property.toLowerCase());
+}
+
+// engine/node_modules/property-information/lib/html.js
+var html = create({
+  attributes: {
+    acceptcharset: "accept-charset",
+    classname: "class",
+    htmlfor: "for",
+    httpequiv: "http-equiv"
+  },
+  mustUseProperty: ["checked", "multiple", "muted", "selected"],
+  properties: {
+    abbr: null,
+    accept: commaSeparated,
+    acceptCharset: spaceSeparated,
+    accessKey: spaceSeparated,
+    action: null,
+    allow: null,
+    allowFullScreen: boolean,
+    allowPaymentRequest: boolean,
+    allowUserMedia: boolean,
+    alpha: boolean,
+    alt: null,
+    as: null,
+    async: boolean,
+    autoCapitalize: null,
+    autoComplete: spaceSeparated,
+    autoFocus: boolean,
+    autoPlay: boolean,
+    blocking: spaceSeparated,
+    capture: null,
+    charSet: null,
+    checked: boolean,
+    cite: null,
+    className: spaceSeparated,
+    closedBy: null,
+    colorSpace: null,
+    cols: number,
+    colSpan: number,
+    command: null,
+    commandFor: null,
+    content: null,
+    contentEditable: booleanish,
+    controls: boolean,
+    controlsList: spaceSeparated,
+    coords: number | commaSeparated,
+    crossOrigin: null,
+    data: null,
+    dateTime: null,
+    decoding: null,
+    default: boolean,
+    defer: boolean,
+    dir: null,
+    dirName: null,
+    disabled: boolean,
+    download: overloadedBoolean,
+    draggable: booleanish,
+    encType: null,
+    enterKeyHint: null,
+    fetchPriority: null,
+    form: null,
+    formAction: null,
+    formEncType: null,
+    formMethod: null,
+    formNoValidate: boolean,
+    formTarget: null,
+    headers: spaceSeparated,
+    height: number,
+    hidden: overloadedBoolean,
+    high: number,
+    href: null,
+    hrefLang: null,
+    htmlFor: spaceSeparated,
+    httpEquiv: spaceSeparated,
+    id: null,
+    imageSizes: null,
+    imageSrcSet: null,
+    inert: boolean,
+    inputMode: null,
+    integrity: null,
+    is: null,
+    isMap: boolean,
+    itemId: null,
+    itemProp: spaceSeparated,
+    itemRef: spaceSeparated,
+    itemScope: boolean,
+    itemType: spaceSeparated,
+    kind: null,
+    label: null,
+    lang: null,
+    language: null,
+    list: null,
+    loading: null,
+    loop: boolean,
+    low: number,
+    manifest: null,
+    max: null,
+    maxLength: number,
+    media: null,
+    method: null,
+    min: null,
+    minLength: number,
+    multiple: boolean,
+    muted: boolean,
+    name: null,
+    nonce: null,
+    noModule: boolean,
+    noValidate: boolean,
+    onAbort: null,
+    onAfterPrint: null,
+    onAuxClick: null,
+    onBeforeMatch: null,
+    onBeforePrint: null,
+    onBeforeToggle: null,
+    onBeforeUnload: null,
+    onBlur: null,
+    onCancel: null,
+    onCanPlay: null,
+    onCanPlayThrough: null,
+    onChange: null,
+    onClick: null,
+    onClose: null,
+    onContextLost: null,
+    onContextMenu: null,
+    onContextRestored: null,
+    onCopy: null,
+    onCueChange: null,
+    onCut: null,
+    onDblClick: null,
+    onDrag: null,
+    onDragEnd: null,
+    onDragEnter: null,
+    onDragExit: null,
+    onDragLeave: null,
+    onDragOver: null,
+    onDragStart: null,
+    onDrop: null,
+    onDurationChange: null,
+    onEmptied: null,
+    onEnded: null,
+    onError: null,
+    onFocus: null,
+    onFormData: null,
+    onHashChange: null,
+    onInput: null,
+    onInvalid: null,
+    onKeyDown: null,
+    onKeyPress: null,
+    onKeyUp: null,
+    onLanguageChange: null,
+    onLoad: null,
+    onLoadedData: null,
+    onLoadedMetadata: null,
+    onLoadEnd: null,
+    onLoadStart: null,
+    onMessage: null,
+    onMessageError: null,
+    onMouseDown: null,
+    onMouseEnter: null,
+    onMouseLeave: null,
+    onMouseMove: null,
+    onMouseOut: null,
+    onMouseOver: null,
+    onMouseUp: null,
+    onOffline: null,
+    onOnline: null,
+    onPageHide: null,
+    onPageShow: null,
+    onPaste: null,
+    onPause: null,
+    onPlay: null,
+    onPlaying: null,
+    onPopState: null,
+    onProgress: null,
+    onRateChange: null,
+    onRejectionHandled: null,
+    onReset: null,
+    onResize: null,
+    onScroll: null,
+    onScrollEnd: null,
+    onSecurityPolicyViolation: null,
+    onSeeked: null,
+    onSeeking: null,
+    onSelect: null,
+    onSlotChange: null,
+    onStalled: null,
+    onStorage: null,
+    onSubmit: null,
+    onSuspend: null,
+    onTimeUpdate: null,
+    onToggle: null,
+    onUnhandledRejection: null,
+    onUnload: null,
+    onVolumeChange: null,
+    onWaiting: null,
+    onWheel: null,
+    open: boolean,
+    optimum: number,
+    pattern: null,
+    ping: spaceSeparated,
+    placeholder: null,
+    playsInline: boolean,
+    popover: null,
+    popoverTarget: null,
+    popoverTargetAction: null,
+    poster: null,
+    preload: null,
+    readOnly: boolean,
+    referrerPolicy: null,
+    rel: spaceSeparated,
+    required: boolean,
+    reversed: boolean,
+    rows: number,
+    rowSpan: number,
+    sandbox: spaceSeparated,
+    scope: null,
+    scoped: boolean,
+    seamless: boolean,
+    selected: boolean,
+    shadowRootClonable: boolean,
+    shadowRootCustomElementRegistry: boolean,
+    shadowRootDelegatesFocus: boolean,
+    shadowRootMode: null,
+    shadowRootSerializable: boolean,
+    shape: null,
+    size: number,
+    sizes: null,
+    slot: null,
+    span: number,
+    spellCheck: booleanish,
+    src: null,
+    srcDoc: null,
+    srcLang: null,
+    srcSet: null,
+    start: number,
+    step: null,
+    style: null,
+    tabIndex: number,
+    target: null,
+    title: null,
+    translate: null,
+    type: null,
+    typeMustMatch: boolean,
+    useMap: null,
+    value: booleanish,
+    width: number,
+    wrap: null,
+    writingSuggestions: null,
+    align: null,
+    aLink: null,
+    archive: spaceSeparated,
+    axis: null,
+    background: null,
+    bgColor: null,
+    border: number,
+    borderColor: null,
+    bottomMargin: number,
+    cellPadding: null,
+    cellSpacing: null,
+    char: null,
+    charOff: null,
+    classId: null,
+    clear: null,
+    code: null,
+    codeBase: null,
+    codeType: null,
+    color: null,
+    compact: boolean,
+    declare: boolean,
+    event: null,
+    face: null,
+    frame: null,
+    frameBorder: null,
+    hSpace: number,
+    leftMargin: number,
+    link: null,
+    longDesc: null,
+    lowSrc: null,
+    marginHeight: number,
+    marginWidth: number,
+    noResize: boolean,
+    noHref: boolean,
+    noShade: boolean,
+    noWrap: boolean,
+    object: null,
+    profile: null,
+    prompt: null,
+    rev: null,
+    rightMargin: number,
+    rules: null,
+    scheme: null,
+    scrolling: booleanish,
+    standby: null,
+    summary: null,
+    text: null,
+    topMargin: number,
+    valueType: null,
+    version: null,
+    vAlign: null,
+    vLink: null,
+    vSpace: number,
+    allowTransparency: null,
+    autoCorrect: null,
+    autoSave: null,
+    credentialless: boolean,
+    disablePictureInPicture: boolean,
+    disableRemotePlayback: boolean,
+    exportParts: commaSeparated,
+    part: spaceSeparated,
+    prefix: null,
+    property: null,
+    results: number,
+    security: null,
+    unselectable: null
+  },
+  space: "html",
+  transform: caseInsensitiveTransform
+});
+
+// engine/node_modules/property-information/lib/svg.js
+var svg = create({
+  attributes: {
+    accentHeight: "accent-height",
+    alignmentBaseline: "alignment-baseline",
+    arabicForm: "arabic-form",
+    baselineShift: "baseline-shift",
+    capHeight: "cap-height",
+    className: "class",
+    clipPath: "clip-path",
+    clipRule: "clip-rule",
+    colorInterpolation: "color-interpolation",
+    colorInterpolationFilters: "color-interpolation-filters",
+    colorProfile: "color-profile",
+    colorRendering: "color-rendering",
+    crossOrigin: "crossorigin",
+    dataType: "datatype",
+    dominantBaseline: "dominant-baseline",
+    enableBackground: "enable-background",
+    fillOpacity: "fill-opacity",
+    fillRule: "fill-rule",
+    floodColor: "flood-color",
+    floodOpacity: "flood-opacity",
+    fontFamily: "font-family",
+    fontSize: "font-size",
+    fontSizeAdjust: "font-size-adjust",
+    fontStretch: "font-stretch",
+    fontStyle: "font-style",
+    fontVariant: "font-variant",
+    fontWeight: "font-weight",
+    glyphName: "glyph-name",
+    glyphOrientationHorizontal: "glyph-orientation-horizontal",
+    glyphOrientationVertical: "glyph-orientation-vertical",
+    hrefLang: "hreflang",
+    horizAdvX: "horiz-adv-x",
+    horizOriginX: "horiz-origin-x",
+    horizOriginY: "horiz-origin-y",
+    imageRendering: "image-rendering",
+    letterSpacing: "letter-spacing",
+    lightingColor: "lighting-color",
+    markerEnd: "marker-end",
+    markerMid: "marker-mid",
+    markerStart: "marker-start",
+    maskType: "mask-type",
+    navDown: "nav-down",
+    navDownLeft: "nav-down-left",
+    navDownRight: "nav-down-right",
+    navLeft: "nav-left",
+    navNext: "nav-next",
+    navPrev: "nav-prev",
+    navRight: "nav-right",
+    navUp: "nav-up",
+    navUpLeft: "nav-up-left",
+    navUpRight: "nav-up-right",
+    onAbort: "onabort",
+    onActivate: "onactivate",
+    onAfterPrint: "onafterprint",
+    onBeforePrint: "onbeforeprint",
+    onBegin: "onbegin",
+    onCancel: "oncancel",
+    onCanPlay: "oncanplay",
+    onCanPlayThrough: "oncanplaythrough",
+    onChange: "onchange",
+    onClick: "onclick",
+    onClose: "onclose",
+    onCopy: "oncopy",
+    onCueChange: "oncuechange",
+    onCut: "oncut",
+    onDblClick: "ondblclick",
+    onDrag: "ondrag",
+    onDragEnd: "ondragend",
+    onDragEnter: "ondragenter",
+    onDragExit: "ondragexit",
+    onDragLeave: "ondragleave",
+    onDragOver: "ondragover",
+    onDragStart: "ondragstart",
+    onDrop: "ondrop",
+    onDurationChange: "ondurationchange",
+    onEmptied: "onemptied",
+    onEnd: "onend",
+    onEnded: "onended",
+    onError: "onerror",
+    onFocus: "onfocus",
+    onFocusIn: "onfocusin",
+    onFocusOut: "onfocusout",
+    onHashChange: "onhashchange",
+    onInput: "oninput",
+    onInvalid: "oninvalid",
+    onKeyDown: "onkeydown",
+    onKeyPress: "onkeypress",
+    onKeyUp: "onkeyup",
+    onLoad: "onload",
+    onLoadedData: "onloadeddata",
+    onLoadedMetadata: "onloadedmetadata",
+    onLoadStart: "onloadstart",
+    onMessage: "onmessage",
+    onMouseDown: "onmousedown",
+    onMouseEnter: "onmouseenter",
+    onMouseLeave: "onmouseleave",
+    onMouseMove: "onmousemove",
+    onMouseOut: "onmouseout",
+    onMouseOver: "onmouseover",
+    onMouseUp: "onmouseup",
+    onMouseWheel: "onmousewheel",
+    onOffline: "onoffline",
+    onOnline: "ononline",
+    onPageHide: "onpagehide",
+    onPageShow: "onpageshow",
+    onPaste: "onpaste",
+    onPause: "onpause",
+    onPlay: "onplay",
+    onPlaying: "onplaying",
+    onPopState: "onpopstate",
+    onProgress: "onprogress",
+    onRateChange: "onratechange",
+    onRepeat: "onrepeat",
+    onReset: "onreset",
+    onResize: "onresize",
+    onScroll: "onscroll",
+    onSeeked: "onseeked",
+    onSeeking: "onseeking",
+    onSelect: "onselect",
+    onShow: "onshow",
+    onStalled: "onstalled",
+    onStorage: "onstorage",
+    onSubmit: "onsubmit",
+    onSuspend: "onsuspend",
+    onTimeUpdate: "ontimeupdate",
+    onToggle: "ontoggle",
+    onUnload: "onunload",
+    onVolumeChange: "onvolumechange",
+    onWaiting: "onwaiting",
+    onZoom: "onzoom",
+    overlinePosition: "overline-position",
+    overlineThickness: "overline-thickness",
+    paintOrder: "paint-order",
+    panose1: "panose-1",
+    pointerEvents: "pointer-events",
+    referrerPolicy: "referrerpolicy",
+    renderingIntent: "rendering-intent",
+    shapeRendering: "shape-rendering",
+    stopColor: "stop-color",
+    stopOpacity: "stop-opacity",
+    strikethroughPosition: "strikethrough-position",
+    strikethroughThickness: "strikethrough-thickness",
+    strokeDashArray: "stroke-dasharray",
+    strokeDashOffset: "stroke-dashoffset",
+    strokeLineCap: "stroke-linecap",
+    strokeLineJoin: "stroke-linejoin",
+    strokeMiterLimit: "stroke-miterlimit",
+    strokeOpacity: "stroke-opacity",
+    strokeWidth: "stroke-width",
+    tabIndex: "tabindex",
+    textAnchor: "text-anchor",
+    textDecoration: "text-decoration",
+    textRendering: "text-rendering",
+    transformOrigin: "transform-origin",
+    typeOf: "typeof",
+    underlinePosition: "underline-position",
+    underlineThickness: "underline-thickness",
+    unicodeBidi: "unicode-bidi",
+    unicodeRange: "unicode-range",
+    unitsPerEm: "units-per-em",
+    vAlphabetic: "v-alphabetic",
+    vHanging: "v-hanging",
+    vIdeographic: "v-ideographic",
+    vMathematical: "v-mathematical",
+    vectorEffect: "vector-effect",
+    vertAdvY: "vert-adv-y",
+    vertOriginX: "vert-origin-x",
+    vertOriginY: "vert-origin-y",
+    wordSpacing: "word-spacing",
+    writingMode: "writing-mode",
+    xHeight: "x-height",
+    playbackOrder: "playbackorder",
+    timelineBegin: "timelinebegin"
+  },
+  properties: {
+    about: commaOrSpaceSeparated,
+    accentHeight: number,
+    accumulate: null,
+    additive: null,
+    alignmentBaseline: null,
+    alphabetic: number,
+    amplitude: number,
+    arabicForm: null,
+    ascent: number,
+    attributeName: null,
+    attributeType: null,
+    azimuth: number,
+    bandwidth: null,
+    baselineShift: null,
+    baseFrequency: null,
+    baseProfile: null,
+    bbox: null,
+    begin: null,
+    bias: number,
+    by: null,
+    calcMode: null,
+    capHeight: number,
+    className: spaceSeparated,
+    clip: null,
+    clipPath: null,
+    clipPathUnits: null,
+    clipRule: null,
+    color: null,
+    colorInterpolation: null,
+    colorInterpolationFilters: null,
+    colorProfile: null,
+    colorRendering: null,
+    content: null,
+    contentScriptType: null,
+    contentStyleType: null,
+    crossOrigin: null,
+    cursor: null,
+    cx: null,
+    cy: null,
+    d: null,
+    dataType: null,
+    defaultAction: null,
+    descent: number,
+    diffuseConstant: number,
+    direction: null,
+    display: null,
+    dur: null,
+    divisor: number,
+    dominantBaseline: null,
+    download: boolean,
+    dx: null,
+    dy: null,
+    edgeMode: null,
+    editable: null,
+    elevation: number,
+    enableBackground: null,
+    end: null,
+    event: null,
+    exponent: number,
+    externalResourcesRequired: null,
+    fill: null,
+    fillOpacity: number,
+    fillRule: null,
+    filter: null,
+    filterRes: null,
+    filterUnits: null,
+    floodColor: null,
+    floodOpacity: null,
+    focusable: null,
+    focusHighlight: null,
+    fontFamily: null,
+    fontSize: null,
+    fontSizeAdjust: null,
+    fontStretch: null,
+    fontStyle: null,
+    fontVariant: null,
+    fontWeight: null,
+    format: null,
+    fr: null,
+    from: null,
+    fx: null,
+    fy: null,
+    g1: commaSeparated,
+    g2: commaSeparated,
+    glyphName: commaSeparated,
+    glyphOrientationHorizontal: null,
+    glyphOrientationVertical: null,
+    glyphRef: null,
+    gradientTransform: null,
+    gradientUnits: null,
+    handler: null,
+    hanging: number,
+    hatchContentUnits: null,
+    hatchUnits: null,
+    height: null,
+    href: null,
+    hrefLang: null,
+    horizAdvX: number,
+    horizOriginX: number,
+    horizOriginY: number,
+    id: null,
+    ideographic: number,
+    imageRendering: null,
+    initialVisibility: null,
+    in: null,
+    in2: null,
+    intercept: number,
+    k: number,
+    k1: number,
+    k2: number,
+    k3: number,
+    k4: number,
+    kernelMatrix: commaOrSpaceSeparated,
+    kernelUnitLength: null,
+    keyPoints: null,
+    keySplines: null,
+    keyTimes: null,
+    kerning: null,
+    lang: null,
+    lengthAdjust: null,
+    letterSpacing: null,
+    lightingColor: null,
+    limitingConeAngle: number,
+    local: null,
+    markerEnd: null,
+    markerMid: null,
+    markerStart: null,
+    markerHeight: null,
+    markerUnits: null,
+    markerWidth: null,
+    mask: null,
+    maskContentUnits: null,
+    maskType: null,
+    maskUnits: null,
+    mathematical: null,
+    max: null,
+    media: null,
+    mediaCharacterEncoding: null,
+    mediaContentEncodings: null,
+    mediaSize: number,
+    mediaTime: null,
+    method: null,
+    min: null,
+    mode: null,
+    name: null,
+    navDown: null,
+    navDownLeft: null,
+    navDownRight: null,
+    navLeft: null,
+    navNext: null,
+    navPrev: null,
+    navRight: null,
+    navUp: null,
+    navUpLeft: null,
+    navUpRight: null,
+    numOctaves: null,
+    observer: null,
+    offset: null,
+    onAbort: null,
+    onActivate: null,
+    onAfterPrint: null,
+    onBeforePrint: null,
+    onBegin: null,
+    onCancel: null,
+    onCanPlay: null,
+    onCanPlayThrough: null,
+    onChange: null,
+    onClick: null,
+    onClose: null,
+    onCopy: null,
+    onCueChange: null,
+    onCut: null,
+    onDblClick: null,
+    onDrag: null,
+    onDragEnd: null,
+    onDragEnter: null,
+    onDragExit: null,
+    onDragLeave: null,
+    onDragOver: null,
+    onDragStart: null,
+    onDrop: null,
+    onDurationChange: null,
+    onEmptied: null,
+    onEnd: null,
+    onEnded: null,
+    onError: null,
+    onFocus: null,
+    onFocusIn: null,
+    onFocusOut: null,
+    onHashChange: null,
+    onInput: null,
+    onInvalid: null,
+    onKeyDown: null,
+    onKeyPress: null,
+    onKeyUp: null,
+    onLoad: null,
+    onLoadedData: null,
+    onLoadedMetadata: null,
+    onLoadStart: null,
+    onMessage: null,
+    onMouseDown: null,
+    onMouseEnter: null,
+    onMouseLeave: null,
+    onMouseMove: null,
+    onMouseOut: null,
+    onMouseOver: null,
+    onMouseUp: null,
+    onMouseWheel: null,
+    onOffline: null,
+    onOnline: null,
+    onPageHide: null,
+    onPageShow: null,
+    onPaste: null,
+    onPause: null,
+    onPlay: null,
+    onPlaying: null,
+    onPopState: null,
+    onProgress: null,
+    onRateChange: null,
+    onRepeat: null,
+    onReset: null,
+    onResize: null,
+    onScroll: null,
+    onSeeked: null,
+    onSeeking: null,
+    onSelect: null,
+    onShow: null,
+    onStalled: null,
+    onStorage: null,
+    onSubmit: null,
+    onSuspend: null,
+    onTimeUpdate: null,
+    onToggle: null,
+    onUnload: null,
+    onVolumeChange: null,
+    onWaiting: null,
+    onZoom: null,
+    opacity: null,
+    operator: null,
+    order: null,
+    orient: null,
+    orientation: null,
+    origin: null,
+    overflow: null,
+    overlay: null,
+    overlinePosition: number,
+    overlineThickness: number,
+    paintOrder: null,
+    panose1: null,
+    path: null,
+    pathLength: number,
+    patternContentUnits: null,
+    patternTransform: null,
+    patternUnits: null,
+    phase: null,
+    ping: spaceSeparated,
+    pitch: null,
+    playbackOrder: null,
+    pointerEvents: null,
+    points: null,
+    pointsAtX: number,
+    pointsAtY: number,
+    pointsAtZ: number,
+    preserveAlpha: null,
+    preserveAspectRatio: null,
+    primitiveUnits: null,
+    propagate: null,
+    property: commaOrSpaceSeparated,
+    r: null,
+    radius: null,
+    referrerPolicy: null,
+    refX: null,
+    refY: null,
+    rel: commaOrSpaceSeparated,
+    rev: commaOrSpaceSeparated,
+    renderingIntent: null,
+    repeatCount: null,
+    repeatDur: null,
+    requiredExtensions: commaOrSpaceSeparated,
+    requiredFeatures: commaOrSpaceSeparated,
+    requiredFonts: commaOrSpaceSeparated,
+    requiredFormats: commaOrSpaceSeparated,
+    resource: null,
+    restart: null,
+    result: null,
+    rotate: null,
+    rx: null,
+    ry: null,
+    scale: null,
+    seed: null,
+    shapeRendering: null,
+    side: null,
+    slope: null,
+    snapshotTime: null,
+    specularConstant: number,
+    specularExponent: number,
+    spreadMethod: null,
+    spacing: null,
+    startOffset: null,
+    stdDeviation: null,
+    stemh: null,
+    stemv: null,
+    stitchTiles: null,
+    stopColor: null,
+    stopOpacity: null,
+    strikethroughPosition: number,
+    strikethroughThickness: number,
+    string: null,
+    stroke: null,
+    strokeDashArray: commaOrSpaceSeparated,
+    strokeDashOffset: null,
+    strokeLineCap: null,
+    strokeLineJoin: null,
+    strokeMiterLimit: number,
+    strokeOpacity: number,
+    strokeWidth: null,
+    style: null,
+    surfaceScale: number,
+    syncBehavior: null,
+    syncBehaviorDefault: null,
+    syncMaster: null,
+    syncTolerance: null,
+    syncToleranceDefault: null,
+    systemLanguage: commaOrSpaceSeparated,
+    tabIndex: number,
+    tableValues: null,
+    target: null,
+    targetX: number,
+    targetY: number,
+    textAnchor: null,
+    textDecoration: null,
+    textRendering: null,
+    textLength: null,
+    timelineBegin: null,
+    title: null,
+    transformBehavior: null,
+    type: null,
+    typeOf: commaOrSpaceSeparated,
+    to: null,
+    transform: null,
+    transformOrigin: null,
+    u1: null,
+    u2: null,
+    underlinePosition: number,
+    underlineThickness: number,
+    unicode: null,
+    unicodeBidi: null,
+    unicodeRange: null,
+    unitsPerEm: number,
+    values: null,
+    vAlphabetic: number,
+    vMathematical: number,
+    vectorEffect: null,
+    vHanging: number,
+    vIdeographic: number,
+    version: null,
+    vertAdvY: number,
+    vertOriginX: number,
+    vertOriginY: number,
+    viewBox: null,
+    viewTarget: null,
+    visibility: null,
+    width: null,
+    widths: null,
+    wordSpacing: null,
+    writingMode: null,
+    x: null,
+    x1: null,
+    x2: null,
+    xChannelSelector: null,
+    xHeight: number,
+    y: null,
+    y1: null,
+    y2: null,
+    yChannelSelector: null,
+    z: null,
+    zoomAndPan: null
+  },
+  space: "svg",
+  transform: caseSensitiveTransform
+});
+
+// engine/node_modules/property-information/lib/xlink.js
+var xlink = create({
+  properties: {
+    xLinkActuate: null,
+    xLinkArcRole: null,
+    xLinkHref: null,
+    xLinkRole: null,
+    xLinkShow: null,
+    xLinkTitle: null,
+    xLinkType: null
+  },
+  space: "xlink",
+  transform(_, property) {
+    return "xlink:" + property.slice(5).toLowerCase();
+  }
+});
+
+// engine/node_modules/property-information/lib/xmlns.js
+var xmlns = create({
+  attributes: { xmlnsxlink: "xmlns:xlink" },
+  properties: { xmlnsXLink: null, xmlns: null },
+  space: "xmlns",
+  transform: caseInsensitiveTransform
+});
+
+// engine/node_modules/property-information/lib/xml.js
+var xml = create({
+  properties: { xmlBase: null, xmlLang: null, xmlSpace: null },
+  space: "xml",
+  transform(_, property) {
+    return "xml:" + property.slice(3).toLowerCase();
+  }
+});
+
+// engine/node_modules/property-information/lib/hast-to-react.js
+var hastToReact = {
+  classId: "classID",
+  dataType: "datatype",
+  itemId: "itemID",
+  strokeDashArray: "strokeDasharray",
+  strokeDashOffset: "strokeDashoffset",
+  strokeLineCap: "strokeLinecap",
+  strokeLineJoin: "strokeLinejoin",
+  strokeMiterLimit: "strokeMiterlimit",
+  typeOf: "typeof",
+  xLinkActuate: "xlinkActuate",
+  xLinkArcRole: "xlinkArcrole",
+  xLinkHref: "xlinkHref",
+  xLinkRole: "xlinkRole",
+  xLinkShow: "xlinkShow",
+  xLinkTitle: "xlinkTitle",
+  xLinkType: "xlinkType",
+  xmlnsXLink: "xmlnsXlink"
 };
-function VisualControl({ entry, isPressed }) {
-  const { number } = entry;
-  const state = isPressed && entry.visual === "none" ? "starting" : entry.visual;
-  if (state === "ready") {
-    const name = `Open the visual of #${number}`;
-    return /* @__PURE__ */ jsx_runtime20.jsx("a", {
-      className: buttonVariants({ variant: "secondary", size: "action", className: ACTION2 }),
-      href: `/visual/${entry.sha}`,
-      target: "_blank",
-      rel: "noreferrer",
-      "aria-label": name,
-      title: name,
-      "data-visual": number,
-      children: /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
-        name: "open"
-      })
+// engine/node_modules/property-information/lib/find.js
+var cap = /[A-Z]/g;
+var dash = /-[a-z]/g;
+var valid2 = /^data[-\w.:]+$/i;
+function find(schema, value) {
+  const normal = normalize(value);
+  let property = value;
+  let Type = Info;
+  if (normal in schema.normal) {
+    return schema.property[schema.normal[normal]];
+  }
+  if (normal.length > 4 && normal.slice(0, 4) === "data" && valid2.test(value)) {
+    if (value.charAt(4) === "-") {
+      const rest = value.slice(5).replace(dash, camelcase);
+      property = "data" + rest.charAt(0).toUpperCase() + rest.slice(1);
+    } else {
+      const rest = value.slice(4);
+      if (!dash.test(rest)) {
+        let dashes = rest.replace(cap, kebab);
+        if (dashes.charAt(0) !== "-") {
+          dashes = "-" + dashes;
+        }
+        value = "data" + dashes;
+      }
+    }
+    Type = DefinedInfo;
+  }
+  return new Type(property, value);
+}
+function kebab($0) {
+  return "-" + $0.toLowerCase();
+}
+function camelcase($0) {
+  return $0.charAt(1).toUpperCase();
+}
+// engine/node_modules/property-information/index.js
+var html2 = merge([aria, html, xlink, xmlns, xml], "html");
+var svg2 = merge([aria, svg, xlink, xmlns, xml], "svg");
+
+// engine/node_modules/space-separated-tokens/index.js
+function stringify2(values) {
+  return values.join(" ").trim();
+}
+
+// engine/node_modules/inline-style-parser/esm/index.mjs
+var COMMENT_REGEX = /\/\*(?:[^*]|\*(?!\/))*\*\//g;
+var NEWLINE_REGEX = /\n/g;
+var WHITESPACE_REGEX = /^\s*/;
+var PROPERTY_REGEX = /^(\*?[-#/*\\\w]+(\[[0-9a-z_-]+\])?)\s*/;
+var COLON_REGEX = /^:\s*/;
+var VALUE_REGEX = /^((?:'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|url\((?:'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|[^)]*)\)|[^};])+)/;
+var SEMICOLON_REGEX = /^[;\s]*/;
+var NEWLINE = `
+`;
+var FORWARD_SLASH = "/";
+var ASTERISK = "*";
+var EMPTY_STRING = "";
+var TYPE_COMMENT = "comment";
+var TYPE_DECLARATION = "declaration";
+function index6(style, options) {
+  if (typeof style !== "string") {
+    throw new TypeError("First argument must be a string");
+  }
+  if (!style)
+    return [];
+  options = options || {};
+  var lineno = 1;
+  var column = 1;
+  function updatePosition(str) {
+    var lines = str.match(NEWLINE_REGEX);
+    if (lines)
+      lineno += lines.length;
+    var i = str.lastIndexOf(NEWLINE);
+    column = ~i ? str.length - i : column + str.length;
+  }
+  function position() {
+    var start = { line: lineno, column };
+    return function(node) {
+      node.position = new Position(start);
+      whitespace();
+      return node;
+    };
+  }
+  function Position(start) {
+    this.start = start;
+    this.end = { line: lineno, column };
+    this.source = options.source;
+  }
+  Position.prototype.content = style;
+  function error(msg) {
+    var err = new Error(options.source + ":" + lineno + ":" + column + ": " + msg);
+    err.reason = msg;
+    err.filename = options.source;
+    err.line = lineno;
+    err.column = column;
+    err.source = style;
+    if (options.silent)
+      ;
+    else {
+      throw err;
+    }
+  }
+  function match(re) {
+    var m = re.exec(style);
+    if (!m)
+      return;
+    var str = m[0];
+    updatePosition(str);
+    style = style.slice(str.length);
+    return m;
+  }
+  function whitespace() {
+    match(WHITESPACE_REGEX);
+  }
+  function comments(rules) {
+    var c;
+    while (c = comment()) {
+      rules.push(c);
+    }
+    return rules;
+  }
+  function comment() {
+    var pos = position();
+    if (FORWARD_SLASH != style.charAt(0) || ASTERISK != style.charAt(1))
+      return;
+    var i = 2;
+    while (EMPTY_STRING != style.charAt(i) && (ASTERISK != style.charAt(i) || FORWARD_SLASH != style.charAt(i + 1))) {
+      ++i;
+    }
+    i += 2;
+    if (EMPTY_STRING === style.charAt(i - 1)) {
+      return error("End of comment missing");
+    }
+    var str = style.slice(2, i - 2);
+    column += 2;
+    updatePosition(str);
+    style = style.slice(i);
+    column += 2;
+    return pos({
+      type: TYPE_COMMENT,
+      comment: str
     });
   }
-  if (state === "making") {
-    const name = `The visual of #${number} is in the making`;
-    return /* @__PURE__ */ jsx_runtime20.jsx("span", {
-      className: "inline-flex min-h-7 w-7 items-center justify-center gap-1.5 rounded-lg border phone:min-h-11 phone:min-w-11 border-[color-mix(in_srgb,var(--working)_30%,transparent)] bg-[color-mix(in_srgb,var(--working)_10%,transparent)] p-0 text-[0.78125rem] leading-none font-medium text-[color-mix(in_srgb,var(--working)_80%,var(--fg))] [grid-area:action] [&_.icon]:size-[13px] [&_.icon]:animate-turn",
-      role: "status",
-      tabIndex: -1,
-      "aria-label": name,
-      title: name,
-      "data-visual": number,
-      children: /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
-        name: "pending"
-      })
+  function declaration() {
+    var pos = position();
+    var prop = match(PROPERTY_REGEX);
+    if (!prop)
+      return;
+    comment();
+    if (!match(COLON_REGEX))
+      return error("property missing ':'");
+    var val = match(VALUE_REGEX);
+    var ret = pos({
+      type: TYPE_DECLARATION,
+      property: prop[0].replace(COMMENT_REGEX, EMPTY_STRING).trim(),
+      value: val ? val[0].replace(COMMENT_REGEX, EMPTY_STRING).trim() : EMPTY_STRING
+    });
+    match(SEMICOLON_REGEX);
+    return ret;
+  }
+  function declarations() {
+    var decls = [];
+    comments(decls);
+    var decl;
+    while (decl = declaration()) {
+      decls.push(decl);
+      comments(decls);
+    }
+    return decls;
+  }
+  whitespace();
+  return declarations();
+}
+
+// engine/node_modules/style-to-object/esm/index.mjs
+function StyleToObject(style, iterator) {
+  let styleObject = null;
+  if (!style || typeof style !== "string")
+    return styleObject;
+  const declarations = index6(style);
+  const hasIterator = typeof iterator === "function";
+  declarations.forEach((declaration) => {
+    if (declaration.type !== "declaration")
+      return;
+    const { property, value } = declaration;
+    if (hasIterator)
+      iterator(property, value, declaration);
+    else if (value) {
+      styleObject = styleObject ?? {};
+      styleObject[property] = value;
+    }
+  });
+  return styleObject;
+}
+
+// engine/node_modules/unist-util-position/lib/index.js
+var pointEnd = point("end");
+var pointStart = point("start");
+function point(type) {
+  return point;
+  function point(node) {
+    const point = node && node.position && node.position[type] || {};
+    if (typeof point.line === "number" && point.line > 0 && typeof point.column === "number" && point.column > 0) {
+      return {
+        line: point.line,
+        column: point.column,
+        offset: typeof point.offset === "number" && point.offset > -1 ? point.offset : undefined
+      };
+    }
+  }
+}
+function position(node) {
+  const start = pointStart(node);
+  const end = pointEnd(node);
+  if (start && end) {
+    return { start, end };
+  }
+}
+// engine/node_modules/unist-util-stringify-position/lib/index.js
+function stringifyPosition(value) {
+  if (!value || typeof value !== "object") {
+    return "";
+  }
+  if ("position" in value || "type" in value) {
+    return position2(value.position);
+  }
+  if ("start" in value || "end" in value) {
+    return position2(value);
+  }
+  if ("line" in value || "column" in value) {
+    return point2(value);
+  }
+  return "";
+}
+function point2(point) {
+  return index7(point && point.line) + ":" + index7(point && point.column);
+}
+function position2(pos) {
+  return point2(pos && pos.start) + "-" + point2(pos && pos.end);
+}
+function index7(value) {
+  return value && typeof value === "number" ? value : 1;
+}
+// engine/node_modules/vfile-message/lib/index.js
+class VFileMessage extends Error {
+  constructor(causeOrReason, optionsOrParentOrPlace, origin) {
+    super();
+    if (typeof optionsOrParentOrPlace === "string") {
+      origin = optionsOrParentOrPlace;
+      optionsOrParentOrPlace = undefined;
+    }
+    let reason = "";
+    let options = {};
+    let legacyCause = false;
+    if (optionsOrParentOrPlace) {
+      if ("line" in optionsOrParentOrPlace && "column" in optionsOrParentOrPlace) {
+        options = { place: optionsOrParentOrPlace };
+      } else if ("start" in optionsOrParentOrPlace && "end" in optionsOrParentOrPlace) {
+        options = { place: optionsOrParentOrPlace };
+      } else if ("type" in optionsOrParentOrPlace) {
+        options = {
+          ancestors: [optionsOrParentOrPlace],
+          place: optionsOrParentOrPlace.position
+        };
+      } else {
+        options = { ...optionsOrParentOrPlace };
+      }
+    }
+    if (typeof causeOrReason === "string") {
+      reason = causeOrReason;
+    } else if (!options.cause && causeOrReason) {
+      legacyCause = true;
+      reason = causeOrReason.message;
+      options.cause = causeOrReason;
+    }
+    if (!options.ruleId && !options.source && typeof origin === "string") {
+      const index = origin.indexOf(":");
+      if (index === -1) {
+        options.ruleId = origin;
+      } else {
+        options.source = origin.slice(0, index);
+        options.ruleId = origin.slice(index + 1);
+      }
+    }
+    if (!options.place && options.ancestors) {
+      const parent = options.ancestors[options.ancestors.length - 1];
+      if (parent) {
+        options.place = parent.position;
+      }
+    }
+    const start = options.place && "start" in options.place ? options.place.start : options.place;
+    this.ancestors = options.ancestors || undefined;
+    this.cause = options.cause || undefined;
+    this.column = start ? start.column : undefined;
+    this.fatal = undefined;
+    this.file = "";
+    this.message = reason;
+    this.line = start ? start.line : undefined;
+    this.name = stringifyPosition(options.place) || "1:1";
+    this.place = options.place || undefined;
+    this.reason = this.message;
+    this.ruleId = options.ruleId || undefined;
+    this.source = options.source || undefined;
+    this.stack = legacyCause && options.cause && typeof options.cause.stack === "string" ? options.cause.stack : "";
+    this.actual = undefined;
+    this.expected = undefined;
+    this.note = undefined;
+    this.url = undefined;
+  }
+}
+Object.defineProperties(VFileMessage.prototype, {
+  file: { configurable: true, enumerable: true, value: "", writable: true },
+  name: { configurable: true, enumerable: true, value: "", writable: true },
+  reason: { configurable: true, enumerable: true, value: "", writable: true },
+  message: { configurable: true, enumerable: true, value: "", writable: true },
+  stack: { configurable: true, enumerable: true, value: "", writable: true },
+  column: { configurable: true, enumerable: true, writable: true },
+  line: { configurable: true, enumerable: true, writable: true },
+  ancestors: { configurable: true, enumerable: true, writable: true },
+  cause: { configurable: true, enumerable: true, writable: true },
+  fatal: { configurable: true, enumerable: true, writable: true },
+  place: { configurable: true, enumerable: true, writable: true },
+  ruleId: { configurable: true, enumerable: true, writable: true },
+  source: { configurable: true, enumerable: true, writable: true }
+});
+// engine/node_modules/hast-util-to-jsx-runtime/lib/index.js
+var own = {}.hasOwnProperty;
+var emptyMap = new Map;
+var cap2 = /[A-Z]/g;
+var dashLetter = /-([a-z])/g;
+var tableElements = new Set(["table", "tbody", "thead", "tfoot", "tr"]);
+var tableCellElement = new Set(["td", "th"]);
+var docs = "https://github.com/syntax-tree/hast-util-to-jsx-runtime";
+function toJsxRuntime(tree, options) {
+  if (!options || options.Fragment === undefined) {
+    throw new TypeError("Expected `Fragment` in options");
+  }
+  const filePath = options.filePath || undefined;
+  let create;
+  if (options.development) {
+    if (typeof options.jsxDEV !== "function") {
+      throw new TypeError("Expected `jsxDEV` in options when `development: true`");
+    }
+    create = developmentCreate(filePath, options.jsxDEV);
+  } else {
+    if (typeof options.jsx !== "function") {
+      throw new TypeError("Expected `jsx` in production options");
+    }
+    if (typeof options.jsxs !== "function") {
+      throw new TypeError("Expected `jsxs` in production options");
+    }
+    create = productionCreate(filePath, options.jsx, options.jsxs);
+  }
+  const state = {
+    Fragment: options.Fragment,
+    ancestors: [],
+    components: options.components || {},
+    create,
+    elementAttributeNameCase: options.elementAttributeNameCase || "react",
+    evaluater: options.createEvaluater ? options.createEvaluater() : undefined,
+    filePath,
+    ignoreInvalidStyle: options.ignoreInvalidStyle || false,
+    passKeys: options.passKeys !== false,
+    passNode: options.passNode || false,
+    schema: options.space === "svg" ? svg2 : html2,
+    stylePropertyNameCase: options.stylePropertyNameCase || "dom",
+    tableCellAlignToStyle: options.tableCellAlignToStyle !== false
+  };
+  const result = one(state, tree, undefined);
+  if (result && typeof result !== "string") {
+    return result;
+  }
+  return state.create(tree, state.Fragment, { children: result || undefined }, undefined);
+}
+function one(state, node, key) {
+  if (node.type === "element") {
+    return element(state, node, key);
+  }
+  if (node.type === "mdxFlowExpression" || node.type === "mdxTextExpression") {
+    return mdxExpression(state, node);
+  }
+  if (node.type === "mdxJsxFlowElement" || node.type === "mdxJsxTextElement") {
+    return mdxJsxElement(state, node, key);
+  }
+  if (node.type === "mdxjsEsm") {
+    return mdxEsm(state, node);
+  }
+  if (node.type === "root") {
+    return root2(state, node, key);
+  }
+  if (node.type === "text") {
+    return text3(state, node);
+  }
+}
+function element(state, node, key) {
+  const parentSchema = state.schema;
+  let schema = parentSchema;
+  if (node.tagName.toLowerCase() === "svg" && parentSchema.space === "html") {
+    schema = svg2;
+    state.schema = schema;
+  }
+  state.ancestors.push(node);
+  const type = findComponentFromName(state, node.tagName, false);
+  const props = createElementProps(state, node);
+  let children = createChildren(state, node);
+  if (tableElements.has(node.tagName)) {
+    children = children.filter(function(child) {
+      return typeof child === "string" ? !whitespace(child) : true;
     });
   }
-  const name = state === "starting" ? `Starting the visual of #${number}` : `Make the visual of #${number}`;
-  return /* @__PURE__ */ jsx_runtime20.jsx(Button2, {
-    variant: "secondary",
-    size: "action",
-    className: ACTION2,
-    "aria-busy": state === "starting" ? "true" : undefined,
-    "aria-label": name,
-    title: name,
-    "data-visual": number,
-    onClick: state === "starting" ? undefined : () => void makeVisual(number),
-    children: /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
-      name: "diff"
+  addNode(state, props, type, node);
+  addChildren(props, children);
+  state.ancestors.pop();
+  state.schema = parentSchema;
+  return state.create(node, type, props, key);
+}
+function mdxExpression(state, node) {
+  if (node.data && node.data.estree && state.evaluater) {
+    const program = node.data.estree;
+    const expression = program.body[0];
+    ok(expression.type === "ExpressionStatement");
+    return state.evaluater.evaluateExpression(expression.expression);
+  }
+  crashEstree(state, node.position);
+}
+function mdxEsm(state, node) {
+  if (node.data && node.data.estree && state.evaluater) {
+    return state.evaluater.evaluateProgram(node.data.estree);
+  }
+  crashEstree(state, node.position);
+}
+function mdxJsxElement(state, node, key) {
+  const parentSchema = state.schema;
+  let schema = parentSchema;
+  if (node.name === "svg" && parentSchema.space === "html") {
+    schema = svg2;
+    state.schema = schema;
+  }
+  state.ancestors.push(node);
+  const type = node.name === null ? state.Fragment : findComponentFromName(state, node.name, true);
+  const props = createJsxElementProps(state, node);
+  const children = createChildren(state, node);
+  addNode(state, props, type, node);
+  addChildren(props, children);
+  state.ancestors.pop();
+  state.schema = parentSchema;
+  return state.create(node, type, props, key);
+}
+function root2(state, node, key) {
+  const props = {};
+  addChildren(props, createChildren(state, node));
+  return state.create(node, state.Fragment, props, key);
+}
+function text3(_, node) {
+  return node.value;
+}
+function addNode(state, props, type, node) {
+  if (typeof type !== "string" && type !== state.Fragment && state.passNode) {
+    props.node = node;
+  }
+}
+function addChildren(props, children) {
+  if (children.length > 0) {
+    const value = children.length > 1 ? children : children[0];
+    if (value) {
+      props.children = value;
+    }
+  }
+}
+function productionCreate(_, jsx, jsxs) {
+  return create;
+  function create(_, type, props, key) {
+    const isStaticChildren = Array.isArray(props.children);
+    const fn = isStaticChildren ? jsxs : jsx;
+    return key ? fn(type, props, key) : fn(type, props);
+  }
+}
+function developmentCreate(filePath, jsxDEV) {
+  return create;
+  function create(node, type, props, key) {
+    const isStaticChildren = Array.isArray(props.children);
+    const point = pointStart(node);
+    return jsxDEV(type, props, key, isStaticChildren, {
+      columnNumber: point ? point.column - 1 : undefined,
+      fileName: filePath,
+      lineNumber: point ? point.line : undefined
+    }, undefined);
+  }
+}
+function createElementProps(state, node) {
+  const props = {};
+  let alignValue;
+  let prop;
+  for (prop in node.properties) {
+    if (prop !== "children" && own.call(node.properties, prop)) {
+      const result = createProperty(state, prop, node.properties[prop]);
+      if (result) {
+        const [key, value] = result;
+        if (state.tableCellAlignToStyle && key === "align" && typeof value === "string" && tableCellElement.has(node.tagName)) {
+          alignValue = value;
+        } else {
+          props[key] = value;
+        }
+      }
+    }
+  }
+  if (alignValue) {
+    const style = props.style || (props.style = {});
+    style[state.stylePropertyNameCase === "css" ? "text-align" : "textAlign"] = alignValue;
+  }
+  return props;
+}
+function createJsxElementProps(state, node) {
+  const props = {};
+  for (const attribute of node.attributes) {
+    if (attribute.type === "mdxJsxExpressionAttribute") {
+      if (attribute.data && attribute.data.estree && state.evaluater) {
+        const program = attribute.data.estree;
+        const expression = program.body[0];
+        ok(expression.type === "ExpressionStatement");
+        const objectExpression = expression.expression;
+        ok(objectExpression.type === "ObjectExpression");
+        const property = objectExpression.properties[0];
+        ok(property.type === "SpreadElement");
+        Object.assign(props, state.evaluater.evaluateExpression(property.argument));
+      } else {
+        crashEstree(state, node.position);
+      }
+    } else {
+      const { name } = attribute;
+      let value;
+      if (attribute.value && typeof attribute.value === "object") {
+        if (attribute.value.data && attribute.value.data.estree && state.evaluater) {
+          const program = attribute.value.data.estree;
+          const expression = program.body[0];
+          ok(expression.type === "ExpressionStatement");
+          value = state.evaluater.evaluateExpression(expression.expression);
+        } else {
+          crashEstree(state, node.position);
+        }
+      } else {
+        value = attribute.value === null ? true : attribute.value;
+      }
+      props[name] = value;
+    }
+  }
+  return props;
+}
+function createChildren(state, node) {
+  const children = [];
+  let index = -1;
+  const countsByName = state.passKeys ? new Map : emptyMap;
+  while (++index < node.children.length) {
+    const child = node.children[index];
+    let key;
+    if (state.passKeys) {
+      const name = child.type === "element" ? child.tagName : child.type === "mdxJsxFlowElement" || child.type === "mdxJsxTextElement" ? child.name : undefined;
+      if (name) {
+        const count = countsByName.get(name) || 0;
+        key = name + "-" + count;
+        countsByName.set(name, count + 1);
+      }
+    }
+    const result = one(state, child, key);
+    if (result !== undefined)
+      children.push(result);
+  }
+  return children;
+}
+function createProperty(state, prop, value) {
+  if (value === null || value === undefined || typeof value === "number" && Number.isNaN(value)) {
+    return;
+  }
+  const info = find(state.schema, prop);
+  if (Array.isArray(value)) {
+    value = info.commaSeparated ? stringify(value) : stringify2(value);
+  }
+  if (info.property === "style") {
+    const styleObject = typeof value === "object" ? state.stylePropertyNameCase === "dom" ? value : transformStylesToCssCasing(value) : parseStyle(state, String(value));
+    return ["style", styleObject];
+  }
+  return [
+    state.elementAttributeNameCase === "react" && info.space ? hastToReact[info.property] || info.property : info.attribute,
+    value
+  ];
+}
+function parseStyle(state, value) {
+  const result = {};
+  try {
+    StyleToObject(value, function(property, value) {
+      if (property && value) {
+        let name = property;
+        if (name.slice(0, 2) !== "--") {
+          name = name.toLowerCase();
+          if (state.stylePropertyNameCase === "dom") {
+            if (name.slice(0, 4) === "-ms-")
+              name = name.slice(1);
+            name = name.replace(dashLetter, toCamel);
+          }
+        }
+        result[name] = value;
+      }
+    });
+  } catch (error) {
+    if (state.ignoreInvalidStyle) {
+      return {};
+    }
+    const cause = error;
+    const message = new VFileMessage("Cannot parse `style` attribute", {
+      ancestors: state.ancestors,
+      cause,
+      ruleId: "style",
+      source: "hast-util-to-jsx-runtime"
+    });
+    message.file = state.filePath || undefined;
+    message.url = docs + "#cannot-parse-style-attribute";
+    throw message;
+  }
+  return result;
+}
+function findComponentFromName(state, name2, allowExpression) {
+  let result;
+  if (!allowExpression) {
+    result = { type: "Literal", value: name2 };
+  } else if (name2.includes(".")) {
+    const identifiers = name2.split(".");
+    let index = -1;
+    let node;
+    while (++index < identifiers.length) {
+      const prop = name(identifiers[index]) ? { type: "Identifier", name: identifiers[index] } : { type: "Literal", value: identifiers[index] };
+      node = node ? {
+        type: "MemberExpression",
+        object: node,
+        property: prop,
+        computed: Boolean(index && prop.type === "Literal"),
+        optional: false
+      } : prop;
+    }
+    ok(node, "always a result");
+    result = node;
+  } else {
+    result = name(name2) && !/^[a-z]/.test(name2) ? { type: "Identifier", name: name2 } : { type: "Literal", value: name2 };
+  }
+  if (result.type === "Literal") {
+    const name2 = result.value;
+    return own.call(state.components, name2) ? state.components[name2] : name2;
+  }
+  if (state.evaluater) {
+    return state.evaluater.evaluateExpression(result);
+  }
+  crashEstree(state);
+}
+function crashEstree(state, place) {
+  const message = new VFileMessage("Cannot handle MDX estrees without `createEvaluater`", {
+    ancestors: state.ancestors,
+    place,
+    ruleId: "mdx-estree",
+    source: "hast-util-to-jsx-runtime"
+  });
+  message.file = state.filePath || undefined;
+  message.url = docs + "#cannot-handle-mdx-estrees-without-createevaluater";
+  throw message;
+}
+function transformStylesToCssCasing(domCasing) {
+  const cssCasing = {};
+  let from;
+  for (from in domCasing) {
+    if (own.call(domCasing, from)) {
+      cssCasing[transformStyleToCssCasing(from)] = domCasing[from];
+    }
+  }
+  return cssCasing;
+}
+function transformStyleToCssCasing(from) {
+  if (from.slice(0, 2) === "--")
+    return from;
+  let to = from.replace(cap2, toDash);
+  if (to.slice(0, 3) === "ms-")
+    to = "-" + to;
+  return to;
+}
+function toDash($0) {
+  return "-" + $0.toLowerCase();
+}
+function toCamel(_, $1) {
+  return $1.toUpperCase();
+}
+// engine/node_modules/html-url-attributes/lib/index.js
+var urlAttributes = {
+  action: ["form"],
+  cite: ["blockquote", "del", "ins", "q"],
+  data: ["object"],
+  formAction: ["button", "input"],
+  href: ["a", "area", "base", "link"],
+  icon: ["menuitem"],
+  itemId: null,
+  manifest: ["html"],
+  ping: ["a", "area"],
+  poster: ["video"],
+  src: [
+    "audio",
+    "embed",
+    "iframe",
+    "img",
+    "input",
+    "script",
+    "source",
+    "track",
+    "video"
+  ]
+};
+// engine/node_modules/react-markdown/lib/index.js
+var import_jsx_runtime31 = __toESM(require_jsx_runtime(), 1);
+var import_react14 = __toESM(require_react(), 1);
+
+// engine/node_modules/mdast-util-to-string/lib/index.js
+var emptyOptions2 = {};
+function toString(value, options) {
+  const settings = options || emptyOptions2;
+  const includeImageAlt = typeof settings.includeImageAlt === "boolean" ? settings.includeImageAlt : true;
+  const includeHtml = typeof settings.includeHtml === "boolean" ? settings.includeHtml : true;
+  return one2(value, includeImageAlt, includeHtml);
+}
+function one2(value, includeImageAlt, includeHtml) {
+  if (node(value)) {
+    if ("value" in value) {
+      return value.type === "html" && !includeHtml ? "" : value.value;
+    }
+    if (includeImageAlt && "alt" in value && value.alt) {
+      return value.alt;
+    }
+    if ("children" in value) {
+      return all(value.children, includeImageAlt, includeHtml);
+    }
+  }
+  if (Array.isArray(value)) {
+    return all(value, includeImageAlt, includeHtml);
+  }
+  return "";
+}
+function all(values, includeImageAlt, includeHtml) {
+  const result = [];
+  let index = -1;
+  while (++index < values.length) {
+    result[index] = one2(values[index], includeImageAlt, includeHtml);
+  }
+  return result.join("");
+}
+function node(value) {
+  return Boolean(value && typeof value === "object");
+}
+// engine/node_modules/decode-named-character-reference/index.dom.js
+var element2 = document.createElement("i");
+function decodeNamedCharacterReference(value) {
+  const characterReference = "&" + value + ";";
+  element2.innerHTML = characterReference;
+  const character = element2.textContent;
+  if (character.charCodeAt(character.length - 1) === 59 && value !== "semi") {
+    return false;
+  }
+  return character === characterReference ? false : character;
+}
+
+// engine/node_modules/micromark-util-chunked/index.js
+function splice(list, start, remove, items) {
+  const end = list.length;
+  let chunkStart = 0;
+  let parameters;
+  if (start < 0) {
+    start = -start > end ? 0 : end + start;
+  } else {
+    start = start > end ? end : start;
+  }
+  remove = remove > 0 ? remove : 0;
+  if (items.length < 1e4) {
+    parameters = Array.from(items);
+    parameters.unshift(start, remove);
+    list.splice(...parameters);
+  } else {
+    if (remove)
+      list.splice(start, remove);
+    while (chunkStart < items.length) {
+      parameters = items.slice(chunkStart, chunkStart + 1e4);
+      parameters.unshift(start, 0);
+      list.splice(...parameters);
+      chunkStart += 1e4;
+      start += 1e4;
+    }
+  }
+}
+function push3(list, items) {
+  if (list.length > 0) {
+    splice(list, list.length, 0, items);
+    return list;
+  }
+  return items;
+}
+
+// engine/node_modules/micromark-util-combine-extensions/index.js
+var hasOwnProperty3 = {}.hasOwnProperty;
+function combineExtensions(extensions) {
+  const all = {};
+  let index = -1;
+  while (++index < extensions.length) {
+    syntaxExtension(all, extensions[index]);
+  }
+  return all;
+}
+function syntaxExtension(all, extension) {
+  let hook;
+  for (hook in extension) {
+    const maybe = hasOwnProperty3.call(all, hook) ? all[hook] : undefined;
+    const left = maybe || (all[hook] = {});
+    const right = extension[hook];
+    let code;
+    if (right) {
+      for (code in right) {
+        if (!hasOwnProperty3.call(left, code))
+          left[code] = [];
+        const value = right[code];
+        constructs(left[code], Array.isArray(value) ? value : value ? [value] : []);
+      }
+    }
+  }
+}
+function constructs(existing, list) {
+  let index = -1;
+  const before = [];
+  while (++index < list.length) {
+    (list[index].add === "after" ? existing : before).push(list[index]);
+  }
+  splice(existing, 0, 0, before);
+}
+
+// engine/node_modules/micromark-util-decode-numeric-character-reference/index.js
+function decodeNumericCharacterReference(value, base) {
+  const code = Number.parseInt(value, base);
+  if (code < 9 || code === 11 || code > 13 && code < 32 || code > 126 && code < 160 || code > 55295 && code < 57344 || code > 64975 && code < 65008 || (code & 65535) === 65535 || (code & 65535) === 65534 || code > 1114111) {
+    return "�";
+  }
+  return String.fromCodePoint(code);
+}
+
+// engine/node_modules/micromark-util-normalize-identifier/index.js
+function normalizeIdentifier(value) {
+  return value.replace(/[\t\n\r ]+/g, " ").replace(/^ | $/g, "").toLowerCase().toUpperCase();
+}
+
+// engine/node_modules/micromark-util-character/index.js
+var asciiAlpha = regexCheck(/[A-Za-z]/);
+var asciiAlphanumeric = regexCheck(/[\dA-Za-z]/);
+var asciiAtext = regexCheck(/[#-'*+\--9=?A-Z^-~]/);
+function asciiControl(code) {
+  return code !== null && (code < 32 || code === 127);
+}
+var asciiDigit = regexCheck(/\d/);
+var asciiHexDigit = regexCheck(/[\dA-Fa-f]/);
+var asciiPunctuation = regexCheck(/[!-/:-@[-`{-~]/);
+function markdownLineEnding(code) {
+  return code !== null && code < -2;
+}
+function markdownLineEndingOrSpace(code) {
+  return code !== null && (code < 0 || code === 32);
+}
+function markdownSpace(code) {
+  return code === -2 || code === -1 || code === 32;
+}
+var unicodePunctuation = regexCheck(/\p{P}|\p{S}/u);
+var unicodeWhitespace = regexCheck(/\s/);
+function regexCheck(regex) {
+  return check;
+  function check(code) {
+    return code !== null && code > -1 && regex.test(String.fromCharCode(code));
+  }
+}
+
+// engine/node_modules/micromark-util-sanitize-uri/index.js
+function normalizeUri(value) {
+  const result = [];
+  let index = -1;
+  let start = 0;
+  let skip = 0;
+  while (++index < value.length) {
+    const code = value.charCodeAt(index);
+    let replace = "";
+    if (code === 37 && asciiAlphanumeric(value.charCodeAt(index + 1)) && asciiAlphanumeric(value.charCodeAt(index + 2))) {
+      skip = 2;
+    } else if (code < 128) {
+      if (!/[!#$&-;=?-Z_a-z~]/.test(String.fromCharCode(code))) {
+        replace = String.fromCharCode(code);
+      }
+    } else if (code > 55295 && code < 57344) {
+      const next = value.charCodeAt(index + 1);
+      if (code < 56320 && next > 56319 && next < 57344) {
+        replace = String.fromCharCode(code, next);
+        skip = 1;
+      } else {
+        replace = "�";
+      }
+    } else {
+      replace = String.fromCharCode(code);
+    }
+    if (replace) {
+      result.push(value.slice(start, index), encodeURIComponent(replace));
+      start = index + skip + 1;
+      replace = "";
+    }
+    if (skip) {
+      index += skip;
+      skip = 0;
+    }
+  }
+  return result.join("") + value.slice(start);
+}
+
+// engine/node_modules/micromark-factory-space/index.js
+function factorySpace(effects, ok, type, max) {
+  const limit = max ? max - 1 : Infinity;
+  let size = 0;
+  return start;
+  function start(code) {
+    if (markdownSpace(code)) {
+      effects.enter(type);
+      return prefix(code);
+    }
+    return ok(code);
+  }
+  function prefix(code) {
+    if (markdownSpace(code) && size++ < limit) {
+      effects.consume(code);
+      return prefix;
+    }
+    effects.exit(type);
+    return ok(code);
+  }
+}
+function factorySpaceMinMax(effects, ok, nok, type, min, max) {
+  let size = 0;
+  return start;
+  function start(code) {
+    if (max > 0 && markdownSpace(code)) {
+      effects.enter(type);
+      return prefix(code);
+    }
+    return after(code);
+  }
+  function prefix(code) {
+    if (markdownSpace(code) && size < max) {
+      effects.consume(code);
+      size++;
+      return prefix;
+    }
+    effects.exit(type);
+    return after(code);
+  }
+  function after(code) {
+    return size >= min ? ok(code) : nok(code);
+  }
+}
+
+// engine/node_modules/micromark/lib/initialize/content.js
+var content = {
+  tokenize: initializeContent
+};
+function initializeContent(effects) {
+  const contentStart = effects.attempt(this.parser.constructs.contentInitial, afterContentStartConstruct, paragraphInitial);
+  let previous;
+  return contentStart;
+  function afterContentStartConstruct(code) {
+    if (code === null) {
+      effects.consume(code);
+      return;
+    }
+    effects.enter("lineEnding");
+    effects.consume(code);
+    effects.exit("lineEnding");
+    return factorySpace(effects, contentStart, "linePrefix");
+  }
+  function paragraphInitial(code) {
+    effects.enter("paragraph");
+    return lineStart(code);
+  }
+  function lineStart(code) {
+    const token = effects.enter("chunkText", {
+      contentType: "text",
+      previous
+    });
+    if (previous) {
+      previous.next = token;
+    }
+    previous = token;
+    return data(code);
+  }
+  function data(code) {
+    if (code === null) {
+      effects.exit("chunkText");
+      effects.exit("paragraph");
+      effects.consume(code);
+      return;
+    }
+    if (markdownLineEnding(code)) {
+      effects.consume(code);
+      effects.exit("chunkText");
+      return lineStart;
+    }
+    effects.consume(code);
+    return data;
+  }
+}
+
+// engine/node_modules/micromark-util-edit-map/index.js
+class EditMap {
+  constructor() {
+    this.index = new Map;
+    this.map = [];
+  }
+  add(index, remove, add) {
+    addImplementation(this, index, remove, add, false);
+  }
+  addBefore(index, remove, add) {
+    addImplementation(this, index, remove, add, true);
+  }
+  consume(events) {
+    this.map.sort(function(a, b) {
+      return a[0] - b[0];
+    });
+    if (this.map.length === 0) {
+      return;
+    }
+    let index = this.map.length;
+    const vecs = [];
+    while (index > 0) {
+      index -= 1;
+      vecs.push(events.slice(this.map[index][0] + this.map[index][1]), this.map[index][2]);
+      events.length = this.map[index][0];
+    }
+    vecs.push(events.slice());
+    events.length = 0;
+    let slice = vecs.pop();
+    while (slice) {
+      for (const element of slice) {
+        events.push(element);
+      }
+      slice = vecs.pop();
+    }
+    this.map.length = 0;
+    this.index.clear();
+  }
+}
+function addImplementation(editMap, at, remove, add, before) {
+  if (remove === 0 && add.length === 0) {
+    return;
+  }
+  const existing = editMap.index.get(at);
+  if (existing) {
+    existing[1] += remove;
+    if (before) {
+      add.push(...existing[2]);
+      existing[2] = add;
+    } else {
+      existing[2].push(...add);
+    }
+    return;
+  }
+  const change = [at, remove, add];
+  editMap.map.push(change);
+  editMap.index.set(at, change);
+}
+
+// engine/node_modules/micromark/lib/initialize/document.js
+var document2 = {
+  tokenize: initializeDocument
+};
+var containerConstruct = {
+  tokenize: tokenizeContainer
+};
+function initializeDocument(effects) {
+  const self2 = this;
+  const stack = [];
+  let continued = 0;
+  let childFlow;
+  let childToken;
+  let lineStartOffset;
+  return start;
+  function start(code) {
+    if (continued < stack.length) {
+      const item = stack[continued];
+      self2.containerState = item[1];
+      return effects.attempt(item[0].continuation, documentContinue, checkNewContainers)(code);
+    }
+    return checkNewContainers(code);
+  }
+  function documentContinue(code) {
+    continued++;
+    if (self2.containerState._closeFlow) {
+      self2.containerState._closeFlow = undefined;
+      if (childFlow) {
+        closeFlow();
+      }
+      const indexBeforeExits = self2.events.length;
+      let indexBeforeFlow = indexBeforeExits;
+      let point;
+      while (indexBeforeFlow--) {
+        if (self2.events[indexBeforeFlow][0] === "exit" && self2.events[indexBeforeFlow][1].type === "chunkFlow") {
+          point = self2.events[indexBeforeFlow][1].end;
+          break;
+        }
+      }
+      exitContainers(continued);
+      let index = indexBeforeExits;
+      while (index < self2.events.length) {
+        self2.events[index][1].end = {
+          ...point
+        };
+        index++;
+      }
+      const editMap = new EditMap;
+      editMap.add(indexBeforeFlow + 1, 0, self2.events.slice(indexBeforeExits));
+      editMap.add(indexBeforeExits, index - indexBeforeExits, []);
+      editMap.consume(self2.events);
+      return checkNewContainers(code);
+    }
+    return start(code);
+  }
+  function checkNewContainers(code) {
+    if (continued === stack.length) {
+      if (!childFlow) {
+        return documentContinued(code);
+      }
+      if (childFlow.currentConstruct && childFlow.currentConstruct.concrete) {
+        return flowStart(code);
+      }
+      self2.interrupt = Boolean(childFlow.currentConstruct && !childFlow._gfmTableDynamicInterruptHack);
+    }
+    self2.containerState = {};
+    return effects.check(containerConstruct, thereIsANewContainer, thereIsNoNewContainer)(code);
+  }
+  function thereIsANewContainer(code) {
+    if (childFlow) {
+      closeFlow();
+    }
+    exitContainers(continued);
+    return documentContinued(code);
+  }
+  function thereIsNoNewContainer(code) {
+    self2.parser.lazy[self2.now().line] = continued !== stack.length;
+    lineStartOffset = self2.now().offset;
+    return flowStart(code);
+  }
+  function documentContinued(code) {
+    self2.containerState = {};
+    return effects.attempt(containerConstruct, containerContinue, flowStart)(code);
+  }
+  function containerContinue(code) {
+    continued++;
+    stack.push([self2.currentConstruct, self2.containerState]);
+    return documentContinued(code);
+  }
+  function flowStart(code) {
+    if (code === null) {
+      if (childFlow) {
+        closeFlow();
+      }
+      exitContainers(0);
+      effects.consume(code);
+      return;
+    }
+    childFlow = childFlow || self2.parser.flow(self2.now());
+    effects.enter("chunkFlow", {
+      _tokenizer: childFlow,
+      contentType: "flow",
+      previous: childToken
+    });
+    return flowContinue(code);
+  }
+  function flowContinue(code) {
+    if (code === null) {
+      writeToChild(effects.exit("chunkFlow"), true);
+      exitContainers(0);
+      effects.consume(code);
+      return;
+    }
+    if (markdownLineEnding(code)) {
+      effects.consume(code);
+      writeToChild(effects.exit("chunkFlow"));
+      continued = 0;
+      self2.interrupt = undefined;
+      return start;
+    }
+    effects.consume(code);
+    return flowContinue;
+  }
+  function writeToChild(token, endOfFile) {
+    const stream = self2.sliceStream(token);
+    if (endOfFile) {
+      stream.push(null);
+    }
+    token.previous = childToken;
+    if (childToken) {
+      childToken.next = token;
+    }
+    childToken = token;
+    childFlow.defineSkip(token.start);
+    childFlow.write(stream);
+    if (self2.parser.lazy[token.start.line]) {
+      let index = childFlow.events.length;
+      while (index--) {
+        if (childFlow.events[index][1].start.offset < lineStartOffset && (!childFlow.events[index][1].end || childFlow.events[index][1].end.offset > lineStartOffset)) {
+          return;
+        }
+      }
+      const indexBeforeExits = self2.events.length;
+      let indexBeforeFlow = indexBeforeExits;
+      let seen;
+      let point;
+      while (indexBeforeFlow--) {
+        if (self2.events[indexBeforeFlow][0] === "exit" && self2.events[indexBeforeFlow][1].type === "chunkFlow") {
+          if (seen) {
+            point = self2.events[indexBeforeFlow][1].end;
+            break;
+          }
+          seen = true;
+        }
+      }
+      exitContainers(continued);
+      index = indexBeforeExits;
+      while (index < self2.events.length) {
+        self2.events[index][1].end = {
+          ...point
+        };
+        index++;
+      }
+      const editMap = new EditMap;
+      editMap.add(indexBeforeFlow + 1, 0, self2.events.slice(indexBeforeExits));
+      editMap.add(indexBeforeExits, index - indexBeforeExits, []);
+      editMap.consume(self2.events);
+    }
+  }
+  function exitContainers(size) {
+    let index = stack.length;
+    while (index-- > size) {
+      const entry = stack[index];
+      self2.containerState = entry[1];
+      entry[0].exit.call(self2, effects);
+    }
+    stack.length = size;
+  }
+  function closeFlow() {
+    childFlow.write([null]);
+    childToken = undefined;
+    childFlow = undefined;
+    self2.containerState._closeFlow = undefined;
+  }
+}
+function tokenizeContainer(effects, ok, nok) {
+  return factorySpace(effects, effects.attempt(this.parser.constructs.document, ok, nok), "linePrefix", this.parser.constructs.disable.null.includes("codeIndented") ? undefined : 4);
+}
+
+// engine/node_modules/micromark-util-classify-character/index.js
+function classifyCharacter(code) {
+  if (code === null || markdownLineEndingOrSpace(code) || unicodeWhitespace(code)) {
+    return 1;
+  }
+  if (unicodePunctuation(code)) {
+    return 2;
+  }
+}
+
+// engine/node_modules/micromark-util-resolve-all/index.js
+function resolveAll(constructs, events, context) {
+  const called = [];
+  let index = -1;
+  while (++index < constructs.length) {
+    const resolve = constructs[index].resolveAll;
+    if (resolve && !called.includes(resolve)) {
+      events = resolve(events, context);
+      called.push(resolve);
+    }
+  }
+  return events;
+}
+
+// engine/node_modules/micromark-core-commonmark/lib/attention.js
+var attention = {
+  name: "attention",
+  resolveAll: resolveAllAttention,
+  tokenize: tokenizeAttention
+};
+function resolveAllAttention(events, context) {
+  let index = -1;
+  let nextEvents;
+  while (++index < events.length) {
+    if (events[index][0] === "enter" && events[index][1].type === "attentionSequence" && events[index][1]._close) {
+      let open = index;
+      while (open--) {
+        if (events[open][0] === "exit" && events[open][1].type === "attentionSequence" && events[open][1]._open && context.sliceSerialize(events[open][1]).charCodeAt(0) === context.sliceSerialize(events[index][1]).charCodeAt(0)) {
+          if ((events[open][1]._close || events[index][1]._open) && (events[index][1].end.offset - events[index][1].start.offset) % 3 && !((events[open][1].end.offset - events[open][1].start.offset + events[index][1].end.offset - events[index][1].start.offset) % 3)) {
+            continue;
+          }
+          const use = events[open][1].end.offset - events[open][1].start.offset > 1 && events[index][1].end.offset - events[index][1].start.offset > 1 ? 2 : 1;
+          const start = {
+            ...events[open][1].end
+          };
+          const end = {
+            ...events[index][1].start
+          };
+          movePoint(start, -use);
+          movePoint(end, use);
+          const openingSequence = {
+            type: use > 1 ? "strongSequence" : "emphasisSequence",
+            start,
+            end: {
+              ...events[open][1].end
+            }
+          };
+          const closingSequence = {
+            type: use > 1 ? "strongSequence" : "emphasisSequence",
+            start: {
+              ...events[index][1].start
+            },
+            end
+          };
+          const text = {
+            type: use > 1 ? "strongText" : "emphasisText",
+            start: {
+              ...events[open][1].end
+            },
+            end: {
+              ...events[index][1].start
+            }
+          };
+          const group = {
+            type: use > 1 ? "strong" : "emphasis",
+            start: {
+              ...openingSequence.start
+            },
+            end: {
+              ...closingSequence.end
+            }
+          };
+          events[open][1].end = {
+            ...openingSequence.start
+          };
+          events[index][1].start = {
+            ...closingSequence.end
+          };
+          nextEvents = [];
+          if (events[open][1].end.offset - events[open][1].start.offset) {
+            nextEvents = push3(nextEvents, [["enter", events[open][1], context], ["exit", events[open][1], context]]);
+          }
+          nextEvents = push3(nextEvents, [["enter", group, context], ["enter", openingSequence, context], ["exit", openingSequence, context], ["enter", text, context]]);
+          nextEvents = push3(nextEvents, resolveAll(context.parser.constructs.insideSpan.null, events.slice(open + 1, index), context));
+          nextEvents = push3(nextEvents, [["exit", text, context], ["enter", closingSequence, context], ["exit", closingSequence, context], ["exit", group, context]]);
+          let offset = 0;
+          if (events[index][1].end.offset - events[index][1].start.offset) {
+            offset = 2;
+            nextEvents = push3(nextEvents, [["enter", events[index][1], context], ["exit", events[index][1], context]]);
+          }
+          splice(events, open - 1, index - open + 3, nextEvents);
+          index = open + nextEvents.length - offset - 2;
+          break;
+        }
+      }
+    }
+  }
+  index = -1;
+  while (++index < events.length) {
+    if (events[index][1].type === "attentionSequence") {
+      events[index][1].type = "data";
+    }
+  }
+  return events;
+}
+function tokenizeAttention(effects, ok) {
+  const attentionMarkers = this.parser.constructs.attentionMarkers.null;
+  const previous = this.previous;
+  const before = classifyCharacter(previous);
+  let marker;
+  return start;
+  function start(code) {
+    marker = code;
+    effects.enter("attentionSequence");
+    return inside(code);
+  }
+  function inside(code) {
+    if (code === marker) {
+      effects.consume(code);
+      return inside;
+    }
+    const token = effects.exit("attentionSequence");
+    const after = classifyCharacter(code);
+    const open = !after || after === 2 && before || attentionMarkers.includes(code) && code !== 42 && code !== 95;
+    const close = !before || before === 2 && after || attentionMarkers.includes(previous) && previous !== 42 && previous !== 95;
+    token._open = Boolean(marker === 42 ? open : open && (before || !close));
+    token._close = Boolean(marker === 42 ? close : close && (after || !open));
+    return ok(code);
+  }
+}
+function movePoint(point, offset) {
+  point.column += offset;
+  point.offset += offset;
+  point._bufferIndex += offset;
+}
+// engine/node_modules/micromark-core-commonmark/lib/autolink.js
+var autolink = {
+  name: "autolink",
+  tokenize: tokenizeAutolink
+};
+function tokenizeAutolink(effects, ok, nok) {
+  let size = 0;
+  return start;
+  function start(code) {
+    effects.enter("autolink");
+    effects.enter("autolinkMarker");
+    effects.consume(code);
+    effects.exit("autolinkMarker");
+    effects.enter("autolinkProtocol");
+    return open;
+  }
+  function open(code) {
+    if (asciiAlpha(code)) {
+      effects.consume(code);
+      return schemeOrEmailAtext;
+    }
+    if (code === 64) {
+      return nok(code);
+    }
+    return emailAtext(code);
+  }
+  function schemeOrEmailAtext(code) {
+    if (code === 43 || code === 45 || code === 46 || asciiAlphanumeric(code)) {
+      size = 1;
+      return schemeInsideOrEmailAtext(code);
+    }
+    return emailAtext(code);
+  }
+  function schemeInsideOrEmailAtext(code) {
+    if (code === 58) {
+      effects.consume(code);
+      size = 0;
+      return urlInside;
+    }
+    if ((code === 43 || code === 45 || code === 46 || asciiAlphanumeric(code)) && size++ < 32) {
+      effects.consume(code);
+      return schemeInsideOrEmailAtext;
+    }
+    size = 0;
+    return emailAtext(code);
+  }
+  function urlInside(code) {
+    if (code === 62) {
+      effects.exit("autolinkProtocol");
+      effects.enter("autolinkMarker");
+      effects.consume(code);
+      effects.exit("autolinkMarker");
+      effects.exit("autolink");
+      return ok;
+    }
+    if (code === null || code === 32 || code === 60 || asciiControl(code)) {
+      return nok(code);
+    }
+    effects.consume(code);
+    return urlInside;
+  }
+  function emailAtext(code) {
+    if (code === 64) {
+      effects.consume(code);
+      return emailAtSignOrDot;
+    }
+    if (asciiAtext(code)) {
+      effects.consume(code);
+      return emailAtext;
+    }
+    return nok(code);
+  }
+  function emailAtSignOrDot(code) {
+    return asciiAlphanumeric(code) ? emailLabel(code) : nok(code);
+  }
+  function emailLabel(code) {
+    if (code === 46) {
+      effects.consume(code);
+      size = 0;
+      return emailAtSignOrDot;
+    }
+    if (code === 62) {
+      effects.exit("autolinkProtocol").type = "autolinkEmail";
+      effects.enter("autolinkMarker");
+      effects.consume(code);
+      effects.exit("autolinkMarker");
+      effects.exit("autolink");
+      return ok;
+    }
+    return emailValue(code);
+  }
+  function emailValue(code) {
+    if ((code === 45 || asciiAlphanumeric(code)) && size++ < 63) {
+      const next = code === 45 ? emailValue : emailLabel;
+      effects.consume(code);
+      return next;
+    }
+    return nok(code);
+  }
+}
+// engine/node_modules/micromark-core-commonmark/lib/blank-line.js
+var blankLine = {
+  partial: true,
+  tokenize: tokenizeBlankLine
+};
+function tokenizeBlankLine(effects, ok, nok) {
+  return start;
+  function start(code) {
+    return markdownSpace(code) ? factorySpace(effects, after, "linePrefix")(code) : after(code);
+  }
+  function after(code) {
+    return code === null || markdownLineEnding(code) ? ok(code) : nok(code);
+  }
+}
+// engine/node_modules/micromark-core-commonmark/lib/block-quote.js
+var blockQuote = {
+  continuation: {
+    tokenize: tokenizeBlockQuoteContinuation
+  },
+  exit,
+  name: "blockQuote",
+  tokenize: tokenizeBlockQuoteStart
+};
+function tokenizeBlockQuoteStart(effects, ok, nok) {
+  const self2 = this;
+  return start;
+  function start(code) {
+    if (code === 62) {
+      const state = self2.containerState;
+      if (!state.open) {
+        effects.enter("blockQuote", {
+          _container: true
+        });
+        state.open = true;
+      }
+      effects.enter("blockQuotePrefix");
+      effects.enter("blockQuoteMarker");
+      effects.consume(code);
+      effects.exit("blockQuoteMarker");
+      return after;
+    }
+    return nok(code);
+  }
+  function after(code) {
+    if (markdownSpace(code)) {
+      effects.enter("blockQuotePrefixWhitespace");
+      effects.consume(code);
+      effects.exit("blockQuotePrefixWhitespace");
+      effects.exit("blockQuotePrefix");
+      return ok;
+    }
+    effects.exit("blockQuotePrefix");
+    return ok(code);
+  }
+}
+function tokenizeBlockQuoteContinuation(effects, ok, nok) {
+  const self2 = this;
+  return contStart;
+  function contStart(code) {
+    if (markdownSpace(code)) {
+      return factorySpace(effects, contBefore, "linePrefix", self2.parser.constructs.disable.null.includes("codeIndented") ? undefined : 4)(code);
+    }
+    return contBefore(code);
+  }
+  function contBefore(code) {
+    return effects.attempt(blockQuote, ok, nok)(code);
+  }
+}
+function exit(effects) {
+  effects.exit("blockQuote");
+}
+// engine/node_modules/micromark-core-commonmark/lib/character-escape.js
+var characterEscape = {
+  name: "characterEscape",
+  tokenize: tokenizeCharacterEscape
+};
+function tokenizeCharacterEscape(effects, ok, nok) {
+  return start;
+  function start(code) {
+    effects.enter("characterEscape");
+    effects.enter("escapeMarker");
+    effects.consume(code);
+    effects.exit("escapeMarker");
+    return inside;
+  }
+  function inside(code) {
+    if (asciiPunctuation(code)) {
+      effects.enter("characterEscapeValue");
+      effects.consume(code);
+      effects.exit("characterEscapeValue");
+      effects.exit("characterEscape");
+      return ok;
+    }
+    return nok(code);
+  }
+}
+// engine/node_modules/micromark-core-commonmark/lib/character-reference.js
+var characterReference = {
+  name: "characterReference",
+  tokenize: tokenizeCharacterReference
+};
+function tokenizeCharacterReference(effects, ok, nok) {
+  const self2 = this;
+  let size = 0;
+  let max;
+  let test;
+  return start;
+  function start(code) {
+    effects.enter("characterReference");
+    effects.enter("characterReferenceMarker");
+    effects.consume(code);
+    effects.exit("characterReferenceMarker");
+    return open;
+  }
+  function open(code) {
+    if (code === 35) {
+      effects.enter("characterReferenceMarkerNumeric");
+      effects.consume(code);
+      effects.exit("characterReferenceMarkerNumeric");
+      return numeric;
+    }
+    effects.enter("characterReferenceValue");
+    max = 31;
+    test = asciiAlphanumeric;
+    return value(code);
+  }
+  function numeric(code) {
+    if (code === 88 || code === 120) {
+      effects.enter("characterReferenceMarkerHexadecimal");
+      effects.consume(code);
+      effects.exit("characterReferenceMarkerHexadecimal");
+      effects.enter("characterReferenceValue");
+      max = 6;
+      test = asciiHexDigit;
+      return value;
+    }
+    effects.enter("characterReferenceValue");
+    max = 7;
+    test = asciiDigit;
+    return value(code);
+  }
+  function value(code) {
+    if (code === 59 && size) {
+      const token = effects.exit("characterReferenceValue");
+      if (test === asciiAlphanumeric && !decodeNamedCharacterReference(self2.sliceSerialize(token))) {
+        return nok(code);
+      }
+      effects.enter("characterReferenceMarker");
+      effects.consume(code);
+      effects.exit("characterReferenceMarker");
+      effects.exit("characterReference");
+      return ok;
+    }
+    if (test(code) && size++ < max) {
+      effects.consume(code);
+      return value;
+    }
+    return nok(code);
+  }
+}
+// engine/node_modules/micromark-core-commonmark/lib/partial-non-lazy-continuation.js
+var nonLazyContinuation = {
+  partial: true,
+  tokenize: tokenizeNonLazyContinuation
+};
+function tokenizeNonLazyContinuation(effects, ok, nok) {
+  const self2 = this;
+  return start;
+  function start(code) {
+    if (code === null) {
+      return nok(code);
+    }
+    effects.enter("lineEnding");
+    effects.consume(code);
+    effects.exit("lineEnding");
+    return after;
+  }
+  function after(code) {
+    return self2.parser.lazy[self2.now().line] ? nok(code) : ok(code);
+  }
+}
+
+// engine/node_modules/micromark-core-commonmark/lib/code-fenced.js
+var codeFenced = {
+  concrete: true,
+  name: "codeFenced",
+  tokenize: tokenizeCodeFenced
+};
+function tokenizeCodeFenced(effects, ok, nok) {
+  const self2 = this;
+  const closeStart = {
+    partial: true,
+    tokenize: tokenizeCloseStart
+  };
+  let initialPrefix = 0;
+  let sizeOpen = 0;
+  let marker;
+  return start;
+  function start(code) {
+    return beforeSequenceOpen(code);
+  }
+  function beforeSequenceOpen(code) {
+    const tail = self2.events[self2.events.length - 1];
+    initialPrefix = tail && tail[1].type === "linePrefix" ? tail[2].sliceSerialize(tail[1], true).length : 0;
+    marker = code;
+    effects.enter("codeFenced");
+    effects.enter("codeFencedFence");
+    effects.enter("codeFencedFenceSequence");
+    return sequenceOpen(code);
+  }
+  function sequenceOpen(code) {
+    if (code === marker) {
+      sizeOpen++;
+      effects.consume(code);
+      return sequenceOpen;
+    }
+    if (sizeOpen < 3) {
+      return nok(code);
+    }
+    effects.exit("codeFencedFenceSequence");
+    return markdownSpace(code) ? factorySpace(effects, infoBefore, "whitespace")(code) : infoBefore(code);
+  }
+  function infoBefore(code) {
+    if (code === null || markdownLineEnding(code)) {
+      effects.exit("codeFencedFence");
+      return self2.interrupt ? ok(code) : effects.check(nonLazyContinuation, atNonLazyBreak, after)(code);
+    }
+    effects.enter("codeFencedFenceInfo");
+    effects.enter("chunkString", {
+      contentType: "string"
+    });
+    return info(code);
+  }
+  function info(code) {
+    if (code === null || markdownLineEnding(code)) {
+      effects.exit("chunkString");
+      effects.exit("codeFencedFenceInfo");
+      return infoBefore(code);
+    }
+    if (markdownSpace(code)) {
+      effects.exit("chunkString");
+      effects.exit("codeFencedFenceInfo");
+      return factorySpace(effects, metaBefore, "whitespace")(code);
+    }
+    if (code === 96 && code === marker) {
+      return nok(code);
+    }
+    effects.consume(code);
+    return info;
+  }
+  function metaBefore(code) {
+    if (code === null || markdownLineEnding(code)) {
+      return infoBefore(code);
+    }
+    effects.enter("codeFencedFenceMeta");
+    effects.enter("chunkString", {
+      contentType: "string"
+    });
+    return meta(code);
+  }
+  function meta(code) {
+    if (code === null || markdownLineEnding(code)) {
+      effects.exit("chunkString");
+      effects.exit("codeFencedFenceMeta");
+      return infoBefore(code);
+    }
+    if (code === 96 && code === marker) {
+      return nok(code);
+    }
+    effects.consume(code);
+    return meta;
+  }
+  function atNonLazyBreak(code) {
+    return effects.attempt(closeStart, after, contentBefore)(code);
+  }
+  function contentBefore(code) {
+    effects.enter("lineEnding");
+    effects.consume(code);
+    effects.exit("lineEnding");
+    return contentStart;
+  }
+  function contentStart(code) {
+    return initialPrefix > 0 && markdownSpace(code) ? factorySpace(effects, beforeContentChunk, "linePrefix", initialPrefix + 1)(code) : beforeContentChunk(code);
+  }
+  function beforeContentChunk(code) {
+    if (code === null || markdownLineEnding(code)) {
+      return effects.check(nonLazyContinuation, atNonLazyBreak, after)(code);
+    }
+    effects.enter("codeFlowValue");
+    return contentChunk(code);
+  }
+  function contentChunk(code) {
+    if (code === null || markdownLineEnding(code)) {
+      effects.exit("codeFlowValue");
+      return beforeContentChunk(code);
+    }
+    effects.consume(code);
+    return contentChunk;
+  }
+  function after(code) {
+    effects.exit("codeFenced");
+    return ok(code);
+  }
+  function tokenizeCloseStart(effects, ok, nok) {
+    let size = 0;
+    return startBefore;
+    function startBefore(code) {
+      effects.enter("lineEnding");
+      effects.consume(code);
+      effects.exit("lineEnding");
+      return start;
+    }
+    function start(code) {
+      effects.enter("codeFencedFence");
+      return markdownSpace(code) ? factorySpace(effects, beforeSequenceClose, "linePrefix", self2.parser.constructs.disable.null.includes("codeIndented") ? undefined : 4)(code) : beforeSequenceClose(code);
+    }
+    function beforeSequenceClose(code) {
+      if (code === marker) {
+        effects.enter("codeFencedFenceSequence");
+        return sequenceClose(code);
+      }
+      return nok(code);
+    }
+    function sequenceClose(code) {
+      if (code === marker) {
+        size++;
+        effects.consume(code);
+        return sequenceClose;
+      }
+      if (size >= sizeOpen) {
+        effects.exit("codeFencedFenceSequence");
+        return markdownSpace(code) ? factorySpace(effects, sequenceCloseAfter, "whitespace")(code) : sequenceCloseAfter(code);
+      }
+      return nok(code);
+    }
+    function sequenceCloseAfter(code) {
+      if (code === null || markdownLineEnding(code)) {
+        effects.exit("codeFencedFence");
+        return ok(code);
+      }
+      return nok(code);
+    }
+  }
+}
+// engine/node_modules/micromark-core-commonmark/lib/code-indented.js
+var codeIndented = {
+  name: "codeIndented",
+  tokenize: tokenizeCodeIndented
+};
+var furtherStart = {
+  partial: true,
+  tokenize: tokenizeFurtherStart
+};
+function tokenizeCodeIndented(effects, ok, nok) {
+  return start;
+  function start(code) {
+    effects.enter("codeIndented");
+    return factorySpaceMinMax(effects, atBreak, nok, "linePrefix", 4, 4)(code);
+  }
+  function atBreak(code) {
+    if (code === null) {
+      return after(code);
+    }
+    if (markdownLineEnding(code)) {
+      return effects.attempt(furtherStart, atBreak, after)(code);
+    }
+    effects.enter("codeFlowValue");
+    return inside(code);
+  }
+  function inside(code) {
+    if (code === null || markdownLineEnding(code)) {
+      effects.exit("codeFlowValue");
+      return atBreak(code);
+    }
+    effects.consume(code);
+    return inside;
+  }
+  function after(code) {
+    effects.exit("codeIndented");
+    return ok(code);
+  }
+}
+function tokenizeFurtherStart(effects, ok, nok) {
+  const self2 = this;
+  return furtherStart;
+  function furtherStart(code) {
+    if (self2.parser.lazy[self2.now().line]) {
+      return nok(code);
+    }
+    if (markdownLineEnding(code)) {
+      effects.enter("lineEnding");
+      effects.consume(code);
+      effects.exit("lineEnding");
+      return furtherStart;
+    }
+    return factorySpaceMinMax(effects, ok, onNotEnoughPrefix, "linePrefix", 4, 4)(code);
+  }
+  function onNotEnoughPrefix(code) {
+    return markdownLineEnding(code) ? furtherStart(code) : nok(code);
+  }
+}
+// engine/node_modules/micromark-core-commonmark/lib/code-text.js
+var codeText = {
+  name: "codeText",
+  previous,
+  resolve: resolveCodeText,
+  tokenize: tokenizeCodeText
+};
+function resolveCodeText(events) {
+  let tailExitIndex = events.length - 4;
+  let headEnterIndex = 3;
+  let index;
+  let enter;
+  if ((events[headEnterIndex][1].type === "lineEnding" || events[headEnterIndex][1].type === "space") && (events[tailExitIndex][1].type === "lineEnding" || events[tailExitIndex][1].type === "space")) {
+    index = headEnterIndex;
+    while (++index < tailExitIndex) {
+      if (events[index][1].type === "codeTextData") {
+        events[headEnterIndex][1].type = "codeTextPadding";
+        events[tailExitIndex][1].type = "codeTextPadding";
+        headEnterIndex += 2;
+        tailExitIndex -= 2;
+        break;
+      }
+    }
+  }
+  index = headEnterIndex - 1;
+  tailExitIndex++;
+  while (++index <= tailExitIndex) {
+    if (enter === undefined) {
+      if (index !== tailExitIndex && events[index][1].type !== "lineEnding") {
+        enter = index;
+      }
+    } else if (index === tailExitIndex || events[index][1].type === "lineEnding") {
+      events[enter][1].type = "codeTextData";
+      if (index !== enter + 2) {
+        events[enter][1].end = events[index - 1][1].end;
+        events.splice(enter + 2, index - enter - 2);
+        tailExitIndex -= index - enter - 2;
+        index = enter + 2;
+      }
+      enter = undefined;
+    }
+  }
+  return events;
+}
+function previous(code) {
+  return code !== 96 || this.events[this.events.length - 1][1].type === "characterEscape";
+}
+function tokenizeCodeText(effects, ok, nok) {
+  const self2 = this;
+  let sizeOpen = 0;
+  let size;
+  let token;
+  return start;
+  function start(code) {
+    effects.enter("codeText");
+    effects.enter("codeTextSequence");
+    return sequenceOpen(code);
+  }
+  function sequenceOpen(code) {
+    if (code === 96) {
+      effects.consume(code);
+      sizeOpen++;
+      return sequenceOpen;
+    }
+    effects.exit("codeTextSequence");
+    return between(code);
+  }
+  function between(code) {
+    if (code === null) {
+      return nok(code);
+    }
+    if (code === 32) {
+      effects.enter("space");
+      effects.consume(code);
+      effects.exit("space");
+      return between;
+    }
+    if (code === 96) {
+      token = effects.enter("codeTextSequence");
+      size = 0;
+      return sequenceClose(code);
+    }
+    if (markdownLineEnding(code)) {
+      effects.enter("lineEnding");
+      effects.consume(code);
+      effects.exit("lineEnding");
+      return between;
+    }
+    effects.enter("codeTextData");
+    return data(code);
+  }
+  function data(code) {
+    if (code === null || code === 32 || code === 96 || markdownLineEnding(code)) {
+      effects.exit("codeTextData");
+      return between(code);
+    }
+    effects.consume(code);
+    return data;
+  }
+  function sequenceClose(code) {
+    if (code === 96) {
+      effects.consume(code);
+      size++;
+      return sequenceClose;
+    }
+    if (size === sizeOpen) {
+      effects.exit("codeTextSequence");
+      effects.exit("codeText");
+      return ok(code);
+    }
+    token.type = "codeTextData";
+    return data(code);
+  }
+}
+// engine/node_modules/micromark-util-subtokenize/lib/splice-buffer.js
+class SpliceBuffer {
+  constructor(initial) {
+    this.left = initial ? [...initial] : [];
+    this.right = [];
+  }
+  get(index) {
+    if (index < 0 || index >= this.left.length + this.right.length) {
+      throw new RangeError("Cannot access index `" + index + "` in a splice buffer of size `" + (this.left.length + this.right.length) + "`");
+    }
+    if (index < this.left.length)
+      return this.left[index];
+    return this.right[this.right.length - index + this.left.length - 1];
+  }
+  get length() {
+    return this.left.length + this.right.length;
+  }
+  shift() {
+    this.setCursor(0);
+    return this.right.pop();
+  }
+  slice(start, end) {
+    const stop = end === null || end === undefined ? Number.POSITIVE_INFINITY : end;
+    if (stop < this.left.length) {
+      return this.left.slice(start, stop);
+    }
+    if (start > this.left.length) {
+      return this.right.slice(this.right.length - stop + this.left.length, this.right.length - start + this.left.length).reverse();
+    }
+    return this.left.slice(start).concat(this.right.slice(this.right.length - stop + this.left.length).reverse());
+  }
+  splice(start, deleteCount, items) {
+    const count = deleteCount || 0;
+    this.setCursor(Math.trunc(start));
+    const removed = this.right.splice(this.right.length - count, Number.POSITIVE_INFINITY);
+    if (items)
+      chunkedPush(this.left, items);
+    return removed.reverse();
+  }
+  pop() {
+    this.setCursor(Number.POSITIVE_INFINITY);
+    return this.left.pop();
+  }
+  push(item) {
+    this.setCursor(Number.POSITIVE_INFINITY);
+    this.left.push(item);
+  }
+  pushMany(items) {
+    this.setCursor(Number.POSITIVE_INFINITY);
+    chunkedPush(this.left, items);
+  }
+  unshift(item) {
+    this.setCursor(0);
+    this.right.push(item);
+  }
+  unshiftMany(items) {
+    this.setCursor(0);
+    chunkedPush(this.right, items.reverse());
+  }
+  setCursor(n) {
+    if (n === this.left.length || n > this.left.length && this.right.length === 0 || n < 0 && this.left.length === 0)
+      return;
+    if (n < this.left.length) {
+      const removed = this.left.splice(n, Number.POSITIVE_INFINITY);
+      chunkedPush(this.right, removed.reverse());
+    } else {
+      const removed = this.right.splice(this.left.length + this.right.length - n, Number.POSITIVE_INFINITY);
+      chunkedPush(this.left, removed.reverse());
+    }
+  }
+}
+function chunkedPush(list, right) {
+  let chunkStart = 0;
+  if (right.length < 1e4) {
+    list.push(...right);
+  } else {
+    while (chunkStart < right.length) {
+      list.push(...right.slice(chunkStart, chunkStart + 1e4));
+      chunkStart += 1e4;
+    }
+  }
+}
+
+// engine/node_modules/micromark-util-subtokenize/index.js
+function subtokenize(eventsArray) {
+  const jumps = {};
+  let index = -1;
+  let event;
+  let lineIndex;
+  let otherIndex;
+  let otherEvent;
+  let parameters;
+  let subevents;
+  let more;
+  const events = new SpliceBuffer(eventsArray);
+  while (++index < events.length) {
+    while (index in jumps) {
+      index = jumps[index];
+    }
+    event = events.get(index);
+    if (index && event[1].type === "chunkFlow" && events.get(index - 1)[1].type === "listItemPrefix") {
+      subevents = event[1]._tokenizer.events;
+      otherIndex = 0;
+      if (otherIndex < subevents.length && subevents[otherIndex][1].type === "lineEndingBlank") {
+        otherIndex += 2;
+      }
+      if (otherIndex < subevents.length && subevents[otherIndex][1].type === "content") {
+        while (++otherIndex < subevents.length) {
+          if (subevents[otherIndex][1].type === "content") {
+            break;
+          }
+          if (subevents[otherIndex][1].type === "chunkText") {
+            subevents[otherIndex][1]._isInFirstContentOfListItem = true;
+            otherIndex++;
+          }
+        }
+      }
+    }
+    if (event[0] === "enter") {
+      if (event[1].contentType) {
+        Object.assign(jumps, subcontent(events, index));
+        index = jumps[index];
+        more = true;
+      }
+    } else if (event[1]._container) {
+      otherIndex = index;
+      lineIndex = undefined;
+      while (otherIndex--) {
+        otherEvent = events.get(otherIndex);
+        if (otherEvent[1].type === "lineEnding" || otherEvent[1].type === "lineEndingBlank") {
+          if (otherEvent[0] === "enter") {
+            if (lineIndex) {
+              events.get(lineIndex)[1].type = "lineEndingBlank";
+            }
+            otherEvent[1].type = "lineEnding";
+            lineIndex = otherIndex;
+          }
+        } else if (otherEvent[1].type === "linePrefix" || otherEvent[1].type === "listItemIndent") {} else {
+          break;
+        }
+      }
+      if (lineIndex) {
+        event[1].end = {
+          ...events.get(lineIndex)[1].start
+        };
+        parameters = events.slice(lineIndex, index);
+        parameters.unshift(event);
+        events.splice(lineIndex, index - lineIndex + 1, parameters);
+      }
+    }
+  }
+  splice(eventsArray, 0, Number.POSITIVE_INFINITY, events.slice(0));
+  return !more;
+}
+function subcontent(events, eventIndex) {
+  const token = events.get(eventIndex)[1];
+  const context = events.get(eventIndex)[2];
+  let startPosition = eventIndex - 1;
+  const startPositions = [];
+  let tokenizer = token._tokenizer;
+  if (!tokenizer) {
+    tokenizer = context.parser[token.contentType](token.start);
+    if (token._contentTypeTextTrailing) {
+      tokenizer._contentTypeTextTrailing = true;
+    }
+  }
+  const childEvents = tokenizer.events;
+  const jumps = [];
+  const gaps = {};
+  let stream;
+  let previous;
+  let index = -1;
+  let current = token;
+  let adjust = 0;
+  let start = 0;
+  const breaks = [start];
+  while (current) {
+    while (events.get(++startPosition)[1] !== current) {}
+    startPositions.push(startPosition);
+    if (!current._tokenizer) {
+      stream = context.sliceStream(current);
+      if (!current.next) {
+        stream.push(null);
+      }
+      if (previous) {
+        tokenizer.defineSkip(current.start);
+      }
+      if (current._isInFirstContentOfListItem) {
+        tokenizer._gfmTasklistFirstContentOfListItem = true;
+      }
+      tokenizer.write(stream);
+      if (current._isInFirstContentOfListItem) {
+        tokenizer._gfmTasklistFirstContentOfListItem = undefined;
+      }
+    }
+    previous = current;
+    current = current.next;
+  }
+  current = token;
+  while (++index < childEvents.length) {
+    if (childEvents[index][0] === "exit" && childEvents[index - 1][0] === "enter" && childEvents[index][1].type === childEvents[index - 1][1].type && childEvents[index][1].start.line !== childEvents[index][1].end.line) {
+      start = index + 1;
+      breaks.push(start);
+      current._tokenizer = undefined;
+      current.previous = undefined;
+      current = current.next;
+    }
+  }
+  tokenizer.events = [];
+  if (current) {
+    current._tokenizer = undefined;
+    current.previous = undefined;
+  } else {
+    breaks.pop();
+  }
+  index = breaks.length;
+  while (index--) {
+    const slice = childEvents.slice(breaks[index], breaks[index + 1]);
+    const start = startPositions.pop();
+    jumps.push([start, start + slice.length - 1]);
+    events.splice(start, 2, slice);
+  }
+  jumps.reverse();
+  index = -1;
+  while (++index < jumps.length) {
+    gaps[adjust + jumps[index][0]] = adjust + jumps[index][1];
+    adjust += jumps[index][1] - jumps[index][0] - 1;
+  }
+  return gaps;
+}
+
+// engine/node_modules/micromark-core-commonmark/lib/content.js
+var content2 = {
+  resolve: resolveContent,
+  tokenize: tokenizeContent
+};
+var continuationConstruct = {
+  partial: true,
+  tokenize: tokenizeContinuation
+};
+function resolveContent(events) {
+  subtokenize(events);
+  return events;
+}
+function tokenizeContent(effects, ok) {
+  let previous;
+  return chunkStart;
+  function chunkStart(code) {
+    effects.enter("content");
+    previous = effects.enter("chunkContent", {
+      contentType: "content"
+    });
+    return chunkInside(code);
+  }
+  function chunkInside(code) {
+    if (code === null) {
+      return contentEnd(code);
+    }
+    if (markdownLineEnding(code)) {
+      return effects.check(continuationConstruct, contentContinue, contentEnd)(code);
+    }
+    effects.consume(code);
+    return chunkInside;
+  }
+  function contentEnd(code) {
+    effects.exit("chunkContent");
+    effects.exit("content");
+    return ok(code);
+  }
+  function contentContinue(code) {
+    effects.consume(code);
+    effects.exit("chunkContent");
+    previous.next = effects.enter("chunkContent", {
+      contentType: "content",
+      previous
+    });
+    previous = previous.next;
+    return chunkInside;
+  }
+}
+function tokenizeContinuation(effects, ok, nok) {
+  const self2 = this;
+  return startLookahead;
+  function startLookahead(code) {
+    effects.exit("chunkContent");
+    effects.enter("lineEnding");
+    effects.consume(code);
+    effects.exit("lineEnding");
+    return factorySpace(effects, prefixed, "linePrefix");
+  }
+  function prefixed(code) {
+    if (code === null || markdownLineEnding(code)) {
+      return nok(code);
+    }
+    const tail = self2.events[self2.events.length - 1];
+    if (!self2.parser.constructs.disable.null.includes("codeIndented") && tail && tail[1].type === "linePrefix" && tail[2].sliceSerialize(tail[1], true).length >= 4) {
+      return ok(code);
+    }
+    return effects.interrupt(self2.parser.constructs.flow, nok, ok)(code);
+  }
+}
+// engine/node_modules/micromark-factory-destination/index.js
+function factoryDestination(effects, ok, nok, type, literalType, literalMarkerType, rawType, stringType, max) {
+  const limit = max || Number.POSITIVE_INFINITY;
+  let balance = 0;
+  return start;
+  function start(code) {
+    if (code === 60) {
+      effects.enter(type);
+      effects.enter(literalType);
+      effects.enter(literalMarkerType);
+      effects.consume(code);
+      effects.exit(literalMarkerType);
+      return enclosedBefore;
+    }
+    if (code === null || code === 32 || code === 41 || asciiControl(code)) {
+      return nok(code);
+    }
+    effects.enter(type);
+    effects.enter(rawType);
+    effects.enter(stringType);
+    effects.enter("chunkString", {
+      contentType: "string"
+    });
+    return raw(code);
+  }
+  function enclosedBefore(code) {
+    if (code === 62) {
+      effects.enter(literalMarkerType);
+      effects.consume(code);
+      effects.exit(literalMarkerType);
+      effects.exit(literalType);
+      effects.exit(type);
+      return ok;
+    }
+    effects.enter(stringType);
+    effects.enter("chunkString", {
+      contentType: "string"
+    });
+    return enclosed(code);
+  }
+  function enclosed(code) {
+    if (code === 62) {
+      effects.exit("chunkString");
+      effects.exit(stringType);
+      return enclosedBefore(code);
+    }
+    if (code === null || code === 60 || markdownLineEnding(code)) {
+      return nok(code);
+    }
+    effects.consume(code);
+    return code === 92 ? enclosedEscape : enclosed;
+  }
+  function enclosedEscape(code) {
+    if (code === 60 || code === 62 || code === 92) {
+      effects.consume(code);
+      return enclosed;
+    }
+    return enclosed(code);
+  }
+  function raw(code) {
+    if (!balance && (code === null || code === 41 || markdownLineEndingOrSpace(code))) {
+      effects.exit("chunkString");
+      effects.exit(stringType);
+      effects.exit(rawType);
+      effects.exit(type);
+      return ok(code);
+    }
+    if (balance < limit && code === 40) {
+      effects.consume(code);
+      balance++;
+      return raw;
+    }
+    if (code === 41) {
+      effects.consume(code);
+      balance--;
+      return raw;
+    }
+    if (code === null || code === 32 || code === 40 || asciiControl(code)) {
+      return nok(code);
+    }
+    effects.consume(code);
+    return code === 92 ? rawEscape : raw;
+  }
+  function rawEscape(code) {
+    if (code === 40 || code === 41 || code === 92) {
+      effects.consume(code);
+      return raw;
+    }
+    return raw(code);
+  }
+}
+
+// engine/node_modules/micromark-factory-label/index.js
+function factoryLabel(effects, ok, nok, type, markerType, stringType) {
+  const self2 = this;
+  let size = 0;
+  let seen;
+  return start;
+  function start(code) {
+    effects.enter(type);
+    effects.enter(markerType);
+    effects.consume(code);
+    effects.exit(markerType);
+    effects.enter(stringType);
+    return atBreak;
+  }
+  function atBreak(code) {
+    if (size > 999 || code === null || code === 91 || code === 93 && !seen || code === 94 && !size && "_hiddenFootnoteSupport" in self2.parser.constructs) {
+      return nok(code);
+    }
+    if (code === 93) {
+      effects.exit(stringType);
+      effects.enter(markerType);
+      effects.consume(code);
+      effects.exit(markerType);
+      effects.exit(type);
+      return ok;
+    }
+    if (markdownLineEnding(code)) {
+      effects.enter("lineEnding");
+      effects.consume(code);
+      effects.exit("lineEnding");
+      return atBreak;
+    }
+    effects.enter("chunkString", {
+      contentType: "string"
+    });
+    return labelInside(code);
+  }
+  function labelInside(code) {
+    if (code === null || code === 91 || code === 93 || markdownLineEnding(code) || size++ > 999) {
+      effects.exit("chunkString");
+      return atBreak(code);
+    }
+    effects.consume(code);
+    if (!seen)
+      seen = !markdownSpace(code);
+    return code === 92 ? labelEscape : labelInside;
+  }
+  function labelEscape(code) {
+    if (code === 91 || code === 92 || code === 93) {
+      effects.consume(code);
+      size++;
+      return labelInside;
+    }
+    return labelInside(code);
+  }
+}
+
+// engine/node_modules/micromark-factory-title/index.js
+function factoryTitle(effects, ok, nok, type, markerType, stringType) {
+  let marker;
+  return start;
+  function start(code) {
+    if (code === 34 || code === 39 || code === 40) {
+      effects.enter(type);
+      effects.enter(markerType);
+      effects.consume(code);
+      effects.exit(markerType);
+      marker = code === 40 ? 41 : code;
+      return begin;
+    }
+    return nok(code);
+  }
+  function begin(code) {
+    if (code === marker) {
+      effects.enter(markerType);
+      effects.consume(code);
+      effects.exit(markerType);
+      effects.exit(type);
+      return ok;
+    }
+    effects.enter(stringType);
+    return atBreak(code);
+  }
+  function atBreak(code) {
+    if (code === marker) {
+      effects.exit(stringType);
+      return begin(marker);
+    }
+    if (code === null) {
+      return nok(code);
+    }
+    if (markdownLineEnding(code)) {
+      effects.enter("lineEnding");
+      effects.consume(code);
+      effects.exit("lineEnding");
+      return factorySpace(effects, atBreak, "linePrefix");
+    }
+    effects.enter("chunkString", {
+      contentType: "string"
+    });
+    return inside(code);
+  }
+  function inside(code) {
+    if (code === marker || code === null || markdownLineEnding(code)) {
+      effects.exit("chunkString");
+      return atBreak(code);
+    }
+    effects.consume(code);
+    return code === 92 ? escape : inside;
+  }
+  function escape(code) {
+    if (code === marker || code === 92) {
+      effects.consume(code);
+      return inside;
+    }
+    return inside(code);
+  }
+}
+
+// engine/node_modules/micromark-factory-whitespace/index.js
+function factoryWhitespace(effects, ok) {
+  let seen;
+  return start;
+  function start(code) {
+    if (markdownLineEnding(code)) {
+      effects.enter("lineEnding");
+      effects.consume(code);
+      effects.exit("lineEnding");
+      seen = true;
+      return start;
+    }
+    if (markdownSpace(code)) {
+      return factorySpace(effects, start, seen ? "linePrefix" : "lineSuffix")(code);
+    }
+    return ok(code);
+  }
+}
+
+// engine/node_modules/micromark-core-commonmark/lib/definition.js
+var definition = {
+  name: "definition",
+  tokenize: tokenizeDefinition
+};
+var titleBefore = {
+  partial: true,
+  tokenize: tokenizeTitleBefore
+};
+function tokenizeDefinition(effects, ok, nok) {
+  const self2 = this;
+  let identifier;
+  return start;
+  function start(code) {
+    effects.enter("definition");
+    return before(code);
+  }
+  function before(code) {
+    return factoryLabel.call(self2, effects, labelAfter, nok, "definitionLabel", "definitionLabelMarker", "definitionLabelString")(code);
+  }
+  function labelAfter(code) {
+    identifier = normalizeIdentifier(self2.sliceSerialize(self2.events[self2.events.length - 1][1]).slice(1, -1));
+    if (code === 58) {
+      effects.enter("definitionMarker");
+      effects.consume(code);
+      effects.exit("definitionMarker");
+      return markerAfter;
+    }
+    return nok(code);
+  }
+  function markerAfter(code) {
+    return markdownLineEndingOrSpace(code) ? factoryWhitespace(effects, destinationBefore)(code) : destinationBefore(code);
+  }
+  function destinationBefore(code) {
+    return factoryDestination(effects, destinationAfter, nok, "definitionDestination", "definitionDestinationLiteral", "definitionDestinationLiteralMarker", "definitionDestinationRaw", "definitionDestinationString")(code);
+  }
+  function destinationAfter(code) {
+    return effects.attempt(titleBefore, after, after)(code);
+  }
+  function after(code) {
+    return markdownSpace(code) ? factorySpace(effects, afterWhitespace, "whitespace")(code) : afterWhitespace(code);
+  }
+  function afterWhitespace(code) {
+    if (code === null || markdownLineEnding(code)) {
+      effects.exit("definition");
+      self2.parser.defined.push(identifier);
+      return ok(code);
+    }
+    return nok(code);
+  }
+}
+function tokenizeTitleBefore(effects, ok, nok) {
+  return titleBefore;
+  function titleBefore(code) {
+    return markdownLineEndingOrSpace(code) ? factoryWhitespace(effects, beforeMarker)(code) : nok(code);
+  }
+  function beforeMarker(code) {
+    return factoryTitle(effects, titleAfter, nok, "definitionTitle", "definitionTitleMarker", "definitionTitleString")(code);
+  }
+  function titleAfter(code) {
+    return markdownSpace(code) ? factorySpace(effects, titleAfterOptionalWhitespace, "whitespace")(code) : titleAfterOptionalWhitespace(code);
+  }
+  function titleAfterOptionalWhitespace(code) {
+    return code === null || markdownLineEnding(code) ? ok(code) : nok(code);
+  }
+}
+// engine/node_modules/micromark-core-commonmark/lib/hard-break-escape.js
+var hardBreakEscape = {
+  name: "hardBreakEscape",
+  tokenize: tokenizeHardBreakEscape
+};
+function tokenizeHardBreakEscape(effects, ok, nok) {
+  return start;
+  function start(code) {
+    effects.enter("hardBreakEscape");
+    effects.consume(code);
+    return after;
+  }
+  function after(code) {
+    if (markdownLineEnding(code)) {
+      effects.exit("hardBreakEscape");
+      return ok(code);
+    }
+    return nok(code);
+  }
+}
+// engine/node_modules/micromark-core-commonmark/lib/heading-atx.js
+var headingAtx = {
+  name: "headingAtx",
+  resolve: resolveHeadingAtx,
+  tokenize: tokenizeHeadingAtx
+};
+function resolveHeadingAtx(events, context) {
+  let contentEnd = events.length - 2;
+  let contentStart = 3;
+  if (events[contentStart][1].type === "whitespace") {
+    contentStart += 2;
+  }
+  if (contentEnd - 2 > contentStart && events[contentEnd][1].type === "whitespace") {
+    contentEnd -= 2;
+  }
+  if (events[contentEnd][1].type === "atxHeadingSequence" && (contentStart === contentEnd - 1 || contentEnd - 4 > contentStart && events[contentEnd - 2][1].type === "whitespace")) {
+    contentEnd -= contentStart + 1 === contentEnd ? 2 : 4;
+  }
+  if (contentEnd > contentStart) {
+    const content = {
+      type: "atxHeadingText",
+      start: events[contentStart][1].start,
+      end: events[contentEnd][1].end
+    };
+    const text = {
+      type: "chunkText",
+      start: events[contentStart][1].start,
+      end: events[contentEnd][1].end,
+      contentType: "text"
+    };
+    splice(events, contentStart, contentEnd - contentStart + 1, [["enter", content, context], ["enter", text, context], ["exit", text, context], ["exit", content, context]]);
+  }
+  return events;
+}
+function tokenizeHeadingAtx(effects, ok, nok) {
+  let size = 0;
+  return start;
+  function start(code) {
+    effects.enter("atxHeading");
+    return before(code);
+  }
+  function before(code) {
+    effects.enter("atxHeadingSequence");
+    return sequenceOpen(code);
+  }
+  function sequenceOpen(code) {
+    if (code === 35 && size++ < 6) {
+      effects.consume(code);
+      return sequenceOpen;
+    }
+    if (code === null || markdownLineEndingOrSpace(code)) {
+      effects.exit("atxHeadingSequence");
+      return atBreak(code);
+    }
+    return nok(code);
+  }
+  function atBreak(code) {
+    if (code === 35) {
+      effects.enter("atxHeadingSequence");
+      return sequenceFurther(code);
+    }
+    if (code === null || markdownLineEnding(code)) {
+      effects.exit("atxHeading");
+      return ok(code);
+    }
+    if (markdownSpace(code)) {
+      return factorySpace(effects, atBreak, "whitespace")(code);
+    }
+    effects.enter("atxHeadingText");
+    return data(code);
+  }
+  function sequenceFurther(code) {
+    if (code === 35) {
+      effects.consume(code);
+      return sequenceFurther;
+    }
+    effects.exit("atxHeadingSequence");
+    return atBreak(code);
+  }
+  function data(code) {
+    if (code === null || code === 35 || markdownLineEndingOrSpace(code)) {
+      effects.exit("atxHeadingText");
+      return atBreak(code);
+    }
+    effects.consume(code);
+    return data;
+  }
+}
+// engine/node_modules/micromark-util-html-tag-name/index.js
+var htmlBlockNames = [
+  "address",
+  "article",
+  "aside",
+  "base",
+  "basefont",
+  "blockquote",
+  "body",
+  "caption",
+  "center",
+  "col",
+  "colgroup",
+  "dd",
+  "details",
+  "dialog",
+  "dir",
+  "div",
+  "dl",
+  "dt",
+  "fieldset",
+  "figcaption",
+  "figure",
+  "footer",
+  "form",
+  "frame",
+  "frameset",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "head",
+  "header",
+  "hr",
+  "html",
+  "iframe",
+  "legend",
+  "li",
+  "link",
+  "main",
+  "menu",
+  "menuitem",
+  "nav",
+  "noframes",
+  "ol",
+  "optgroup",
+  "option",
+  "p",
+  "param",
+  "search",
+  "section",
+  "summary",
+  "table",
+  "tbody",
+  "td",
+  "tfoot",
+  "th",
+  "thead",
+  "title",
+  "tr",
+  "track",
+  "ul"
+];
+var htmlRawNames = ["pre", "script", "style", "textarea"];
+
+// engine/node_modules/micromark-core-commonmark/lib/html-flow.js
+var htmlFlow = {
+  concrete: true,
+  name: "htmlFlow",
+  resolveTo: resolveToHtmlFlow,
+  tokenize: tokenizeHtmlFlow
+};
+var blankLineBefore = {
+  partial: true,
+  tokenize: tokenizeBlankLineBefore
+};
+function resolveToHtmlFlow(events) {
+  let index = events.length;
+  while (index--) {
+    if (events[index][0] === "enter" && events[index][1].type === "htmlFlow") {
+      break;
+    }
+  }
+  if (index > 1 && events[index - 2][1].type === "linePrefix") {
+    events[index][1].start = events[index - 2][1].start;
+    events[index + 1][1].start = events[index - 2][1].start;
+    events.splice(index - 2, 2);
+  }
+  return events;
+}
+function tokenizeHtmlFlow(effects, ok, nok) {
+  const self2 = this;
+  let marker;
+  let closingTag;
+  let buffer;
+  let index;
+  let markerB;
+  return start;
+  function start(code) {
+    return before(code);
+  }
+  function before(code) {
+    effects.enter("htmlFlow");
+    effects.enter("htmlFlowData");
+    effects.consume(code);
+    return open;
+  }
+  function open(code) {
+    if (code === 33) {
+      effects.consume(code);
+      return declarationOpen;
+    }
+    if (code === 47) {
+      effects.consume(code);
+      closingTag = true;
+      return tagCloseStart;
+    }
+    if (code === 63) {
+      effects.consume(code);
+      marker = 3;
+      return self2.interrupt ? ok : continuationDeclarationInside;
+    }
+    if (asciiAlpha(code)) {
+      effects.consume(code);
+      buffer = String.fromCharCode(code);
+      return tagName;
+    }
+    return nok(code);
+  }
+  function declarationOpen(code) {
+    if (code === 45) {
+      effects.consume(code);
+      marker = 2;
+      return commentOpenInside;
+    }
+    if (code === 91) {
+      effects.consume(code);
+      marker = 5;
+      index = 0;
+      return cdataOpenInside;
+    }
+    if (asciiAlpha(code)) {
+      effects.consume(code);
+      marker = 4;
+      return self2.interrupt ? ok : continuationDeclarationInside;
+    }
+    return nok(code);
+  }
+  function commentOpenInside(code) {
+    if (code === 45) {
+      effects.consume(code);
+      return self2.interrupt ? ok : continuationDeclarationInside;
+    }
+    return nok(code);
+  }
+  function cdataOpenInside(code) {
+    const value = "CDATA[";
+    if (code === value.charCodeAt(index++)) {
+      effects.consume(code);
+      if (index === value.length) {
+        return self2.interrupt ? ok : continuation;
+      }
+      return cdataOpenInside;
+    }
+    return nok(code);
+  }
+  function tagCloseStart(code) {
+    if (asciiAlpha(code)) {
+      effects.consume(code);
+      buffer = String.fromCharCode(code);
+      return tagName;
+    }
+    return nok(code);
+  }
+  function tagName(code) {
+    if (code === null || code === 47 || code === 62 || markdownLineEndingOrSpace(code)) {
+      const slash = code === 47;
+      const name = buffer.toLowerCase();
+      if (!slash && !closingTag && htmlRawNames.includes(name)) {
+        marker = 1;
+        return self2.interrupt ? ok(code) : continuation(code);
+      }
+      if (htmlBlockNames.includes(buffer.toLowerCase())) {
+        marker = 6;
+        if (slash) {
+          effects.consume(code);
+          return basicSelfClosing;
+        }
+        return self2.interrupt ? ok(code) : continuation(code);
+      }
+      marker = 7;
+      return self2.interrupt && !self2.parser.lazy[self2.now().line] ? nok(code) : closingTag ? completeClosingTagAfter(code) : completeAttributeNameBefore(code);
+    }
+    if (code === 45 || asciiAlphanumeric(code)) {
+      effects.consume(code);
+      buffer += String.fromCharCode(code);
+      return tagName;
+    }
+    return nok(code);
+  }
+  function basicSelfClosing(code) {
+    if (code === 62) {
+      effects.consume(code);
+      return self2.interrupt ? ok : continuation;
+    }
+    return nok(code);
+  }
+  function completeClosingTagAfter(code) {
+    if (markdownSpace(code)) {
+      effects.consume(code);
+      return completeClosingTagAfter;
+    }
+    return completeEnd(code);
+  }
+  function completeAttributeNameBefore(code) {
+    if (code === 47) {
+      effects.consume(code);
+      return completeEnd;
+    }
+    if (code === 58 || code === 95 || asciiAlpha(code)) {
+      effects.consume(code);
+      return completeAttributeName;
+    }
+    if (markdownSpace(code)) {
+      effects.consume(code);
+      return completeAttributeNameBefore;
+    }
+    return completeEnd(code);
+  }
+  function completeAttributeName(code) {
+    if (code === 45 || code === 46 || code === 58 || code === 95 || asciiAlphanumeric(code)) {
+      effects.consume(code);
+      return completeAttributeName;
+    }
+    return completeAttributeNameAfter(code);
+  }
+  function completeAttributeNameAfter(code) {
+    if (code === 61) {
+      effects.consume(code);
+      return completeAttributeValueBefore;
+    }
+    if (markdownSpace(code)) {
+      effects.consume(code);
+      return completeAttributeNameAfter;
+    }
+    return completeAttributeNameBefore(code);
+  }
+  function completeAttributeValueBefore(code) {
+    if (code === null || code === 60 || code === 61 || code === 62 || code === 96) {
+      return nok(code);
+    }
+    if (code === 34 || code === 39) {
+      effects.consume(code);
+      markerB = code;
+      return completeAttributeValueQuoted;
+    }
+    if (markdownSpace(code)) {
+      effects.consume(code);
+      return completeAttributeValueBefore;
+    }
+    return completeAttributeValueUnquoted(code);
+  }
+  function completeAttributeValueQuoted(code) {
+    if (code === markerB) {
+      effects.consume(code);
+      markerB = null;
+      return completeAttributeValueQuotedAfter;
+    }
+    if (code === null || markdownLineEnding(code)) {
+      return nok(code);
+    }
+    effects.consume(code);
+    return completeAttributeValueQuoted;
+  }
+  function completeAttributeValueUnquoted(code) {
+    if (code === null || code === 34 || code === 39 || code === 47 || code === 60 || code === 61 || code === 62 || code === 96 || markdownLineEndingOrSpace(code)) {
+      return completeAttributeNameAfter(code);
+    }
+    effects.consume(code);
+    return completeAttributeValueUnquoted;
+  }
+  function completeAttributeValueQuotedAfter(code) {
+    if (code === 47 || code === 62 || markdownSpace(code)) {
+      return completeAttributeNameBefore(code);
+    }
+    return nok(code);
+  }
+  function completeEnd(code) {
+    if (code === 62) {
+      effects.consume(code);
+      return completeAfter;
+    }
+    return nok(code);
+  }
+  function completeAfter(code) {
+    if (code === null || markdownLineEnding(code)) {
+      return continuation(code);
+    }
+    if (markdownSpace(code)) {
+      effects.consume(code);
+      return completeAfter;
+    }
+    return nok(code);
+  }
+  function continuation(code) {
+    if (code === 45 && marker === 2) {
+      effects.consume(code);
+      return continuationCommentInside;
+    }
+    if (code === 60 && marker === 1) {
+      effects.consume(code);
+      return continuationRawTagOpen;
+    }
+    if (code === 62 && marker === 4) {
+      effects.consume(code);
+      return continuationClose;
+    }
+    if (code === 63 && marker === 3) {
+      effects.consume(code);
+      return continuationDeclarationInside;
+    }
+    if (code === 93 && marker === 5) {
+      effects.consume(code);
+      return continuationCdataInside;
+    }
+    if (markdownLineEnding(code) && (marker === 6 || marker === 7)) {
+      effects.exit("htmlFlowData");
+      return effects.check(blankLineBefore, continuationAfter, continuationStart)(code);
+    }
+    if (code === null || markdownLineEnding(code)) {
+      effects.exit("htmlFlowData");
+      return continuationStart(code);
+    }
+    effects.consume(code);
+    return continuation;
+  }
+  function continuationStart(code) {
+    return effects.check(nonLazyContinuation, continuationStartNonLazy, continuationAfter)(code);
+  }
+  function continuationStartNonLazy(code) {
+    effects.enter("lineEnding");
+    effects.consume(code);
+    effects.exit("lineEnding");
+    return continuationBefore;
+  }
+  function continuationBefore(code) {
+    if (code === null || markdownLineEnding(code)) {
+      return continuationStart(code);
+    }
+    effects.enter("htmlFlowData");
+    return continuation(code);
+  }
+  function continuationCommentInside(code) {
+    if (code === 45) {
+      effects.consume(code);
+      return continuationDeclarationInside;
+    }
+    return continuation(code);
+  }
+  function continuationRawTagOpen(code) {
+    if (code === 47) {
+      effects.consume(code);
+      buffer = "";
+      return continuationRawEndTag;
+    }
+    return continuation(code);
+  }
+  function continuationRawEndTag(code) {
+    if (code === 62) {
+      const name = buffer.toLowerCase();
+      if (htmlRawNames.includes(name)) {
+        effects.consume(code);
+        return continuationClose;
+      }
+      return continuation(code);
+    }
+    if (asciiAlpha(code) && buffer.length < 8) {
+      effects.consume(code);
+      buffer += String.fromCharCode(code);
+      return continuationRawEndTag;
+    }
+    return continuation(code);
+  }
+  function continuationCdataInside(code) {
+    if (code === 93) {
+      effects.consume(code);
+      return continuationDeclarationInside;
+    }
+    return continuation(code);
+  }
+  function continuationDeclarationInside(code) {
+    if (code === 62) {
+      effects.consume(code);
+      return continuationClose;
+    }
+    if (code === 45 && marker === 2) {
+      effects.consume(code);
+      return continuationDeclarationInside;
+    }
+    return continuation(code);
+  }
+  function continuationClose(code) {
+    if (code === null || markdownLineEnding(code)) {
+      effects.exit("htmlFlowData");
+      return continuationAfter(code);
+    }
+    effects.consume(code);
+    return continuationClose;
+  }
+  function continuationAfter(code) {
+    effects.exit("htmlFlow");
+    return ok(code);
+  }
+}
+function tokenizeBlankLineBefore(effects, ok, nok) {
+  return start;
+  function start(code) {
+    effects.enter("lineEnding");
+    effects.consume(code);
+    effects.exit("lineEnding");
+    return effects.attempt(blankLine, ok, nok);
+  }
+}
+// engine/node_modules/micromark-core-commonmark/lib/html-text.js
+var htmlText = {
+  name: "htmlText",
+  tokenize: tokenizeHtmlText
+};
+function tokenizeHtmlText(effects, ok, nok) {
+  const self2 = this;
+  let marker;
+  let index;
+  let returnState;
+  return start;
+  function start(code) {
+    effects.enter("htmlText");
+    effects.enter("htmlTextData");
+    effects.consume(code);
+    return open;
+  }
+  function open(code) {
+    if (code === 33) {
+      effects.consume(code);
+      return declarationOpen;
+    }
+    if (code === 47) {
+      effects.consume(code);
+      return tagCloseStart;
+    }
+    if (code === 63) {
+      effects.consume(code);
+      return instruction;
+    }
+    if (asciiAlpha(code)) {
+      effects.consume(code);
+      return tagOpen;
+    }
+    return nok(code);
+  }
+  function declarationOpen(code) {
+    if (code === 45) {
+      effects.consume(code);
+      return commentOpenInside;
+    }
+    if (code === 91) {
+      effects.consume(code);
+      index = 0;
+      return cdataOpenInside;
+    }
+    if (asciiAlpha(code)) {
+      effects.consume(code);
+      return declaration;
+    }
+    return nok(code);
+  }
+  function commentOpenInside(code) {
+    if (code === 45) {
+      effects.consume(code);
+      return commentEnd;
+    }
+    return nok(code);
+  }
+  function comment(code) {
+    if (code === null) {
+      return nok(code);
+    }
+    if (code === 45) {
+      effects.consume(code);
+      return commentClose;
+    }
+    if (markdownLineEnding(code)) {
+      returnState = comment;
+      return lineEndingBefore(code);
+    }
+    effects.consume(code);
+    return comment;
+  }
+  function commentClose(code) {
+    if (code === 45) {
+      effects.consume(code);
+      return commentEnd;
+    }
+    return comment(code);
+  }
+  function commentEnd(code) {
+    return code === 62 ? end(code) : code === 45 ? commentClose(code) : comment(code);
+  }
+  function cdataOpenInside(code) {
+    const value = "CDATA[";
+    if (code === value.charCodeAt(index++)) {
+      effects.consume(code);
+      return index === value.length ? cdata : cdataOpenInside;
+    }
+    return nok(code);
+  }
+  function cdata(code) {
+    if (code === null) {
+      return nok(code);
+    }
+    if (code === 93) {
+      effects.consume(code);
+      return cdataClose;
+    }
+    if (markdownLineEnding(code)) {
+      returnState = cdata;
+      return lineEndingBefore(code);
+    }
+    effects.consume(code);
+    return cdata;
+  }
+  function cdataClose(code) {
+    if (code === 93) {
+      effects.consume(code);
+      return cdataEnd;
+    }
+    return cdata(code);
+  }
+  function cdataEnd(code) {
+    if (code === 62) {
+      return end(code);
+    }
+    if (code === 93) {
+      effects.consume(code);
+      return cdataEnd;
+    }
+    return cdata(code);
+  }
+  function declaration(code) {
+    if (code === null || code === 62) {
+      return end(code);
+    }
+    if (markdownLineEnding(code)) {
+      returnState = declaration;
+      return lineEndingBefore(code);
+    }
+    effects.consume(code);
+    return declaration;
+  }
+  function instruction(code) {
+    if (code === null) {
+      return nok(code);
+    }
+    if (code === 63) {
+      effects.consume(code);
+      return instructionClose;
+    }
+    if (markdownLineEnding(code)) {
+      returnState = instruction;
+      return lineEndingBefore(code);
+    }
+    effects.consume(code);
+    return instruction;
+  }
+  function instructionClose(code) {
+    return code === 62 ? end(code) : instruction(code);
+  }
+  function tagCloseStart(code) {
+    if (asciiAlpha(code)) {
+      effects.consume(code);
+      return tagClose;
+    }
+    return nok(code);
+  }
+  function tagClose(code) {
+    if (code === 45 || asciiAlphanumeric(code)) {
+      effects.consume(code);
+      return tagClose;
+    }
+    return tagCloseBetween(code);
+  }
+  function tagCloseBetween(code) {
+    if (markdownLineEnding(code)) {
+      returnState = tagCloseBetween;
+      return lineEndingBefore(code);
+    }
+    if (markdownSpace(code)) {
+      effects.consume(code);
+      return tagCloseBetween;
+    }
+    return end(code);
+  }
+  function tagOpen(code) {
+    if (code === 45 || asciiAlphanumeric(code)) {
+      effects.consume(code);
+      return tagOpen;
+    }
+    if (code === 47 || code === 62 || markdownLineEndingOrSpace(code)) {
+      return tagOpenBetween(code);
+    }
+    return nok(code);
+  }
+  function tagOpenBetween(code) {
+    if (code === 47) {
+      effects.consume(code);
+      return end;
+    }
+    if (code === 58 || code === 95 || asciiAlpha(code)) {
+      effects.consume(code);
+      return tagOpenAttributeName;
+    }
+    if (markdownLineEnding(code)) {
+      returnState = tagOpenBetween;
+      return lineEndingBefore(code);
+    }
+    if (markdownSpace(code)) {
+      effects.consume(code);
+      return tagOpenBetween;
+    }
+    return end(code);
+  }
+  function tagOpenAttributeName(code) {
+    if (code === 45 || code === 46 || code === 58 || code === 95 || asciiAlphanumeric(code)) {
+      effects.consume(code);
+      return tagOpenAttributeName;
+    }
+    return tagOpenAttributeNameAfter(code);
+  }
+  function tagOpenAttributeNameAfter(code) {
+    if (code === 61) {
+      effects.consume(code);
+      return tagOpenAttributeValueBefore;
+    }
+    if (markdownLineEnding(code)) {
+      returnState = tagOpenAttributeNameAfter;
+      return lineEndingBefore(code);
+    }
+    if (markdownSpace(code)) {
+      effects.consume(code);
+      return tagOpenAttributeNameAfter;
+    }
+    return tagOpenBetween(code);
+  }
+  function tagOpenAttributeValueBefore(code) {
+    if (code === null || code === 60 || code === 61 || code === 62 || code === 96) {
+      return nok(code);
+    }
+    if (code === 34 || code === 39) {
+      effects.consume(code);
+      marker = code;
+      return tagOpenAttributeValueQuoted;
+    }
+    if (markdownLineEnding(code)) {
+      returnState = tagOpenAttributeValueBefore;
+      return lineEndingBefore(code);
+    }
+    if (markdownSpace(code)) {
+      effects.consume(code);
+      return tagOpenAttributeValueBefore;
+    }
+    effects.consume(code);
+    return tagOpenAttributeValueUnquoted;
+  }
+  function tagOpenAttributeValueQuoted(code) {
+    if (code === marker) {
+      effects.consume(code);
+      marker = undefined;
+      return tagOpenAttributeValueQuotedAfter;
+    }
+    if (code === null) {
+      return nok(code);
+    }
+    if (markdownLineEnding(code)) {
+      returnState = tagOpenAttributeValueQuoted;
+      return lineEndingBefore(code);
+    }
+    effects.consume(code);
+    return tagOpenAttributeValueQuoted;
+  }
+  function tagOpenAttributeValueUnquoted(code) {
+    if (code === null || code === 34 || code === 39 || code === 60 || code === 61 || code === 96) {
+      return nok(code);
+    }
+    if (code === 47 || code === 62 || markdownLineEndingOrSpace(code)) {
+      return tagOpenBetween(code);
+    }
+    effects.consume(code);
+    return tagOpenAttributeValueUnquoted;
+  }
+  function tagOpenAttributeValueQuotedAfter(code) {
+    if (code === 47 || code === 62 || markdownLineEndingOrSpace(code)) {
+      return tagOpenBetween(code);
+    }
+    return nok(code);
+  }
+  function end(code) {
+    if (code === 62) {
+      effects.consume(code);
+      effects.exit("htmlTextData");
+      effects.exit("htmlText");
+      return ok;
+    }
+    return nok(code);
+  }
+  function lineEndingBefore(code) {
+    effects.exit("htmlTextData");
+    effects.enter("lineEnding");
+    effects.consume(code);
+    effects.exit("lineEnding");
+    return lineEndingAfter;
+  }
+  function lineEndingAfter(code) {
+    return markdownSpace(code) ? factorySpace(effects, lineEndingAfterPrefix, "linePrefix", self2.parser.constructs.disable.null.includes("codeIndented") ? undefined : 4)(code) : lineEndingAfterPrefix(code);
+  }
+  function lineEndingAfterPrefix(code) {
+    effects.enter("htmlTextData");
+    return returnState(code);
+  }
+}
+// engine/node_modules/micromark-core-commonmark/lib/label-end.js
+var labelEnd = {
+  name: "labelEnd",
+  resolveAll: resolveAllLabelEnd,
+  resolveTo: resolveToLabelEnd,
+  tokenize: tokenizeLabelEnd
+};
+var resourceConstruct = {
+  tokenize: tokenizeResource
+};
+var referenceFullConstruct = {
+  tokenize: tokenizeReferenceFull
+};
+var referenceCollapsedConstruct = {
+  tokenize: tokenizeReferenceCollapsed
+};
+function resolveAllLabelEnd(events) {
+  let index = -1;
+  const newEvents = [];
+  while (++index < events.length) {
+    const token = events[index][1];
+    newEvents.push(events[index]);
+    if (token.type === "labelImage" || token.type === "labelLink" || token.type === "labelEnd") {
+      const offset = token.type === "labelImage" ? 4 : 2;
+      token.type = "data";
+      index += offset;
+    }
+  }
+  if (events.length !== newEvents.length) {
+    splice(events, 0, events.length, newEvents);
+  }
+  return events;
+}
+function resolveToLabelEnd(events, context) {
+  let index = events.length;
+  let offset = 0;
+  let open;
+  let close;
+  let media;
+  while (index--) {
+    const token = events[index][1];
+    if (open) {
+      if (token.type === "link" || token.type === "labelLink" && token._inactive) {
+        break;
+      }
+      if (events[index][0] === "enter" && token.type === "labelLink") {
+        token._inactive = true;
+      }
+    } else if (close) {
+      if (events[index][0] === "enter" && (token.type === "labelImage" || token.type === "labelLink") && !token._balanced) {
+        open = index;
+        if (token.type !== "labelLink") {
+          offset = 2;
+          break;
+        }
+      }
+    } else if (token.type === "labelEnd") {
+      close = index;
+    }
+  }
+  const group = {
+    type: events[open][1].type === "labelLink" ? "link" : "image",
+    start: {
+      ...events[open][1].start
+    },
+    end: {
+      ...events[events.length - 1][1].end
+    }
+  };
+  const label = {
+    type: "label",
+    start: {
+      ...events[open][1].start
+    },
+    end: {
+      ...events[close][1].end
+    }
+  };
+  const text = {
+    type: "labelText",
+    start: {
+      ...events[open + offset + 2][1].end
+    },
+    end: {
+      ...events[close - 2][1].start
+    }
+  };
+  media = [["enter", group, context], ["enter", label, context]];
+  media = push3(media, events.slice(open + 1, open + offset + 3));
+  media = push3(media, [["enter", text, context]]);
+  media = push3(media, resolveAll(context.parser.constructs.insideSpan.null, events.slice(open + offset + 4, close - 3), context));
+  media = push3(media, [["exit", text, context], events[close - 2], events[close - 1], ["exit", label, context]]);
+  media = push3(media, events.slice(close + 1));
+  media = push3(media, [["exit", group, context]]);
+  splice(events, open, events.length, media);
+  return events;
+}
+function tokenizeLabelEnd(effects, ok, nok) {
+  const self2 = this;
+  const labelStarts = self2._labelStarts;
+  let labelStart;
+  let defined;
+  if (labelStarts) {
+    while (labelStarts.length > 0 && labelStarts[labelStarts.length - 1]._balanced) {
+      labelStarts.pop();
+    }
+    labelStart = labelStarts[labelStarts.length - 1];
+  }
+  return start;
+  function start(code) {
+    if (!labelStart) {
+      return nok(code);
+    }
+    if (labelStart._inactive) {
+      return labelEndNok(code);
+    }
+    defined = self2.parser.defined.includes(normalizeIdentifier(self2.sliceSerialize({
+      start: labelStart.end,
+      end: self2.now()
+    })));
+    effects.enter("labelEnd");
+    effects.enter("labelMarker");
+    effects.consume(code);
+    effects.exit("labelMarker");
+    effects.exit("labelEnd");
+    return after;
+  }
+  function after(code) {
+    if (code === 40) {
+      return effects.attempt(resourceConstruct, labelEndOk, defined ? labelEndOk : labelEndNok)(code);
+    }
+    if (code === 91) {
+      return effects.attempt(referenceFullConstruct, labelEndOk, defined ? referenceNotFull : labelEndNok)(code);
+    }
+    return defined ? labelEndOk(code) : labelEndNok(code);
+  }
+  function referenceNotFull(code) {
+    return effects.attempt(referenceCollapsedConstruct, labelEndOk, labelEndNok)(code);
+  }
+  function labelEndOk(code) {
+    labelStarts.pop();
+    return ok(code);
+  }
+  function labelEndNok(code) {
+    labelStart._balanced = true;
+    return nok(code);
+  }
+}
+function tokenizeResource(effects, ok, nok) {
+  return resourceStart;
+  function resourceStart(code) {
+    effects.enter("resource");
+    effects.enter("resourceMarker");
+    effects.consume(code);
+    effects.exit("resourceMarker");
+    return resourceBefore;
+  }
+  function resourceBefore(code) {
+    return markdownLineEndingOrSpace(code) ? factoryWhitespace(effects, resourceOpen)(code) : resourceOpen(code);
+  }
+  function resourceOpen(code) {
+    if (code === 41) {
+      return resourceEnd(code);
+    }
+    return factoryDestination(effects, resourceDestinationAfter, resourceDestinationMissing, "resourceDestination", "resourceDestinationLiteral", "resourceDestinationLiteralMarker", "resourceDestinationRaw", "resourceDestinationString", 32)(code);
+  }
+  function resourceDestinationAfter(code) {
+    return markdownLineEndingOrSpace(code) ? factoryWhitespace(effects, resourceBetween)(code) : resourceEnd(code);
+  }
+  function resourceDestinationMissing(code) {
+    return nok(code);
+  }
+  function resourceBetween(code) {
+    if (code === 34 || code === 39 || code === 40) {
+      return factoryTitle(effects, resourceTitleAfter, nok, "resourceTitle", "resourceTitleMarker", "resourceTitleString")(code);
+    }
+    return resourceEnd(code);
+  }
+  function resourceTitleAfter(code) {
+    return markdownLineEndingOrSpace(code) ? factoryWhitespace(effects, resourceEnd)(code) : resourceEnd(code);
+  }
+  function resourceEnd(code) {
+    if (code === 41) {
+      effects.enter("resourceMarker");
+      effects.consume(code);
+      effects.exit("resourceMarker");
+      effects.exit("resource");
+      return ok;
+    }
+    return nok(code);
+  }
+}
+function tokenizeReferenceFull(effects, ok, nok) {
+  const self2 = this;
+  return referenceFull;
+  function referenceFull(code) {
+    return factoryLabel.call(self2, effects, referenceFullAfter, referenceFullMissing, "reference", "referenceMarker", "referenceString")(code);
+  }
+  function referenceFullAfter(code) {
+    return self2.parser.defined.includes(normalizeIdentifier(self2.sliceSerialize(self2.events[self2.events.length - 1][1]).slice(1, -1))) ? ok(code) : nok(code);
+  }
+  function referenceFullMissing(code) {
+    return nok(code);
+  }
+}
+function tokenizeReferenceCollapsed(effects, ok, nok) {
+  return referenceCollapsedStart;
+  function referenceCollapsedStart(code) {
+    effects.enter("reference");
+    effects.enter("referenceMarker");
+    effects.consume(code);
+    effects.exit("referenceMarker");
+    return referenceCollapsedOpen;
+  }
+  function referenceCollapsedOpen(code) {
+    if (code === 93) {
+      effects.enter("referenceMarker");
+      effects.consume(code);
+      effects.exit("referenceMarker");
+      effects.exit("reference");
+      return ok;
+    }
+    return nok(code);
+  }
+}
+// engine/node_modules/micromark-core-commonmark/lib/label-start-image.js
+var labelStartImage = {
+  name: "labelStartImage",
+  resolveAll: labelEnd.resolveAll,
+  tokenize: tokenizeLabelStartImage
+};
+function tokenizeLabelStartImage(effects, ok, nok) {
+  const self2 = this;
+  let labelImage;
+  return start;
+  function start(code) {
+    effects.enter("labelImage");
+    effects.enter("labelImageMarker");
+    effects.consume(code);
+    effects.exit("labelImageMarker");
+    return open;
+  }
+  function open(code) {
+    if (code === 91) {
+      effects.enter("labelMarker");
+      effects.consume(code);
+      effects.exit("labelMarker");
+      labelImage = effects.exit("labelImage");
+      return after;
+    }
+    return nok(code);
+  }
+  function after(code) {
+    if (code === 94 && "_hiddenFootnoteSupport" in self2.parser.constructs) {
+      return nok(code);
+    }
+    self2._labelStarts = self2._labelStarts || [];
+    self2._labelStarts.push(labelImage);
+    return ok(code);
+  }
+}
+// engine/node_modules/micromark-core-commonmark/lib/label-start-link.js
+var labelStartLink = {
+  name: "labelStartLink",
+  resolveAll: labelEnd.resolveAll,
+  tokenize: tokenizeLabelStartLink
+};
+function tokenizeLabelStartLink(effects, ok, nok) {
+  const self2 = this;
+  let labelLink;
+  return start;
+  function start(code) {
+    effects.enter("labelLink");
+    effects.enter("labelMarker");
+    effects.consume(code);
+    effects.exit("labelMarker");
+    labelLink = effects.exit("labelLink");
+    return after;
+  }
+  function after(code) {
+    if (code === 94 && "_hiddenFootnoteSupport" in self2.parser.constructs) {
+      return nok(code);
+    }
+    self2._labelStarts = self2._labelStarts || [];
+    self2._labelStarts.push(labelLink);
+    return ok(code);
+  }
+}
+// engine/node_modules/micromark-core-commonmark/lib/line-ending.js
+var lineEnding = {
+  name: "lineEnding",
+  tokenize: tokenizeLineEnding
+};
+function tokenizeLineEnding(effects, ok) {
+  return start;
+  function start(code) {
+    effects.enter("lineEnding");
+    effects.consume(code);
+    effects.exit("lineEnding");
+    return factorySpace(effects, ok, "linePrefix");
+  }
+}
+// engine/node_modules/micromark-core-commonmark/lib/thematic-break.js
+var thematicBreak = {
+  name: "thematicBreak",
+  tokenize: tokenizeThematicBreak
+};
+function tokenizeThematicBreak(effects, ok, nok) {
+  let size = 0;
+  let marker;
+  return start;
+  function start(code) {
+    effects.enter("thematicBreak");
+    return before(code);
+  }
+  function before(code) {
+    marker = code;
+    return atBreak(code);
+  }
+  function atBreak(code) {
+    if (code === marker) {
+      effects.enter("thematicBreakSequence");
+      return sequence(code);
+    }
+    if (size >= 3 && (code === null || markdownLineEnding(code))) {
+      effects.exit("thematicBreak");
+      return ok(code);
+    }
+    return nok(code);
+  }
+  function sequence(code) {
+    if (code === marker) {
+      effects.consume(code);
+      size++;
+      return sequence;
+    }
+    effects.exit("thematicBreakSequence");
+    return markdownSpace(code) ? factorySpace(effects, atBreak, "whitespace")(code) : atBreak(code);
+  }
+}
+
+// engine/node_modules/micromark-core-commonmark/lib/list.js
+var list = {
+  continuation: {
+    tokenize: tokenizeListContinuation
+  },
+  exit: tokenizeListEnd,
+  name: "list",
+  tokenize: tokenizeListStart
+};
+var listItemPrefixWhitespaceConstruct = {
+  partial: true,
+  tokenize: tokenizeListItemPrefixWhitespace
+};
+var indentConstruct = {
+  partial: true,
+  tokenize: tokenizeIndent
+};
+function tokenizeListStart(effects, ok, nok) {
+  const self2 = this;
+  const tail = self2.events[self2.events.length - 1];
+  let initialSize = tail && tail[1].type === "linePrefix" ? tail[2].sliceSerialize(tail[1], true).length : 0;
+  let size = 0;
+  return start;
+  function start(code) {
+    const kind = self2.containerState.type || (code === 42 || code === 43 || code === 45 ? "listUnordered" : "listOrdered");
+    if (kind === "listUnordered" ? !self2.containerState.marker || code === self2.containerState.marker : asciiDigit(code)) {
+      if (!self2.containerState.type) {
+        self2.containerState.type = kind;
+        effects.enter(kind, {
+          _container: true
+        });
+      }
+      if (kind === "listUnordered") {
+        effects.enter("listItemPrefix");
+        return code === 42 || code === 45 ? effects.check(thematicBreak, nok, atMarker)(code) : atMarker(code);
+      }
+      if (!self2.interrupt || code === 49) {
+        effects.enter("listItemPrefix");
+        effects.enter("listItemValue");
+        return inside(code);
+      }
+    }
+    return nok(code);
+  }
+  function inside(code) {
+    if (asciiDigit(code) && ++size < 10) {
+      effects.consume(code);
+      return inside;
+    }
+    if ((!self2.interrupt || size < 2) && (self2.containerState.marker ? code === self2.containerState.marker : code === 41 || code === 46)) {
+      effects.exit("listItemValue");
+      return atMarker(code);
+    }
+    return nok(code);
+  }
+  function atMarker(code) {
+    effects.enter("listItemMarker");
+    effects.consume(code);
+    effects.exit("listItemMarker");
+    self2.containerState.marker = self2.containerState.marker || code;
+    return effects.check(blankLine, self2.interrupt ? nok : onBlank, effects.attempt(listItemPrefixWhitespaceConstruct, endOfPrefix, otherPrefix));
+  }
+  function onBlank(code) {
+    self2.containerState.initialBlankLine = true;
+    initialSize++;
+    return endOfPrefix(code);
+  }
+  function otherPrefix(code) {
+    if (markdownSpace(code)) {
+      effects.enter("listItemPrefixWhitespace");
+      effects.consume(code);
+      effects.exit("listItemPrefixWhitespace");
+      return endOfPrefix;
+    }
+    return nok(code);
+  }
+  function endOfPrefix(code) {
+    self2.containerState.size = initialSize + self2.sliceSerialize(effects.exit("listItemPrefix"), true).length;
+    return ok(code);
+  }
+}
+function tokenizeListContinuation(effects, ok, nok) {
+  const self2 = this;
+  self2.containerState._closeFlow = undefined;
+  return effects.check(blankLine, onBlank, notBlank);
+  function onBlank(code) {
+    self2.containerState.furtherBlankLines = self2.containerState.furtherBlankLines || self2.containerState.initialBlankLine;
+    return factorySpace(effects, ok, "listItemIndent", self2.containerState.size + 1)(code);
+  }
+  function notBlank(code) {
+    if (self2.containerState.furtherBlankLines || !markdownSpace(code)) {
+      self2.containerState.furtherBlankLines = undefined;
+      self2.containerState.initialBlankLine = undefined;
+      return notInCurrentItem(code);
+    }
+    self2.containerState.furtherBlankLines = undefined;
+    self2.containerState.initialBlankLine = undefined;
+    return effects.attempt(indentConstruct, ok, notInCurrentItem)(code);
+  }
+  function notInCurrentItem(code) {
+    self2.containerState._closeFlow = true;
+    self2.interrupt = undefined;
+    return factorySpace(effects, effects.attempt(list, ok, nok), "linePrefix", self2.parser.constructs.disable.null.includes("codeIndented") ? undefined : 4)(code);
+  }
+}
+function tokenizeIndent(effects, ok, nok) {
+  const self2 = this;
+  return factorySpace(effects, afterPrefix, "listItemIndent", self2.containerState.size + 1);
+  function afterPrefix(code) {
+    const tail = self2.events[self2.events.length - 1];
+    return tail && tail[1].type === "listItemIndent" && tail[2].sliceSerialize(tail[1], true).length === self2.containerState.size ? ok(code) : nok(code);
+  }
+}
+function tokenizeListEnd(effects) {
+  effects.exit(this.containerState.type);
+}
+function tokenizeListItemPrefixWhitespace(effects, ok, nok) {
+  const self2 = this;
+  return factorySpace(effects, afterPrefix, "listItemPrefixWhitespace", self2.parser.constructs.disable.null.includes("codeIndented") ? undefined : 4 + 1);
+  function afterPrefix(code) {
+    const tail = self2.events[self2.events.length - 1];
+    return !markdownSpace(code) && tail && tail[1].type === "listItemPrefixWhitespace" ? ok(code) : nok(code);
+  }
+}
+// engine/node_modules/micromark-core-commonmark/lib/setext-underline.js
+var setextUnderline = {
+  name: "setextUnderline",
+  resolveTo: resolveToSetextUnderline,
+  tokenize: tokenizeSetextUnderline
+};
+function resolveToSetextUnderline(events, context) {
+  const editMap = new EditMap;
+  let index = events.length;
+  let content;
+  let text;
+  let definition;
+  while (index--) {
+    if (events[index][0] === "enter") {
+      if (events[index][1].type === "content") {
+        content = index;
+        break;
+      }
+      if (events[index][1].type === "paragraph") {
+        text = index;
+      }
+    } else {
+      if (events[index][1].type === "content") {
+        editMap.add(index, 1, []);
+      }
+      if (!definition && events[index][1].type === "definition") {
+        definition = index;
+      }
+    }
+  }
+  const heading = {
+    type: "setextHeading",
+    start: {
+      ...events[content][1].start
+    },
+    end: {
+      ...events[events.length - 1][1].end
+    }
+  };
+  events[text][1].type = "setextHeadingText";
+  if (definition) {
+    editMap.add(text, 0, [["enter", heading, context]]);
+    editMap.add(definition + 1, 0, [["exit", events[content][1], context]]);
+    events[content][1].end = {
+      ...events[definition][1].end
+    };
+  } else {
+    events[content][1] = heading;
+  }
+  editMap.add(events.length, 0, [["exit", heading, context]]);
+  editMap.consume(events);
+  return events;
+}
+function tokenizeSetextUnderline(effects, ok, nok) {
+  const self2 = this;
+  let marker;
+  return start;
+  function start(code) {
+    let index = self2.events.length;
+    let paragraph;
+    while (index--) {
+      if (self2.events[index][1].type !== "lineEnding" && self2.events[index][1].type !== "linePrefix" && self2.events[index][1].type !== "content") {
+        paragraph = self2.events[index][1].type === "paragraph";
+        break;
+      }
+    }
+    if (!self2.parser.lazy[self2.now().line] && (self2.interrupt || paragraph)) {
+      effects.enter("setextHeadingLine");
+      marker = code;
+      return before(code);
+    }
+    return nok(code);
+  }
+  function before(code) {
+    effects.enter("setextHeadingLineSequence");
+    return inside(code);
+  }
+  function inside(code) {
+    if (code === marker) {
+      effects.consume(code);
+      return inside;
+    }
+    effects.exit("setextHeadingLineSequence");
+    return markdownSpace(code) ? factorySpace(effects, after, "lineSuffix")(code) : after(code);
+  }
+  function after(code) {
+    if (code === null || markdownLineEnding(code)) {
+      effects.exit("setextHeadingLine");
+      return ok(code);
+    }
+    return nok(code);
+  }
+}
+// engine/node_modules/micromark/lib/initialize/flow.js
+var flow = {
+  tokenize: initializeFlow
+};
+function initializeFlow(effects) {
+  const self2 = this;
+  const initial = effects.attempt(blankLine, atBlankEnding, effects.attempt(this.parser.constructs.flowInitial, afterConstruct, factorySpace(effects, effects.attempt(this.parser.constructs.flow, afterConstruct, effects.attempt(content2, afterConstruct)), "linePrefix")));
+  return initial;
+  function atBlankEnding(code) {
+    if (code === null) {
+      effects.consume(code);
+      return;
+    }
+    effects.enter("lineEndingBlank");
+    effects.consume(code);
+    effects.exit("lineEndingBlank");
+    self2.currentConstruct = undefined;
+    return initial;
+  }
+  function afterConstruct(code) {
+    if (code === null) {
+      effects.consume(code);
+      return;
+    }
+    effects.enter("lineEnding");
+    effects.consume(code);
+    effects.exit("lineEnding");
+    self2.currentConstruct = undefined;
+    return initial;
+  }
+}
+
+// engine/node_modules/micromark/lib/initialize/text.js
+var resolver = {
+  resolveAll: createResolver()
+};
+var string = initializeFactory("string");
+var text4 = initializeFactory("text");
+function initializeFactory(field) {
+  return {
+    resolveAll: createResolver(field === "text" ? resolveAllLineSuffixes : undefined),
+    tokenize: initializeText
+  };
+  function initializeText(effects) {
+    const self2 = this;
+    const constructs = this.parser.constructs[field];
+    const text = effects.attempt(constructs, start, notText);
+    return start;
+    function start(code) {
+      return atBreak(code) ? text(code) : notText(code);
+    }
+    function notText(code) {
+      if (code === null) {
+        effects.consume(code);
+        return;
+      }
+      effects.enter("data");
+      effects.consume(code);
+      return data;
+    }
+    function data(code) {
+      if (atBreak(code)) {
+        effects.exit("data");
+        return text(code);
+      }
+      effects.consume(code);
+      return data;
+    }
+    function atBreak(code) {
+      if (code === null) {
+        return true;
+      }
+      const list = constructs[code];
+      let index = -1;
+      if (list) {
+        while (++index < list.length) {
+          const item = list[index];
+          if (!item.previous || item.previous.call(self2, self2.previous)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+  }
+}
+function createResolver(extraResolver) {
+  return resolveAllText;
+  function resolveAllText(events, context) {
+    let index = -1;
+    let enter;
+    while (++index <= events.length) {
+      if (enter === undefined) {
+        if (events[index] && events[index][1].type === "data") {
+          enter = index;
+          index++;
+        }
+      } else if (!events[index] || events[index][1].type !== "data") {
+        if (index !== enter + 2) {
+          events[enter][1].end = events[index - 1][1].end;
+          events.splice(enter + 2, index - enter - 2);
+          index = enter + 2;
+        }
+        enter = undefined;
+      }
+    }
+    return extraResolver ? extraResolver(events, context) : events;
+  }
+}
+function resolveAllLineSuffixes(events, context) {
+  const editMap = new EditMap;
+  let eventIndex = 0;
+  while (++eventIndex <= events.length) {
+    if ((eventIndex === events.length || events[eventIndex][1].type === "lineEnding") && events[eventIndex - 1][1].type === "data") {
+      const data = events[eventIndex - 1][1];
+      const chunks = context.sliceStream(data);
+      let index = chunks.length;
+      let bufferIndex = -1;
+      let size = 0;
+      let tabs;
+      while (index--) {
+        const chunk = chunks[index];
+        if (typeof chunk === "string") {
+          bufferIndex = chunk.length;
+          while (chunk.charCodeAt(bufferIndex - 1) === 32) {
+            size++;
+            bufferIndex--;
+          }
+          if (bufferIndex) {
+            break;
+          }
+          bufferIndex = -1;
+        } else if (chunk === -2) {
+          tabs = true;
+          size++;
+        } else if (chunk === -1) {} else {
+          index++;
+          break;
+        }
+      }
+      if (context._contentTypeTextTrailing && eventIndex === events.length) {
+        size = 0;
+      }
+      if (size) {
+        const token = {
+          type: eventIndex === events.length || tabs || size < 2 ? "lineSuffix" : "hardBreakTrailing",
+          start: {
+            _bufferIndex: index ? bufferIndex : data.start._bufferIndex + bufferIndex,
+            _index: data.start._index + index,
+            line: data.end.line,
+            column: data.end.column - size,
+            offset: data.end.offset - size
+          },
+          end: {
+            ...data.end
+          }
+        };
+        data.end = {
+          ...token.start
+        };
+        if (data.start.offset === data.end.offset) {
+          Object.assign(data, token);
+        } else {
+          editMap.add(eventIndex, 0, [["enter", token, context], ["exit", token, context]]);
+        }
+      }
+      eventIndex++;
+    }
+  }
+  editMap.consume(events);
+  return events;
+}
+
+// engine/node_modules/micromark/lib/constructs.js
+var document3 = {
+  [42]: list,
+  [43]: list,
+  [45]: list,
+  [48]: list,
+  [49]: list,
+  [50]: list,
+  [51]: list,
+  [52]: list,
+  [53]: list,
+  [54]: list,
+  [55]: list,
+  [56]: list,
+  [57]: list,
+  [62]: blockQuote
+};
+var contentInitial = {
+  [91]: definition
+};
+var flowInitial = {
+  [-2]: codeIndented,
+  [-1]: codeIndented,
+  [32]: codeIndented
+};
+var flow2 = {
+  [35]: headingAtx,
+  [42]: thematicBreak,
+  [45]: [setextUnderline, thematicBreak],
+  [60]: htmlFlow,
+  [61]: setextUnderline,
+  [95]: thematicBreak,
+  [96]: codeFenced,
+  [126]: codeFenced
+};
+var string2 = {
+  [38]: characterReference,
+  [92]: characterEscape
+};
+var text5 = {
+  [-5]: lineEnding,
+  [-4]: lineEnding,
+  [-3]: lineEnding,
+  [33]: labelStartImage,
+  [38]: characterReference,
+  [42]: attention,
+  [60]: [autolink, htmlText],
+  [91]: labelStartLink,
+  [92]: [hardBreakEscape, characterEscape],
+  [93]: labelEnd,
+  [95]: attention,
+  [96]: codeText
+};
+var insideSpan = {
+  null: [attention, resolver]
+};
+var attentionMarkers = {
+  null: [42, 95]
+};
+var disable = {
+  null: []
+};
+
+// engine/node_modules/micromark/lib/create-tokenizer.js
+function createTokenizer(parser, initialize, from) {
+  let point = {
+    _bufferIndex: -1,
+    _index: 0,
+    line: from && from.line || 1,
+    column: from && from.column || 1,
+    offset: from && from.offset || 0
+  };
+  const columnStart = {};
+  const resolveAllConstructs = [];
+  let chunks = [];
+  let stack = [];
+  let consumed = true;
+  const effects = {
+    attempt: constructFactory(onsuccessfulconstruct),
+    check: constructFactory(onsuccessfulcheck),
+    consume,
+    enter,
+    exit,
+    interrupt: constructFactory(onsuccessfulcheck, {
+      interrupt: true
+    })
+  };
+  const context = {
+    code: null,
+    containerState: {},
+    defineSkip,
+    events: [],
+    now,
+    parser,
+    previous: null,
+    sliceSerialize,
+    sliceStream,
+    write
+  };
+  let state = initialize.tokenize.call(context, effects);
+  let expectedCode;
+  if (initialize.resolveAll) {
+    resolveAllConstructs.push(initialize);
+  }
+  return context;
+  function write(slice) {
+    chunks = push3(chunks, slice);
+    main();
+    if (chunks[chunks.length - 1] !== null) {
+      return [];
+    }
+    addResult(initialize, 0);
+    context.events = resolveAll(resolveAllConstructs, context.events, context);
+    return context.events;
+  }
+  function sliceSerialize(token, expandTabs) {
+    return serializeChunks(sliceStream(token), expandTabs);
+  }
+  function sliceStream(token) {
+    return sliceChunks(chunks, token);
+  }
+  function now() {
+    const {
+      _bufferIndex,
+      _index,
+      line,
+      column,
+      offset
+    } = point;
+    return {
+      _bufferIndex,
+      _index,
+      line,
+      column,
+      offset
+    };
+  }
+  function defineSkip(value) {
+    columnStart[value.line] = value.column;
+    accountForPotentialSkip();
+  }
+  function main() {
+    while (point._index < chunks.length) {
+      const chunk = chunks[point._index];
+      if (typeof chunk === "string") {
+        const chunkIndex = point._index;
+        if (point._bufferIndex < 0) {
+          point._bufferIndex = 0;
+        }
+        while (point._index === chunkIndex && point._bufferIndex < chunk.length) {
+          go(chunk.charCodeAt(point._bufferIndex));
+        }
+      } else {
+        go(chunk);
+      }
+    }
+  }
+  function go(code) {
+    consumed = undefined;
+    expectedCode = code;
+    state = state(code);
+  }
+  function consume(code) {
+    if (markdownLineEnding(code)) {
+      point.line++;
+      point.column = 1;
+      point.offset += code === -3 ? 2 : 1;
+      accountForPotentialSkip();
+    } else if (code !== -1) {
+      point.column++;
+      point.offset++;
+    }
+    if (point._bufferIndex < 0) {
+      point._index++;
+    } else {
+      point._bufferIndex++;
+      if (point._bufferIndex === chunks[point._index].length) {
+        point._bufferIndex = -1;
+        point._index++;
+      }
+    }
+    context.previous = code;
+    consumed = true;
+  }
+  function enter(type, fields) {
+    const token = fields || {};
+    token.type = type;
+    token.start = now();
+    context.events.push(["enter", token, context]);
+    stack.push(token);
+    return token;
+  }
+  function exit(type) {
+    const token = stack.pop();
+    token.end = now();
+    context.events.push(["exit", token, context]);
+    return token;
+  }
+  function onsuccessfulconstruct(construct, info) {
+    addResult(construct, info.from);
+  }
+  function onsuccessfulcheck(_, info) {
+    info.restore();
+  }
+  function constructFactory(onreturn, fields) {
+    return hook;
+    function hook(constructs, returnState, bogusState) {
+      let listOfConstructs;
+      let constructIndex;
+      let currentConstruct;
+      let info;
+      return Array.isArray(constructs) ? handleListOfConstructs(constructs) : ("tokenize" in constructs) ? handleListOfConstructs([constructs]) : handleMapOfConstructs(constructs);
+      function handleMapOfConstructs(map) {
+        return start;
+        function start(code) {
+          const left = code !== null && map[code];
+          const all = code !== null && map.null;
+          const list = [
+            ...Array.isArray(left) ? left : left ? [left] : [],
+            ...Array.isArray(all) ? all : all ? [all] : []
+          ];
+          return handleListOfConstructs(list)(code);
+        }
+      }
+      function handleListOfConstructs(list) {
+        listOfConstructs = list;
+        constructIndex = 0;
+        if (list.length === 0) {
+          return bogusState;
+        }
+        return handleConstruct(list[constructIndex]);
+      }
+      function handleConstruct(construct) {
+        return start;
+        function start(code) {
+          info = store();
+          currentConstruct = construct;
+          if (!construct.partial) {
+            context.currentConstruct = construct;
+          }
+          if (construct.name && context.parser.constructs.disable.null.includes(construct.name)) {
+            return nok(code);
+          }
+          return construct.tokenize.call(fields ? Object.assign(Object.create(context), fields) : context, effects, ok, nok)(code);
+        }
+      }
+      function ok(code) {
+        consumed = true;
+        onreturn(currentConstruct, info);
+        return returnState;
+      }
+      function nok(code) {
+        consumed = true;
+        info.restore();
+        if (++constructIndex < listOfConstructs.length) {
+          return handleConstruct(listOfConstructs[constructIndex]);
+        }
+        return bogusState;
+      }
+    }
+  }
+  function addResult(construct, from) {
+    if (construct.resolveAll && !resolveAllConstructs.includes(construct)) {
+      resolveAllConstructs.push(construct);
+    }
+    if (construct.resolve) {
+      splice(context.events, from, context.events.length - from, construct.resolve(context.events.slice(from), context));
+    }
+    if (construct.resolveTo) {
+      context.events = construct.resolveTo(context.events, context);
+    }
+  }
+  function store() {
+    const startPoint = now();
+    const startPrevious = context.previous;
+    const startCurrentConstruct = context.currentConstruct;
+    const startEventsIndex = context.events.length;
+    const startStack = Array.from(stack);
+    return {
+      from: startEventsIndex,
+      restore
+    };
+    function restore() {
+      point = startPoint;
+      context.previous = startPrevious;
+      context.currentConstruct = startCurrentConstruct;
+      context.events.length = startEventsIndex;
+      stack = startStack;
+      accountForPotentialSkip();
+    }
+  }
+  function accountForPotentialSkip() {
+    if (point.line in columnStart && point.column < 2) {
+      point.column = columnStart[point.line];
+      point.offset += columnStart[point.line] - 1;
+    }
+  }
+}
+function sliceChunks(chunks, token) {
+  const startIndex = token.start._index;
+  const startBufferIndex = token.start._bufferIndex;
+  const endIndex = token.end._index;
+  const endBufferIndex = token.end._bufferIndex;
+  let view;
+  if (startIndex === endIndex) {
+    view = [chunks[startIndex].slice(startBufferIndex, endBufferIndex)];
+  } else {
+    view = chunks.slice(startIndex, endIndex);
+    if (startBufferIndex > -1) {
+      const head = view[0];
+      if (typeof head === "string") {
+        view[0] = head.slice(startBufferIndex);
+      } else {
+        view.shift();
+      }
+    }
+    if (endBufferIndex > 0) {
+      view.push(chunks[endIndex].slice(0, endBufferIndex));
+    }
+  }
+  return view;
+}
+function serializeChunks(chunks, expandTabs) {
+  let index = -1;
+  const result = [];
+  let atTab;
+  while (++index < chunks.length) {
+    const chunk = chunks[index];
+    let value;
+    if (typeof chunk === "string") {
+      value = chunk;
+    } else {
+      switch (chunk) {
+        case -5: {
+          value = "\r";
+          break;
+        }
+        case -4: {
+          value = `
+`;
+          break;
+        }
+        case -3: {
+          value = "\r" + `
+`;
+          break;
+        }
+        case -2: {
+          value = expandTabs ? " " : "\t";
+          break;
+        }
+        case -1: {
+          if (!expandTabs && atTab) {
+            continue;
+          }
+          value = " ";
+          break;
+        }
+        default: {
+          value = String.fromCharCode(chunk);
+        }
+      }
+    }
+    atTab = chunk === -2;
+    result.push(value);
+  }
+  return result.join("");
+}
+
+// engine/node_modules/micromark/lib/parse.js
+function parse(options) {
+  const settings = options || {};
+  const constructs = combineExtensions([exports_constructs, ...settings.extensions || []]);
+  const parser = {
+    constructs,
+    content: create(content),
+    defined: [],
+    document: create(document2),
+    flow: create(flow),
+    lazy: {},
+    string: create(string),
+    text: create(text4)
+  };
+  return parser;
+  function create(initial) {
+    return creator;
+    function creator(from) {
+      return createTokenizer(parser, initial, from);
+    }
+  }
+}
+
+// engine/node_modules/micromark/lib/postprocess.js
+function postprocess(events) {
+  while (!subtokenize(events)) {}
+  return events;
+}
+
+// engine/node_modules/micromark/lib/preprocess.js
+var search = /[\0\t\n\r]/g;
+function preprocess() {
+  let column = 1;
+  let buffer = "";
+  let start = true;
+  let atCarriageReturn;
+  return preprocessor;
+  function preprocessor(value, encoding, end) {
+    value = buffer + (typeof value === "string" ? value.toString() : new TextDecoder(encoding || undefined).decode(value));
+    const chunks = [];
+    let startPosition = 0;
+    buffer = "";
+    if (start) {
+      if (value.charCodeAt(0) === 65279) {
+        startPosition++;
+      }
+      start = undefined;
+    }
+    while (startPosition < value.length) {
+      search.lastIndex = startPosition;
+      const match = search.exec(value);
+      const endPosition = match && match.index !== undefined ? match.index : value.length;
+      const code = value.charCodeAt(endPosition);
+      if (!match) {
+        buffer = value.slice(startPosition);
+        break;
+      }
+      if (code === 10 && startPosition === endPosition && atCarriageReturn) {
+        chunks.push(-3);
+        atCarriageReturn = undefined;
+      } else {
+        if (atCarriageReturn) {
+          chunks.push(-5);
+          atCarriageReturn = undefined;
+        }
+        if (startPosition < endPosition) {
+          chunks.push(value.slice(startPosition, endPosition));
+          column += endPosition - startPosition;
+        }
+        switch (code) {
+          case 0: {
+            chunks.push(65533);
+            column++;
+            break;
+          }
+          case 9: {
+            const next = Math.ceil(column / 4) * 4;
+            chunks.push(-2);
+            while (column++ < next) {
+              chunks.push(-1);
+            }
+            break;
+          }
+          case 10: {
+            chunks.push(-4);
+            column = 1;
+            break;
+          }
+          default: {
+            atCarriageReturn = true;
+            column = 1;
+          }
+        }
+      }
+      startPosition = endPosition + 1;
+    }
+    if (end) {
+      if (atCarriageReturn) {
+        chunks.push(-5);
+      }
+      if (buffer) {
+        chunks.push(buffer);
+      }
+      chunks.push(null);
+    }
+    return chunks;
+  }
+}
+// engine/node_modules/micromark-util-decode-string/index.js
+var characterEscapeOrReference = /\\([!-/:-@[-`{-~])|&(#(?:\d{1,7}|x[\da-f]{1,6})|[\da-z]{1,31});/gi;
+function decodeString(value) {
+  return value.replace(characterEscapeOrReference, decode);
+}
+function decode($0, $1, $2) {
+  if ($1) {
+    return $1;
+  }
+  const head = $2.charCodeAt(0);
+  if (head === 35) {
+    const head = $2.charCodeAt(1);
+    const hex = head === 120 || head === 88;
+    return decodeNumericCharacterReference($2.slice(hex ? 2 : 1), hex ? 16 : 10);
+  }
+  return decodeNamedCharacterReference($2) || $0;
+}
+
+// engine/node_modules/mdast-util-from-markdown/lib/index.js
+var own2 = {}.hasOwnProperty;
+function fromMarkdown(value, encoding, options) {
+  if (encoding && typeof encoding === "object") {
+    options = encoding;
+    encoding = undefined;
+  }
+  return compiler(options)(postprocess(parse(options).document().write(preprocess()(value, encoding, true))));
+}
+function compiler(options) {
+  const config = {
+    afterExit: [],
+    beforeEnter: [],
+    transforms: [],
+    canContainEols: ["emphasis", "fragment", "heading", "paragraph", "strong"],
+    enter: {
+      autolink: opener(link),
+      autolinkProtocol: onenterdata,
+      autolinkEmail: onenterdata,
+      atxHeading: opener(heading),
+      blockQuote: opener(blockQuote),
+      characterEscape: onenterdata,
+      characterReference: onenterdata,
+      codeFenced: opener(codeFlow),
+      codeFencedFenceInfo: buffer,
+      codeFencedFenceMeta: buffer,
+      codeIndented: opener(codeFlow, buffer),
+      codeText: opener(codeText, buffer),
+      codeTextData: onenterdata,
+      data: onenterdata,
+      codeFlowValue: onenterdata,
+      definition: opener(definition),
+      definitionDestinationString: buffer,
+      definitionLabelString: buffer,
+      definitionTitleString: buffer,
+      emphasis: opener(emphasis),
+      hardBreakEscape: opener(hardBreak),
+      hardBreakTrailing: opener(hardBreak),
+      htmlFlow: opener(html, buffer),
+      htmlFlowData: onenterdata,
+      htmlText: opener(html, buffer),
+      htmlTextData: onenterdata,
+      image: opener(image),
+      label: buffer,
+      link: opener(link),
+      listItem: opener(listItem),
+      listItemValue: onenterlistitemvalue,
+      listOrdered: opener(list, onenterlistordered),
+      listUnordered: opener(list),
+      paragraph: opener(paragraph),
+      reference: onenterreference,
+      referenceString: buffer,
+      resourceDestinationString: buffer,
+      resourceTitleString: buffer,
+      setextHeading: opener(heading),
+      strong: opener(strong),
+      thematicBreak: opener(thematicBreak)
+    },
+    exit: {
+      atxHeading: closer(),
+      atxHeadingSequence: onexitatxheadingsequence,
+      autolink: closer(),
+      autolinkEmail: onexitautolinkemail,
+      autolinkProtocol: onexitautolinkprotocol,
+      blockQuote: closer(),
+      characterEscapeValue: onexitdata,
+      characterReferenceMarkerHexadecimal: onexitcharacterreferencemarker,
+      characterReferenceMarkerNumeric: onexitcharacterreferencemarker,
+      characterReferenceValue: onexitcharacterreferencevalue,
+      characterReference: onexitcharacterreference,
+      codeFenced: closer(onexitcodefenced),
+      codeFencedFence: onexitcodefencedfence,
+      codeFencedFenceInfo: onexitcodefencedfenceinfo,
+      codeFencedFenceMeta: onexitcodefencedfencemeta,
+      codeFlowValue: onexitdata,
+      codeIndented: closer(onexitcodeindented),
+      codeText: closer(onexitcodetext),
+      codeTextData: onexitdata,
+      data: onexitdata,
+      definition: closer(),
+      definitionDestinationString: onexitdefinitiondestinationstring,
+      definitionLabelString: onexitdefinitionlabelstring,
+      definitionTitleString: onexitdefinitiontitlestring,
+      emphasis: closer(),
+      hardBreakEscape: closer(onexithardbreak),
+      hardBreakTrailing: closer(onexithardbreak),
+      htmlFlow: closer(onexithtmlflow),
+      htmlFlowData: onexitdata,
+      htmlText: closer(onexithtmltext),
+      htmlTextData: onexitdata,
+      image: closer(onexitimage),
+      label: onexitlabel,
+      labelText: onexitlabeltext,
+      lineEnding: onexitlineending,
+      link: closer(onexitlink),
+      listItem: closer(),
+      listOrdered: closer(),
+      listUnordered: closer(),
+      paragraph: closer(),
+      referenceString: onexitreferencestring,
+      resourceDestinationString: onexitresourcedestinationstring,
+      resourceTitleString: onexitresourcetitlestring,
+      resource: onexitresource,
+      setextHeading: closer(onexitsetextheading),
+      setextHeadingLineSequence: onexitsetextheadinglinesequence,
+      setextHeadingText: onexitsetextheadingtext,
+      strong: closer(),
+      thematicBreak: closer()
+    }
+  };
+  configure(config, (options || {}).mdastExtensions || []);
+  const data = {};
+  return compile;
+  function compile(events) {
+    let tree = {
+      type: "root",
+      children: [],
+      position: undefined
+    };
+    const context = {
+      stack: [tree],
+      tokenStack: [],
+      config,
+      enter,
+      exit,
+      buffer,
+      resume,
+      data
+    };
+    const listStack = [];
+    const prepared = [];
+    let index = -1;
+    while (++index < events.length) {
+      prepared.push(events[index]);
+      if (events[index][1].type === "listOrdered" || events[index][1].type === "listUnordered") {
+        if (events[index][0] === "enter") {
+          listStack.push(prepared.length - 1);
+        } else {
+          const tail = listStack.pop();
+          prepareList(prepared, tail);
+        }
+      }
+    }
+    events = prepared;
+    index = -1;
+    while (++index < events.length) {
+      const handler = config[events[index][0]];
+      if (events[index][0] === "enter" && config.beforeEnter.length > 0) {
+        callListeners(config.beforeEnter, {
+          ...context,
+          sliceSerialize: events[index][2].sliceSerialize
+        }, events[index][1]);
+      }
+      if (own2.call(handler, events[index][1].type)) {
+        handler[events[index][1].type].call({
+          ...context,
+          sliceSerialize: events[index][2].sliceSerialize
+        }, events[index][1]);
+      }
+      if (events[index][0] === "exit" && config.afterExit.length > 0) {
+        callListeners(config.afterExit, {
+          ...context,
+          sliceSerialize: events[index][2].sliceSerialize
+        }, events[index][1]);
+      }
+    }
+    if (context.tokenStack.length > 0) {
+      const tail = context.tokenStack[context.tokenStack.length - 1];
+      const handler = tail[1] || defaultOnError;
+      handler.call(context, undefined, tail[0]);
+    }
+    tree.position = {
+      start: point3(events.length > 0 ? events[0][1].start : {
+        line: 1,
+        column: 1,
+        offset: 0
+      }),
+      end: point3(events.length > 0 ? events[events.length - 2][1].end : {
+        line: 1,
+        column: 1,
+        offset: 0
+      })
+    };
+    index = -1;
+    while (++index < config.transforms.length) {
+      tree = config.transforms[index](tree) || tree;
+    }
+    return tree;
+  }
+  function callListeners(listeners, context, token) {
+    let index = -1;
+    while (++index < listeners.length) {
+      listeners[index].call(context, token);
+    }
+  }
+  function prepareList(events, start) {
+    const end = events.length - 1;
+    let index = start - 1;
+    let containerBalance = -1;
+    let listSpread = false;
+    let listItem;
+    let lineIndex;
+    let firstBlankLineIndex;
+    let atMarker;
+    const insertions = [];
+    while (++index <= end) {
+      const event = events[index];
+      switch (event[1].type) {
+        case "listUnordered":
+        case "listOrdered":
+        case "blockQuote": {
+          if (event[0] === "enter") {
+            containerBalance++;
+          } else {
+            containerBalance--;
+          }
+          atMarker = undefined;
+          break;
+        }
+        case "lineEndingBlank": {
+          if (event[0] === "enter") {
+            if (listItem && !atMarker && !containerBalance && !firstBlankLineIndex) {
+              firstBlankLineIndex = index;
+            }
+            atMarker = undefined;
+          }
+          break;
+        }
+        case "linePrefix":
+        case "listItemValue":
+        case "listItemMarker":
+        case "listItemPrefix":
+        case "listItemPrefixWhitespace": {
+          break;
+        }
+        default: {
+          atMarker = undefined;
+        }
+      }
+      if (!containerBalance && event[0] === "enter" && event[1].type === "listItemPrefix" || containerBalance === -1 && event[0] === "exit" && (event[1].type === "listUnordered" || event[1].type === "listOrdered")) {
+        if (listItem) {
+          let tailIndex = index;
+          lineIndex = undefined;
+          while (tailIndex--) {
+            const tailEvent = events[tailIndex];
+            if (tailEvent[1].type === "lineEnding" || tailEvent[1].type === "lineEndingBlank") {
+              if (tailEvent[0] === "exit")
+                continue;
+              if (lineIndex) {
+                events[lineIndex][1].type = "lineEndingBlank";
+                listSpread = true;
+              }
+              tailEvent[1].type = "lineEnding";
+              lineIndex = tailIndex;
+            } else if (tailEvent[1].type === "linePrefix" || tailEvent[1].type === "blockQuotePrefix" || tailEvent[1].type === "blockQuotePrefixWhitespace" || tailEvent[1].type === "blockQuoteMarker" || tailEvent[1].type === "listItemIndent") {} else {
+              break;
+            }
+          }
+          if (firstBlankLineIndex && (!lineIndex || firstBlankLineIndex < lineIndex)) {
+            listItem._spread = true;
+          }
+          listItem.end = Object.assign({}, lineIndex ? events[lineIndex][1].start : event[1].end);
+          insertions.push({
+            at: lineIndex || index,
+            event: ["exit", listItem, event[2]]
+          });
+        }
+        if (event[1].type === "listItemPrefix") {
+          const item = {
+            type: "listItem",
+            _spread: false,
+            start: Object.assign({}, event[1].start),
+            end: undefined
+          };
+          listItem = item;
+          insertions.push({
+            at: index,
+            event: ["enter", item, event[2]]
+          });
+          firstBlankLineIndex = undefined;
+          atMarker = true;
+        }
+      }
+    }
+    const listEvents = events.splice(start);
+    let insertion = 0;
+    index = -1;
+    while (++index < listEvents.length) {
+      while (insertion < insertions.length && insertions[insertion].at === start + index) {
+        events.push(insertions[insertion++].event);
+      }
+      events.push(listEvents[index]);
+    }
+    events[start][1]._spread = listSpread;
+  }
+  function opener(create, and) {
+    return open;
+    function open(token) {
+      enter.call(this, create(token), token);
+      if (and)
+        and.call(this, token);
+    }
+  }
+  function buffer() {
+    this.stack.push({
+      type: "fragment",
+      children: []
+    });
+  }
+  function enter(node, token, errorHandler) {
+    const parent = this.stack[this.stack.length - 1];
+    const siblings = parent.children;
+    siblings.push(node);
+    this.stack.push(node);
+    this.tokenStack.push([token, errorHandler || undefined]);
+    node.position = {
+      start: point3(token.start),
+      end: undefined
+    };
+  }
+  function closer(and) {
+    return close;
+    function close(token) {
+      if (and)
+        and.call(this, token);
+      exit.call(this, token);
+    }
+  }
+  function exit(token, onExitError) {
+    const node = this.stack.pop();
+    const open = this.tokenStack.pop();
+    if (!open) {
+      throw new Error("Cannot close `" + token.type + "` (" + stringifyPosition({
+        start: token.start,
+        end: token.end
+      }) + "): it’s not open");
+    }
+    if (open[0].type !== token.type) {
+      if (onExitError) {
+        onExitError.call(this, token, open[0]);
+      } else {
+        const handler = open[1] || defaultOnError;
+        handler.call(this, token, open[0]);
+      }
+    }
+    node.position.end = point3(token.end);
+  }
+  function resume() {
+    return toString(this.stack.pop());
+  }
+  function onenterlistordered() {
+    this.data.expectingFirstListItemValue = true;
+  }
+  function onenterlistitemvalue(token) {
+    if (this.data.expectingFirstListItemValue) {
+      const ancestor = this.stack[this.stack.length - 2];
+      ancestor.start = Number.parseInt(this.sliceSerialize(token), 10);
+      this.data.expectingFirstListItemValue = undefined;
+    }
+  }
+  function onexitcodefencedfenceinfo() {
+    const data = this.resume();
+    const node = this.stack[this.stack.length - 1];
+    node.lang = data;
+  }
+  function onexitcodefencedfencemeta() {
+    const data = this.resume();
+    const node = this.stack[this.stack.length - 1];
+    node.meta = data;
+  }
+  function onexitcodefencedfence() {
+    if (this.data.flowCodeInside)
+      return;
+    this.buffer();
+    this.data.flowCodeInside = true;
+  }
+  function onexitcodefenced() {
+    const data = this.resume();
+    const node = this.stack[this.stack.length - 1];
+    node.value = data.replace(/^(\r?\n|\r)|(\r?\n|\r)$/g, "");
+    this.data.flowCodeInside = undefined;
+  }
+  function onexitcodeindented() {
+    const data = this.resume();
+    const node = this.stack[this.stack.length - 1];
+    node.value = data.replace(/(\r?\n|\r)$/g, "");
+  }
+  function onexitdefinitionlabelstring(token) {
+    const label = this.resume();
+    const node = this.stack[this.stack.length - 1];
+    node.label = label;
+    node.identifier = normalizeIdentifier(this.sliceSerialize(token)).toLowerCase();
+  }
+  function onexitdefinitiontitlestring() {
+    const data = this.resume();
+    const node = this.stack[this.stack.length - 1];
+    node.title = data;
+  }
+  function onexitdefinitiondestinationstring() {
+    const data = this.resume();
+    const node = this.stack[this.stack.length - 1];
+    node.url = data;
+  }
+  function onexitatxheadingsequence(token) {
+    const node = this.stack[this.stack.length - 1];
+    if (!node.depth) {
+      const depth = this.sliceSerialize(token).length;
+      node.depth = depth;
+    }
+  }
+  function onexitsetextheadingtext() {
+    this.data.setextHeadingSlurpLineEnding = true;
+  }
+  function onexitsetextheadinglinesequence(token) {
+    const node = this.stack[this.stack.length - 1];
+    node.depth = this.sliceSerialize(token).codePointAt(0) === 61 ? 1 : 2;
+  }
+  function onexitsetextheading() {
+    this.data.setextHeadingSlurpLineEnding = undefined;
+  }
+  function onenterdata(token) {
+    const node = this.stack[this.stack.length - 1];
+    const siblings = node.children;
+    let tail = siblings[siblings.length - 1];
+    if (!tail || tail.type !== "text") {
+      tail = text();
+      tail.position = {
+        start: point3(token.start),
+        end: undefined
+      };
+      siblings.push(tail);
+    }
+    this.stack.push(tail);
+  }
+  function onexitdata(token) {
+    const tail = this.stack.pop();
+    tail.value += this.sliceSerialize(token);
+    tail.position.end = point3(token.end);
+  }
+  function onexitlineending(token) {
+    const context = this.stack[this.stack.length - 1];
+    if (this.data.atHardBreak) {
+      const tail = context.children[context.children.length - 1];
+      tail.position.end = point3(token.end);
+      this.data.atHardBreak = undefined;
+      return;
+    }
+    if (!this.data.setextHeadingSlurpLineEnding && config.canContainEols.includes(context.type)) {
+      onenterdata.call(this, token);
+      onexitdata.call(this, token);
+    }
+  }
+  function onexithardbreak() {
+    this.data.atHardBreak = true;
+  }
+  function onexithtmlflow() {
+    const data = this.resume();
+    const node = this.stack[this.stack.length - 1];
+    node.value = data;
+  }
+  function onexithtmltext() {
+    const data = this.resume();
+    const node = this.stack[this.stack.length - 1];
+    node.value = data;
+  }
+  function onexitcodetext() {
+    const data = this.resume();
+    const node = this.stack[this.stack.length - 1];
+    node.value = data;
+  }
+  function onexitlink() {
+    const node = this.stack[this.stack.length - 1];
+    if (this.data.inReference) {
+      const referenceType = this.data.referenceType || "shortcut";
+      node.type += "Reference";
+      node.referenceType = referenceType;
+      delete node.url;
+      delete node.title;
+    } else {
+      delete node.identifier;
+      delete node.label;
+    }
+    this.data.referenceType = undefined;
+  }
+  function onexitimage() {
+    const node = this.stack[this.stack.length - 1];
+    if (this.data.inReference) {
+      const referenceType = this.data.referenceType || "shortcut";
+      node.type += "Reference";
+      node.referenceType = referenceType;
+      delete node.url;
+      delete node.title;
+    } else {
+      delete node.identifier;
+      delete node.label;
+    }
+    this.data.referenceType = undefined;
+  }
+  function onexitlabeltext(token) {
+    const string = this.sliceSerialize(token);
+    const ancestor = this.stack[this.stack.length - 2];
+    ancestor.label = decodeString(string);
+    ancestor.identifier = normalizeIdentifier(string).toLowerCase();
+  }
+  function onexitlabel() {
+    const fragment = this.stack[this.stack.length - 1];
+    const value = this.resume();
+    const node = this.stack[this.stack.length - 1];
+    this.data.inReference = true;
+    if (node.type === "link") {
+      const children = fragment.children;
+      node.children = children;
+    } else {
+      node.alt = value;
+    }
+  }
+  function onexitresourcedestinationstring() {
+    const data = this.resume();
+    const node = this.stack[this.stack.length - 1];
+    node.url = data;
+  }
+  function onexitresourcetitlestring() {
+    const data = this.resume();
+    const node = this.stack[this.stack.length - 1];
+    node.title = data;
+  }
+  function onexitresource() {
+    this.data.inReference = undefined;
+  }
+  function onenterreference() {
+    this.data.referenceType = "collapsed";
+  }
+  function onexitreferencestring(token) {
+    const label = this.resume();
+    const node = this.stack[this.stack.length - 1];
+    node.label = label;
+    node.identifier = normalizeIdentifier(this.sliceSerialize(token)).toLowerCase();
+    this.data.referenceType = "full";
+  }
+  function onexitcharacterreferencemarker(token) {
+    this.data.characterReferenceType = token.type;
+  }
+  function onexitcharacterreferencevalue(token) {
+    const data = this.sliceSerialize(token);
+    const type = this.data.characterReferenceType;
+    let value;
+    if (type) {
+      value = decodeNumericCharacterReference(data, type === "characterReferenceMarkerNumeric" ? 10 : 16);
+      this.data.characterReferenceType = undefined;
+    } else {
+      const result = decodeNamedCharacterReference(data);
+      value = result;
+    }
+    const tail = this.stack[this.stack.length - 1];
+    tail.value += value;
+  }
+  function onexitcharacterreference(token) {
+    const tail = this.stack.pop();
+    tail.position.end = point3(token.end);
+  }
+  function onexitautolinkprotocol(token) {
+    onexitdata.call(this, token);
+    const node = this.stack[this.stack.length - 1];
+    node.url = this.sliceSerialize(token);
+  }
+  function onexitautolinkemail(token) {
+    onexitdata.call(this, token);
+    const node = this.stack[this.stack.length - 1];
+    node.url = "mailto:" + this.sliceSerialize(token);
+  }
+  function blockQuote() {
+    return {
+      type: "blockquote",
+      children: [],
+      position: undefined
+    };
+  }
+  function codeFlow() {
+    return {
+      type: "code",
+      lang: null,
+      meta: null,
+      value: "",
+      position: undefined
+    };
+  }
+  function codeText() {
+    return {
+      type: "inlineCode",
+      value: "",
+      position: undefined
+    };
+  }
+  function definition() {
+    return {
+      type: "definition",
+      identifier: "",
+      label: null,
+      title: null,
+      url: "",
+      position: undefined
+    };
+  }
+  function emphasis() {
+    return {
+      type: "emphasis",
+      children: [],
+      position: undefined
+    };
+  }
+  function heading() {
+    return {
+      type: "heading",
+      depth: 0,
+      children: [],
+      position: undefined
+    };
+  }
+  function hardBreak() {
+    return {
+      type: "break",
+      position: undefined
+    };
+  }
+  function html() {
+    return {
+      type: "html",
+      value: "",
+      position: undefined
+    };
+  }
+  function image() {
+    return {
+      type: "image",
+      title: null,
+      url: "",
+      alt: null,
+      position: undefined
+    };
+  }
+  function link() {
+    return {
+      type: "link",
+      title: null,
+      url: "",
+      children: [],
+      position: undefined
+    };
+  }
+  function list(token) {
+    return {
+      type: "list",
+      ordered: token.type === "listOrdered",
+      start: null,
+      spread: token._spread,
+      children: [],
+      position: undefined
+    };
+  }
+  function listItem(token) {
+    return {
+      type: "listItem",
+      spread: token._spread,
+      checked: null,
+      children: [],
+      position: undefined
+    };
+  }
+  function paragraph() {
+    return {
+      type: "paragraph",
+      children: [],
+      position: undefined
+    };
+  }
+  function strong() {
+    return {
+      type: "strong",
+      children: [],
+      position: undefined
+    };
+  }
+  function text() {
+    return {
+      type: "text",
+      value: "",
+      position: undefined
+    };
+  }
+  function thematicBreak() {
+    return {
+      type: "thematicBreak",
+      position: undefined
+    };
+  }
+}
+function point3(d) {
+  return {
+    line: d.line,
+    column: d.column,
+    offset: d.offset
+  };
+}
+function configure(combined, extensions) {
+  let index = -1;
+  while (++index < extensions.length) {
+    const value = extensions[index];
+    if (Array.isArray(value)) {
+      configure(combined, value);
+    } else {
+      extension(combined, value);
+    }
+  }
+}
+function extension(combined, extension) {
+  let key;
+  for (key in extension) {
+    if (own2.call(extension, key)) {
+      switch (key) {
+        case "canContainEols": {
+          const right = extension[key];
+          if (right) {
+            combined[key].push(...right);
+          }
+          break;
+        }
+        case "transforms": {
+          const right = extension[key];
+          if (right) {
+            combined[key].push(...right);
+          }
+          break;
+        }
+        case "afterExit":
+        case "beforeEnter": {
+          const right = extension[key];
+          if (right) {
+            combined[key].push(right);
+          }
+          break;
+        }
+        case "enter":
+        case "exit": {
+          const right = extension[key];
+          if (right) {
+            Object.assign(combined[key], right);
+          }
+          break;
+        }
+      }
+    }
+  }
+}
+function defaultOnError(left, right) {
+  if (left) {
+    throw new Error("Cannot close `" + left.type + "` (" + stringifyPosition({
+      start: left.start,
+      end: left.end
+    }) + "): a different token (`" + right.type + "`, " + stringifyPosition({
+      start: right.start,
+      end: right.end
+    }) + ") is open");
+  }
+  throw new Error("Cannot close document, a token (`" + right.type + "`, " + stringifyPosition({
+    start: right.start,
+    end: right.end
+  }) + ") is still open");
+}
+// engine/node_modules/remark-parse/lib/index.js
+function remarkParse(options) {
+  const self2 = this;
+  self2.parser = parser;
+  function parser(doc) {
+    return fromMarkdown(doc, {
+      ...self2.data("settings"),
+      ...options,
+      extensions: self2.data("micromarkExtensions") || [],
+      mdastExtensions: self2.data("fromMarkdownExtensions") || []
+    });
+  }
+}
+// engine/node_modules/@ungap/structured-clone/esm/types.js
+var VOID = -1;
+var PRIMITIVE = 0;
+var ARRAY = 1;
+var OBJECT = 2;
+var DATE = 3;
+var REGEXP = 4;
+var MAP = 5;
+var SET = 6;
+var ERROR = 7;
+var BIGINT = 8;
+
+// engine/node_modules/@ungap/structured-clone/esm/deserialize.js
+var { defineProperty } = Object;
+var env = typeof self === "object" ? self : globalThis;
+var guard = (name, init) => {
+  switch (name) {
+    case "Function":
+    case "SharedWorker":
+    case "Worker":
+    case "eval":
+    case "setInterval":
+    case "setTimeout":
+      throw new TypeError("unable to deserialize " + name);
+  }
+  return new env[name](init);
+};
+var deserializer = ($, _) => {
+  const as = (out, index) => {
+    $.set(index, out);
+    return out;
+  };
+  const unpair = (index) => {
+    if ($.has(index))
+      return $.get(index);
+    const [type, value] = _[index];
+    switch (type) {
+      case PRIMITIVE:
+      case VOID:
+        return as(value, index);
+      case ARRAY: {
+        const arr = as([], index);
+        for (const index of value)
+          arr.push(unpair(index));
+        return arr;
+      }
+      case OBJECT: {
+        const object = as({}, index);
+        for (const [key, index] of value) {
+          const k = unpair(key), value = unpair(index);
+          if (k === "__proto__")
+            defineProperty(object, k, {
+              value,
+              configurable: true,
+              enumerable: true,
+              writable: true
+            });
+          else
+            object[k] = value;
+        }
+        return object;
+      }
+      case DATE:
+        return as(new Date(value), index);
+      case REGEXP: {
+        const { source, flags } = value;
+        return as(new RegExp(source, flags), index);
+      }
+      case MAP: {
+        const map = as(new Map, index);
+        for (const [key, index] of value)
+          map.set(unpair(key), unpair(index));
+        return map;
+      }
+      case SET: {
+        const set = as(new Set, index);
+        for (const index of value)
+          set.add(unpair(index));
+        return set;
+      }
+      case ERROR: {
+        const { name, message } = value;
+        return as(typeof env[name] === "function" ? guard(name, message) : new Error(message), index);
+      }
+      case BIGINT:
+        return as(BigInt(value), index);
+      case "BigInt":
+        return as(Object(BigInt(value)), index);
+      case "ArrayBuffer":
+        return as(new Uint8Array(value).buffer, value);
+      case "DataView": {
+        const { buffer } = new Uint8Array(value);
+        return as(new DataView(buffer), value);
+      }
+      case "-0":
+        return -0;
+    }
+    return as(guard(type, value), index);
+  };
+  return unpair;
+};
+var deserialize = (serialized) => deserializer(new Map, serialized)(0);
+
+// engine/node_modules/@ungap/structured-clone/esm/serialize.js
+var EMPTY3 = "";
+var { toString: toString2 } = {};
+var { keys, is: is2 } = Object;
+var typeOf = (value) => {
+  const type = typeof value;
+  if (type !== "object" || !value)
+    return [PRIMITIVE, type];
+  const asString = toString2.call(value).slice(8, -1);
+  switch (asString) {
+    case "Array":
+      return [ARRAY, EMPTY3];
+    case "Object":
+      return [OBJECT, EMPTY3];
+    case "Date":
+      return [DATE, EMPTY3];
+    case "RegExp":
+      return [REGEXP, EMPTY3];
+    case "Map":
+      return [MAP, EMPTY3];
+    case "Set":
+      return [SET, EMPTY3];
+    case "DataView":
+      return [ARRAY, asString];
+  }
+  if (asString.includes("Array"))
+    return [ARRAY, asString];
+  if (value instanceof Error)
+    return [ERROR, value.name || "Error"];
+  return [OBJECT, asString];
+};
+var shouldSkip = ([TYPE, type]) => TYPE === PRIMITIVE && (type === "function" || type === "symbol");
+var serializer = (strict, json, $, _) => {
+  const as = (out, value) => {
+    const index = _.push(out) - 1;
+    $.set(value, index);
+    return index;
+  };
+  const pair = (value) => {
+    if ($.has(value))
+      return $.get(value);
+    let [TYPE, type] = typeOf(value);
+    switch (TYPE) {
+      case PRIMITIVE: {
+        let entry = value;
+        switch (type) {
+          case "bigint":
+            TYPE = BIGINT;
+            entry = value.toString();
+            break;
+          case "number":
+            if (!value && is2(value, -0))
+              return _.push(["-0"]) - 1;
+            break;
+          case "function":
+          case "symbol":
+            if (strict)
+              throw new TypeError("unable to serialize " + type);
+            entry = null;
+            break;
+          case "undefined":
+            return as([VOID], value);
+        }
+        return as([TYPE, entry], value);
+      }
+      case ARRAY: {
+        if (type) {
+          let spread = value;
+          if (type === "DataView") {
+            spread = new Uint8Array(value.buffer);
+          } else if (type === "ArrayBuffer") {
+            spread = new Uint8Array(value);
+          }
+          return as([type, [...spread]], value);
+        }
+        const arr = [];
+        const index = as([TYPE, arr], value);
+        for (const entry of value)
+          arr.push(pair(entry));
+        return index;
+      }
+      case OBJECT: {
+        if (type) {
+          switch (type) {
+            case "BigInt":
+              return as([type, value.toString()], value);
+            case "Boolean":
+            case "Number":
+            case "String":
+              return as([type, value.valueOf()], value);
+          }
+        }
+        if (json && "toJSON" in value)
+          return pair(value.toJSON());
+        const entries = [];
+        const index = as([TYPE, entries], value);
+        for (const key of keys(value)) {
+          if (strict || !shouldSkip(typeOf(value[key])))
+            entries.push([pair(key), pair(value[key])]);
+        }
+        return index;
+      }
+      case DATE:
+        return as([TYPE, isNaN(value.getTime()) ? EMPTY3 : value.toISOString()], value);
+      case REGEXP: {
+        const { source, flags } = value;
+        return as([TYPE, { source, flags }], value);
+      }
+      case MAP: {
+        const entries = [];
+        const index = as([TYPE, entries], value);
+        for (const [key, entry] of value) {
+          if (strict || !(shouldSkip(typeOf(key)) || shouldSkip(typeOf(entry))))
+            entries.push([pair(key), pair(entry)]);
+        }
+        return index;
+      }
+      case SET: {
+        const entries = [];
+        const index = as([TYPE, entries], value);
+        for (const entry of value) {
+          if (strict || !shouldSkip(typeOf(entry)))
+            entries.push(pair(entry));
+        }
+        return index;
+      }
+    }
+    const { message } = value;
+    return as([TYPE, { name: type, message }], value);
+  };
+  return pair;
+};
+var serialize = (value, { json, lossy } = {}) => {
+  const _ = [];
+  return serializer(!(json || lossy), !!json, new Map, _)(value), _;
+};
+
+// engine/node_modules/@ungap/structured-clone/esm/index.js
+var esm_default = typeof structuredClone === "function" ? (any, options) => options && (("json" in options) || ("lossy" in options)) ? deserialize(serialize(any, options)) : structuredClone(any) : (any, options) => deserialize(serialize(any, options));
+
+// engine/node_modules/mdast-util-to-hast/lib/footer.js
+function defaultFootnoteBackContent(_, rereferenceIndex) {
+  const result = [{ type: "text", value: "↩" }];
+  if (rereferenceIndex > 1) {
+    result.push({
+      type: "element",
+      tagName: "sup",
+      properties: {},
+      children: [{ type: "text", value: String(rereferenceIndex) }]
+    });
+  }
+  return result;
+}
+function defaultFootnoteBackLabel(referenceIndex, rereferenceIndex) {
+  return "Back to reference " + (referenceIndex + 1) + (rereferenceIndex > 1 ? "-" + rereferenceIndex : "");
+}
+function footer(state) {
+  const clobberPrefix = typeof state.options.clobberPrefix === "string" ? state.options.clobberPrefix : "user-content-";
+  const footnoteBackContent = state.options.footnoteBackContent || defaultFootnoteBackContent;
+  const footnoteBackLabel = state.options.footnoteBackLabel || defaultFootnoteBackLabel;
+  const footnoteLabel = state.options.footnoteLabel || "Footnotes";
+  const footnoteLabelTagName = state.options.footnoteLabelTagName || "h2";
+  const footnoteLabelProperties = state.options.footnoteLabelProperties || {
+    className: ["sr-only"]
+  };
+  const contents = [];
+  const listItems = [];
+  let referenceIndex = -1;
+  while (++referenceIndex < state.footnoteOrder.length) {
+    const definition = state.footnoteById.get(state.footnoteOrder[referenceIndex]);
+    if (definition) {
+      contents[referenceIndex] = state.all(definition);
+    }
+  }
+  referenceIndex = -1;
+  while (++referenceIndex < state.footnoteOrder.length) {
+    const definition = state.footnoteById.get(state.footnoteOrder[referenceIndex]);
+    if (!definition) {
+      continue;
+    }
+    const content = contents[referenceIndex];
+    const id = String(definition.identifier).toUpperCase();
+    const safeId = normalizeUri(id.toLowerCase());
+    let rereferenceIndex = 0;
+    const backReferences = [];
+    const counts = state.footnoteCounts.get(id);
+    while (counts !== undefined && ++rereferenceIndex <= counts) {
+      if (backReferences.length > 0) {
+        backReferences.push({ type: "text", value: " " });
+      }
+      let children = typeof footnoteBackContent === "string" ? footnoteBackContent : footnoteBackContent(referenceIndex, rereferenceIndex);
+      if (typeof children === "string") {
+        children = { type: "text", value: children };
+      }
+      backReferences.push({
+        type: "element",
+        tagName: "a",
+        properties: {
+          href: "#" + clobberPrefix + "fnref-" + safeId + (rereferenceIndex > 1 ? "-" + rereferenceIndex : ""),
+          dataFootnoteBackref: "",
+          ariaLabel: typeof footnoteBackLabel === "string" ? footnoteBackLabel : footnoteBackLabel(referenceIndex, rereferenceIndex),
+          className: ["data-footnote-backref"]
+        },
+        children: Array.isArray(children) ? children : [children]
+      });
+    }
+    const tail = content[content.length - 1];
+    if (tail && tail.type === "element" && tail.tagName === "p") {
+      const tailTail = tail.children[tail.children.length - 1];
+      if (tailTail && tailTail.type === "text") {
+        tailTail.value += " ";
+      } else {
+        tail.children.push({ type: "text", value: " " });
+      }
+      tail.children.push(...backReferences);
+    } else {
+      content.push(...backReferences);
+    }
+    const listItem = {
+      type: "element",
+      tagName: "li",
+      properties: { id: clobberPrefix + "fn-" + safeId },
+      children: state.wrap(content, true)
+    };
+    state.patch(definition, listItem);
+    listItems.push(listItem);
+  }
+  if (listItems.length === 0) {
+    return;
+  }
+  return {
+    type: "element",
+    tagName: "section",
+    properties: { dataFootnotes: true, className: ["footnotes"] },
+    children: [
+      {
+        type: "element",
+        tagName: footnoteLabelTagName,
+        properties: {
+          ...esm_default(footnoteLabelProperties),
+          id: "footnote-label"
+        },
+        children: [{ type: "text", value: footnoteLabel }]
+      },
+      { type: "text", value: `
+` },
+      {
+        type: "element",
+        tagName: "ol",
+        properties: {},
+        children: state.wrap(listItems, true)
+      },
+      { type: "text", value: `
+` }
+    ]
+  };
+}
+
+// engine/node_modules/unist-util-is/lib/index.js
+var convert = function(test) {
+  if (test === null || test === undefined) {
+    return ok2;
+  }
+  if (typeof test === "function") {
+    return castFactory(test);
+  }
+  if (typeof test === "object") {
+    return Array.isArray(test) ? anyFactory(test) : propertiesFactory(test);
+  }
+  if (typeof test === "string") {
+    return typeFactory(test);
+  }
+  throw new Error("Expected function, string, or object as test");
+};
+function anyFactory(tests) {
+  const checks = [];
+  let index = -1;
+  while (++index < tests.length) {
+    checks[index] = convert(tests[index]);
+  }
+  return castFactory(any);
+  function any(...parameters) {
+    let index = -1;
+    while (++index < checks.length) {
+      if (checks[index].apply(this, parameters))
+        return true;
+    }
+    return false;
+  }
+}
+function propertiesFactory(check) {
+  const checkAsRecord = check;
+  return castFactory(all);
+  function all(node) {
+    const nodeAsRecord = node;
+    let key;
+    for (key in check) {
+      if (nodeAsRecord[key] !== checkAsRecord[key])
+        return false;
+    }
+    return true;
+  }
+}
+function typeFactory(check) {
+  return castFactory(type);
+  function type(node) {
+    return node && node.type === check;
+  }
+}
+function castFactory(testFunction) {
+  return check;
+  function check(value, index, parent) {
+    return Boolean(looksLikeANode(value) && testFunction.call(this, value, typeof index === "number" ? index : undefined, parent || undefined));
+  }
+}
+function ok2() {
+  return true;
+}
+function looksLikeANode(value) {
+  return value !== null && typeof value === "object" && "type" in value;
+}
+// engine/node_modules/unist-util-visit-parents/lib/color.js
+function color(d) {
+  return d;
+}
+
+// engine/node_modules/unist-util-visit-parents/lib/index.js
+var empty2 = [];
+var CONTINUE = true;
+var EXIT = false;
+var SKIP = "skip";
+function visitParents(tree, testOrEnterOrVisitors, enterOrVisitorsOrReverse, reverse) {
+  if (!tree || typeof tree !== "object") {
+    throw new Error("Unexpected value `" + tree + "` for `tree`, expected node");
+  }
+  let preorder = true;
+  let check;
+  let visitors;
+  let enter;
+  let exit;
+  if (typeof enterOrVisitorsOrReverse === "function" || enterOrVisitorsOrReverse && typeof enterOrVisitorsOrReverse === "object") {
+    check = testOrEnterOrVisitors;
+    visitors = enterOrVisitorsOrReverse;
+    if (reverse)
+      preorder = false;
+  } else {
+    visitors = testOrEnterOrVisitors;
+    if (enterOrVisitorsOrReverse)
+      preorder = false;
+  }
+  if (typeof visitors === "function") {
+    enter = visitors;
+  } else if (visitors && typeof visitors === "object") {
+    if (visitors.enter === null || visitors.enter === undefined) {} else if (typeof visitors.enter === "function") {
+      enter = visitors.enter;
+    } else {
+      throw new Error("Unexpected value `" + visitors.enter + "` for `visitors.enter`, expected optional visitor");
+    }
+    if (typeof visitors.exit === "function") {
+      exit = visitors.exit;
+    } else {
+      throw new Error("Unexpected value `" + visitors.exit + "` for `visitors.exit`, expected visitor (pass a visitor directly if you only want an enter visitor)");
+    }
+  } else {
+    throw new Error("Unexpected value `" + visitors + "` for `enter` or `visitors`, expected visitor or object with visitors");
+  }
+  const is = convert(check);
+  const step = preorder ? 1 : -1;
+  factory(tree, undefined, [])();
+  function factory(node, index, parents) {
+    const value = node && typeof node === "object" ? node : {};
+    if (typeof value.type === "string") {
+      const name = typeof value.tagName === "string" ? value.tagName : typeof value.name === "string" ? value.name : undefined;
+      Object.defineProperty(visit, "name", {
+        value: "node (" + color(node.type + (name ? "<" + name + ">" : "")) + ")"
+      });
+    }
+    return visit;
+    function visit() {
+      const matches = !check || is(node, index, parents[parents.length - 1] || undefined);
+      let result = empty2;
+      if (enter && matches) {
+        result = toResult(enter(node, parents, index));
+        if (result[0] === EXIT) {
+          return result;
+        }
+      }
+      if ("children" in node && node.children) {
+        const nodeAsParent = node;
+        if (nodeAsParent.children && result[0] !== SKIP) {
+          let offset = (preorder ? -1 : nodeAsParent.children.length) + step;
+          const grandparents = [...parents, nodeAsParent];
+          while (offset > -1 && offset < nodeAsParent.children.length) {
+            const child = nodeAsParent.children[offset];
+            const subresult = factory(child, offset, grandparents)();
+            if (subresult[0] === EXIT) {
+              return subresult;
+            }
+            offset = typeof subresult[1] === "number" ? subresult[1] : offset + step;
+          }
+        }
+      }
+      if (exit && matches) {
+        const exitResult = toResult(exit(node, parents, index));
+        if (exitResult[0] === SKIP) {
+          throw new Error("Unexpected value `" + exitResult[0] + "` from `exit`, expected `CONTINUE`, `EXIT`, index, or nothing");
+        }
+        if (exitResult[0] === EXIT || typeof exitResult[1] === "number") {
+          return exitResult;
+        }
+      }
+      return result;
+    }
+  }
+}
+function toResult(value) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (typeof value === "number") {
+    return [CONTINUE, value];
+  }
+  return value === null || value === undefined ? empty2 : [value];
+}
+// engine/node_modules/unist-util-visit/lib/index.js
+function visit(tree, testOrEnterOrVisitors, enterOrVisitorsOrReverse, maybeReverse) {
+  let check;
+  let visitors;
+  let reverse;
+  if (typeof enterOrVisitorsOrReverse === "function" || enterOrVisitorsOrReverse && typeof enterOrVisitorsOrReverse === "object") {
+    check = testOrEnterOrVisitors;
+    visitors = enterOrVisitorsOrReverse;
+    reverse = maybeReverse;
+  } else {
+    visitors = testOrEnterOrVisitors;
+    reverse = enterOrVisitorsOrReverse;
+  }
+  if (typeof visitors === "function") {
+    visitParents(tree, check, wrap(visitors), reverse);
+  } else {
+    visitParents(tree, check, wrapVisitors(visitors), reverse);
+  }
+}
+function wrapVisitors(visitors) {
+  if (!visitors || typeof visitors !== "object")
+    return visitors;
+  return {
+    enter: typeof visitors.enter === "function" ? wrap(visitors.enter) : visitors.enter,
+    exit: typeof visitors.exit === "function" ? wrap(visitors.exit) : visitors.exit
+  };
+}
+function wrap(visitor) {
+  return overload;
+  function overload(node, parents, index) {
+    return visitor(node, index, parents[parents.length - 1]);
+  }
+}
+// engine/node_modules/mdast-util-to-hast/lib/handlers/blockquote.js
+function blockquote(state, node) {
+  const result = {
+    type: "element",
+    tagName: "blockquote",
+    properties: {},
+    children: state.wrap(state.all(node), true)
+  };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/break.js
+function hardBreak(state, node) {
+  const result = { type: "element", tagName: "br", properties: {}, children: [] };
+  state.patch(node, result);
+  return [state.applyData(node, result), { type: "text", value: `
+` }];
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/code.js
+function code(state, node) {
+  const value = node.value ? node.value + `
+` : "";
+  const properties = {};
+  const language = node.lang ? node.lang.split(/\s+/) : [];
+  if (language.length > 0) {
+    properties.className = ["language-" + language[0]];
+  }
+  let result = {
+    type: "element",
+    tagName: "code",
+    properties,
+    children: [{ type: "text", value }]
+  };
+  if (node.meta) {
+    result.data = { meta: node.meta };
+  }
+  state.patch(node, result);
+  result = state.applyData(node, result);
+  result = { type: "element", tagName: "pre", properties: {}, children: [result] };
+  state.patch(node, result);
+  return result;
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/delete.js
+function strikethrough(state, node) {
+  const result = {
+    type: "element",
+    tagName: "del",
+    properties: {},
+    children: state.all(node)
+  };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/emphasis.js
+function emphasis(state, node) {
+  const result = {
+    type: "element",
+    tagName: "em",
+    properties: {},
+    children: state.all(node)
+  };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/footnote-reference.js
+function footnoteReference(state, node) {
+  const clobberPrefix = typeof state.options.clobberPrefix === "string" ? state.options.clobberPrefix : "user-content-";
+  const id = String(node.identifier).toUpperCase();
+  const safeId = normalizeUri(id.toLowerCase());
+  const index = state.footnoteOrder.indexOf(id);
+  let counter;
+  let reuseCounter = state.footnoteCounts.get(id);
+  if (reuseCounter === undefined) {
+    reuseCounter = 0;
+    state.footnoteOrder.push(id);
+    counter = state.footnoteOrder.length;
+  } else {
+    counter = index + 1;
+  }
+  reuseCounter += 1;
+  state.footnoteCounts.set(id, reuseCounter);
+  const link = {
+    type: "element",
+    tagName: "a",
+    properties: {
+      href: "#" + clobberPrefix + "fn-" + safeId,
+      id: clobberPrefix + "fnref-" + safeId + (reuseCounter > 1 ? "-" + reuseCounter : ""),
+      dataFootnoteRef: true,
+      ariaDescribedBy: ["footnote-label"]
+    },
+    children: [{ type: "text", value: String(counter) }]
+  };
+  state.patch(node, link);
+  const sup = {
+    type: "element",
+    tagName: "sup",
+    properties: {},
+    children: [link]
+  };
+  state.patch(node, sup);
+  return state.applyData(node, sup);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/heading.js
+function heading(state, node) {
+  const result = {
+    type: "element",
+    tagName: "h" + node.depth,
+    properties: {},
+    children: state.all(node)
+  };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/html.js
+function html3(state, node) {
+  if (state.options.allowDangerousHtml) {
+    const result = { type: "raw", value: node.value };
+    state.patch(node, result);
+    return state.applyData(node, result);
+  }
+  return;
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/revert.js
+function revert(state, node) {
+  const subtype = node.referenceType;
+  let suffix = "]";
+  if (subtype === "collapsed") {
+    suffix += "[]";
+  } else if (subtype === "full") {
+    suffix += "[" + (node.label || node.identifier) + "]";
+  }
+  if (node.type === "imageReference") {
+    return [{ type: "text", value: "![" + node.alt + suffix }];
+  }
+  const contents = state.all(node);
+  const head = contents[0];
+  if (head && head.type === "text") {
+    head.value = "[" + head.value;
+  } else {
+    contents.unshift({ type: "text", value: "[" });
+  }
+  const tail = contents[contents.length - 1];
+  if (tail && tail.type === "text") {
+    tail.value += suffix;
+  } else {
+    contents.push({ type: "text", value: suffix });
+  }
+  return contents;
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/image-reference.js
+function imageReference(state, node) {
+  const id = String(node.identifier).toUpperCase();
+  const definition = state.definitionById.get(id);
+  if (!definition) {
+    return revert(state, node);
+  }
+  const properties = { src: normalizeUri(definition.url || "") };
+  if (node.alt !== null && node.alt !== undefined) {
+    properties.alt = node.alt;
+  }
+  if (definition.title !== null && definition.title !== undefined) {
+    properties.title = definition.title;
+  }
+  const result = { type: "element", tagName: "img", properties, children: [] };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/image.js
+function image(state, node) {
+  const properties = { src: normalizeUri(node.url) };
+  if (node.alt !== null && node.alt !== undefined) {
+    properties.alt = node.alt;
+  }
+  if (node.title !== null && node.title !== undefined) {
+    properties.title = node.title;
+  }
+  const result = { type: "element", tagName: "img", properties, children: [] };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/inline-code.js
+function inlineCode(state, node) {
+  const text = { type: "text", value: node.value.replace(/\r?\n|\r/g, " ") };
+  state.patch(node, text);
+  const result = {
+    type: "element",
+    tagName: "code",
+    properties: {},
+    children: [text]
+  };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/link-reference.js
+function linkReference(state, node) {
+  const id = String(node.identifier).toUpperCase();
+  const definition = state.definitionById.get(id);
+  if (!definition) {
+    return revert(state, node);
+  }
+  const properties = { href: normalizeUri(definition.url || "") };
+  if (definition.title !== null && definition.title !== undefined) {
+    properties.title = definition.title;
+  }
+  const result = {
+    type: "element",
+    tagName: "a",
+    properties,
+    children: state.all(node)
+  };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/link.js
+function link(state, node) {
+  const properties = { href: normalizeUri(node.url) };
+  if (node.title !== null && node.title !== undefined) {
+    properties.title = node.title;
+  }
+  const result = {
+    type: "element",
+    tagName: "a",
+    properties,
+    children: state.all(node)
+  };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/list-item.js
+function listItem(state, node, parent) {
+  const results = state.all(node);
+  const loose = parent ? listLoose(parent) : listItemLoose(node);
+  const properties = {};
+  const children = [];
+  if (typeof node.checked === "boolean") {
+    const head = results[0];
+    let paragraph;
+    if (head && head.type === "element" && head.tagName === "p") {
+      paragraph = head;
+    } else {
+      paragraph = { type: "element", tagName: "p", properties: {}, children: [] };
+      results.unshift(paragraph);
+    }
+    if (paragraph.children.length > 0) {
+      paragraph.children.unshift({ type: "text", value: " " });
+    }
+    paragraph.children.unshift({
+      type: "element",
+      tagName: "input",
+      properties: { type: "checkbox", checked: node.checked, disabled: true },
+      children: []
+    });
+    properties.className = ["task-list-item"];
+  }
+  let index = -1;
+  while (++index < results.length) {
+    const child = results[index];
+    if (loose || index !== 0 || child.type !== "element" || child.tagName !== "p") {
+      children.push({ type: "text", value: `
+` });
+    }
+    if (child.type === "element" && child.tagName === "p" && !loose) {
+      children.push(...child.children);
+    } else {
+      children.push(child);
+    }
+  }
+  const tail = results[results.length - 1];
+  if (tail && (loose || tail.type !== "element" || tail.tagName !== "p")) {
+    children.push({ type: "text", value: `
+` });
+  }
+  const result = { type: "element", tagName: "li", properties, children };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+function listLoose(node) {
+  let loose = false;
+  if (node.type === "list") {
+    loose = node.spread || false;
+    const { children } = node;
+    let index = -1;
+    while (!loose && ++index < children.length) {
+      loose = listItemLoose(children[index]);
+    }
+  }
+  return loose;
+}
+function listItemLoose(node) {
+  const { spread } = node;
+  return spread === null || spread === undefined ? node.children.length > 1 : spread;
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/list.js
+function list2(state, node) {
+  const properties = {};
+  const results = state.all(node);
+  let index = -1;
+  if (typeof node.start === "number" && node.start !== 1) {
+    properties.start = node.start;
+  }
+  while (++index < results.length) {
+    const child = results[index];
+    if (child.type === "element" && child.tagName === "li" && child.properties && Array.isArray(child.properties.className) && child.properties.className.includes("task-list-item")) {
+      properties.className = ["contains-task-list"];
+      break;
+    }
+  }
+  const result = {
+    type: "element",
+    tagName: node.ordered ? "ol" : "ul",
+    properties,
+    children: state.wrap(results, true)
+  };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/paragraph.js
+function paragraph(state, node) {
+  const result = {
+    type: "element",
+    tagName: "p",
+    properties: {},
+    children: state.all(node)
+  };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/root.js
+function root3(state, node) {
+  const result = { type: "root", children: state.wrap(state.all(node)) };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/strong.js
+function strong(state, node) {
+  const result = {
+    type: "element",
+    tagName: "strong",
+    properties: {},
+    children: state.all(node)
+  };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/table.js
+function table(state, node) {
+  const rows = state.all(node);
+  const firstRow = rows.shift();
+  const tableContent = [];
+  if (firstRow) {
+    const head = {
+      type: "element",
+      tagName: "thead",
+      properties: {},
+      children: state.wrap([firstRow], true)
+    };
+    state.patch(node.children[0], head);
+    tableContent.push(head);
+  }
+  if (rows.length > 0) {
+    const body = {
+      type: "element",
+      tagName: "tbody",
+      properties: {},
+      children: state.wrap(rows, true)
+    };
+    const start = pointStart(node.children[1]);
+    const end = pointEnd(node.children[node.children.length - 1]);
+    if (start && end)
+      body.position = { start, end };
+    tableContent.push(body);
+  }
+  const result = {
+    type: "element",
+    tagName: "table",
+    properties: {},
+    children: state.wrap(tableContent, true)
+  };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/table-row.js
+function tableRow(state, node, parent) {
+  const siblings = parent ? parent.children : undefined;
+  const rowIndex = siblings ? siblings.indexOf(node) : 1;
+  const tagName = rowIndex === 0 ? "th" : "td";
+  const align = parent && parent.type === "table" ? parent.align : undefined;
+  const length = align ? align.length : node.children.length;
+  let cellIndex = -1;
+  const cells = [];
+  while (++cellIndex < length) {
+    const cell = node.children[cellIndex];
+    const properties = {};
+    const alignValue = align ? align[cellIndex] : undefined;
+    if (alignValue) {
+      properties.align = alignValue;
+    }
+    let result = { type: "element", tagName, properties, children: [] };
+    if (cell) {
+      result.children = state.all(cell);
+      state.patch(cell, result);
+      result = state.applyData(cell, result);
+    }
+    cells.push(result);
+  }
+  const result = {
+    type: "element",
+    tagName: "tr",
+    properties: {},
+    children: state.wrap(cells, true)
+  };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/table-cell.js
+function tableCell(state, node) {
+  const result = {
+    type: "element",
+    tagName: "td",
+    properties: {},
+    children: state.all(node)
+  };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+
+// engine/node_modules/trim-lines/index.js
+var tab = 9;
+var space = 32;
+function trimLines(value) {
+  const source = String(value);
+  const search = /\r?\n|\r/g;
+  let match = search.exec(source);
+  let last = 0;
+  const lines = [];
+  while (match) {
+    lines.push(trimLine(source.slice(last, match.index), last > 0, true), match[0]);
+    last = match.index + match[0].length;
+    match = search.exec(source);
+  }
+  lines.push(trimLine(source.slice(last), last > 0, false));
+  return lines.join("");
+}
+function trimLine(value, start, end) {
+  let startIndex = 0;
+  let endIndex = value.length;
+  if (start) {
+    let code = value.codePointAt(startIndex);
+    while (code === tab || code === space) {
+      startIndex++;
+      code = value.codePointAt(startIndex);
+    }
+  }
+  if (end) {
+    let code = value.codePointAt(endIndex - 1);
+    while (code === tab || code === space) {
+      endIndex--;
+      code = value.codePointAt(endIndex - 1);
+    }
+  }
+  return endIndex > startIndex ? value.slice(startIndex, endIndex) : "";
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/text.js
+function text6(state, node) {
+  const result = { type: "text", value: trimLines(String(node.value)) };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/thematic-break.js
+function thematicBreak2(state, node) {
+  const result = {
+    type: "element",
+    tagName: "hr",
+    properties: {},
+    children: []
+  };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/handlers/index.js
+var handlers4 = {
+  blockquote,
+  break: hardBreak,
+  code,
+  delete: strikethrough,
+  emphasis,
+  footnoteReference,
+  heading,
+  html: html3,
+  imageReference,
+  image,
+  inlineCode,
+  linkReference,
+  link,
+  listItem,
+  list: list2,
+  paragraph,
+  root: root3,
+  strong,
+  table,
+  tableCell,
+  tableRow,
+  text: text6,
+  thematicBreak: thematicBreak2,
+  toml: ignore,
+  yaml: ignore,
+  definition: ignore,
+  footnoteDefinition: ignore
+};
+function ignore() {
+  return;
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/state.js
+var own3 = {}.hasOwnProperty;
+var emptyOptions3 = {};
+function createState(tree, options) {
+  const settings = options || emptyOptions3;
+  const definitionById = new Map;
+  const footnoteById = new Map;
+  const footnoteCounts = new Map;
+  const handlers = { ...handlers4, ...settings.handlers };
+  const state = {
+    all,
+    applyData,
+    definitionById,
+    footnoteById,
+    footnoteCounts,
+    footnoteOrder: [],
+    handlers,
+    one,
+    options: settings,
+    patch,
+    wrap: wrap2
+  };
+  visit(tree, function(node) {
+    if (node.type === "definition" || node.type === "footnoteDefinition") {
+      const id = String(node.identifier).toUpperCase();
+      if (node.type === "definition") {
+        if (!definitionById.has(id)) {
+          definitionById.set(id, node);
+        }
+      } else if (!footnoteById.has(id)) {
+        footnoteById.set(id, node);
+      }
+    }
+  });
+  return state;
+  function one(node, parent) {
+    const { type } = node;
+    const handle = state.handlers[type];
+    if (own3.call(state.handlers, type) && handle) {
+      return handle(state, node, parent);
+    }
+    if (state.options.passThrough && state.options.passThrough.includes(type)) {
+      if ("children" in node) {
+        const { children, ...shallow } = node;
+        return { ...esm_default(shallow), children: state.all(node) };
+      }
+      return esm_default(node);
+    }
+    const unknown = state.options.unknownHandler || defaultUnknownHandler;
+    return unknown(state, node, parent);
+  }
+  function all(parent) {
+    const values = [];
+    if ("children" in parent) {
+      const nodes = parent.children;
+      let index = -1;
+      while (++index < nodes.length) {
+        const result = state.one(nodes[index], parent);
+        if (result) {
+          if (index && nodes[index - 1].type === "break") {
+            if (!Array.isArray(result) && result.type === "text") {
+              result.value = trimMarkdownSpaceStart(result.value);
+            }
+            if (!Array.isArray(result) && result.type === "element") {
+              const head = result.children[0];
+              if (head && head.type === "text") {
+                head.value = trimMarkdownSpaceStart(head.value);
+              }
+            }
+          }
+          if (Array.isArray(result)) {
+            values.push(...result);
+          } else {
+            values.push(result);
+          }
+        }
+      }
+    }
+    return values;
+  }
+}
+function patch(from, to) {
+  if (from.position)
+    to.position = position(from);
+}
+function applyData(from, to) {
+  let result = to;
+  if (from && from.data) {
+    const { hChildren, hName, hProperties } = from.data;
+    if (typeof hName === "string") {
+      if (result.type === "element") {
+        result.tagName = hName;
+      } else {
+        const children = "children" in result ? result.children : [result];
+        result = { type: "element", tagName: hName, properties: {}, children };
+      }
+    }
+    if (result.type === "element" && hProperties) {
+      Object.assign(result.properties, esm_default(hProperties));
+    }
+    if ("children" in result && result.children && hChildren !== null && hChildren !== undefined) {
+      result.children = hChildren;
+    }
+  }
+  return result;
+}
+function defaultUnknownHandler(state, node) {
+  const data = node.data || {};
+  const result = "value" in node && !(own3.call(data, "hProperties") || own3.call(data, "hChildren")) ? { type: "text", value: node.value } : {
+    type: "element",
+    tagName: "div",
+    properties: {},
+    children: state.all(node)
+  };
+  state.patch(node, result);
+  return state.applyData(node, result);
+}
+function wrap2(nodes, loose) {
+  const result = [];
+  let index = -1;
+  if (loose) {
+    result.push({ type: "text", value: `
+` });
+  }
+  while (++index < nodes.length) {
+    if (index)
+      result.push({ type: "text", value: `
+` });
+    result.push(nodes[index]);
+  }
+  if (loose && nodes.length > 0) {
+    result.push({ type: "text", value: `
+` });
+  }
+  return result;
+}
+function trimMarkdownSpaceStart(value) {
+  let index = 0;
+  let code = value.charCodeAt(index);
+  while (code === 9 || code === 32) {
+    index++;
+    code = value.charCodeAt(index);
+  }
+  return value.slice(index);
+}
+
+// engine/node_modules/mdast-util-to-hast/lib/index.js
+function toHast(tree, options) {
+  const state = createState(tree, options);
+  const node = state.one(tree, undefined);
+  const foot = footer(state);
+  const result = Array.isArray(node) ? { type: "root", children: node } : node || { type: "root", children: [] };
+  if (foot) {
+    ok("children" in result);
+    result.children.push({ type: "text", value: `
+` }, foot);
+  }
+  return result;
+}
+// engine/node_modules/remark-rehype/lib/index.js
+function remarkRehype(destination, options) {
+  if (destination && "run" in destination) {
+    return async function(tree, file) {
+      const hastTree = toHast(tree, { file, ...options });
+      await destination.run(hastTree, file);
+    };
+  }
+  return function(tree, file) {
+    return toHast(tree, { file, ...destination || options });
+  };
+}
+// engine/node_modules/bail/index.js
+function bail(error) {
+  if (error) {
+    throw error;
+  }
+}
+
+// engine/node_modules/unified/lib/index.js
+var import_extend = __toESM(require_extend(), 1);
+
+// engine/node_modules/is-plain-obj/index.js
+function isPlainObject2(value) {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return (prototype === null || prototype === Object.prototype || Object.getPrototypeOf(prototype) === null) && !(Symbol.toStringTag in value) && !(Symbol.iterator in value);
+}
+
+// engine/node_modules/trough/lib/index.js
+function trough() {
+  const fns = [];
+  const pipeline = { run, use };
+  return pipeline;
+  function run(...values) {
+    let middlewareIndex = -1;
+    const callback = values.pop();
+    if (typeof callback !== "function") {
+      throw new TypeError("Expected function as last argument, not " + callback);
+    }
+    next(null, ...values);
+    function next(error, ...output) {
+      const fn = fns[++middlewareIndex];
+      let index = -1;
+      if (error) {
+        callback(error);
+        return;
+      }
+      while (++index < values.length) {
+        if (output[index] === null || output[index] === undefined) {
+          output[index] = values[index];
+        }
+      }
+      values = output;
+      if (fn) {
+        wrap3(fn, next)(...output);
+      } else {
+        callback(null, ...output);
+      }
+    }
+  }
+  function use(middelware) {
+    if (typeof middelware !== "function") {
+      throw new TypeError("Expected `middelware` to be a function, not " + middelware);
+    }
+    fns.push(middelware);
+    return pipeline;
+  }
+}
+function wrap3(middleware, callback) {
+  let called;
+  return wrapped;
+  function wrapped(...parameters) {
+    const fnExpectsCallback = middleware.length > parameters.length;
+    let result;
+    if (fnExpectsCallback) {
+      parameters.push(done);
+    }
+    try {
+      result = middleware.apply(this, parameters);
+    } catch (error) {
+      const exception = error;
+      if (fnExpectsCallback && called) {
+        throw exception;
+      }
+      return done(exception);
+    }
+    if (!fnExpectsCallback) {
+      if (result && result.then && typeof result.then === "function") {
+        result.then(then, done);
+      } else if (result instanceof Error) {
+        done(result);
+      } else {
+        then(result);
+      }
+    }
+  }
+  function done(error, ...output) {
+    if (!called) {
+      called = true;
+      callback(error, ...output);
+    }
+  }
+  function then(value) {
+    done(null, value);
+  }
+}
+// engine/node_modules/vfile/lib/minpath.browser.js
+var minpath = { basename, dirname, extname, join, sep: "/" };
+function basename(path, extname) {
+  if (extname !== undefined && typeof extname !== "string") {
+    throw new TypeError('"ext" argument must be a string');
+  }
+  assertPath(path);
+  let start = 0;
+  let end = -1;
+  let index = path.length;
+  let seenNonSlash;
+  if (extname === undefined || extname.length === 0 || extname.length > path.length) {
+    while (index--) {
+      if (path.codePointAt(index) === 47) {
+        if (seenNonSlash) {
+          start = index + 1;
+          break;
+        }
+      } else if (end < 0) {
+        seenNonSlash = true;
+        end = index + 1;
+      }
+    }
+    return end < 0 ? "" : path.slice(start, end);
+  }
+  if (extname === path) {
+    return "";
+  }
+  let firstNonSlashEnd = -1;
+  let extnameIndex = extname.length - 1;
+  while (index--) {
+    if (path.codePointAt(index) === 47) {
+      if (seenNonSlash) {
+        start = index + 1;
+        break;
+      }
+    } else {
+      if (firstNonSlashEnd < 0) {
+        seenNonSlash = true;
+        firstNonSlashEnd = index + 1;
+      }
+      if (extnameIndex > -1) {
+        if (path.codePointAt(index) === extname.codePointAt(extnameIndex--)) {
+          if (extnameIndex < 0) {
+            end = index;
+          }
+        } else {
+          extnameIndex = -1;
+          end = firstNonSlashEnd;
+        }
+      }
+    }
+  }
+  if (start === end) {
+    end = firstNonSlashEnd;
+  } else if (end < 0) {
+    end = path.length;
+  }
+  return path.slice(start, end);
+}
+function dirname(path) {
+  assertPath(path);
+  if (path.length === 0) {
+    return ".";
+  }
+  let end = -1;
+  let index = path.length;
+  let unmatchedSlash;
+  while (--index) {
+    if (path.codePointAt(index) === 47) {
+      if (unmatchedSlash) {
+        end = index;
+        break;
+      }
+    } else if (!unmatchedSlash) {
+      unmatchedSlash = true;
+    }
+  }
+  return end < 0 ? path.codePointAt(0) === 47 ? "/" : "." : end === 1 && path.codePointAt(0) === 47 ? "//" : path.slice(0, end);
+}
+function extname(path) {
+  assertPath(path);
+  let index = path.length;
+  let end = -1;
+  let startPart = 0;
+  let startDot = -1;
+  let preDotState = 0;
+  let unmatchedSlash;
+  while (index--) {
+    const code = path.codePointAt(index);
+    if (code === 47) {
+      if (unmatchedSlash) {
+        startPart = index + 1;
+        break;
+      }
+      continue;
+    }
+    if (end < 0) {
+      unmatchedSlash = true;
+      end = index + 1;
+    }
+    if (code === 46) {
+      if (startDot < 0) {
+        startDot = index;
+      } else if (preDotState !== 1) {
+        preDotState = 1;
+      }
+    } else if (startDot > -1) {
+      preDotState = -1;
+    }
+  }
+  if (startDot < 0 || end < 0 || preDotState === 0 || preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
+    return "";
+  }
+  return path.slice(startDot, end);
+}
+function join(...segments) {
+  let index = -1;
+  let joined;
+  while (++index < segments.length) {
+    assertPath(segments[index]);
+    if (segments[index]) {
+      joined = joined === undefined ? segments[index] : joined + "/" + segments[index];
+    }
+  }
+  return joined === undefined ? "." : normalize2(joined);
+}
+function normalize2(path) {
+  assertPath(path);
+  const absolute = path.codePointAt(0) === 47;
+  let value = normalizeString(path, !absolute);
+  if (value.length === 0 && !absolute) {
+    value = ".";
+  }
+  if (value.length > 0 && path.codePointAt(path.length - 1) === 47) {
+    value += "/";
+  }
+  return absolute ? "/" + value : value;
+}
+function normalizeString(path, allowAboveRoot) {
+  let result = "";
+  let lastSegmentLength = 0;
+  let lastSlash = -1;
+  let dots = 0;
+  let index = -1;
+  let code;
+  let lastSlashIndex;
+  while (++index <= path.length) {
+    if (index < path.length) {
+      code = path.codePointAt(index);
+    } else if (code === 47) {
+      break;
+    } else {
+      code = 47;
+    }
+    if (code === 47) {
+      if (lastSlash === index - 1 || dots === 1) {} else if (lastSlash !== index - 1 && dots === 2) {
+        if (result.length < 2 || lastSegmentLength !== 2 || result.codePointAt(result.length - 1) !== 46 || result.codePointAt(result.length - 2) !== 46) {
+          if (result.length > 2) {
+            lastSlashIndex = result.lastIndexOf("/");
+            if (lastSlashIndex !== result.length - 1) {
+              if (lastSlashIndex < 0) {
+                result = "";
+                lastSegmentLength = 0;
+              } else {
+                result = result.slice(0, lastSlashIndex);
+                lastSegmentLength = result.length - 1 - result.lastIndexOf("/");
+              }
+              lastSlash = index;
+              dots = 0;
+              continue;
+            }
+          } else if (result.length > 0) {
+            result = "";
+            lastSegmentLength = 0;
+            lastSlash = index;
+            dots = 0;
+            continue;
+          }
+        }
+        if (allowAboveRoot) {
+          result = result.length > 0 ? result + "/.." : "..";
+          lastSegmentLength = 2;
+        }
+      } else {
+        if (result.length > 0) {
+          result += "/" + path.slice(lastSlash + 1, index);
+        } else {
+          result = path.slice(lastSlash + 1, index);
+        }
+        lastSegmentLength = index - lastSlash - 1;
+      }
+      lastSlash = index;
+      dots = 0;
+    } else if (code === 46 && dots > -1) {
+      dots++;
+    } else {
+      dots = -1;
+    }
+  }
+  return result;
+}
+function assertPath(path) {
+  if (typeof path !== "string") {
+    throw new TypeError("Path must be a string. Received " + JSON.stringify(path));
+  }
+}
+
+// engine/node_modules/vfile/lib/minproc.browser.js
+var minproc = { cwd };
+function cwd() {
+  return "/";
+}
+
+// engine/node_modules/vfile/lib/minurl.shared.js
+function isUrl(fileUrlOrPath) {
+  return Boolean(fileUrlOrPath !== null && typeof fileUrlOrPath === "object" && "href" in fileUrlOrPath && fileUrlOrPath.href && "protocol" in fileUrlOrPath && fileUrlOrPath.protocol && fileUrlOrPath.auth === undefined);
+}
+
+// engine/node_modules/vfile/lib/minurl.browser.js
+function urlToPath(path) {
+  if (typeof path === "string") {
+    path = new URL(path);
+  } else if (!isUrl(path)) {
+    const error = new TypeError('The "path" argument must be of type string or an instance of URL. Received `' + path + "`");
+    error.code = "ERR_INVALID_ARG_TYPE";
+    throw error;
+  }
+  if (path.protocol !== "file:") {
+    const error = new TypeError("The URL must be of scheme file");
+    error.code = "ERR_INVALID_URL_SCHEME";
+    throw error;
+  }
+  return getPathFromURLPosix(path);
+}
+function getPathFromURLPosix(url) {
+  if (url.hostname !== "") {
+    const error = new TypeError('File URL host must be "localhost" or empty on darwin');
+    error.code = "ERR_INVALID_FILE_URL_HOST";
+    throw error;
+  }
+  const pathname = url.pathname;
+  let index = -1;
+  while (++index < pathname.length) {
+    if (pathname.codePointAt(index) === 37 && pathname.codePointAt(index + 1) === 50) {
+      const third = pathname.codePointAt(index + 2);
+      if (third === 70 || third === 102) {
+        const error = new TypeError("File URL path must not include encoded / characters");
+        error.code = "ERR_INVALID_FILE_URL_PATH";
+        throw error;
+      }
+    }
+  }
+  return decodeURIComponent(pathname);
+}
+
+// engine/node_modules/vfile/lib/index.js
+var order = [
+  "history",
+  "path",
+  "basename",
+  "stem",
+  "extname",
+  "dirname"
+];
+
+class VFile {
+  constructor(value) {
+    let options;
+    if (!value) {
+      options = {};
+    } else if (isUrl(value)) {
+      options = { path: value };
+    } else if (typeof value === "string" || isUint8Array(value)) {
+      options = { value };
+    } else {
+      options = value;
+    }
+    this.cwd = "cwd" in options ? "" : minproc.cwd();
+    this.data = {};
+    this.history = [];
+    this.messages = [];
+    this.value;
+    this.map;
+    this.result;
+    this.stored;
+    let index = -1;
+    while (++index < order.length) {
+      const field = order[index];
+      if (field in options && options[field] !== undefined && options[field] !== null) {
+        this[field] = field === "history" ? [...options[field]] : options[field];
+      }
+    }
+    let field;
+    for (field in options) {
+      if (!order.includes(field)) {
+        this[field] = options[field];
+      }
+    }
+  }
+  get basename() {
+    return typeof this.path === "string" ? minpath.basename(this.path) : undefined;
+  }
+  set basename(basename) {
+    assertNonEmpty(basename, "basename");
+    assertPart(basename, "basename");
+    this.path = minpath.join(this.dirname || "", basename);
+  }
+  get dirname() {
+    return typeof this.path === "string" ? minpath.dirname(this.path) : undefined;
+  }
+  set dirname(dirname) {
+    assertPath2(this.basename, "dirname");
+    this.path = minpath.join(dirname || "", this.basename);
+  }
+  get extname() {
+    return typeof this.path === "string" ? minpath.extname(this.path) : undefined;
+  }
+  set extname(extname) {
+    assertPart(extname, "extname");
+    assertPath2(this.dirname, "extname");
+    if (extname) {
+      if (extname.codePointAt(0) !== 46) {
+        throw new Error("`extname` must start with `.`");
+      }
+      if (extname.includes(".", 1)) {
+        throw new Error("`extname` cannot contain multiple dots");
+      }
+    }
+    this.path = minpath.join(this.dirname, this.stem + (extname || ""));
+  }
+  get path() {
+    return this.history[this.history.length - 1];
+  }
+  set path(path) {
+    if (isUrl(path)) {
+      path = urlToPath(path);
+    }
+    assertNonEmpty(path, "path");
+    if (this.path !== path) {
+      this.history.push(path);
+    }
+  }
+  get stem() {
+    return typeof this.path === "string" ? minpath.basename(this.path, this.extname) : undefined;
+  }
+  set stem(stem) {
+    assertNonEmpty(stem, "stem");
+    assertPart(stem, "stem");
+    this.path = minpath.join(this.dirname || "", stem + (this.extname || ""));
+  }
+  fail(causeOrReason, optionsOrParentOrPlace, origin) {
+    const message = this.message(causeOrReason, optionsOrParentOrPlace, origin);
+    message.fatal = true;
+    throw message;
+  }
+  info(causeOrReason, optionsOrParentOrPlace, origin) {
+    const message = this.message(causeOrReason, optionsOrParentOrPlace, origin);
+    message.fatal = undefined;
+    return message;
+  }
+  message(causeOrReason, optionsOrParentOrPlace, origin) {
+    const message = new VFileMessage(causeOrReason, optionsOrParentOrPlace, origin);
+    if (this.path) {
+      message.name = this.path + ":" + message.name;
+      message.file = this.path;
+    }
+    message.fatal = false;
+    this.messages.push(message);
+    return message;
+  }
+  toString(encoding) {
+    if (this.value === undefined) {
+      return "";
+    }
+    if (typeof this.value === "string") {
+      return this.value;
+    }
+    const decoder = new TextDecoder(encoding || undefined);
+    return decoder.decode(this.value);
+  }
+}
+function assertPart(part, name) {
+  if (part && part.includes(minpath.sep)) {
+    throw new Error("`" + name + "` cannot be a path: did not expect `" + minpath.sep + "`");
+  }
+}
+function assertNonEmpty(part, name) {
+  if (!part) {
+    throw new Error("`" + name + "` cannot be empty");
+  }
+}
+function assertPath2(path, name) {
+  if (!path) {
+    throw new Error("Setting `" + name + "` requires `path` to be set too");
+  }
+}
+function isUint8Array(value) {
+  return Boolean(value && typeof value === "object" && "byteLength" in value && "byteOffset" in value);
+}
+// engine/node_modules/unified/lib/callable-instance.js
+var CallableInstance = function(property) {
+  const self2 = this;
+  const constr = self2.constructor;
+  const proto = constr.prototype;
+  const value = proto[property];
+  const apply = function() {
+    return value.apply(apply, arguments);
+  };
+  Object.setPrototypeOf(apply, proto);
+  return apply;
+};
+
+// engine/node_modules/unified/lib/index.js
+var own4 = {}.hasOwnProperty;
+
+class Processor extends CallableInstance {
+  constructor() {
+    super("copy");
+    this.Compiler = undefined;
+    this.Parser = undefined;
+    this.attachers = [];
+    this.compiler = undefined;
+    this.freezeIndex = -1;
+    this.frozen = undefined;
+    this.namespace = {};
+    this.parser = undefined;
+    this.transformers = trough();
+  }
+  copy() {
+    const destination = new Processor;
+    let index = -1;
+    while (++index < this.attachers.length) {
+      const attacher = this.attachers[index];
+      destination.use(...attacher);
+    }
+    destination.data(import_extend.default(true, {}, this.namespace));
+    return destination;
+  }
+  data(key, value) {
+    if (typeof key === "string") {
+      if (arguments.length === 2) {
+        assertUnfrozen("data", this.frozen);
+        this.namespace[key] = value;
+        return this;
+      }
+      return own4.call(this.namespace, key) && this.namespace[key] || undefined;
+    }
+    if (key) {
+      assertUnfrozen("data", this.frozen);
+      this.namespace = key;
+      return this;
+    }
+    return this.namespace;
+  }
+  freeze() {
+    if (this.frozen) {
+      return this;
+    }
+    const self2 = this;
+    while (++this.freezeIndex < this.attachers.length) {
+      const [attacher, ...options] = this.attachers[this.freezeIndex];
+      if (options[0] === false) {
+        continue;
+      }
+      if (options[0] === true) {
+        options[0] = undefined;
+      }
+      const transformer = attacher.call(self2, ...options);
+      if (typeof transformer === "function") {
+        this.transformers.use(transformer);
+      }
+    }
+    this.frozen = true;
+    this.freezeIndex = Number.POSITIVE_INFINITY;
+    return this;
+  }
+  parse(file) {
+    this.freeze();
+    const realFile = vfile(file);
+    const parser = this.parser || this.Parser;
+    assertParser("parse", parser);
+    return parser(String(realFile), realFile);
+  }
+  process(file, done) {
+    const self2 = this;
+    this.freeze();
+    assertParser("process", this.parser || this.Parser);
+    assertCompiler("process", this.compiler || this.Compiler);
+    return done ? executor(undefined, done) : new Promise(executor);
+    function executor(resolve, reject) {
+      const realFile = vfile(file);
+      const parseTree = self2.parse(realFile);
+      self2.run(parseTree, realFile, function(error, tree, file) {
+        if (error || !tree || !file) {
+          return realDone(error);
+        }
+        const compileTree = tree;
+        const compileResult = self2.stringify(compileTree, file);
+        if (looksLikeAValue(compileResult)) {
+          file.value = compileResult;
+        } else {
+          file.result = compileResult;
+        }
+        realDone(error, file);
+      });
+      function realDone(error, file) {
+        if (error || !file) {
+          reject(error);
+        } else if (resolve) {
+          resolve(file);
+        } else {
+          ok(done, "`done` is defined if `resolve` is not");
+          done(undefined, file);
+        }
+      }
+    }
+  }
+  processSync(file) {
+    let complete = false;
+    let result;
+    this.freeze();
+    assertParser("processSync", this.parser || this.Parser);
+    assertCompiler("processSync", this.compiler || this.Compiler);
+    this.process(file, realDone);
+    assertDone("processSync", "process", complete);
+    ok(result, "we either bailed on an error or have a tree");
+    return result;
+    function realDone(error, file) {
+      complete = true;
+      bail(error);
+      result = file;
+    }
+  }
+  run(tree, file, done) {
+    assertNode(tree);
+    this.freeze();
+    const transformers = this.transformers;
+    if (!done && typeof file === "function") {
+      done = file;
+      file = undefined;
+    }
+    return done ? executor(undefined, done) : new Promise(executor);
+    function executor(resolve, reject) {
+      ok(typeof file !== "function", "`file` can’t be a `done` anymore, we checked");
+      const realFile = vfile(file);
+      transformers.run(tree, realFile, realDone);
+      function realDone(error, outputTree, file) {
+        const resultingTree = outputTree || tree;
+        if (error) {
+          reject(error);
+        } else if (resolve) {
+          resolve(resultingTree);
+        } else {
+          ok(done, "`done` is defined if `resolve` is not");
+          done(undefined, resultingTree, file);
+        }
+      }
+    }
+  }
+  runSync(tree, file) {
+    let complete = false;
+    let result;
+    this.run(tree, file, realDone);
+    assertDone("runSync", "run", complete);
+    ok(result, "we either bailed on an error or have a tree");
+    return result;
+    function realDone(error, tree) {
+      bail(error);
+      result = tree;
+      complete = true;
+    }
+  }
+  stringify(tree, file) {
+    this.freeze();
+    const realFile = vfile(file);
+    const compiler = this.compiler || this.Compiler;
+    assertCompiler("stringify", compiler);
+    assertNode(tree);
+    return compiler(tree, realFile);
+  }
+  use(value, ...parameters) {
+    const attachers = this.attachers;
+    const namespace = this.namespace;
+    assertUnfrozen("use", this.frozen);
+    if (value === null || value === undefined) {} else if (typeof value === "function") {
+      addPlugin(value, parameters);
+    } else if (typeof value === "object") {
+      if (Array.isArray(value)) {
+        addList(value);
+      } else {
+        addPreset(value);
+      }
+    } else {
+      throw new TypeError("Expected usable value, not `" + value + "`");
+    }
+    return this;
+    function add(value) {
+      if (typeof value === "function") {
+        addPlugin(value, []);
+      } else if (typeof value === "object") {
+        if (Array.isArray(value)) {
+          const [plugin, ...parameters] = value;
+          addPlugin(plugin, parameters);
+        } else {
+          addPreset(value);
+        }
+      } else {
+        throw new TypeError("Expected usable value, not `" + value + "`");
+      }
+    }
+    function addPreset(result) {
+      if (!("plugins" in result) && !("settings" in result)) {
+        throw new Error("Expected usable value but received an empty preset, which is probably a mistake: presets typically come with `plugins` and sometimes with `settings`, but this has neither");
+      }
+      addList(result.plugins);
+      if (result.settings) {
+        namespace.settings = import_extend.default(true, namespace.settings, result.settings);
+      }
+    }
+    function addList(plugins) {
+      let index = -1;
+      if (plugins === null || plugins === undefined) {} else if (Array.isArray(plugins)) {
+        while (++index < plugins.length) {
+          const thing = plugins[index];
+          add(thing);
+        }
+      } else {
+        throw new TypeError("Expected a list of plugins, not `" + plugins + "`");
+      }
+    }
+    function addPlugin(plugin, parameters) {
+      let index = -1;
+      let entryIndex = -1;
+      while (++index < attachers.length) {
+        if (attachers[index][0] === plugin) {
+          entryIndex = index;
+          break;
+        }
+      }
+      if (entryIndex === -1) {
+        attachers.push([plugin, ...parameters]);
+      } else if (parameters.length > 0) {
+        let [primary, ...rest] = parameters;
+        const currentPrimary = attachers[entryIndex][1];
+        if (isPlainObject2(currentPrimary) && isPlainObject2(primary)) {
+          primary = import_extend.default(true, currentPrimary, primary);
+        }
+        attachers[entryIndex] = [plugin, primary, ...rest];
+      }
+    }
+  }
+}
+var unified = new Processor().freeze();
+function assertParser(name, value) {
+  if (typeof value !== "function") {
+    throw new TypeError("Cannot `" + name + "` without `parser`");
+  }
+}
+function assertCompiler(name, value) {
+  if (typeof value !== "function") {
+    throw new TypeError("Cannot `" + name + "` without `compiler`");
+  }
+}
+function assertUnfrozen(name, frozen) {
+  if (frozen) {
+    throw new Error("Cannot call `" + name + "` on a frozen processor.\nCreate a new processor first, by calling it: use `processor()` instead of `processor`.");
+  }
+}
+function assertNode(node) {
+  if (!isPlainObject2(node) || typeof node.type !== "string") {
+    throw new TypeError("Expected node, got `" + node + "`");
+  }
+}
+function assertDone(name, asyncName, complete) {
+  if (!complete) {
+    throw new Error("`" + name + "` finished async. Use `" + asyncName + "` instead");
+  }
+}
+function vfile(value) {
+  return looksLikeAVFile(value) ? value : new VFile(value);
+}
+function looksLikeAVFile(value) {
+  return Boolean(value && typeof value === "object" && "message" in value && "messages" in value);
+}
+function looksLikeAValue(value) {
+  return typeof value === "string" || isUint8Array2(value);
+}
+function isUint8Array2(value) {
+  return Boolean(value && typeof value === "object" && "byteLength" in value && "byteOffset" in value);
+}
+// engine/node_modules/react-markdown/lib/index.js
+var changelog = "https://github.com/remarkjs/react-markdown/blob/main/changelog.md";
+var emptyPlugins = [];
+var emptyRemarkRehypeOptions = { allowDangerousHtml: true };
+var safeProtocol = /^(https?|ircs?|mailto|xmpp)$/i;
+var deprecations = [
+  { from: "astPlugins", id: "remove-buggy-html-in-markdown-parser" },
+  { from: "allowDangerousHtml", id: "remove-buggy-html-in-markdown-parser" },
+  {
+    from: "allowNode",
+    id: "replace-allownode-allowedtypes-and-disallowedtypes",
+    to: "allowElement"
+  },
+  {
+    from: "allowedTypes",
+    id: "replace-allownode-allowedtypes-and-disallowedtypes",
+    to: "allowedElements"
+  },
+  { from: "className", id: "remove-classname" },
+  {
+    from: "disallowedTypes",
+    id: "replace-allownode-allowedtypes-and-disallowedtypes",
+    to: "disallowedElements"
+  },
+  { from: "escapeHtml", id: "remove-buggy-html-in-markdown-parser" },
+  { from: "includeElementIndex", id: "#remove-includeelementindex" },
+  {
+    from: "includeNodeIndex",
+    id: "change-includenodeindex-to-includeelementindex"
+  },
+  { from: "linkTarget", id: "remove-linktarget" },
+  { from: "plugins", id: "change-plugins-to-remarkplugins", to: "remarkPlugins" },
+  { from: "rawSourcePos", id: "#remove-rawsourcepos" },
+  { from: "renderers", id: "change-renderers-to-components", to: "components" },
+  { from: "source", id: "change-source-to-children", to: "children" },
+  { from: "sourcePos", id: "#remove-sourcepos" },
+  { from: "transformImageUri", id: "#add-urltransform", to: "urlTransform" },
+  { from: "transformLinkUri", id: "#add-urltransform", to: "urlTransform" }
+];
+function Markdown(options) {
+  const processor = createProcessor(options);
+  const file = createFile(options);
+  return post2(processor.runSync(processor.parse(file), file), options);
+}
+function createProcessor(options) {
+  const rehypePlugins = options.rehypePlugins || emptyPlugins;
+  const remarkPlugins = options.remarkPlugins || emptyPlugins;
+  const remarkRehypeOptions = options.remarkRehypeOptions ? { ...options.remarkRehypeOptions, ...emptyRemarkRehypeOptions } : emptyRemarkRehypeOptions;
+  const processor = unified().use(remarkParse).use(remarkPlugins).use(remarkRehype, remarkRehypeOptions).use(rehypePlugins);
+  return processor;
+}
+function createFile(options) {
+  const children = options.children || "";
+  const file = new VFile;
+  if (typeof children === "string") {
+    file.value = children;
+  } else {
+    unreachable("Unexpected value `" + children + "` for `children` prop, expected `string`");
+  }
+  return file;
+}
+function post2(tree, options) {
+  const allowedElements = options.allowedElements;
+  const allowElement = options.allowElement;
+  const components = options.components;
+  const disallowedElements = options.disallowedElements;
+  const skipHtml = options.skipHtml;
+  const unwrapDisallowed = options.unwrapDisallowed;
+  const urlTransform = options.urlTransform || defaultUrlTransform;
+  for (const deprecation of deprecations) {
+    if (Object.hasOwn(options, deprecation.from)) {
+      unreachable("Unexpected `" + deprecation.from + "` prop, " + (deprecation.to ? "use `" + deprecation.to + "` instead" : "remove it") + " (see <" + changelog + "#" + deprecation.id + "> for more info)");
+    }
+  }
+  if (allowedElements && disallowedElements) {
+    unreachable("Unexpected combined `allowedElements` and `disallowedElements`, expected one or the other");
+  }
+  visit(tree, transform);
+  return toJsxRuntime(tree, {
+    Fragment: import_jsx_runtime31.Fragment,
+    components,
+    ignoreInvalidStyle: true,
+    jsx: import_jsx_runtime31.jsx,
+    jsxs: import_jsx_runtime31.jsxs,
+    passKeys: true,
+    passNode: true
+  });
+  function transform(node, index, parent) {
+    if (node.type === "raw" && parent && typeof index === "number") {
+      if (skipHtml) {
+        parent.children.splice(index, 1);
+      } else {
+        parent.children[index] = { type: "text", value: node.value };
+      }
+      return index;
+    }
+    if (node.type === "element") {
+      let key;
+      for (key in urlAttributes) {
+        if (Object.hasOwn(urlAttributes, key) && Object.hasOwn(node.properties, key)) {
+          const value = node.properties[key];
+          const test = urlAttributes[key];
+          if (test === null || test.includes(node.tagName)) {
+            node.properties[key] = urlTransform(String(value || ""), key, node);
+          }
+        }
+      }
+    }
+    if (node.type === "element") {
+      let remove = allowedElements ? !allowedElements.includes(node.tagName) : disallowedElements ? disallowedElements.includes(node.tagName) : false;
+      if (!remove && allowElement && typeof index === "number") {
+        remove = !allowElement(node, index, parent);
+      }
+      if (remove && parent && typeof index === "number") {
+        if (unwrapDisallowed && node.children) {
+          parent.children.splice(index, 1, ...node.children);
+        } else {
+          parent.children.splice(index, 1);
+        }
+        return index;
+      }
+    }
+  }
+}
+function defaultUrlTransform(value) {
+  const colon = value.indexOf(":");
+  const questionMark = value.indexOf("?");
+  const numberSign = value.indexOf("#");
+  const slash = value.indexOf("/");
+  if (colon === -1 || slash !== -1 && colon > slash || questionMark !== -1 && colon > questionMark || numberSign !== -1 && colon > numberSign || safeProtocol.test(value.slice(0, colon))) {
+    return value;
+  }
+  return "";
+}
+// engine/node_modules/ccount/index.js
+function ccount(value, character) {
+  const source = String(value);
+  if (typeof character !== "string") {
+    throw new TypeError("Expected character");
+  }
+  let count = 0;
+  let index = source.indexOf(character);
+  while (index !== -1) {
+    count++;
+    index = source.indexOf(character, index + character.length);
+  }
+  return count;
+}
+
+// engine/node_modules/escape-string-regexp/index.js
+function escapeStringRegexp(string) {
+  if (typeof string !== "string") {
+    throw new TypeError("Expected a string");
+  }
+  return string.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&").replace(/-/g, "\\x2d");
+}
+
+// engine/node_modules/mdast-util-find-and-replace/lib/index.js
+function findAndReplace(tree, list, options) {
+  const settings = options || {};
+  const ignored = convert(settings.ignore || []);
+  const pairs = toPairs(list);
+  let pairIndex = -1;
+  while (++pairIndex < pairs.length) {
+    visitParents(tree, visitor);
+  }
+  function visitor(node, parents, index) {
+    if (node.type === "text" && typeof index === "number") {
+      return handler(node, parents, index);
+    }
+    if (ignored(node, index, parents[parents.length - 1]))
+      return SKIP;
+  }
+  function handler(node, parents, index) {
+    const parent = parents[parents.length - 1];
+    const find = pairs[pairIndex][0];
+    const replace = pairs[pairIndex][1];
+    let start = 0;
+    let change = false;
+    let nodes = [];
+    find.lastIndex = 0;
+    let match = find.exec(node.value);
+    while (match) {
+      const position = match.index;
+      const matchObject = {
+        index: match.index,
+        input: match.input,
+        stack: [...parents, node]
+      };
+      let value = replace(...match, matchObject);
+      if (typeof value === "string") {
+        value = value.length > 0 ? { type: "text", value } : undefined;
+      }
+      if (value !== false) {
+        if (start !== position) {
+          add({ type: "text", value: node.value.slice(start, position) });
+        }
+        if (Array.isArray(value)) {
+          for (const child of value)
+            add(child);
+        } else if (value) {
+          add(value);
+        }
+        start = position + match[0].length;
+        change = true;
+      }
+      if (value === false || match[0].length === 0) {
+        const code = node.value.codePointAt(position) || 0;
+        find.lastIndex = position + (/[uv]/.test(find.flags) && code > 65535 ? 2 : 1);
+      }
+      if (!find.global) {
+        break;
+      }
+      match = find.exec(node.value);
+    }
+    if (change) {
+      if (start < node.value.length) {
+        add({ type: "text", value: node.value.slice(start) });
+      }
+      parent.children.splice(index, 1, ...nodes);
+    } else {
+      nodes = [node];
+    }
+    return index + nodes.length;
+    function add(child) {
+      const previous = nodes[nodes.length - 1];
+      if (previous && previous.type === "text" && child.type === "text") {
+        previous.value += child.value;
+      } else {
+        nodes.push(child);
+      }
+    }
+  }
+}
+function toPairs(tupleOrList) {
+  if (!Array.isArray(tupleOrList)) {
+    throw new TypeError("Expected find and replace tuple or list of tuples");
+  }
+  const result = [];
+  const list = !tupleOrList[0] || Array.isArray(tupleOrList[0]) ? tupleOrList : [tupleOrList];
+  let index = -1;
+  while (++index < list.length) {
+    const tuple = list[index];
+    result.push([toExpression(tuple[0]), toFunction(tuple[1])]);
+  }
+  return result;
+}
+function toExpression(find) {
+  return typeof find === "string" ? new RegExp(escapeStringRegexp(find), "g") : find;
+}
+function toFunction(replace) {
+  return typeof replace === "function" ? replace : function() {
+    return replace;
+  };
+}
+// engine/node_modules/mdast-util-gfm-autolink-literal/lib/index.js
+var inConstruct = "phrasing";
+var notInConstruct = ["autolink", "link", "image", "label"];
+function gfmAutolinkLiteralFromMarkdown() {
+  return {
+    transforms: [transformGfmAutolinkLiterals],
+    enter: {
+      literalAutolink: enterLiteralAutolink,
+      literalAutolinkEmail: enterLiteralAutolinkValue,
+      literalAutolinkHttp: enterLiteralAutolinkValue,
+      literalAutolinkWww: enterLiteralAutolinkValue
+    },
+    exit: {
+      literalAutolink: exitLiteralAutolink,
+      literalAutolinkEmail: exitLiteralAutolinkEmail,
+      literalAutolinkHttp: exitLiteralAutolinkHttp,
+      literalAutolinkWww: exitLiteralAutolinkWww
+    }
+  };
+}
+function gfmAutolinkLiteralToMarkdown() {
+  return {
+    unsafe: [
+      {
+        character: "@",
+        before: "[+\\-.\\w]",
+        after: "[\\-.\\w]",
+        inConstruct,
+        notInConstruct
+      },
+      {
+        character: ".",
+        before: "[Ww]{3}",
+        inConstruct,
+        notInConstruct
+      },
+      {
+        character: ":",
+        before: "[PSps]",
+        after: "\\/",
+        inConstruct,
+        notInConstruct
+      }
+    ]
+  };
+}
+function enterLiteralAutolink(token) {
+  this.enter({ type: "link", title: null, url: "", children: [], position: undefined }, token);
+}
+function enterLiteralAutolinkValue(token) {
+  this.config.enter.autolinkProtocol.call(this, token);
+}
+function exitLiteralAutolinkHttp(token) {
+  this.config.exit.autolinkProtocol.call(this, token);
+}
+function exitLiteralAutolinkWww(token) {
+  this.config.exit.data.call(this, token);
+  const node = this.stack[this.stack.length - 1];
+  ok(node.type === "link");
+  node.url = "http://" + this.sliceSerialize(token);
+}
+function exitLiteralAutolinkEmail(token) {
+  this.config.exit.autolinkEmail.call(this, token);
+}
+function exitLiteralAutolink(token) {
+  this.exit(token);
+}
+function transformGfmAutolinkLiterals(tree) {
+  findAndReplace(tree, [
+    [
+      /(?<![\da-z])(https?:\/\/|www(?=\.))([\w-]*\.[\w\-.]*)([^\t\n\r ]*)/gi,
+      findUrl
+    ],
+    [
+      /(?<![\w+\-.@])xmpp:([\w+\-.]+)@([\w-]+(?:\.[\w-]+)+)(\/(?:[\w\-/]|\.(?=[\dA-Za-z]))*)?/g,
+      findXmpp
+    ],
+    [/(?<![\w+\-.@])mailto:([\w+\-.]+)@([\w-]+(?:\.[\w-]+)+)/g, findMailto],
+    [
+      /(?<![\w+\-.]|(?:^|[^\d@A-Za-z])(?:mailto|xmpp):)([\w+\-.]+)@([\w-]+(?:\.[\w-]+)+)/g,
+      findEmail
+    ]
+  ], { ignore: ["link", "linkReference"] });
+}
+function findUrl(_, protocol, domain, path, match) {
+  if (!previous2(match)) {
+    return false;
+  }
+  let prefix = "";
+  if (/^w/i.test(protocol)) {
+    domain = protocol + domain;
+    protocol = "";
+    prefix = "http://";
+  }
+  if (unicodePunctuation(domain.charCodeAt(0)) || !isCorrectDomain(domain)) {
+    return false;
+  }
+  const parts = splitUrl(domain + path);
+  const result = {
+    type: "link",
+    title: null,
+    url: prefix + protocol + parts[0],
+    children: [{ type: "text", value: protocol + parts[0], position: undefined }],
+    position: undefined
+  };
+  if (parts[1]) {
+    return [result, { type: "text", value: parts[1], position: undefined }];
+  }
+  return result;
+}
+function findEmail(_, atext, label) {
+  if (/[\d\-_]$/.test(label)) {
+    return false;
+  }
+  return {
+    type: "link",
+    title: null,
+    url: "mailto:" + atext + "@" + label,
+    children: [{ type: "text", value: atext + "@" + label, position: undefined }],
+    position: undefined
+  };
+}
+function findMailto(_, atext, label) {
+  if (/[\d\-_]$/.test(label)) {
+    return false;
+  }
+  const value = "mailto:" + atext + "@" + label;
+  return {
+    type: "link",
+    title: null,
+    url: value,
+    children: [{ type: "text", value, position: undefined }],
+    position: undefined
+  };
+}
+function findXmpp(matchValue, atext, label, resource, match) {
+  if (/[\d\-_]$/.test(label) || resource && (!/[A-Za-z]$/.test(resource) || match.input.charAt(match.index + matchValue.length) === "@")) {
+    return false;
+  }
+  const value = "xmpp:" + atext + "@" + label + (resource || "");
+  return {
+    type: "link",
+    title: null,
+    url: value,
+    children: [{ type: "text", value, position: undefined }],
+    position: undefined
+  };
+}
+function isCorrectDomain(domain) {
+  const parts = domain.split(".");
+  if (parts.length < 2 || parts[parts.length - 1] && (/_/.test(parts[parts.length - 1]) || !/[\dA-Za-z]/.test(parts[parts.length - 1])) || parts[parts.length - 2] && (/_/.test(parts[parts.length - 2]) || !/[\dA-Za-z]/.test(parts[parts.length - 2]))) {
+    return false;
+  }
+  return true;
+}
+function splitUrl(url) {
+  let index = url.length;
+  while (index > 0) {
+    const code = url.charCodeAt(index - 1);
+    if (code === 33 || code === 34 || code === 38 || code === 39 || code === 41 || code === 44 || code === 46 || code === 58 || code === 59 || code === 60 || code === 62 || code === 63 || code === 93 || code === 125) {
+      index--;
+    } else {
+      break;
+    }
+  }
+  if (index === url.length) {
+    return [url, undefined];
+  }
+  let trail = url.slice(index);
+  url = url.slice(0, index);
+  let closingParenIndex = trail.indexOf(")");
+  const openingParens = ccount(url, "(");
+  let closingParens = ccount(url, ")");
+  while (closingParenIndex !== -1 && openingParens > closingParens) {
+    url += trail.slice(0, closingParenIndex + 1);
+    trail = trail.slice(closingParenIndex + 1);
+    closingParenIndex = trail.indexOf(")");
+    closingParens++;
+  }
+  return [url, trail];
+}
+function previous2(match) {
+  const code = match.input.charCodeAt(match.index - 1);
+  return match.index === 0 || unicodeWhitespace(code) || unicodePunctuation(code);
+}
+// engine/node_modules/mdast-util-gfm-footnote/lib/index.js
+footnoteReference2.peek = footnoteReferencePeek;
+function enterFootnoteCallString() {
+  this.buffer();
+}
+function enterFootnoteCall(token) {
+  this.enter({ type: "footnoteReference", identifier: "", label: "" }, token);
+}
+function enterFootnoteDefinitionLabelString() {
+  this.buffer();
+}
+function enterFootnoteDefinition(token) {
+  this.enter({ type: "footnoteDefinition", identifier: "", label: "", children: [] }, token);
+}
+function exitFootnoteCallString(token) {
+  const label = this.resume();
+  const node = this.stack[this.stack.length - 1];
+  ok(node.type === "footnoteReference");
+  node.identifier = normalizeIdentifier(this.sliceSerialize(token)).toLowerCase();
+  node.label = label;
+}
+function exitFootnoteCall(token) {
+  this.exit(token);
+}
+function exitFootnoteDefinitionLabelString(token) {
+  const label = this.resume();
+  const node = this.stack[this.stack.length - 1];
+  ok(node.type === "footnoteDefinition");
+  node.identifier = normalizeIdentifier(this.sliceSerialize(token)).toLowerCase();
+  node.label = label;
+}
+function exitFootnoteDefinition(token) {
+  this.exit(token);
+}
+function footnoteReferencePeek() {
+  return "[";
+}
+function footnoteReference2(node, _, state, info) {
+  const tracker = state.createTracker(info);
+  let value = tracker.move("[^");
+  const exit = state.enter("footnoteReference");
+  const subexit = state.enter("reference");
+  value += tracker.move(state.safe(state.associationId(node), { after: "]", before: value }));
+  subexit();
+  exit();
+  value += tracker.move("]");
+  return value;
+}
+function gfmFootnoteFromMarkdown() {
+  return {
+    enter: {
+      gfmFootnoteCallString: enterFootnoteCallString,
+      gfmFootnoteCall: enterFootnoteCall,
+      gfmFootnoteDefinitionLabelString: enterFootnoteDefinitionLabelString,
+      gfmFootnoteDefinition: enterFootnoteDefinition
+    },
+    exit: {
+      gfmFootnoteCallString: exitFootnoteCallString,
+      gfmFootnoteCall: exitFootnoteCall,
+      gfmFootnoteDefinitionLabelString: exitFootnoteDefinitionLabelString,
+      gfmFootnoteDefinition: exitFootnoteDefinition
+    }
+  };
+}
+function gfmFootnoteToMarkdown(options) {
+  let firstLineBlank = false;
+  if (options && options.firstLineBlank) {
+    firstLineBlank = true;
+  }
+  return {
+    handlers: { footnoteDefinition, footnoteReference: footnoteReference2 },
+    unsafe: [{ character: "[", inConstruct: ["label", "phrasing", "reference"] }]
+  };
+  function footnoteDefinition(node, _, state, info) {
+    const tracker = state.createTracker(info);
+    let value = tracker.move("[^");
+    const exit = state.enter("footnoteDefinition");
+    const subexit = state.enter("label");
+    value += tracker.move(state.safe(state.associationId(node), { before: value, after: "]" }));
+    subexit();
+    value += tracker.move("]:");
+    if (node.children && node.children.length > 0) {
+      tracker.shift(4);
+      value += tracker.move((firstLineBlank ? `
+` : " ") + state.indentLines(state.containerFlow(node, tracker.current()), firstLineBlank ? mapAll : mapExceptFirst));
+    }
+    exit();
+    return value;
+  }
+}
+function mapExceptFirst(line, index, blank) {
+  return index === 0 ? line : mapAll(line, index, blank);
+}
+function mapAll(line, index, blank) {
+  return (blank ? "" : "    ") + line;
+}
+// engine/node_modules/mdast-util-gfm-strikethrough/lib/index.js
+var constructsWithoutStrikethrough = [
+  "autolink",
+  "destinationLiteral",
+  "destinationRaw",
+  "reference",
+  "titleQuote",
+  "titleApostrophe"
+];
+handleDelete.attention = attentionDelete;
+handleDelete.peek = peekDelete;
+function gfmStrikethroughFromMarkdown() {
+  return {
+    canContainEols: ["delete"],
+    enter: { strikethrough: enterStrikethrough },
+    exit: { strikethrough: exitStrikethrough }
+  };
+}
+function gfmStrikethroughToMarkdown() {
+  return {
+    handlers: { delete: handleDelete },
+    unsafe: [
+      {
+        character: "~",
+        inConstruct: "phrasing",
+        notInConstruct: constructsWithoutStrikethrough
+      }
+    ]
+  };
+}
+function enterStrikethrough(token) {
+  this.enter({ type: "delete", children: [], position: undefined }, token);
+}
+function exitStrikethrough(token) {
+  this.exit(token);
+}
+function handleDelete(node, _, state, info) {
+  const tracker = state.createTracker(info);
+  const sequence = state.stack.includes("strikethrough") ? "~" : "~~";
+  const exit = state.enter("strikethrough");
+  let value = tracker.move(sequence);
+  value += state.containerPhrasing(node, {
+    ...tracker.current(),
+    before: value,
+    after: "~"
+  });
+  value += tracker.move(sequence);
+  exit();
+  return value;
+}
+function attentionDelete() {
+  return { construct: "strikethrough", markers: ["~"], sizes: [2, 1] };
+}
+function peekDelete() {
+  return "~";
+}
+// engine/node_modules/markdown-table/index.js
+function defaultStringLength(value) {
+  return value.length;
+}
+function markdownTable(table, options) {
+  const settings = options || {};
+  const align = (settings.align || []).concat();
+  const stringLength = settings.stringLength || defaultStringLength;
+  const alignments = [];
+  const cellMatrix = [];
+  const sizeMatrix = [];
+  const longestCellByColumn = [];
+  let mostCellsPerRow = 0;
+  let rowIndex = -1;
+  while (++rowIndex < table.length) {
+    const row = [];
+    const sizes = [];
+    let columnIndex = -1;
+    if (table[rowIndex].length > mostCellsPerRow) {
+      mostCellsPerRow = table[rowIndex].length;
+    }
+    while (++columnIndex < table[rowIndex].length) {
+      const cell = serialize2(table[rowIndex][columnIndex]);
+      if (settings.alignDelimiters !== false) {
+        const size = stringLength(cell);
+        sizes[columnIndex] = size;
+        if (longestCellByColumn[columnIndex] === undefined || size > longestCellByColumn[columnIndex]) {
+          longestCellByColumn[columnIndex] = size;
+        }
+      }
+      row.push(cell);
+    }
+    cellMatrix[rowIndex] = row;
+    sizeMatrix[rowIndex] = sizes;
+  }
+  let columnIndex = -1;
+  if (typeof align === "object" && "length" in align) {
+    while (++columnIndex < mostCellsPerRow) {
+      alignments[columnIndex] = toAlignment(align[columnIndex]);
+    }
+  } else {
+    const code = toAlignment(align);
+    while (++columnIndex < mostCellsPerRow) {
+      alignments[columnIndex] = code;
+    }
+  }
+  columnIndex = -1;
+  const row = [];
+  const sizes = [];
+  while (++columnIndex < mostCellsPerRow) {
+    const code = alignments[columnIndex];
+    let before = "";
+    let after = "";
+    if (code === 99) {
+      before = ":";
+      after = ":";
+    } else if (code === 108) {
+      before = ":";
+    } else if (code === 114) {
+      after = ":";
+    }
+    let size = settings.alignDelimiters === false ? 1 : Math.max(1, longestCellByColumn[columnIndex] - before.length - after.length);
+    const cell = before + "-".repeat(size) + after;
+    if (settings.alignDelimiters !== false) {
+      size = before.length + size + after.length;
+      if (size > longestCellByColumn[columnIndex]) {
+        longestCellByColumn[columnIndex] = size;
+      }
+      sizes[columnIndex] = size;
+    }
+    row[columnIndex] = cell;
+  }
+  cellMatrix.splice(1, 0, row);
+  sizeMatrix.splice(1, 0, sizes);
+  rowIndex = -1;
+  const lines = [];
+  while (++rowIndex < cellMatrix.length) {
+    const row = cellMatrix[rowIndex];
+    const sizes = sizeMatrix[rowIndex];
+    const cellsInRow = settings.fillRows === false ? Math.max(1, cellMatrix[rowIndex === 1 ? 0 : rowIndex].length) : mostCellsPerRow;
+    columnIndex = -1;
+    const line = [];
+    while (++columnIndex < cellsInRow) {
+      const cell = row[columnIndex] || "";
+      let before = "";
+      let after = "";
+      if (settings.alignDelimiters !== false) {
+        const size = longestCellByColumn[columnIndex] - (sizes[columnIndex] || 0);
+        const code = alignments[columnIndex];
+        if (code === 114) {
+          before = " ".repeat(size);
+        } else if (code === 99) {
+          const half = size / 2;
+          if (size % 2) {
+            before = " ".repeat(half + 0.5);
+            after = " ".repeat(half - 0.5);
+          } else {
+            before = " ".repeat(half);
+            after = before;
+          }
+        } else {
+          after = " ".repeat(size);
+        }
+      }
+      if (settings.delimiterStart !== false && !columnIndex) {
+        line.push("|");
+      }
+      if (settings.padding !== false && !(settings.alignDelimiters === false && cell === "") && (settings.delimiterStart !== false || columnIndex)) {
+        line.push(" ");
+      }
+      if (settings.alignDelimiters !== false) {
+        line.push(before);
+      }
+      line.push(cell);
+      if (settings.alignDelimiters !== false) {
+        line.push(after);
+      }
+      if (settings.padding !== false) {
+        line.push(" ");
+      }
+      if (settings.delimiterEnd !== false || columnIndex !== cellsInRow - 1) {
+        line.push("|");
+      }
+    }
+    lines.push(settings.delimiterEnd === false ? line.join("").replace(/ +$/, "") : line.join(""));
+  }
+  return lines.join(`
+`);
+}
+function serialize2(value) {
+  return value === null || value === undefined ? "" : String(value);
+}
+function toAlignment(value) {
+  const code = typeof value === "string" ? value.codePointAt(0) : 0;
+  return code === 67 || code === 99 ? 99 : code === 76 || code === 108 ? 108 : code === 82 || code === 114 ? 114 : 0;
+}
+// engine/node_modules/mdast-util-to-markdown/lib/handle/blockquote.js
+function blockquote2(node, _, state, info) {
+  const exit = state.enter("blockquote");
+  const tracker = state.createTracker(info);
+  tracker.move("> ");
+  tracker.shift(2);
+  const value = state.indentLines(state.containerFlow(node, tracker.current()), map);
+  exit();
+  return value;
+}
+function map(line, _, blank) {
+  return ">" + (blank ? "" : " ") + line;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/pattern-in-scope.js
+function patternInScope(stack, pattern) {
+  return listInScope(stack, pattern.inConstruct, true) && !listInScope(stack, pattern.notInConstruct, false);
+}
+function listInScope(stack, list, none) {
+  if (typeof list === "string") {
+    list = [list];
+  }
+  if (!list || list.length === 0) {
+    return none;
+  }
+  let index = -1;
+  while (++index < list.length) {
+    if (stack.includes(list[index])) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/handle/break.js
+function hardBreak2(_, _1, state, info) {
+  let index = -1;
+  while (++index < state.unsafe.length) {
+    const pattern = state.unsafe[index];
+    if (pattern.character === `
+` && !pattern.before && !pattern.after && patternInScope(state.stack, pattern)) {
+      return /[\t ]/.test(info.before) ? "" : " ";
+    }
+  }
+  return "\\\n";
+}
+
+// engine/node_modules/longest-streak/index.js
+function longestStreak(value, substring) {
+  const source = String(value);
+  let index = source.indexOf(substring);
+  let expected = index;
+  let count = 0;
+  let max = 0;
+  if (typeof substring !== "string") {
+    throw new TypeError("Expected substring");
+  }
+  while (index !== -1) {
+    if (index === expected) {
+      if (++count > max) {
+        max = count;
+      }
+    } else {
+      count = 1;
+    }
+    expected = index + substring.length;
+    index = source.indexOf(substring, expected);
+  }
+  return max;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/format-code-as-indented.js
+function formatCodeAsIndented(node, state) {
+  return Boolean(state.options.fences === false && node.value && !node.lang && /[^\n\r ]/.test(node.value) && !/^[\t ]*(?:[\n\r]|$)|(?:^|[\n\r])[\t ]*$/.test(node.value));
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/check-fence.js
+function checkFence(state) {
+  const marker = state.options.fence || "`";
+  if (marker !== "`" && marker !== "~") {
+    throw new Error("Cannot serialize code with `" + marker + "` for `options.fence`, expected `` ` `` or `~`");
+  }
+  return marker;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/handle/code.js
+function code2(node, _, state, info) {
+  const marker = checkFence(state);
+  const raw = node.value || "";
+  if (formatCodeAsIndented(node, state)) {
+    const exit = state.enter("codeIndented");
+    const value = state.indentLines(raw, map2);
+    exit();
+    return value;
+  }
+  const tracker = state.createTracker(info);
+  const sequence = marker.repeat(Math.max(longestStreak(raw, marker) + 1, 3));
+  const exit = state.enter("codeFenced");
+  const suffix = marker === "`" ? "GraveAccent" : "Tilde";
+  let value = tracker.move(sequence);
+  if (node.lang) {
+    const subexit = state.enter(`codeFencedLang${suffix}`);
+    value += tracker.move(state.safe(node.lang, {
+      before: value,
+      after: " ",
+      encode: ["`"],
+      ...tracker.current()
+    }));
+    subexit();
+  }
+  if (node.lang && node.meta) {
+    const subexit = state.enter(`codeFencedMeta${suffix}`);
+    value += tracker.move(" ");
+    value += tracker.move(state.safe(node.meta, {
+      before: value,
+      after: `
+`,
+      encode: ["`"],
+      ...tracker.current()
+    }));
+    subexit();
+  }
+  value += tracker.move(`
+`);
+  if (raw) {
+    value += tracker.move(raw + `
+`);
+  }
+  value += tracker.move(sequence);
+  exit();
+  return value;
+}
+function map2(line, _, blank) {
+  return (blank ? "" : "    ") + line;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/check-quote.js
+function checkQuote(state) {
+  const marker = state.options.quote || '"';
+  if (marker !== '"' && marker !== "'") {
+    throw new Error("Cannot serialize title with `" + marker + "` for `options.quote`, expected `\"`, or `'`");
+  }
+  return marker;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/handle/definition.js
+function definition2(node, _, state, info) {
+  const quote = checkQuote(state);
+  const suffix = quote === '"' ? "Quote" : "Apostrophe";
+  const exit = state.enter("definition");
+  let subexit = state.enter("label");
+  const tracker = state.createTracker(info);
+  let value = tracker.move("[");
+  value += tracker.move(state.safe(state.associationId(node), {
+    before: value,
+    after: "]",
+    ...tracker.current()
+  }));
+  value += tracker.move("]: ");
+  subexit();
+  if (!node.url || /^<|[\0- \u007F]/.test(node.url)) {
+    subexit = state.enter("destinationLiteral");
+    value += tracker.move("<");
+    value += tracker.move(state.safe(node.url, { before: value, after: ">", ...tracker.current() }));
+    value += tracker.move(">");
+  } else {
+    subexit = state.enter("destinationRaw");
+    value += tracker.move(state.safe(node.url, {
+      before: value,
+      after: node.title ? " " : `
+`,
+      ...tracker.current()
+    }));
+  }
+  subexit();
+  if (node.title) {
+    subexit = state.enter(`title${suffix}`);
+    value += tracker.move(" " + quote);
+    value += tracker.move(state.safe(node.title, {
+      before: value,
+      after: quote,
+      ...tracker.current()
+    }));
+    value += tracker.move(quote);
+    subexit();
+  }
+  exit();
+  return value;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/check-emphasis.js
+function checkEmphasis(state) {
+  const marker = state.options.emphasis || "*";
+  if (marker !== "*" && marker !== "_") {
+    throw new Error("Cannot serialize emphasis with `" + marker + "` for `options.emphasis`, expected `*`, or `_`");
+  }
+  return marker;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/character.js
+function firstCharacter(value) {
+  const code = value.codePointAt(0);
+  return code === undefined ? "" : String.fromCodePoint(code);
+}
+function lastCharacter(value) {
+  const code = value.codePointAt(value.length - 2);
+  return code !== undefined && code > 65535 ? value.slice(-2) : value.slice(-1);
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/encode-character-reference.js
+function encodeCharacterReference(code) {
+  return "&#x" + code.toString(16).toUpperCase() + ";";
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/encode-info.js
+function encodeInfo(outside, inside, marker) {
+  const outsideKind = classifyCharacter(outside);
+  const insideKind = classifyCharacter(inside);
+  if (outsideKind === undefined) {
+    return insideKind === undefined ? marker === "_" ? { inside: true, outside: true } : { inside: false, outside: false } : insideKind === 1 ? { inside: true, outside: true } : { inside: false, outside: true };
+  }
+  if (outsideKind === 1) {
+    return insideKind === undefined ? { inside: false, outside: false } : insideKind === 1 ? { inside: true, outside: true } : { inside: false, outside: false };
+  }
+  return insideKind === undefined ? { inside: false, outside: false } : insideKind === 1 ? { inside: true, outside: false } : { inside: false, outside: false };
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/html-kind.js
+function htmlKind(value) {
+  if (value.charCodeAt(0) !== 60)
+    return;
+  const next = value.charCodeAt(1);
+  if (next === 33) {
+    const code = value.charCodeAt(2);
+    if (code === 45)
+      return 2;
+    if (code === 91)
+      return 5;
+    if (asciiAlpha(code))
+      return 4;
+    return;
+  }
+  if (next === 63)
+    return 3;
+  const closing = next === 47;
+  const start = closing ? 2 : 1;
+  let end = start;
+  let code = value.charCodeAt(end);
+  if (!asciiAlpha(code))
+    return;
+  while (code === 45 || asciiAlphanumeric(code)) {
+    code = value.charCodeAt(++end);
+  }
+  const name = value.slice(start, end).toLowerCase();
+  if (!closing && code !== 47 && htmlRawNames.includes(name)) {
+    return 1;
+  }
+  return htmlBlockNames.includes(name) ? 6 : 7;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/container-phrasing.js
+var builtins = new Map([
+  ["*", false],
+  ["_", true]
+]);
+function candidates(tokens, involved, runOf) {
+  const related = new Set;
+  for (const token of tokens) {
+    const siblings = runOf.get(token);
+    if (siblings && token.attention && involved.some((d) => d.attention === token.attention)) {
+      for (const sibling of siblings.tokens) {
+        related.add(sibling.attention);
+      }
+    }
+  }
+  const ordered = [];
+  for (const token of tokens) {
+    if (token.attention && related.delete(token.attention)) {
+      ordered.push(token.attention);
+    }
+  }
+  ordered.reverse();
+  return ordered;
+}
+function check(tokens, before, after) {
+  const runs = [];
+  const wrong = new Map;
+  const runOf = new Map;
+  let index = 0;
+  while (index < tokens.length) {
+    if (!tokens[index].attention) {
+      index++;
+      continue;
+    }
+    const marker = tokens[index].value.charAt(0);
+    const strict = builtins.get(marker);
+    let end = index + 1;
+    while (end < tokens.length && tokens[end].attention && tokens[end].value.charAt(0) === marker) {
+      end++;
+    }
+    const head = index ? tokens[index - 1].value : before;
+    const previous = classifyCharacter(head.charCodeAt(head.length - 1));
+    const next = classifyCharacter((end < tokens.length ? tokens[end].value : after).charCodeAt(0));
+    const open = !next || next === 2 && Boolean(previous);
+    const close = !previous || previous === 2 && Boolean(next);
+    const run = {
+      tokens: tokens.slice(index, end),
+      markers: [],
+      start: 0,
+      end: 0,
+      open: strict ? open && (Boolean(previous) || !close) : open,
+      close: strict ? close && (Boolean(next) || !open) : close,
+      split: strict !== undefined
+    };
+    for (const token of run.tokens) {
+      wrong.set(token, [...run.tokens]);
+      runOf.set(token, run);
+      let size = token.value.length;
+      while (size--)
+        run.markers.push(token);
+    }
+    run.end = run.markers.length;
+    runs.push(run);
+    index = end;
+  }
+  pair(runs, wrong);
+  index = -1;
+  while (++index < tokens.length) {
+    const involved = wrong.get(tokens[index]);
+    if (involved)
+      return { attention: candidates(tokens, involved, runOf), index };
+  }
+}
+function encode(tokens, start) {
+  const token = tokens[start ? 0 : tokens.length - 1];
+  if (!token || token.attention)
+    return;
+  const character = start ? firstCharacter(token.value) : lastCharacter(token.value);
+  const reference = encodeCharacterReference(character.codePointAt(0));
+  if (start) {
+    token.value = reference + token.value.slice(character.length);
+  } else {
+    let value = token.value.slice(0, token.value.length - character.length);
+    let escapes = 0;
+    while (value.charCodeAt(value.length - 1 - escapes) === 92) {
+      escapes++;
+    }
+    if (escapes % 2)
+      value += "\\";
+    token.value = value + reference;
+  }
+}
+function improve(items, chosen, mistake, before, after) {
+  for (const attention of mistake.attention) {
+    const current = chosen.get(attention) || attention.sequences[0];
+    for (const sequence of attention.sequences) {
+      if (sequence === current)
+        continue;
+      const trial = new Map(chosen);
+      trial.set(attention, sequence);
+      const tokens = render2(items, trial, before, after);
+      const next = check(tokens, before, after);
+      if (!next || next.index > mistake.index) {
+        return { chosen: trial, mistake: next, tokens };
+      }
+    }
+  }
+}
+function pair(runs, wrong) {
+  const openersByMarker = new Map;
+  for (const closer of runs) {
+    const marker = closer.tokens[0].value.charAt(0);
+    let openers = openersByMarker.get(marker);
+    if (!openers) {
+      openers = [];
+      openersByMarker.set(marker, openers);
+    }
+    let open = closer.close ? openers.length : 0;
+    while (open-- && closer.start < closer.end) {
+      const opener = openers[open];
+      const openerSize = opener.end - opener.start;
+      const closerSize = closer.end - closer.start;
+      if (closer.split ? (opener.close || closer.open) && closerSize % 3 && !((openerSize + closerSize) % 3) : openerSize !== opener.markers.length || openerSize !== closerSize) {
+        continue;
+      }
+      const size = closer.split ? openerSize > 1 && closerSize > 1 ? 2 : 1 : closerSize;
+      const opening = opener.markers.slice(opener.end - size, opener.end);
+      const closing = closer.markers.slice(closer.start, closer.start + size);
+      const openToken = opening[0];
+      const closeToken = closing[0];
+      if (openToken === opening[size - 1] && openToken.value.length === size && closeToken === closing[size - 1] && closeToken.value.length === size && openToken.attention === closeToken.attention) {
+        wrong.delete(openToken);
+        wrong.delete(closeToken);
+      } else {
+        const involved = [...new Set([...opening, ...closing])];
+        for (const token of involved) {
+          const list = wrong.get(token);
+          if (list)
+            list.push(...involved);
+        }
+      }
+      opener.end -= size;
+      closer.start += size;
+      if (opener.start === opener.end)
+        openers.splice(open, 1);
+      open = openers.length;
+    }
+    if (closer.open && closer.start < closer.end)
+      openers.push(closer);
+  }
+}
+function attentionSequences(type, markers, sizes) {
+  if (markers.length === 0) {
+    throw new Error("Cannot serialize `" + type + "` as attention without markers, expected one or more markers");
+  }
+  if (sizes.length === 0) {
+    throw new Error("Cannot serialize `" + type + "` as attention without sizes, expected one or more sizes");
+  }
+  for (const size of sizes) {
+    if (!Number.isSafeInteger(size) || size < 1) {
+      throw new Error("Cannot serialize `" + type + "` as attention with `" + size + "` as size, expected positive integer");
+    }
+  }
+  const sequences = [];
+  for (const marker of markers) {
+    if (marker.length !== 1) {
+      throw new Error("Cannot serialize `" + type + "` as attention with `" + marker + "` as marker, expected a single ascii character");
+    }
+    if (!asciiPunctuation(marker.charCodeAt(0))) {
+      throw new Error("Cannot serialize `" + type + "` as attention with `" + marker + "` as marker, expected ascii punctuation");
+    }
+    for (const size of sizes) {
+      sequences.push(marker.repeat(size));
+    }
+  }
+  return sequences;
+}
+function phrasing(parent, state, info) {
+  const indexStack = state.indexStack;
+  const children = parent.children || [];
+  const results = [];
+  let index = -1;
+  let before = info.before;
+  indexStack.push(-1);
+  let tracker = state.createTracker(info);
+  while (++index < children.length) {
+    const child = children[index];
+    let after;
+    indexStack[indexStack.length - 1] = index;
+    if (index + 1 < children.length) {
+      let handle = state.handle.handlers[children[index + 1].type];
+      if (handle && handle.peek)
+        handle = handle.peek;
+      after = handle ? firstCharacter(handle(children[index + 1], parent, state, {
+        before: "",
+        after: "",
+        ...tracker.current()
+      })) : "";
+    } else {
+      after = info.after;
+    }
+    const previous = results[results.length - 1];
+    if (typeof previous === "string" && (before === "\r" || before === `
+`) && child.type === "html" && htmlKind(child.value) !== 7) {
+      results[results.length - 1] = previous.replace(/(\r?\n|\r)$/, " ");
+      before = " ";
+      tracker = state.createTracker(info);
+      tracker.move(serialize3(results, info.before, info.after));
+    }
+    const handle = state.handle.handlers[child.type];
+    if (handle && handle.attention) {
+      const item = attentionItem(child, handle.attention, state, tracker);
+      if (!item)
+        continue;
+      results.push(item);
+      before = lastCharacter(item.sequences[0]);
+    } else {
+      const value = state.handle(child, parent, state, {
+        ...tracker.current(),
+        after,
+        before
+      });
+      if (!value)
+        continue;
+      tracker.move(value);
+      results.push(value);
+      before = lastCharacter(value);
+    }
+  }
+  indexStack.pop();
+  return results;
+}
+function attentionItem(node, attention, state, tracker) {
+  const { construct, markers, sizes } = attention(node, state);
+  const sequences = attentionSequences(node.type, markers, sizes);
+  const sequence = sequences[0];
+  const exit = state.enter(construct);
+  const inside = state.createTracker(tracker.current());
+  inside.move(sequence);
+  const children = phrasing(node, state, {
+    ...inside.current(),
+    before: sequence,
+    after: sequence
+  });
+  exit();
+  if (children.length === 0)
+    return;
+  tracker.move(sequence);
+  tracker.move(serialize3(children, sequence, sequence));
+  tracker.move(sequence);
+  return { children, sequences };
+}
+function fix(items, chosen, before, after) {
+  let tokens = render2(items, chosen, before, after);
+  let mistake = check(tokens, before, after);
+  while (mistake) {
+    const next = improve(items, chosen, mistake, before, after);
+    if (!next)
+      return;
+    chosen = next.chosen;
+    tokens = next.tokens;
+    mistake = next.mistake;
+  }
+  return tokens;
+}
+function guess(items, chosen, before, after) {
+  let previous = before;
+  let index = -1;
+  while (++index < items.length) {
+    const item = items[index];
+    if (typeof item === "string") {
+      previous = "";
+      continue;
+    }
+    const next = index === items.length - 1 ? after : "";
+    const sequence = item.sequences.find(function(value) {
+      const marker = value.charAt(0);
+      return marker !== previous.charAt(0) && marker !== next.charAt(0) || items.length === 1 && builtins.has(marker) && value.length > before.length;
+    }) || item.sequences[0];
+    if (sequence !== item.sequences[0])
+      chosen.set(item, sequence);
+    guess(item.children, chosen, sequence, sequence);
+    previous = sequence;
+  }
+}
+function render2(items, chosen, before, after) {
+  const tokens = [];
+  let encodeAfter;
+  let previous = lastCharacter(before);
+  let index = -1;
+  while (++index < items.length) {
+    const item = items[index];
+    if (typeof item === "string") {
+      const token = { value: item, attention: undefined };
+      if (encodeAfter && encodeAfter === firstCharacter(item)) {
+        encode([token], true);
+      }
+      encodeAfter = undefined;
+      tokens.push(token);
+      if (token.value)
+        previous = lastCharacter(token.value);
+      continue;
+    }
+    const sequence = chosen.get(item) || item.sequences[0];
+    const marker = sequence.charAt(0);
+    const next = items[index + 1];
+    const outsideBefore = previous;
+    const outsideAfter = firstCharacter(next === undefined ? after : typeof next === "string" ? next : chosen.get(next) || next.sequences[0]);
+    const inside = render2(item.children, chosen, sequence, sequence);
+    const head = inside[0].value;
+    const open = encodeInfo(outsideBefore.charCodeAt(outsideBefore.length - 1), head.charCodeAt(0), marker);
+    if (open.inside)
+      encode(inside, true);
+    const tail = lastCharacter(inside[inside.length - 1].value);
+    const close = encodeInfo(outsideAfter.charCodeAt(0), tail.charCodeAt(tail.length - 1), marker);
+    if (close.inside)
+      encode(inside, false);
+    if (open.outside && outsideBefore !== `
+` && outsideBefore !== "\r") {
+      encode(tokens, false);
+    }
+    if (close.outside)
+      encodeAfter = outsideAfter;
+    tokens.push({ value: sequence, attention: item }, ...inside, {
+      value: sequence,
+      attention: item
+    });
+    previous = sequence.charAt(sequence.length - 1);
+  }
+  return tokens;
+}
+function serialize3(items, before, after) {
+  const guessed = new Map;
+  guess(items, guessed, before, after);
+  const tokens = (guessed.size > 0 ? fix(items, guessed, before, after) : undefined) || fix(items, new Map, before, after) || render2(items, new Map, before, after);
+  let result = "";
+  for (const token of tokens)
+    result += token.value;
+  return result;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/handle/emphasis.js
+emphasis2.attention = attention2;
+emphasis2.peek = peek2;
+function emphasis2(node, _, state, info) {
+  const exit = state.enter("phrasing");
+  const item = attentionItem(node, attention2, state, state.createTracker(info));
+  const value = item ? serialize3([item], info.before, info.after) : "";
+  exit();
+  return value;
+}
+function attention2(_, state) {
+  const marker = checkEmphasis(state);
+  return {
+    construct: "emphasis",
+    markers: marker === "*" ? ["*", "_"] : ["_", "*"],
+    sizes: [1]
+  };
+}
+function peek2(_, _1, state) {
+  return state.options.emphasis || "*";
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/format-heading-as-setext.js
+function formatHeadingAsSetext(node, state) {
+  let literalWithBreak = false;
+  visit(node, function(node) {
+    if ("value" in node && /\r?\n|\r/.test(node.value) || node.type === "break") {
+      literalWithBreak = true;
+      return EXIT;
+    }
+  });
+  return Boolean((!node.depth || node.depth < 3) && toString(node) && (state.options.setext || literalWithBreak));
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/handle/heading.js
+function heading2(node, _, state, info) {
+  const rank = Math.max(Math.min(6, node.depth || 1), 1);
+  const tracker = state.createTracker(info);
+  if (formatHeadingAsSetext(node, state)) {
+    const exit = state.enter("headingSetext");
+    const subexit = state.enter("phrasing");
+    const value = state.containerPhrasing(node, {
+      ...tracker.current(),
+      before: `
+`,
+      after: `
+`
+    });
+    subexit();
+    exit();
+    return value + `
+` + (rank === 1 ? "=" : "-").repeat(value.length - (Math.max(value.lastIndexOf("\r"), value.lastIndexOf(`
+`)) + 1));
+  }
+  const sequence = "#".repeat(rank);
+  const exit = state.enter("headingAtx");
+  const subexit = state.enter("phrasing");
+  tracker.move(sequence + " ");
+  let value = state.containerPhrasing(node, {
+    before: "# ",
+    after: `
+`,
+    ...tracker.current()
+  });
+  const head = value.charCodeAt(0);
+  if (head === 9 || head === 32) {
+    value = encodeCharacterReference(head) + value.slice(1);
+  }
+  value = value ? sequence + " " + value : sequence;
+  if (state.options.closeAtx) {
+    value += " " + sequence;
+  }
+  subexit();
+  exit();
+  return value;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/handle/html.js
+html4.peek = htmlPeek;
+function html4(node) {
+  return node.value || "";
+}
+function htmlPeek() {
+  return "<";
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/handle/image.js
+image2.peek = imagePeek;
+function image2(node, _, state, info) {
+  const quote = checkQuote(state);
+  const suffix = quote === '"' ? "Quote" : "Apostrophe";
+  const exit = state.enter("image");
+  let subexit = state.enter("label");
+  const tracker = state.createTracker(info);
+  let value = tracker.move("![");
+  value += tracker.move(state.safe(node.alt, { before: value, after: "]", ...tracker.current() }));
+  value += tracker.move("](");
+  subexit();
+  if (!node.url && node.title || /^<|[\0- \u007F]/.test(node.url)) {
+    subexit = state.enter("destinationLiteral");
+    value += tracker.move("<");
+    value += tracker.move(state.safe(node.url, { before: value, after: ">", ...tracker.current() }));
+    value += tracker.move(">");
+  } else {
+    subexit = state.enter("destinationRaw");
+    value += tracker.move(state.safe(node.url, {
+      before: value,
+      after: node.title ? " " : ")",
+      ...tracker.current()
+    }));
+  }
+  subexit();
+  if (node.title) {
+    subexit = state.enter(`title${suffix}`);
+    value += tracker.move(" " + quote);
+    value += tracker.move(state.safe(node.title, {
+      before: value,
+      after: quote,
+      ...tracker.current()
+    }));
+    value += tracker.move(quote);
+    subexit();
+  }
+  value += tracker.move(")");
+  exit();
+  return value;
+}
+function imagePeek() {
+  return "!";
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/handle/image-reference.js
+imageReference2.peek = imageReferencePeek;
+function imageReference2(node, _, state, info) {
+  const type = node.referenceType;
+  const exit = state.enter("imageReference");
+  let subexit = state.enter("label");
+  const tracker = state.createTracker(info);
+  let value = tracker.move("![");
+  const alt = state.safe(node.alt, {
+    before: value,
+    after: "]",
+    ...tracker.current()
+  });
+  value += tracker.move(alt + "][");
+  subexit();
+  const stack = state.stack;
+  state.stack = stack.filter(function(d) {
+    return d !== "phrasing";
+  });
+  subexit = state.enter("reference");
+  const reference = state.safe(state.associationId(node), {
+    before: value,
+    after: "]",
+    ...tracker.current()
+  });
+  subexit();
+  state.stack = stack;
+  exit();
+  if (type === "full" || !alt || alt !== reference) {
+    value += tracker.move(reference + "]");
+  } else if (type === "shortcut") {
+    value = value.slice(0, -1);
+  } else {
+    value += tracker.move("]");
+  }
+  return value;
+}
+function imageReferencePeek() {
+  return "!";
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/handle/inline-code.js
+inlineCode2.peek = inlineCodePeek;
+function inlineCode2(node, _, state) {
+  let value = node.value || "";
+  let sequence = "`";
+  let index = -1;
+  while (new RegExp("(^|[^`])" + sequence + "([^`]|$)").test(value)) {
+    sequence += "`";
+  }
+  if (/[^\n\r ]/.test(value) && (/^[\n\r ]/.test(value) && /[\n\r ]$/.test(value) || /^`|`$/.test(value))) {
+    value = " " + value + " ";
+  }
+  while (++index < state.unsafe.length) {
+    const pattern = state.unsafe[index];
+    const expression = state.compilePattern(pattern);
+    if (!pattern.atBreak)
+      continue;
+    let match;
+    while (match = expression.exec(value)) {
+      let position = match.index;
+      if (value.charCodeAt(position) === 10 && value.charCodeAt(position - 1) === 13) {
+        position--;
+      }
+      value = value.slice(0, position) + " " + value.slice(match.index + 1);
+    }
+  }
+  return sequence + value + sequence;
+}
+function inlineCodePeek() {
+  return "`";
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/format-link-as-autolink.js
+function formatLinkAsAutolink(node, state) {
+  const raw = toString(node);
+  return Boolean(!state.options.resourceLink && node.url && !node.title && node.children && node.children.length === 1 && node.children[0].type === "text" && (raw === node.url || "mailto:" + raw === node.url) && /^[a-z][+\-.a-z]+:/i.test(node.url) && !/[\0- <>\u007F]/.test(node.url));
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/handle/link.js
+link2.peek = linkPeek;
+function link2(node, _, state, info) {
+  const quote = checkQuote(state);
+  const suffix = quote === '"' ? "Quote" : "Apostrophe";
+  const tracker = state.createTracker(info);
+  if (formatLinkAsAutolink(node, state)) {
+    const stack = state.stack;
+    state.stack = stack.filter(function(d) {
+      return d !== "phrasing";
+    });
+    const exit = state.enter("autolink");
+    let value = tracker.move("<");
+    value += tracker.move(state.containerPhrasing(node, {
+      before: value,
+      after: ">",
+      ...tracker.current()
+    }));
+    value += tracker.move(">");
+    exit();
+    state.stack = stack;
+    return value;
+  }
+  const exit = state.enter("link");
+  let subexit = state.enter("label");
+  let value = tracker.move("[");
+  const text = state.containerPhrasing(node, {
+    before: value,
+    after: "](",
+    ...tracker.current()
+  });
+  value += tracker.move(text);
+  subexit();
+  value += tracker.move("](");
+  const enclose = /^<|[\0- \u007F]/.test(node.url);
+  const last = info.before.charAt(info.before.length - 1);
+  let title = node.title || undefined;
+  if (!title && !enclose && (last === `
+` || last === "\r")) {
+    let index = 0;
+    while (index < text.length && text.charCodeAt(index) !== 93) {
+      index += text.charCodeAt(index) === 92 ? 2 : 1;
+    }
+    if (text.charCodeAt(index + 1) === 58)
+      title = "";
+  }
+  if (!node.url && typeof title === "string" || enclose) {
+    subexit = state.enter("destinationLiteral");
+    value += tracker.move("<");
+    value += tracker.move(state.safe(node.url, { before: value, after: ">", ...tracker.current() }));
+    value += tracker.move(">");
+  } else {
+    subexit = state.enter("destinationRaw");
+    value += tracker.move(state.safe(node.url, {
+      before: value,
+      after: typeof title === "string" ? " " : ")",
+      ...tracker.current()
+    }));
+  }
+  subexit();
+  if (typeof title === "string") {
+    subexit = state.enter(`title${suffix}`);
+    value += tracker.move(" " + quote);
+    value += tracker.move(state.safe(title, {
+      before: value,
+      after: quote,
+      ...tracker.current()
+    }));
+    value += tracker.move(quote);
+    subexit();
+  }
+  value += tracker.move(")");
+  exit();
+  return value;
+}
+function linkPeek(node, _, state) {
+  return formatLinkAsAutolink(node, state) ? "<" : "[";
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/handle/link-reference.js
+linkReference2.peek = linkReferencePeek;
+function linkReference2(node, _, state, info) {
+  const type = node.referenceType;
+  const exit = state.enter("linkReference");
+  let subexit = state.enter("label");
+  const tracker = state.createTracker(info);
+  let value = tracker.move("[");
+  const text = state.containerPhrasing(node, {
+    before: value,
+    after: "]",
+    ...tracker.current()
+  });
+  value += tracker.move(text + "][");
+  subexit();
+  const stack = state.stack;
+  state.stack = stack.filter(function(d) {
+    return d !== "phrasing";
+  });
+  subexit = state.enter("reference");
+  const reference = state.safe(state.associationId(node), {
+    before: value,
+    after: "]",
+    ...tracker.current()
+  });
+  subexit();
+  state.stack = stack;
+  exit();
+  if (type === "full" || !text || text !== reference) {
+    value += tracker.move(reference + "]");
+  } else if (type === "shortcut") {
+    value = value.slice(0, -1);
+  } else {
+    value += tracker.move("]");
+  }
+  return value;
+}
+function linkReferencePeek() {
+  return "[";
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/check-bullet.js
+function checkBullet(state) {
+  const marker = state.options.bullet || "*";
+  if (marker !== "*" && marker !== "+" && marker !== "-") {
+    throw new Error("Cannot serialize items with `" + marker + "` for `options.bullet`, expected `*`, `+`, or `-`");
+  }
+  return marker;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/check-bullet-other.js
+function checkBulletOther(state) {
+  const bullet = checkBullet(state);
+  const bulletOther = state.options.bulletOther;
+  if (!bulletOther) {
+    return bullet === "*" ? "-" : "*";
+  }
+  if (bulletOther !== "*" && bulletOther !== "+" && bulletOther !== "-") {
+    throw new Error("Cannot serialize items with `" + bulletOther + "` for `options.bulletOther`, expected `*`, `+`, or `-`");
+  }
+  if (bulletOther === bullet) {
+    throw new Error("Expected `bullet` (`" + bullet + "`) and `bulletOther` (`" + bulletOther + "`) to be different");
+  }
+  return bulletOther;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/check-bullet-ordered.js
+function checkBulletOrdered(state) {
+  const marker = state.options.bulletOrdered || ".";
+  if (marker !== "." && marker !== ")") {
+    throw new Error("Cannot serialize items with `" + marker + "` for `options.bulletOrdered`, expected `.` or `)`");
+  }
+  return marker;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/check-rule.js
+function checkRule(state) {
+  const marker = state.options.rule || "*";
+  if (marker !== "*" && marker !== "-" && marker !== "_") {
+    throw new Error("Cannot serialize rules with `" + marker + "` for `options.rule`, expected `*`, `-`, or `_`");
+  }
+  return marker;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/handle/list.js
+function list3(node, parent, state, info) {
+  const exit = state.enter("list");
+  const bulletCurrent = state.bulletCurrent;
+  let bullet = node.ordered ? checkBulletOrdered(state) : checkBullet(state);
+  const bulletOther = node.ordered ? bullet === "." ? ")" : "." : checkBulletOther(state);
+  let useDifferentMarker = parent && state.bulletLastUsed ? bullet === state.bulletLastUsed : false;
+  if (!node.ordered) {
+    const firstListItem = node.children ? node.children[0] : undefined;
+    if ((bullet === "*" || bullet === "-") && firstListItem && (!firstListItem.children || !firstListItem.children[0]) && state.stack[state.stack.length - 1] === "list" && state.stack[state.stack.length - 2] === "listItem" && state.stack[state.stack.length - 3] === "list" && state.stack[state.stack.length - 4] === "listItem" && state.indexStack[state.indexStack.length - 1] === 0 && state.indexStack[state.indexStack.length - 2] === 0 && state.indexStack[state.indexStack.length - 3] === 0) {
+      useDifferentMarker = true;
+    }
+    if (checkRule(state) === bullet && firstListItem) {
+      let index = -1;
+      while (++index < node.children.length) {
+        const item = node.children[index];
+        if (item && item.type === "listItem" && item.children && item.children[0] && item.children[0].type === "thematicBreak") {
+          useDifferentMarker = true;
+          break;
+        }
+      }
+    }
+  }
+  if (useDifferentMarker) {
+    bullet = bulletOther;
+  }
+  state.bulletCurrent = bullet;
+  const value = state.containerFlow(node, info);
+  state.bulletLastUsed = bullet;
+  state.bulletCurrent = bulletCurrent;
+  exit();
+  return value;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/check-list-item-indent.js
+function checkListItemIndent(state) {
+  const style = state.options.listItemIndent || "one";
+  if (style !== "tab" && style !== "one" && style !== "mixed") {
+    throw new Error("Cannot serialize items with `" + style + "` for `options.listItemIndent`, expected `tab`, `one`, or `mixed`");
+  }
+  return style;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/handle/list-item.js
+function listItem2(node, parent, state, info) {
+  const listItemIndent = checkListItemIndent(state);
+  let bullet = state.bulletCurrent || checkBullet(state);
+  if (parent && parent.type === "list" && parent.ordered) {
+    bullet = (typeof parent.start === "number" && parent.start > -1 ? parent.start : 1) + (state.options.incrementListMarker === false ? 0 : parent.children.indexOf(node)) + bullet;
+  }
+  let size = bullet.length + 1;
+  if (listItemIndent === "tab" || listItemIndent === "mixed" && (parent && parent.type === "list" && parent.spread || node.spread)) {
+    size = Math.ceil(size / 4) * 4;
+  }
+  const tracker = state.createTracker(info);
+  tracker.move(bullet + " ".repeat(size - bullet.length));
+  tracker.shift(size);
+  const exit = state.enter("listItem");
+  const value = state.indentLines(state.containerFlow(node, tracker.current()), map);
+  exit();
+  return value;
+  function map(line, index, blank) {
+    if (index) {
+      return (blank ? "" : " ".repeat(size)) + line;
+    }
+    return (blank ? bullet : bullet + " ".repeat(size - bullet.length)) + line;
+  }
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/handle/paragraph.js
+function paragraph2(node, _, state, info) {
+  const exit = state.enter("paragraph");
+  const subexit = state.enter("phrasing");
+  const value = state.containerPhrasing(node, info);
+  subexit();
+  exit();
+  return value;
+}
+
+// engine/node_modules/mdast-util-phrasing/lib/index.js
+var phrasing2 = convert([
+  "break",
+  "delete",
+  "emphasis",
+  "footnote",
+  "footnoteReference",
+  "image",
+  "imageReference",
+  "inlineCode",
+  "inlineMath",
+  "link",
+  "linkReference",
+  "mdxJsxTextElement",
+  "mdxTextExpression",
+  "strong",
+  "text",
+  "textDirective"
+]);
+// engine/node_modules/mdast-util-to-markdown/lib/handle/root.js
+function root4(node, _, state, info) {
+  const hasPhrasing = node.children.some(function(d) {
+    return phrasing2(d);
+  });
+  if (!hasPhrasing)
+    return state.containerFlow(node, info);
+  const exit = state.enter("phrasing");
+  const value = state.containerPhrasing(node, info);
+  exit();
+  return value;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/check-strong.js
+function checkStrong(state) {
+  const marker = state.options.strong || "*";
+  if (marker !== "*" && marker !== "_") {
+    throw new Error("Cannot serialize strong with `" + marker + "` for `options.strong`, expected `*`, or `_`");
+  }
+  return marker;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/handle/strong.js
+strong2.attention = attention3;
+strong2.peek = peek3;
+function strong2(node, _, state, info) {
+  const exit = state.enter("phrasing");
+  const item = attentionItem(node, attention3, state, state.createTracker(info));
+  const value = item ? serialize3([item], info.before, info.after) : "";
+  exit();
+  return value;
+}
+function attention3(_, state) {
+  const marker = checkStrong(state);
+  return {
+    construct: "strong",
+    markers: marker === "*" ? ["*", "_"] : ["_", "*"],
+    sizes: [2]
+  };
+}
+function peek3(_, _1, state) {
+  return state.options.strong || "*";
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/handle/text.js
+function text7(node, parent, state, info) {
+  const siblings = parent ? parent.children : [];
+  const index = state.indexStack[state.indexStack.length - 1];
+  return state.safe(node.value, {
+    ...info,
+    afterNode: siblings[index + 1],
+    beforeNode: siblings[index - 1]
+  });
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/util/check-rule-repetition.js
+function checkRuleRepetition(state) {
+  const repetition = state.options.ruleRepetition || 3;
+  if (repetition < 3) {
+    throw new Error("Cannot serialize rules with repetition `" + repetition + "` for `options.ruleRepetition`, expected `3` or more");
+  }
+  return repetition;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/handle/thematic-break.js
+function thematicBreak3(_, _1, state) {
+  const value = (checkRule(state) + (state.options.ruleSpaces ? " " : "")).repeat(checkRuleRepetition(state));
+  return state.options.ruleSpaces ? value.slice(0, -1) : value;
+}
+
+// engine/node_modules/mdast-util-to-markdown/lib/handle/index.js
+var handle = {
+  blockquote: blockquote2,
+  break: hardBreak2,
+  code: code2,
+  definition: definition2,
+  emphasis: emphasis2,
+  hardBreak: hardBreak2,
+  heading: heading2,
+  html: html4,
+  image: image2,
+  imageReference: imageReference2,
+  inlineCode: inlineCode2,
+  link: link2,
+  linkReference: linkReference2,
+  list: list3,
+  listItem: listItem2,
+  paragraph: paragraph2,
+  root: root4,
+  strong: strong2,
+  text: text7,
+  thematicBreak: thematicBreak3
+};
+// engine/node_modules/mdast-util-gfm-table/lib/index.js
+function gfmTableFromMarkdown() {
+  return {
+    enter: {
+      table: enterTable,
+      tableData: enterCell,
+      tableHeader: enterCell,
+      tableRow: enterRow
+    },
+    exit: {
+      codeText: exitCodeText,
+      table: exitTable,
+      tableData: exit2,
+      tableHeader: exit2,
+      tableRow: exit2
+    }
+  };
+}
+function enterTable(token) {
+  const align = token._align;
+  ok(align, "expected `_align` on table");
+  this.enter({
+    type: "table",
+    align: align.map(function(d) {
+      return d === "none" ? null : d;
+    }),
+    children: [],
+    position: undefined
+  }, token);
+  this.data.inTable = true;
+}
+function exitTable(token) {
+  this.exit(token);
+  this.data.inTable = undefined;
+}
+function enterRow(token) {
+  this.enter({ type: "tableRow", children: [], position: undefined }, token);
+}
+function exit2(token) {
+  this.exit(token);
+}
+function enterCell(token) {
+  this.enter({ type: "tableCell", children: [], position: undefined }, token);
+}
+function exitCodeText(token) {
+  let value = this.resume();
+  if (this.data.inTable) {
+    value = value.replace(/\\([\\|])/g, replace);
+  }
+  const node = this.stack[this.stack.length - 1];
+  ok(node.type === "inlineCode");
+  node.value = value;
+  this.exit(token);
+}
+function replace($0, $1) {
+  return $1 === "|" ? $1 : $0;
+}
+function gfmTableToMarkdown(options) {
+  const settings = options || {};
+  const {
+    tableCellPadding: padding,
+    tablePipeAlign: alignDelimiters,
+    stringLength
+  } = settings;
+  const around = padding ? " " : "|";
+  return {
+    handlers: {
+      inlineCode: inlineCodeWithTable,
+      table: handleTable,
+      tableCell: handleTableCell,
+      tableRow: handleTableRow
+    },
+    join: [joinTable],
+    unsafe: [
+      { character: "\r", inConstruct: "tableCell" },
+      { character: `
+`, inConstruct: "tableCell" },
+      { atBreak: true, character: "|", after: "[\t :-]" },
+      { character: "|", inConstruct: "tableCell" },
+      { atBreak: true, character: ":", after: "-" },
+      { atBreak: true, character: "-", after: "[:|-]" }
+    ]
+  };
+  function handleTable(node, _, state, info) {
+    const matrix = handleTableAsData(node, state, info);
+    const head = matrix[0];
+    if (head) {
+      let columns = node.align ? node.align.length : 0;
+      let index = -1;
+      if (!columns) {
+        while (++index < matrix.length) {
+          if (matrix[index].length > columns)
+            columns = matrix[index].length;
+        }
+      }
+      while (head.length < columns)
+        head.push("");
+    }
+    return serializeData(matrix, node.align);
+  }
+  function handleTableRow(node, _, state, info) {
+    const row = handleTableRowAsData(node, state, info);
+    const value = serializeData([row]);
+    return value.slice(0, value.indexOf(`
+`));
+  }
+  function handleTableCell(node, _, state, info) {
+    const exit = state.enter("tableCell");
+    const subexit = state.enter("phrasing");
+    const value = state.containerPhrasing(node, {
+      ...info,
+      before: around,
+      after: around
+    });
+    subexit();
+    exit();
+    return value;
+  }
+  function serializeData(matrix, align) {
+    return markdownTable(matrix, {
+      align,
+      alignDelimiters,
+      fillRows: false,
+      padding,
+      stringLength
+    });
+  }
+  function handleTableAsData(node, state, info) {
+    const { children } = node;
+    let index = -1;
+    const result = [];
+    const subexit = state.enter("table");
+    while (++index < children.length) {
+      result[index] = handleTableRowAsData(children[index], state, info);
+    }
+    subexit();
+    return result;
+  }
+  function handleTableRowAsData(node, state, info) {
+    const { children } = node;
+    let index = -1;
+    const result = [];
+    const subexit = state.enter("tableRow");
+    while (++index < children.length) {
+      result[index] = handleTableCell(children[index], node, state, info);
+    }
+    subexit();
+    return result;
+  }
+  function inlineCodeWithTable(node, parent, state) {
+    const value = handle.inlineCode(node, parent, state);
+    if (!state.stack.includes("tableCell"))
+      return value;
+    const result = [];
+    let start = 0;
+    let index = value.indexOf("|");
+    while (index !== -1) {
+      let before = index;
+      while (before > start && value.charCodeAt(before - 1) === 92) {
+        before--;
+      }
+      result.push(value.slice(start, index));
+      if ((index - before) % 2 === 0)
+        result.push("\\");
+      start = index;
+      index = value.indexOf("|", index + 1);
+    }
+    result.push(value.slice(start));
+    return result.join("");
+  }
+}
+function joinTable(left, right, parent, state) {
+  if (left.type === "table" && parent.type === "listItem" && parent.spread === false && (right.type === "definition" || right.type === "heading" && formatHeadingAsSetext2(right, state) || right.type === "paragraph" || right.type === "table")) {
+    return 1;
+  }
+}
+function formatHeadingAsSetext2(node, state) {
+  let literalWithBreak = false;
+  visit(node, function(node) {
+    if (node.type === "break" || "value" in node && /\r?\n|\r/.test(node.value)) {
+      literalWithBreak = true;
+      return EXIT;
+    }
+  });
+  return Boolean((!node.depth || node.depth < 3) && toString(node) && (state.options.setext || literalWithBreak));
+}
+// engine/node_modules/mdast-util-gfm-task-list-item/lib/index.js
+function gfmTaskListItemFromMarkdown() {
+  return {
+    exit: {
+      taskListCheckValueChecked: exitCheck,
+      taskListCheckValueUnchecked: exitCheck,
+      paragraph: exitParagraphWithTaskListItem
+    }
+  };
+}
+function gfmTaskListItemToMarkdown() {
+  return {
+    handlers: { paragraph: paragraphWithTaskListItem },
+    join: [joinDefinitionsBeforeTaskListItemParagraph]
+  };
+}
+function exitCheck(token) {
+  const node = this.stack[this.stack.length - 2];
+  ok(node.type === "listItem");
+  node.checked = token.type === "taskListCheckValueChecked";
+}
+function exitParagraphWithTaskListItem(token) {
+  const parent = this.stack[this.stack.length - 2];
+  if (parent && parent.type === "listItem" && typeof parent.checked === "boolean") {
+    const node = this.stack[this.stack.length - 1];
+    ok(node.type === "paragraph");
+    const head = node.children[0];
+    if (head && head.type === "text") {
+      const siblings = parent.children;
+      let index = -1;
+      let firstParagraph;
+      while (++index < siblings.length) {
+        const sibling = siblings[index];
+        if (sibling.type === "paragraph") {
+          firstParagraph = sibling;
+          break;
+        }
+      }
+      if (firstParagraph === node) {
+        head.value = head.value.slice(1);
+        if (head.value.length === 0) {
+          node.children.shift();
+        } else if (node.position && head.position && typeof head.position.start.offset === "number") {
+          head.position.start.column++;
+          head.position.start.offset++;
+          node.position.start = { ...head.position.start };
+        }
+      }
+    }
+  }
+  this.exit(token);
+}
+function paragraphWithTaskListItem(node, parent, state, info) {
+  if (!parent || parent.type !== "listItem" || taskListItemParagraph(parent) !== node) {
+    return handle.paragraph(node, parent, state, info);
+  }
+  const checkbox = "[" + (parent.checked ? "x" : " ") + "] ";
+  const tracker = state.createTracker(info);
+  tracker.move(checkbox);
+  const value = handle.paragraph(node.children.length > 0 ? node : { type: "paragraph", children: [{ type: "text", value: " " }] }, parent, state, { ...info, ...tracker.current() });
+  return checkbox + value;
+}
+function joinDefinitionsBeforeTaskListItemParagraph(left, _, parent) {
+  if (!(left.type === "definition" && parent.type === "listItem")) {
+    return;
+  }
+  const paragraph = taskListItemParagraph(parent);
+  if (paragraph && parent.children.indexOf(left) < parent.children.indexOf(paragraph)) {
+    return 0;
+  }
+}
+function taskListItemParagraph(node) {
+  if (typeof node.checked !== "boolean") {
+    return;
+  }
+  for (const child of node.children) {
+    if (child.type === "paragraph") {
+      return child;
+    }
+    if (child.type !== "definition") {
+      return;
+    }
+  }
+}
+// engine/node_modules/mdast-util-gfm/lib/index.js
+function gfmFromMarkdown() {
+  return [
+    gfmAutolinkLiteralFromMarkdown(),
+    gfmFootnoteFromMarkdown(),
+    gfmStrikethroughFromMarkdown(),
+    gfmTableFromMarkdown(),
+    gfmTaskListItemFromMarkdown()
+  ];
+}
+function gfmToMarkdown(options) {
+  return {
+    extensions: [
+      gfmAutolinkLiteralToMarkdown(),
+      gfmFootnoteToMarkdown(options),
+      gfmStrikethroughToMarkdown(),
+      gfmTableToMarkdown(options),
+      gfmTaskListItemToMarkdown()
+    ]
+  };
+}
+// engine/node_modules/micromark-extension-gfm-autolink-literal/lib/syntax.js
+var wwwPrefix = {
+  tokenize: tokenizeWwwPrefix,
+  partial: true
+};
+var domain = {
+  tokenize: tokenizeDomain,
+  partial: true
+};
+var path = {
+  tokenize: tokenizePath,
+  partial: true
+};
+var trail = {
+  tokenize: tokenizeTrail,
+  partial: true
+};
+var emailDomainDotTrail = {
+  tokenize: tokenizeEmailDomainDotTrail,
+  partial: true
+};
+var wwwAutolink = {
+  name: "wwwAutolink",
+  tokenize: tokenizeWwwAutolink,
+  previous: previousWww
+};
+var protocolAutolink = {
+  name: "protocolAutolink",
+  tokenize: tokenizeProtocolAutolink,
+  previous: previousProtocol
+};
+var emailAutolink = {
+  name: "emailAutolink",
+  tokenize: tokenizeEmailAutolink,
+  previous: previousEmail
+};
+var text8 = {};
+function gfmAutolinkLiteral() {
+  return {
+    text: text8
+  };
+}
+var code3 = 48;
+while (code3 < 123) {
+  text8[code3] = emailAutolink;
+  code3++;
+  if (code3 === 58)
+    code3 = 65;
+  else if (code3 === 91)
+    code3 = 97;
+}
+text8[43] = emailAutolink;
+text8[45] = emailAutolink;
+text8[46] = emailAutolink;
+text8[95] = emailAutolink;
+text8[72] = [emailAutolink, protocolAutolink];
+text8[104] = [emailAutolink, protocolAutolink];
+text8[87] = [emailAutolink, wwwAutolink];
+text8[119] = [emailAutolink, wwwAutolink];
+function tokenizeEmailAutolink(effects, ok, nok) {
+  const self2 = this;
+  let dot;
+  let data;
+  return start;
+  function start(code) {
+    if (!gfmAtext(code) || !previousEmail.call(self2, self2.previous) || previousUnbalanced(self2.events)) {
+      return nok(code);
+    }
+    effects.enter("literalAutolink");
+    effects.enter("literalAutolinkEmail");
+    return atext(code);
+  }
+  function atext(code) {
+    if (gfmAtext(code)) {
+      effects.consume(code);
+      return atext;
+    }
+    if (code === 64) {
+      effects.consume(code);
+      return emailDomain;
+    }
+    return nok(code);
+  }
+  function emailDomain(code) {
+    if (code === 46) {
+      return effects.check(emailDomainDotTrail, emailDomainAfter, emailDomainDot)(code);
+    }
+    if (code === 45 || code === 95 || asciiAlphanumeric(code)) {
+      data = true;
+      effects.consume(code);
+      return emailDomain;
+    }
+    return emailDomainAfter(code);
+  }
+  function emailDomainDot(code) {
+    effects.consume(code);
+    dot = true;
+    return emailDomain;
+  }
+  function emailDomainAfter(code) {
+    if (data && dot && asciiAlpha(self2.previous)) {
+      effects.exit("literalAutolinkEmail");
+      effects.exit("literalAutolink");
+      return ok(code);
+    }
+    return nok(code);
+  }
+}
+function tokenizeWwwAutolink(effects, ok, nok) {
+  const self2 = this;
+  return wwwStart;
+  function wwwStart(code) {
+    if (code !== 87 && code !== 119 || !previousWww.call(self2, self2.previous) || previousUnbalanced(self2.events)) {
+      return nok(code);
+    }
+    effects.enter("literalAutolink");
+    effects.enter("literalAutolinkWww");
+    return effects.check(wwwPrefix, effects.attempt(domain, effects.attempt(path, wwwAfter), nok), nok)(code);
+  }
+  function wwwAfter(code) {
+    effects.exit("literalAutolinkWww");
+    effects.exit("literalAutolink");
+    return ok(code);
+  }
+}
+function tokenizeProtocolAutolink(effects, ok, nok) {
+  const self2 = this;
+  let buffer = "";
+  let seen = false;
+  return protocolStart;
+  function protocolStart(code) {
+    if ((code === 72 || code === 104) && previousProtocol.call(self2, self2.previous) && !previousUnbalanced(self2.events)) {
+      effects.enter("literalAutolink");
+      effects.enter("literalAutolinkHttp");
+      buffer += String.fromCodePoint(code);
+      effects.consume(code);
+      return protocolPrefixInside;
+    }
+    return nok(code);
+  }
+  function protocolPrefixInside(code) {
+    if (asciiAlpha(code) && buffer.length < 5) {
+      buffer += String.fromCodePoint(code);
+      effects.consume(code);
+      return protocolPrefixInside;
+    }
+    if (code === 58) {
+      const protocol = buffer.toLowerCase();
+      if (protocol === "http" || protocol === "https") {
+        effects.consume(code);
+        return protocolSlashesInside;
+      }
+    }
+    return nok(code);
+  }
+  function protocolSlashesInside(code) {
+    if (code === 47) {
+      effects.consume(code);
+      if (seen) {
+        return afterProtocol;
+      }
+      seen = true;
+      return protocolSlashesInside;
+    }
+    return nok(code);
+  }
+  function afterProtocol(code) {
+    return code === null || asciiControl(code) || markdownLineEndingOrSpace(code) || unicodeWhitespace(code) || unicodePunctuation(code) ? nok(code) : effects.attempt(domain, effects.attempt(path, protocolAfter), nok)(code);
+  }
+  function protocolAfter(code) {
+    effects.exit("literalAutolinkHttp");
+    effects.exit("literalAutolink");
+    return ok(code);
+  }
+}
+function tokenizeWwwPrefix(effects, ok, nok) {
+  let size = 0;
+  return wwwPrefixInside;
+  function wwwPrefixInside(code) {
+    if ((code === 87 || code === 119) && size < 3) {
+      size++;
+      effects.consume(code);
+      return wwwPrefixInside;
+    }
+    if (code === 46 && size === 3) {
+      effects.consume(code);
+      return wwwPrefixAfter;
+    }
+    return nok(code);
+  }
+  function wwwPrefixAfter(code) {
+    return code === null ? nok(code) : ok(code);
+  }
+}
+function tokenizeDomain(effects, ok, nok) {
+  let underscoreInLastSegment;
+  let underscoreInLastLastSegment;
+  let seen;
+  return domainInside;
+  function domainInside(code) {
+    if (code === 46 || code === 95) {
+      return effects.check(trail, domainAfter, domainAtPunctuation)(code);
+    }
+    if (code === null || markdownLineEndingOrSpace(code) || unicodeWhitespace(code) || code !== 45 && unicodePunctuation(code)) {
+      return domainAfter(code);
+    }
+    seen = true;
+    effects.consume(code);
+    return domainInside;
+  }
+  function domainAtPunctuation(code) {
+    if (code === 95) {
+      underscoreInLastSegment = true;
+    } else {
+      underscoreInLastLastSegment = underscoreInLastSegment;
+      underscoreInLastSegment = undefined;
+    }
+    effects.consume(code);
+    return domainInside;
+  }
+  function domainAfter(code) {
+    if (underscoreInLastLastSegment || underscoreInLastSegment || !seen) {
+      return nok(code);
+    }
+    return ok(code);
+  }
+}
+function tokenizePath(effects, ok) {
+  let sizeOpen = 0;
+  let sizeClose = 0;
+  return pathInside;
+  function pathInside(code) {
+    if (code === 40) {
+      sizeOpen++;
+      effects.consume(code);
+      return pathInside;
+    }
+    if (code === 41 && sizeClose < sizeOpen) {
+      return pathAtPunctuation(code);
+    }
+    if (code === 33 || code === 34 || code === 38 || code === 39 || code === 41 || code === 42 || code === 44 || code === 46 || code === 58 || code === 59 || code === 60 || code === 63 || code === 93 || code === 95 || code === 126) {
+      return effects.check(trail, ok, pathAtPunctuation)(code);
+    }
+    if (code === null || markdownLineEndingOrSpace(code) || unicodeWhitespace(code)) {
+      return ok(code);
+    }
+    effects.consume(code);
+    return pathInside;
+  }
+  function pathAtPunctuation(code) {
+    if (code === 41) {
+      sizeClose++;
+    }
+    effects.consume(code);
+    return pathInside;
+  }
+}
+function tokenizeTrail(effects, ok, nok) {
+  return trail;
+  function trail(code) {
+    if (code === 33 || code === 34 || code === 39 || code === 41 || code === 42 || code === 44 || code === 46 || code === 58 || code === 59 || code === 63 || code === 95 || code === 126) {
+      effects.consume(code);
+      return trail;
+    }
+    if (code === 38) {
+      effects.consume(code);
+      return trailCharacterReferenceStart;
+    }
+    if (code === 93) {
+      effects.consume(code);
+      return trailBracketAfter;
+    }
+    if (code === 60 || code === null || markdownLineEndingOrSpace(code) || unicodeWhitespace(code)) {
+      return ok(code);
+    }
+    return nok(code);
+  }
+  function trailBracketAfter(code) {
+    if (code === null || code === 40 || code === 91 || markdownLineEndingOrSpace(code) || unicodeWhitespace(code)) {
+      return ok(code);
+    }
+    return trail(code);
+  }
+  function trailCharacterReferenceStart(code) {
+    return asciiAlpha(code) ? trailCharacterReferenceInside(code) : nok(code);
+  }
+  function trailCharacterReferenceInside(code) {
+    if (code === 59) {
+      effects.consume(code);
+      return trail;
+    }
+    if (asciiAlpha(code)) {
+      effects.consume(code);
+      return trailCharacterReferenceInside;
+    }
+    return nok(code);
+  }
+}
+function tokenizeEmailDomainDotTrail(effects, ok, nok) {
+  return start;
+  function start(code) {
+    effects.consume(code);
+    return after;
+  }
+  function after(code) {
+    return asciiAlphanumeric(code) ? nok(code) : ok(code);
+  }
+}
+function previousWww(code) {
+  return code === null || code === 40 || code === 42 || code === 95 || code === 91 || code === 93 || code === 126 || markdownLineEndingOrSpace(code);
+}
+function previousProtocol(code) {
+  return !asciiAlpha(code);
+}
+function previousEmail(code) {
+  return !(code === 47 || gfmAtext(code));
+}
+function gfmAtext(code) {
+  return code === 43 || code === 45 || code === 46 || code === 95 || asciiAlphanumeric(code);
+}
+function previousUnbalanced(events) {
+  let index = events.length;
+  let result = false;
+  while (index--) {
+    const token = events[index][1];
+    if ((token.type === "labelLink" || token.type === "labelImage") && !token._balanced) {
+      result = true;
+      break;
+    }
+    if (token._gfmAutolinkLiteralWalkedInto) {
+      result = false;
+      break;
+    }
+  }
+  if (events.length > 0 && !result) {
+    events[events.length - 1][1]._gfmAutolinkLiteralWalkedInto = true;
+  }
+  return result;
+}
+// engine/node_modules/micromark-extension-gfm-footnote/lib/syntax.js
+var indent = {
+  tokenize: tokenizeIndent2,
+  partial: true
+};
+function gfmFootnote() {
+  return {
+    document: {
+      [91]: {
+        name: "gfmFootnoteDefinition",
+        tokenize: tokenizeDefinitionStart,
+        continuation: {
+          tokenize: tokenizeDefinitionContinuation
+        },
+        exit: gfmFootnoteDefinitionEnd
+      }
+    },
+    text: {
+      [91]: {
+        name: "gfmFootnoteCall",
+        tokenize: tokenizeGfmFootnoteCall
+      },
+      [93]: {
+        name: "gfmPotentialFootnoteCall",
+        add: "after",
+        tokenize: tokenizePotentialGfmFootnoteCall,
+        resolveTo: resolveToPotentialGfmFootnoteCall
+      }
+    }
+  };
+}
+function tokenizePotentialGfmFootnoteCall(effects, ok, nok) {
+  const self2 = this;
+  let index = self2.events.length;
+  const defined = self2.parser.gfmFootnotes || (self2.parser.gfmFootnotes = []);
+  let labelStart;
+  while (index--) {
+    const token = self2.events[index][1];
+    if (token.type === "labelImage") {
+      labelStart = token;
+      break;
+    }
+    if (token.type === "gfmFootnoteCall" || token.type === "labelLink" || token.type === "label" || token.type === "image" || token.type === "link") {
+      break;
+    }
+  }
+  return start;
+  function start(code) {
+    if (!labelStart || !labelStart._balanced) {
+      return nok(code);
+    }
+    const id = normalizeIdentifier(self2.sliceSerialize({
+      start: labelStart.end,
+      end: self2.now()
+    }));
+    if (id.codePointAt(0) !== 94 || !defined.includes(id.slice(1))) {
+      return nok(code);
+    }
+    effects.enter("gfmFootnoteCallLabelMarker");
+    effects.consume(code);
+    effects.exit("gfmFootnoteCallLabelMarker");
+    return ok(code);
+  }
+}
+function resolveToPotentialGfmFootnoteCall(events, context) {
+  let index = events.length;
+  let labelStart;
+  while (index--) {
+    if (events[index][1].type === "labelImage" && events[index][0] === "enter") {
+      labelStart = events[index][1];
+      break;
+    }
+  }
+  events[index + 1][1].type = "data";
+  events[index + 3][1].type = "gfmFootnoteCallLabelMarker";
+  const call = {
+    type: "gfmFootnoteCall",
+    start: Object.assign({}, events[index + 3][1].start),
+    end: Object.assign({}, events[events.length - 1][1].end)
+  };
+  const marker = {
+    type: "gfmFootnoteCallMarker",
+    start: Object.assign({}, events[index + 3][1].end),
+    end: Object.assign({}, events[index + 3][1].end)
+  };
+  marker.end.column++;
+  marker.end.offset++;
+  marker.end._bufferIndex++;
+  const string = {
+    type: "gfmFootnoteCallString",
+    start: Object.assign({}, marker.end),
+    end: Object.assign({}, events[events.length - 1][1].start)
+  };
+  const chunk = {
+    type: "chunkString",
+    contentType: "string",
+    start: Object.assign({}, string.start),
+    end: Object.assign({}, string.end)
+  };
+  const replacement = [
+    events[index + 1],
+    events[index + 2],
+    ["enter", call, context],
+    events[index + 3],
+    events[index + 4],
+    ["enter", marker, context],
+    ["exit", marker, context],
+    ["enter", string, context],
+    ["enter", chunk, context],
+    ["exit", chunk, context],
+    ["exit", string, context],
+    events[events.length - 2],
+    events[events.length - 1],
+    ["exit", call, context]
+  ];
+  events.splice(index, events.length - index + 1, ...replacement);
+  return events;
+}
+function tokenizeGfmFootnoteCall(effects, ok, nok) {
+  const self2 = this;
+  const defined = self2.parser.gfmFootnotes || (self2.parser.gfmFootnotes = []);
+  let size = 0;
+  let data;
+  return start;
+  function start(code) {
+    effects.enter("gfmFootnoteCall");
+    effects.enter("gfmFootnoteCallLabelMarker");
+    effects.consume(code);
+    effects.exit("gfmFootnoteCallLabelMarker");
+    return callStart;
+  }
+  function callStart(code) {
+    if (code !== 94)
+      return nok(code);
+    effects.enter("gfmFootnoteCallMarker");
+    effects.consume(code);
+    effects.exit("gfmFootnoteCallMarker");
+    effects.enter("gfmFootnoteCallString");
+    effects.enter("chunkString").contentType = "string";
+    return callData;
+  }
+  function callData(code) {
+    if (size > 999 || code === 93 && !data || code === null || code === 91 || markdownLineEndingOrSpace(code)) {
+      return nok(code);
+    }
+    if (code === 93) {
+      effects.exit("chunkString");
+      const token = effects.exit("gfmFootnoteCallString");
+      if (!defined.includes(normalizeIdentifier(self2.sliceSerialize(token)))) {
+        return nok(code);
+      }
+      effects.enter("gfmFootnoteCallLabelMarker");
+      effects.consume(code);
+      effects.exit("gfmFootnoteCallLabelMarker");
+      effects.exit("gfmFootnoteCall");
+      return ok;
+    }
+    if (!markdownLineEndingOrSpace(code)) {
+      data = true;
+    }
+    size++;
+    effects.consume(code);
+    return code === 92 ? callEscape : callData;
+  }
+  function callEscape(code) {
+    if (code === 91 || code === 92 || code === 93) {
+      effects.consume(code);
+      size++;
+      return callData;
+    }
+    return callData(code);
+  }
+}
+function tokenizeDefinitionStart(effects, ok, nok) {
+  const self2 = this;
+  const defined = self2.parser.gfmFootnotes || (self2.parser.gfmFootnotes = []);
+  let identifier;
+  let size = 0;
+  let data;
+  return start;
+  function start(code) {
+    effects.enter("gfmFootnoteDefinition")._container = true;
+    effects.enter("gfmFootnoteDefinitionLabel");
+    effects.enter("gfmFootnoteDefinitionLabelMarker");
+    effects.consume(code);
+    effects.exit("gfmFootnoteDefinitionLabelMarker");
+    return labelAtMarker;
+  }
+  function labelAtMarker(code) {
+    if (code === 94) {
+      effects.enter("gfmFootnoteDefinitionMarker");
+      effects.consume(code);
+      effects.exit("gfmFootnoteDefinitionMarker");
+      effects.enter("gfmFootnoteDefinitionLabelString");
+      effects.enter("chunkString").contentType = "string";
+      return labelInside;
+    }
+    return nok(code);
+  }
+  function labelInside(code) {
+    if (size > 999 || code === 93 && !data || code === null || code === 91 || markdownLineEndingOrSpace(code)) {
+      return nok(code);
+    }
+    if (code === 93) {
+      effects.exit("chunkString");
+      const token = effects.exit("gfmFootnoteDefinitionLabelString");
+      identifier = normalizeIdentifier(self2.sliceSerialize(token));
+      effects.enter("gfmFootnoteDefinitionLabelMarker");
+      effects.consume(code);
+      effects.exit("gfmFootnoteDefinitionLabelMarker");
+      effects.exit("gfmFootnoteDefinitionLabel");
+      return labelAfter;
+    }
+    if (!markdownLineEndingOrSpace(code)) {
+      data = true;
+    }
+    size++;
+    effects.consume(code);
+    return code === 92 ? labelEscape : labelInside;
+  }
+  function labelEscape(code) {
+    if (code === 91 || code === 92 || code === 93) {
+      effects.consume(code);
+      size++;
+      return labelInside;
+    }
+    return labelInside(code);
+  }
+  function labelAfter(code) {
+    if (code === 58) {
+      effects.enter("definitionMarker");
+      effects.consume(code);
+      effects.exit("definitionMarker");
+      if (!defined.includes(identifier)) {
+        defined.push(identifier);
+      }
+      return factorySpace(effects, whitespaceAfter, "gfmFootnoteDefinitionWhitespace");
+    }
+    return nok(code);
+  }
+  function whitespaceAfter(code) {
+    return ok(code);
+  }
+}
+function tokenizeDefinitionContinuation(effects, ok, nok) {
+  return effects.check(blankLine, ok, effects.attempt(indent, ok, nok));
+}
+function gfmFootnoteDefinitionEnd(effects) {
+  effects.exit("gfmFootnoteDefinition");
+}
+function tokenizeIndent2(effects, ok, nok) {
+  const self2 = this;
+  return factorySpace(effects, afterPrefix, "gfmFootnoteDefinitionIndent", 4 + 1);
+  function afterPrefix(code) {
+    const tail = self2.events[self2.events.length - 1];
+    return tail && tail[1].type === "gfmFootnoteDefinitionIndent" && tail[2].sliceSerialize(tail[1], true).length === 4 ? ok(code) : nok(code);
+  }
+}
+// engine/node_modules/micromark-extension-gfm-strikethrough/lib/syntax.js
+function gfmStrikethrough(options) {
+  const options_ = options || {};
+  let single = options_.singleTilde;
+  const tokenizer = {
+    name: "strikethrough",
+    tokenize: tokenizeStrikethrough,
+    resolveAll: resolveAllStrikethrough
+  };
+  if (single === null || single === undefined) {
+    single = true;
+  }
+  return {
+    text: {
+      [126]: tokenizer
+    },
+    insideSpan: {
+      null: [tokenizer]
+    },
+    attentionMarkers: {
+      null: [126]
+    }
+  };
+  function resolveAllStrikethrough(events, context) {
+    let index = -1;
+    while (++index < events.length) {
+      if (events[index][0] === "enter" && events[index][1].type === "strikethroughSequenceTemporary" && events[index][1]._close) {
+        let open = index;
+        while (open--) {
+          if (events[open][0] === "exit" && events[open][1].type === "strikethroughSequenceTemporary" && events[open][1]._open && events[index][1].end.offset - events[index][1].start.offset === events[open][1].end.offset - events[open][1].start.offset) {
+            events[index][1].type = "strikethroughSequence";
+            events[open][1].type = "strikethroughSequence";
+            const strikethrough = {
+              type: "strikethrough",
+              start: Object.assign({}, events[open][1].start),
+              end: Object.assign({}, events[index][1].end)
+            };
+            const text = {
+              type: "strikethroughText",
+              start: Object.assign({}, events[open][1].end),
+              end: Object.assign({}, events[index][1].start)
+            };
+            const nextEvents = [["enter", strikethrough, context], ["enter", events[open][1], context], ["exit", events[open][1], context], ["enter", text, context]];
+            const insideSpan = context.parser.constructs.insideSpan.null;
+            if (insideSpan) {
+              splice(nextEvents, nextEvents.length, 0, resolveAll(insideSpan, events.slice(open + 1, index), context));
+            }
+            splice(nextEvents, nextEvents.length, 0, [["exit", text, context], ["enter", events[index][1], context], ["exit", events[index][1], context], ["exit", strikethrough, context]]);
+            splice(events, open - 1, index - open + 3, nextEvents);
+            index = open + nextEvents.length - 2;
+            break;
+          }
+        }
+      }
+    }
+    index = -1;
+    while (++index < events.length) {
+      if (events[index][1].type === "strikethroughSequenceTemporary") {
+        events[index][1].type = "data";
+      }
+    }
+    return events;
+  }
+  function tokenizeStrikethrough(effects, ok, nok) {
+    const previous = this.previous;
+    const events = this.events;
+    let size = 0;
+    return start;
+    function start(code) {
+      if (previous === 126 && events[events.length - 1][1].type !== "characterEscape") {
+        return nok(code);
+      }
+      effects.enter("strikethroughSequenceTemporary");
+      return more(code);
+    }
+    function more(code) {
+      const before = classifyCharacter(previous);
+      if (code === 126) {
+        if (size > 1)
+          return nok(code);
+        effects.consume(code);
+        size++;
+        return more;
+      }
+      if (size < 2 && !single)
+        return nok(code);
+      const token = effects.exit("strikethroughSequenceTemporary");
+      const after = classifyCharacter(code);
+      token._open = !after || after === 2 && Boolean(before);
+      token._close = !before || before === 2 && Boolean(after);
+      return ok(code);
+    }
+  }
+}
+// engine/node_modules/micromark-extension-gfm-table/lib/edit-map.js
+class EditMap2 {
+  constructor() {
+    this.map = [];
+    this.index = new Map;
+  }
+  add(index, remove, add) {
+    addImplementation2(this, index, remove, add);
+  }
+  consume(events) {
+    this.map.sort(function(a, b) {
+      return a[0] - b[0];
+    });
+    if (this.map.length === 0) {
+      return;
+    }
+    let index = this.map.length;
+    const vecs = [];
+    while (index > 0) {
+      index -= 1;
+      vecs.push(events.slice(this.map[index][0] + this.map[index][1]), this.map[index][2]);
+      events.length = this.map[index][0];
+    }
+    vecs.push(events.slice());
+    events.length = 0;
+    let slice = vecs.pop();
+    while (slice) {
+      for (const element of slice) {
+        events.push(element);
+      }
+      slice = vecs.pop();
+    }
+    this.map.length = 0;
+    this.index.clear();
+  }
+}
+function addImplementation2(editMap, at, remove, add) {
+  if (remove === 0 && add.length === 0) {
+    return;
+  }
+  const existing = editMap.index.get(at);
+  if (existing) {
+    existing[1] += remove;
+    existing[2].push(...add);
+    return;
+  }
+  const change = [at, remove, add];
+  editMap.map.push(change);
+  editMap.index.set(at, change);
+}
+
+// engine/node_modules/micromark-extension-gfm-table/lib/infer.js
+function gfmTableAlign(events, index) {
+  let inDelimiterRow = false;
+  const align = [];
+  while (index < events.length) {
+    const event = events[index];
+    if (inDelimiterRow) {
+      if (event[0] === "enter") {
+        if (event[1].type === "tableContent") {
+          align.push(events[index + 1][1].type === "tableDelimiterMarker" ? "left" : "none");
+        }
+      } else if (event[1].type === "tableContent") {
+        if (events[index - 1][1].type === "tableDelimiterMarker") {
+          const alignIndex = align.length - 1;
+          align[alignIndex] = align[alignIndex] === "left" ? "center" : "right";
+        }
+      } else if (event[1].type === "tableDelimiterRow") {
+        break;
+      }
+    } else if (event[0] === "enter" && event[1].type === "tableDelimiterRow") {
+      inDelimiterRow = true;
+    }
+    index += 1;
+  }
+  return align;
+}
+
+// engine/node_modules/micromark-extension-gfm-table/lib/syntax.js
+function gfmTable() {
+  return {
+    flow: {
+      null: {
+        name: "table",
+        tokenize: tokenizeTable,
+        resolveAll: resolveTable
+      }
+    }
+  };
+}
+function tokenizeTable(effects, ok, nok) {
+  const self2 = this;
+  let size = 0;
+  let sizeB = 0;
+  let seen;
+  return start;
+  function start(code) {
+    let index = self2.events.length - 1;
+    while (index > -1) {
+      const {
+        type
+      } = self2.events[index][1];
+      if (type === "lineEnding" || type === "linePrefix") {
+        index--;
+      } else {
+        break;
+      }
+    }
+    const tail = index > -1 ? self2.events[index][1].type : null;
+    const next = tail === "tableHead" || tail === "tableRow" ? bodyRowStart : headRowBefore;
+    if (next === bodyRowStart && self2.parser.lazy[self2.now().line]) {
+      return nok(code);
+    }
+    return next(code);
+  }
+  function headRowBefore(code) {
+    effects.enter("tableHead");
+    effects.enter("tableRow");
+    return headRowStart(code);
+  }
+  function headRowStart(code) {
+    if (code === 124) {
+      return headRowBreak(code);
+    }
+    seen = true;
+    sizeB += 1;
+    return headRowBreak(code);
+  }
+  function headRowBreak(code) {
+    if (code === null) {
+      return nok(code);
+    }
+    if (markdownLineEnding(code)) {
+      if (sizeB > 1) {
+        sizeB = 0;
+        self2.interrupt = true;
+        effects.exit("tableRow");
+        effects.enter("lineEnding");
+        effects.consume(code);
+        effects.exit("lineEnding");
+        return headDelimiterStart;
+      }
+      return nok(code);
+    }
+    if (markdownSpace(code)) {
+      return factorySpace(effects, headRowBreak, "whitespace")(code);
+    }
+    sizeB += 1;
+    if (seen) {
+      seen = false;
+      size += 1;
+    }
+    if (code === 124) {
+      effects.enter("tableCellDivider");
+      effects.consume(code);
+      effects.exit("tableCellDivider");
+      seen = true;
+      return headRowBreak;
+    }
+    effects.enter("data");
+    return headRowData(code);
+  }
+  function headRowData(code) {
+    if (code === null || code === 124 || markdownLineEndingOrSpace(code)) {
+      effects.exit("data");
+      return headRowBreak(code);
+    }
+    effects.consume(code);
+    return code === 92 ? headRowEscape : headRowData;
+  }
+  function headRowEscape(code) {
+    if (code === 92 || code === 124) {
+      effects.consume(code);
+      return headRowData;
+    }
+    return headRowData(code);
+  }
+  function headDelimiterStart(code) {
+    self2.interrupt = false;
+    if (self2.parser.lazy[self2.now().line]) {
+      return nok(code);
+    }
+    effects.enter("tableDelimiterRow");
+    seen = false;
+    if (markdownSpace(code)) {
+      return factorySpace(effects, headDelimiterBefore, "linePrefix", self2.parser.constructs.disable.null.includes("codeIndented") ? undefined : 4)(code);
+    }
+    return headDelimiterBefore(code);
+  }
+  function headDelimiterBefore(code) {
+    if (code === 45 || code === 58) {
+      return headDelimiterValueBefore(code);
+    }
+    if (code === 124) {
+      seen = true;
+      effects.enter("tableCellDivider");
+      effects.consume(code);
+      effects.exit("tableCellDivider");
+      return headDelimiterCellBefore;
+    }
+    return headDelimiterNok(code);
+  }
+  function headDelimiterCellBefore(code) {
+    if (markdownSpace(code)) {
+      return factorySpace(effects, headDelimiterValueBefore, "whitespace")(code);
+    }
+    return headDelimiterValueBefore(code);
+  }
+  function headDelimiterValueBefore(code) {
+    if (code === 58) {
+      sizeB += 1;
+      seen = true;
+      effects.enter("tableDelimiterMarker");
+      effects.consume(code);
+      effects.exit("tableDelimiterMarker");
+      return headDelimiterLeftAlignmentAfter;
+    }
+    if (code === 45) {
+      sizeB += 1;
+      return headDelimiterLeftAlignmentAfter(code);
+    }
+    if (code === null || markdownLineEnding(code)) {
+      return headDelimiterCellAfter(code);
+    }
+    return headDelimiterNok(code);
+  }
+  function headDelimiterLeftAlignmentAfter(code) {
+    if (code === 45) {
+      effects.enter("tableDelimiterFiller");
+      return headDelimiterFiller(code);
+    }
+    return headDelimiterNok(code);
+  }
+  function headDelimiterFiller(code) {
+    if (code === 45) {
+      effects.consume(code);
+      return headDelimiterFiller;
+    }
+    if (code === 58) {
+      seen = true;
+      effects.exit("tableDelimiterFiller");
+      effects.enter("tableDelimiterMarker");
+      effects.consume(code);
+      effects.exit("tableDelimiterMarker");
+      return headDelimiterRightAlignmentAfter;
+    }
+    effects.exit("tableDelimiterFiller");
+    return headDelimiterRightAlignmentAfter(code);
+  }
+  function headDelimiterRightAlignmentAfter(code) {
+    if (markdownSpace(code)) {
+      return factorySpace(effects, headDelimiterCellAfter, "whitespace")(code);
+    }
+    return headDelimiterCellAfter(code);
+  }
+  function headDelimiterCellAfter(code) {
+    if (code === 124) {
+      return headDelimiterBefore(code);
+    }
+    if (code === null || markdownLineEnding(code)) {
+      if (!seen || size !== sizeB) {
+        return headDelimiterNok(code);
+      }
+      effects.exit("tableDelimiterRow");
+      effects.exit("tableHead");
+      return ok(code);
+    }
+    return headDelimiterNok(code);
+  }
+  function headDelimiterNok(code) {
+    return nok(code);
+  }
+  function bodyRowStart(code) {
+    effects.enter("tableRow");
+    return bodyRowBreak(code);
+  }
+  function bodyRowBreak(code) {
+    if (code === 124) {
+      effects.enter("tableCellDivider");
+      effects.consume(code);
+      effects.exit("tableCellDivider");
+      return bodyRowBreak;
+    }
+    if (code === null || markdownLineEnding(code)) {
+      effects.exit("tableRow");
+      return ok(code);
+    }
+    if (markdownSpace(code)) {
+      return factorySpace(effects, bodyRowBreak, "whitespace")(code);
+    }
+    effects.enter("data");
+    return bodyRowData(code);
+  }
+  function bodyRowData(code) {
+    if (code === null || code === 124 || markdownLineEndingOrSpace(code)) {
+      effects.exit("data");
+      return bodyRowBreak(code);
+    }
+    effects.consume(code);
+    return code === 92 ? bodyRowEscape : bodyRowData;
+  }
+  function bodyRowEscape(code) {
+    if (code === 92 || code === 124) {
+      effects.consume(code);
+      return bodyRowData;
+    }
+    return bodyRowData(code);
+  }
+}
+function resolveTable(events, context) {
+  let index = -1;
+  let inFirstCellAwaitingPipe = true;
+  let rowKind = 0;
+  let lastCell = [0, 0, 0, 0];
+  let cell = [0, 0, 0, 0];
+  let afterHeadAwaitingFirstBodyRow = false;
+  let lastTableEnd = 0;
+  let currentTable;
+  let currentBody;
+  let currentCell;
+  const map = new EditMap2;
+  while (++index < events.length) {
+    const event = events[index];
+    const token = event[1];
+    if (event[0] === "enter") {
+      if (token.type === "tableHead") {
+        afterHeadAwaitingFirstBodyRow = false;
+        if (lastTableEnd !== 0) {
+          flushTableEnd(map, context, lastTableEnd, currentTable, currentBody);
+          currentBody = undefined;
+          lastTableEnd = 0;
+        }
+        currentTable = {
+          type: "table",
+          start: Object.assign({}, token.start),
+          end: Object.assign({}, token.end)
+        };
+        map.add(index, 0, [["enter", currentTable, context]]);
+      } else if (token.type === "tableRow" || token.type === "tableDelimiterRow") {
+        inFirstCellAwaitingPipe = true;
+        currentCell = undefined;
+        lastCell = [0, 0, 0, 0];
+        cell = [0, index + 1, 0, 0];
+        if (afterHeadAwaitingFirstBodyRow) {
+          afterHeadAwaitingFirstBodyRow = false;
+          currentBody = {
+            type: "tableBody",
+            start: Object.assign({}, token.start),
+            end: Object.assign({}, token.end)
+          };
+          map.add(index, 0, [["enter", currentBody, context]]);
+        }
+        rowKind = token.type === "tableDelimiterRow" ? 2 : currentBody ? 3 : 1;
+      } else if (rowKind && (token.type === "data" || token.type === "tableDelimiterMarker" || token.type === "tableDelimiterFiller")) {
+        inFirstCellAwaitingPipe = false;
+        if (cell[2] === 0) {
+          if (lastCell[1] !== 0) {
+            cell[0] = cell[1];
+            currentCell = flushCell(map, context, lastCell, rowKind, undefined, currentCell);
+            lastCell = [0, 0, 0, 0];
+          }
+          cell[2] = index;
+        }
+      } else if (token.type === "tableCellDivider") {
+        if (inFirstCellAwaitingPipe) {
+          inFirstCellAwaitingPipe = false;
+        } else {
+          if (lastCell[1] !== 0) {
+            cell[0] = cell[1];
+            currentCell = flushCell(map, context, lastCell, rowKind, undefined, currentCell);
+          }
+          lastCell = cell;
+          cell = [lastCell[1], index, 0, 0];
+        }
+      }
+    } else if (token.type === "tableHead") {
+      afterHeadAwaitingFirstBodyRow = true;
+      lastTableEnd = index;
+    } else if (token.type === "tableRow" || token.type === "tableDelimiterRow") {
+      lastTableEnd = index;
+      if (lastCell[1] !== 0) {
+        cell[0] = cell[1];
+        currentCell = flushCell(map, context, lastCell, rowKind, index, currentCell);
+      } else if (cell[1] !== 0) {
+        currentCell = flushCell(map, context, cell, rowKind, index, currentCell);
+      }
+      rowKind = 0;
+    } else if (rowKind && (token.type === "data" || token.type === "tableDelimiterMarker" || token.type === "tableDelimiterFiller")) {
+      cell[3] = index;
+    }
+  }
+  if (lastTableEnd !== 0) {
+    flushTableEnd(map, context, lastTableEnd, currentTable, currentBody);
+  }
+  map.consume(context.events);
+  index = -1;
+  while (++index < context.events.length) {
+    const event = context.events[index];
+    if (event[0] === "enter" && event[1].type === "table") {
+      event[1]._align = gfmTableAlign(context.events, index);
+    }
+  }
+  return events;
+}
+function flushCell(map, context, range, rowKind, rowEnd, previousCell) {
+  const groupName = rowKind === 1 ? "tableHeader" : rowKind === 2 ? "tableDelimiter" : "tableData";
+  const valueName = "tableContent";
+  if (range[0] !== 0) {
+    previousCell.end = Object.assign({}, getPoint(context.events, range[0]));
+    map.add(range[0], 0, [["exit", previousCell, context]]);
+  }
+  const now = getPoint(context.events, range[1]);
+  previousCell = {
+    type: groupName,
+    start: Object.assign({}, now),
+    end: Object.assign({}, now)
+  };
+  map.add(range[1], 0, [["enter", previousCell, context]]);
+  if (range[2] !== 0) {
+    const relatedStart = getPoint(context.events, range[2]);
+    const relatedEnd = getPoint(context.events, range[3]);
+    const valueToken = {
+      type: valueName,
+      start: Object.assign({}, relatedStart),
+      end: Object.assign({}, relatedEnd)
+    };
+    map.add(range[2], 0, [["enter", valueToken, context]]);
+    if (rowKind !== 2) {
+      const start = context.events[range[2]];
+      const end = context.events[range[3]];
+      start[1].end = Object.assign({}, end[1].end);
+      start[1].type = "chunkText";
+      start[1].contentType = "text";
+      if (range[3] > range[2] + 1) {
+        const a = range[2] + 1;
+        const b = range[3] - range[2] - 1;
+        map.add(a, b, []);
+      }
+    }
+    map.add(range[3] + 1, 0, [["exit", valueToken, context]]);
+  }
+  if (rowEnd !== undefined) {
+    previousCell.end = Object.assign({}, getPoint(context.events, rowEnd));
+    map.add(rowEnd, 0, [["exit", previousCell, context]]);
+    previousCell = undefined;
+  }
+  return previousCell;
+}
+function flushTableEnd(map, context, index, table, tableBody) {
+  const exits = [];
+  const related = getPoint(context.events, index);
+  if (tableBody) {
+    tableBody.end = Object.assign({}, related);
+    exits.push(["exit", tableBody, context]);
+  }
+  table.end = Object.assign({}, related);
+  exits.push(["exit", table, context]);
+  map.add(index + 1, 0, exits);
+}
+function getPoint(events, index) {
+  const event = events[index];
+  const side = event[0] === "enter" ? "start" : "end";
+  return event[1][side];
+}
+// engine/node_modules/micromark-extension-gfm-task-list-item/lib/syntax.js
+var tasklistCheck = {
+  name: "tasklistCheck",
+  tokenize: tokenizeTasklistCheck
+};
+function gfmTaskListItem() {
+  return {
+    text: {
+      [91]: tasklistCheck
+    }
+  };
+}
+function tokenizeTasklistCheck(effects, ok, nok) {
+  const self2 = this;
+  return open;
+  function open(code) {
+    if (self2.previous !== null || !self2._gfmTasklistFirstContentOfListItem) {
+      return nok(code);
+    }
+    effects.enter("taskListCheck");
+    effects.enter("taskListCheckMarker");
+    effects.consume(code);
+    effects.exit("taskListCheckMarker");
+    return inside;
+  }
+  function inside(code) {
+    if (markdownLineEndingOrSpace(code)) {
+      effects.enter("taskListCheckValueUnchecked");
+      effects.consume(code);
+      effects.exit("taskListCheckValueUnchecked");
+      return close;
+    }
+    if (code === 88 || code === 120) {
+      effects.enter("taskListCheckValueChecked");
+      effects.consume(code);
+      effects.exit("taskListCheckValueChecked");
+      return close;
+    }
+    return nok(code);
+  }
+  function close(code) {
+    if (code === 93) {
+      effects.enter("taskListCheckMarker");
+      effects.consume(code);
+      effects.exit("taskListCheckMarker");
+      effects.exit("taskListCheck");
+      return after;
+    }
+    return nok(code);
+  }
+  function after(code) {
+    if (markdownLineEnding(code)) {
+      return ok(code);
+    }
+    if (markdownSpace(code)) {
+      return effects.check({
+        tokenize: spaceThenNonSpace
+      }, ok, nok)(code);
+    }
+    return nok(code);
+  }
+}
+function spaceThenNonSpace(effects, ok, nok) {
+  return factorySpace(effects, after, "whitespace");
+  function after(code) {
+    return code === null ? nok(code) : ok(code);
+  }
+}
+// engine/node_modules/micromark-extension-gfm/index.js
+function gfm(options) {
+  return combineExtensions([
+    gfmAutolinkLiteral(),
+    gfmFootnote(),
+    gfmStrikethrough(options),
+    gfmTable(),
+    gfmTaskListItem()
+  ]);
+}
+
+// engine/node_modules/remark-gfm/lib/index.js
+var emptyOptions4 = {};
+function remarkGfm(options) {
+  const self2 = this;
+  const settings = options || emptyOptions4;
+  const data = self2.data();
+  const micromarkExtensions = data.micromarkExtensions || (data.micromarkExtensions = []);
+  const fromMarkdownExtensions = data.fromMarkdownExtensions || (data.fromMarkdownExtensions = []);
+  const toMarkdownExtensions = data.toMarkdownExtensions || (data.toMarkdownExtensions = []);
+  micromarkExtensions.push(gfm(settings));
+  fromMarkdownExtensions.push(gfmFromMarkdown());
+  toMarkdownExtensions.push(gfmToMarkdown(settings));
+}
+// engine/board/page/operations/parts.tsx
+var import_react15 = __toESM(require_react());
+var jsx_runtime11 = __toESM(require_jsx_runtime());
+var WARNING = "m-0 rounded-lg border border-[color-mix(in_srgb,var(--amber)_30%,transparent)] bg-[color-mix(in_srgb,var(--amber)_9%,transparent)] px-2.5 py-2 text-[0.75rem] leading-[1.45] text-foreground [overflow-wrap:anywhere]";
+var MARK = "grid min-h-[18px] w-[18px] flex-none place-items-center rounded-xs";
+var LETTER = `${MARK} font-sans text-[0.6875rem] leading-none font-semibold text-foreground`;
+var BOXED = "bg-accent [box-shadow:inset_0_0_0_1px_var(--line-strong)]";
+var NUM = "whitespace-nowrap text-card-foreground tabular-nums";
+var NUM_LINK = `inline-flex min-h-6 min-w-6 items-center [&:hover]:text-foreground ${TAP}`;
+var CHIP = "inline-flex min-h-[22px] items-center gap-1.5 rounded-sm border pr-2 pl-1.5 font-sans text-[0.71875rem] leading-none font-medium whitespace-nowrap [&_.icon]:size-3";
+var CHIP_LINK = `[&:hover]:border-border-strong [&:hover]:text-foreground ${TAP}`;
+var NEUTRAL = "border-border bg-secondary text-card-foreground";
+var GOOD = "border-[color-mix(in_srgb,var(--ready)_28%,transparent)] bg-[color-mix(in_srgb,var(--ready)_8%,transparent)] text-ready";
+var WAITING = `${NEUTRAL} [&_.icon]:text-muted-foreground`;
+var CHIP_TONES = {
+  pr: `${NEUTRAL} font-mono font-normal`,
+  "checks-pass": GOOD,
+  "checks-fail": "border-[color-mix(in_srgb,var(--danger)_30%,transparent)] bg-[color-mix(in_srgb,var(--danger)_8%,transparent)] text-destructive",
+  "checks-pending": WAITING,
+  "review-approved": GOOD,
+  "review-changes": "border-[color-mix(in_srgb,var(--amber)_30%,transparent)] bg-[color-mix(in_srgb,var(--amber)_8%,transparent)] text-caution",
+  "review-required": WAITING
+};
+var GATE = "inline-flex min-h-[18px] cursor-help items-center rounded-xs px-1.5 font-sans text-[0.6875rem] leading-none font-medium";
+var GATE_ON = "bg-[color-mix(in_srgb,var(--ready)_13%,transparent)] text-ready";
+var GATE_OFF = "border border-dashed border-border-strong bg-transparent text-card-foreground";
+function Link({
+  className,
+  anchorClassName,
+  url,
+  label,
+  title,
+  children
+}) {
+  const href = safeUrl(url);
+  const shared = { "aria-label": label, title };
+  return href ? /* @__PURE__ */ jsx_runtime11.jsx("a", {
+    ...shared,
+    className: cn(className, anchorClassName) || undefined,
+    href,
+    target: "_blank",
+    rel: "noreferrer",
+    children
+  }) : /* @__PURE__ */ jsx_runtime11.jsx("span", {
+    ...shared,
+    className: className || undefined,
+    children
+  });
+}
+function Num({
+  url,
+  className,
+  children
+}) {
+  return /* @__PURE__ */ jsx_runtime11.jsx(Link, {
+    className: cn(NUM, className),
+    anchorClassName: NUM_LINK,
+    url,
+    children
+  });
+}
+function Timed({
+  iso,
+  isFine = false,
+  suffix = "",
+  className = ""
+}) {
+  const now = useScreen((state) => state.now);
+  return /* @__PURE__ */ jsx_runtime11.jsx("time", {
+    className: cn("time tabular-nums", className),
+    dateTime: iso,
+    title: clock(iso, true),
+    children: `${age(iso, now, isFine)}${suffix}`
+  });
+}
+function Mark({
+  card,
+  registry,
+  identifiedByText = false
+}) {
+  const agent = agentOf(card, registry);
+  if (agent) {
+    const known = knownAgent(registry, card.agent) ? card.agent : null;
+    return /* @__PURE__ */ jsx_runtime11.jsx("span", {
+      className: cn(LETTER, (known === null || known === "opencode") && BOXED),
+      title: agent.name,
+      children: known ? /* @__PURE__ */ jsx_runtime11.jsx("img", {
+        className: known === "opencode" ? "size-3 object-contain" : "size-[18px] object-contain",
+        src: AGENT_ICONS[known],
+        alt: identifiedByText ? "" : agent.name
+      }) : agent.letter
+    });
+  }
+  const name = Object.hasOwn(TYPES, card.type) ? TYPES[card.type] : card.number === null ? "terminal" : "nolane";
+  return /* @__PURE__ */ jsx_runtime11.jsx("span", {
+    className: `${MARK} text-card-foreground [&_.icon]:size-[13px]`,
+    title: !card.type && card.number !== null ? "No lane yet" : undefined,
+    children: /* @__PURE__ */ jsx_runtime11.jsx(Icon, {
+      name
     })
   });
 }
-function Landed({
-  history,
-  error,
-  presses
+var chipIcon = (kind) => kind === "pr" ? "pr" : kind.startsWith("checks-fail") ? "xcircle" : kind.startsWith("checks-pass") || kind === "review-approved" ? "check" : "clock";
+function PrChips({ pr }) {
+  const items = prFacts(pr);
+  if (items.length === 0)
+    return null;
+  return /* @__PURE__ */ jsx_runtime11.jsx("div", {
+    className: "flex flex-wrap gap-1.5",
+    children: items.map((item) => /* @__PURE__ */ jsx_runtime11.jsxs(Link, {
+      className: cn(CHIP, CHIP_TONES[item.kind]),
+      anchorClassName: CHIP_LINK,
+      url: item.url,
+      children: [
+        /* @__PURE__ */ jsx_runtime11.jsx(Icon, {
+          name: chipIcon(item.kind)
+        }),
+        item.text
+      ]
+    }, item.kind))
+  });
+}
+function GateLabel({ mode, className = "" }) {
+  const on = mode === "on";
+  return /* @__PURE__ */ jsx_runtime11.jsx("span", {
+    className: cn(GATE, on ? GATE_ON : GATE_OFF, className),
+    title: on ? "Auto mode of the daemon starts this step by itself" : "Auto mode is off: this step waits for Run.",
+    children: on ? "auto" : "auto off"
+  });
+}
+function IconButton({
+  name,
+  label,
+  press,
+  className = "",
+  title = label
 }) {
-  return /* @__PURE__ */ jsx_runtime20.jsxs(jsx_runtime20.Fragment, {
+  return /* @__PURE__ */ jsx_runtime11.jsx(Button2, {
+    variant: "icon",
+    size: "icon",
+    className,
+    "aria-label": label,
+    title,
+    onClick: (event) => {
+      event.stopPropagation();
+      press(event);
+    },
+    children: /* @__PURE__ */ jsx_runtime11.jsx(Icon, {
+      name
+    })
+  });
+}
+function ActionButton({
+  card,
+  action,
+  isQuiet = false,
+  className: extra = ""
+}) {
+  const isBusy = useScreen((state) => state.pressing.has(pressId(card, action)));
+  const variant = isQuiet || action.isGhost ? "secondary" : "primary";
+  const shared = {
+    title: action.title,
+    "aria-label": action.name,
+    "aria-disabled": action.isDisabled ? "true" : undefined
+  };
+  const inner = /* @__PURE__ */ jsx_runtime11.jsxs(jsx_runtime11.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime20.jsx("div", {
-        className: "flex min-h-12 flex-none items-center justify-between gap-3 py-2.5 pr-2.5 pl-4 phone:min-h-14",
-        children: /* @__PURE__ */ jsx_runtime20.jsx("h2", {
-          className: "m-0 text-[0.875rem] text-foreground [overflow-wrap:anywhere]",
-          children: history ? `Landed on ${history.trunk}` : "Landed history"
-        })
+      /* @__PURE__ */ jsx_runtime11.jsx(Icon, {
+        name: action.icon
       }),
-      /* @__PURE__ */ jsx_runtime20.jsx("div", {
-        className: "min-h-0 flex-1 overflow-y-auto px-[18px] pb-[18px] phone:scroll-pb-[calc(var(--dock)+8px)]",
-        children: !history ? /* @__PURE__ */ jsx_runtime20.jsx("p", {
-          className: NOTE3,
-          children: error ? `Cannot read history: ${error}` : "Loading landed history…"
-        }) : /* @__PURE__ */ jsx_runtime20.jsxs(jsx_runtime20.Fragment, {
-          children: [
-            error && /* @__PURE__ */ jsx_runtime20.jsx("p", {
-              className: WARNING,
-              role: "status",
-              children: `${error}. History shows the last good read.`
-            }),
-            /* @__PURE__ */ jsx_runtime20.jsx("p", {
-              className: NOTE3,
-              children: "Latest 20 issues."
-            }),
-            history.entries.length ? /* @__PURE__ */ jsx_runtime20.jsx("ol", {
-              className: "m-0 list-none p-0",
-              children: history.entries.map((entry) => /* @__PURE__ */ jsx_runtime20.jsxs("li", {
-                className: "grid grid-cols-[46px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-1.5 border-b border-border py-4 text-[0.8125rem] [grid-template-areas:'number_title_action''number_meta_action'] [&:hover]:bg-secondary",
-                children: [
-                  /* @__PURE__ */ jsx_runtime20.jsx(Link, {
-                    className: cn("font-mono text-[0.75rem] text-muted-foreground [align-self:start] [grid-area:number]", LINK),
-                    url: entry.url,
-                    children: `#${entry.number}`
-                  }),
-                  /* @__PURE__ */ jsx_runtime20.jsx(Link, {
-                    className: cn("text-foreground [align-self:end] [overflow-wrap:anywhere] [grid-area:title]", LINK),
-                    url: entry.url,
-                    children: entry.title
-                  }),
-                  /* @__PURE__ */ jsx_runtime20.jsxs("span", {
-                    className: "flex items-baseline gap-1.5 text-[0.75rem] text-muted-foreground [align-self:start] [grid-area:meta]",
-                    children: [
-                      /* @__PURE__ */ jsx_runtime20.jsx(CommitLink, {
-                        entry
-                      }),
-                      /* @__PURE__ */ jsx_runtime20.jsx("span", {
-                        "aria-hidden": "true",
-                        children: "·"
-                      }),
-                      /* @__PURE__ */ jsx_runtime20.jsx("time", {
-                        dateTime: entry.committedAt,
-                        title: `Commit time: ${clock(entry.committedAt, true)}`,
-                        children: clock(entry.committedAt, true)
-                      })
-                    ]
-                  }),
-                  /* @__PURE__ */ jsx_runtime20.jsx(VisualControl, {
-                    entry,
-                    isPressed: presses.has(entry.number)
-                  })
-                ]
-              }, entry.number))
-            }) : /* @__PURE__ */ jsx_runtime20.jsx("p", {
-              className: NOTE3,
-              children: grammar().kind === "local" ? "The local tracker does not list landed issues." : `No landed issues found on ${history.trunk}.`
-            }),
-            history.url && /* @__PURE__ */ jsx_runtime20.jsx(Link, {
-              className: "mt-4 inline-block text-card-foreground underline underline-offset-[3px] [overflow-wrap:anywhere]",
-              url: history.url,
-              children: `View ${history.trunk}`
-            })
-          ]
-        })
+      /* @__PURE__ */ jsx_runtime11.jsx("span", {
+        className: "label",
+        children: isBusy && action.busy ? action.busy : action.label
+      })
+    ]
+  });
+  if (action.href)
+    return /* @__PURE__ */ jsx_runtime11.jsx("a", {
+      ...shared,
+      "data-slot": "button",
+      className: buttonVariants({ variant, size: "action", className: extra }),
+      href: safeUrl(action.href) ?? undefined,
+      target: "_blank",
+      rel: "noreferrer",
+      onClick: (event) => event.stopPropagation(),
+      children: inner
+    });
+  return /* @__PURE__ */ jsx_runtime11.jsx(Button2, {
+    variant,
+    size: "action",
+    className: extra,
+    ...shared,
+    "aria-busy": isBusy ? "true" : undefined,
+    onClick: (event) => {
+      event.stopPropagation();
+      screen.press(card, action);
+    },
+    children: inner
+  });
+}
+var useKeptScroll = (find, content) => {
+  const tops = import_react15.useRef(new Map);
+  const scrolling = import_react15.useRef(new WeakSet);
+  const was = import_react15.useRef(content);
+  if (was.current !== content)
+    tops.current = new Map(find().map((node) => [node, node.scrollTop]));
+  import_react15.useEffect(() => {
+    const start = (event) => scrolling.current.add(event.target);
+    const end = (event) => scrolling.current.delete(event.target);
+    document.addEventListener("scroll", start, true);
+    document.addEventListener("scrollend", end, true);
+    return () => {
+      document.removeEventListener("scroll", start, true);
+      document.removeEventListener("scrollend", end, true);
+    };
+  }, []);
+  import_react15.useLayoutEffect(() => {
+    if (was.current !== content) {
+      for (const [node, top] of tops.current)
+        if (node.isConnected && !scrolling.current.has(node))
+          node.scrollTop = top;
+    }
+    was.current = content;
+  });
+};
+var useKeptFocus = (find) => {
+  const ref = import_react15.useRef(null);
+  const focused = import_react15.useRef(null);
+  const held = import_react15.useRef(false);
+  held.current = ref.current?.contains(document.activeElement) ?? false;
+  import_react15.useLayoutEffect(() => {
+    const lost = focused.current;
+    if (!ref.current || !lost || lost.isConnected)
+      return;
+    focused.current = null;
+    if (held.current && document.activeElement === document.body)
+      find(ref.current, lost)?.focus({ preventScroll: true });
+  });
+  return {
+    ref,
+    onFocus: (event) => {
+      focused.current = event.target;
+    },
+    onBlur: (event) => {
+      if (event.relatedTarget)
+        focused.current = null;
+    }
+  };
+};
+
+// engine/board/page/operations/markdown.tsx
+var jsx_runtime12 = __toESM(require_jsx_runtime());
+var ALIGN = { left: "text-left", center: "text-center", right: "text-right" };
+var LINK = "underline underline-offset-2";
+var CELL = "border border-border px-2.5 py-1.5 align-top [overflow-wrap:normal]";
+var BODY = cn("flex min-w-0 flex-col gap-3 text-[0.8125rem] leading-normal text-foreground [overflow-wrap:anywhere]", "[&_:where(p,ul,ol,blockquote,pre,h1,h2,h3,h4,h5,h6,hr)]:m-0 [&_:is(p,li,blockquote)]:text-pretty", "[&_:is(h1,h2,h3,h4,h5,h6)]:mt-1 [&_:is(h1,h2,h3,h4,h5,h6)]:leading-[1.3] [&_:is(h1,h2,h3,h4,h5,h6)]:font-semibold", "[&_h1]:text-[1.03125rem] [&_h2]:text-[0.875rem] [&_:is(h3,h4,h5,h6)]:text-[0.8125rem]", "[&_:is(ul,ol)]:pl-[18px] [&_ul]:list-disc [&_ol]:list-decimal [&_:is(li,blockquote)>*+*]:mt-[7px]", "[&_blockquote]:border-l-2 [&_blockquote]:border-border-strong [&_blockquote]:pl-[18px] [&_blockquote]:text-card-foreground", "[&_:not(pre)>code]:rounded-[4px] [&_:not(pre)>code]:bg-secondary [&_:not(pre)>code]:px-1 [&_:not(pre)>code]:py-px [&_:not(pre)>code]:font-mono [&_:not(pre)>code]:text-[0.75rem]", "[&_hr]:border-0 [&_hr]:border-t [&_hr]:border-border");
+var PRE = "overflow-x-auto rounded-lg bg-secondary p-2.5 font-mono text-[0.75rem] leading-[1.55] font-normal whitespace-pre [overflow-wrap:normal]";
+var issueUrl = (url, key, tag, images) => {
+  if (tag === "img" && key === "src")
+    return Object.hasOwn(images, url) ? images[url] : url;
+  if (key === "href")
+    return safeUrl(url) ?? "";
+  return "";
+};
+var textOf = (node) => node.type === "text" ? node.value : node.type === "element" ? node.children.map(textOf).join("") : "";
+var headersOf = (node) => node.type !== "element" ? [] : node.tagName === "th" ? [node] : node.children.flatMap(headersOf);
+var tableName = (node) => {
+  const names = (node?.children ?? []).filter((child) => child.type === "element" && child.tagName === "thead").flatMap(headersOf).slice(0, 3).map(textOf).filter(Boolean);
+  return names.length ? `Table: ${names.join(", ")}` : "Table";
+};
+var cell = (Tag) => ({ node, style: _style, className, ...props }) => /* @__PURE__ */ jsx_runtime12.jsx(Tag, {
+  ...props,
+  className: cn(CELL, Tag === "th" && "font-semibold", ALIGN[String(node?.properties.align)], className)
+});
+var componentsOf = (images) => {
+  const embedded = new Set(Object.values(images));
+  return {
+    a: ({ href, children }) => /* @__PURE__ */ jsx_runtime12.jsx(Link, {
+      className: "",
+      anchorClassName: LINK,
+      url: href,
+      children
+    }),
+    img: ({ src, alt = "" }) => {
+      const url = typeof src === "string" ? src : "";
+      if (embedded.has(url))
+        return /* @__PURE__ */ jsx_runtime12.jsx("img", {
+          src: url,
+          alt,
+          className: "h-auto max-w-full"
+        });
+      return safeUrl(url) ? /* @__PURE__ */ jsx_runtime12.jsx(Link, {
+        className: "",
+        anchorClassName: LINK,
+        url,
+        children: alt || url
+      }) : /* @__PURE__ */ jsx_runtime12.jsx("span", {
+        children: `${alt} (${url})`
+      });
+    },
+    table: ({ node, ...props }) => /* @__PURE__ */ jsx_runtime12.jsx("section", {
+      className: "overflow-x-auto",
+      "aria-label": tableName(node),
+      tabIndex: 0,
+      children: /* @__PURE__ */ jsx_runtime12.jsx("table", {
+        ...props,
+        className: "border-collapse"
+      })
+    }),
+    th: cell("th"),
+    td: cell("td"),
+    pre: ({ node: _node, className, ...props }) => /* @__PURE__ */ jsx_runtime12.jsx("section", {
+      className: "overflow-x-auto rounded-lg",
+      "aria-label": "Code",
+      tabIndex: 0,
+      children: /* @__PURE__ */ jsx_runtime12.jsx("pre", {
+        ...props,
+        className: cn(PRE, "w-max min-w-full", className)
+      })
+    })
+  };
+};
+function IssueMarkdown({ text, images }) {
+  const components = import_react16.useMemo(() => componentsOf(images), [images]);
+  return /* @__PURE__ */ jsx_runtime12.jsx(ViewBoundary, {
+    snapshot: text,
+    fallback: /* @__PURE__ */ jsx_runtime12.jsx("pre", {
+      className: cn(PRE, "whitespace-pre-wrap"),
+      children: text
+    }),
+    children: /* @__PURE__ */ jsx_runtime12.jsx("div", {
+      className: BODY,
+      children: /* @__PURE__ */ jsx_runtime12.jsx(Markdown, {
+        remarkPlugins: [remarkGfm],
+        skipHtml: true,
+        urlTransform: (url, key, node) => issueUrl(url, key, node.tagName, images),
+        components,
+        children: text
+      })
+    })
+  });
+}
+
+// engine/board/page/operations/conversation.tsx
+var jsx_runtime13 = __toESM(require_jsx_runtime());
+var HEAD = "flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.75rem] leading-normal text-muted-foreground";
+var NO_ITEMS = new Set;
+var Time = ({ at }) => /* @__PURE__ */ jsx_runtime13.jsx("time", {
+  className: "font-mono text-[0.71875rem] font-normal tabular-nums",
+  dateTime: at,
+  children: clock(at, true)
+});
+var New = () => /* @__PURE__ */ jsx_runtime13.jsx(Badge, {
+  children: "New"
+});
+function Item({ item, images, isNew }) {
+  if (item.kind === "label")
+    return /* @__PURE__ */ jsx_runtime13.jsxs("li", {
+      className: HEAD,
+      children: [
+        /* @__PURE__ */ jsx_runtime13.jsx("span", {
+          children: item.change === "added" ? "Added" : "Removed"
+        }),
+        /* @__PURE__ */ jsx_runtime13.jsx(Badge, {
+          variant: "outline",
+          children: item.name
+        }),
+        /* @__PURE__ */ jsx_runtime13.jsx(Time, {
+          at: item.at
+        }),
+        isNew && /* @__PURE__ */ jsx_runtime13.jsx(New, {})
+      ]
+    });
+  return /* @__PURE__ */ jsx_runtime13.jsxs("li", {
+    className: "flex flex-col gap-2",
+    children: [
+      /* @__PURE__ */ jsx_runtime13.jsxs("div", {
+        className: HEAD,
+        children: [
+          /* @__PURE__ */ jsx_runtime13.jsx("b", {
+            className: "font-medium text-card-foreground",
+            children: item.author ?? "unknown"
+          }),
+          /* @__PURE__ */ jsx_runtime13.jsx(Time, {
+            at: item.at
+          }),
+          isNew && /* @__PURE__ */ jsx_runtime13.jsx(New, {})
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime13.jsx(IssueMarkdown, {
+        text: item.body,
+        images
       })
     ]
   });
 }
-function CommitLink({ entry }) {
-  return /* @__PURE__ */ jsx_runtime20.jsx(Link, {
-    className: cn("font-mono text-[0.75rem] text-muted-foreground", LINK),
-    url: entry.commitUrl,
-    label: `Commit ${entry.sha}`,
-    title: entry.sha,
-    children: entry.sha.slice(0, 7)
+function Conversation({
+  number,
+  revision,
+  onCount
+}) {
+  const { data, error, isPlaceholderData } = useQuery({
+    queryKey: issueKey(number, revision),
+    queryFn: readIssue,
+    placeholderData: keepPreviousData
   });
-}
-function History() {
-  const isShown = useShellStore((state) => state.shell.tab === "history");
-  const [wasShown, setShown] = import_react24.useState(isShown);
-  if (isShown && !wasShown)
-    setShown(true);
-  const history = useScreen((state) => state.read?.history);
-  const sourceError = useScreen((state) => state.read?.source.error);
-  const presses = useScreen((state) => state.visualPresses);
-  const { isError } = useQuery(viewOptions);
-  const kept = useKeptFocus((box, lost) => {
-    const visual = lost.dataset.visual;
-    const href = lost.getAttribute("href");
-    const label = lost.getAttribute("aria-label");
-    const match = [...box.querySelectorAll("a, button, [data-visual]")].find((node) => visual ? node.dataset.visual === visual : href ? node.getAttribute("href") === href && node.className === lost.className && node.getAttribute("aria-label") === label : node.getAttribute("aria-label") === label);
-    return match ?? box.querySelector("button");
+  const kept = import_react17.useRef(null);
+  if (data)
+    kept.current = data;
+  const view = kept.current;
+  const marks = import_react17.useRef({
+    view: null,
+    ids: null,
+    fresh: NO_ITEMS
   });
-  useKeptScroll(() => [...kept.ref.current?.querySelectorAll(".overflow-y-auto") ?? []], history);
-  return /* @__PURE__ */ jsx_runtime20.jsx(TabsContent, {
-    ...kept,
-    value: "history",
-    keepMounted: true,
-    render: /* @__PURE__ */ jsx_runtime20.jsx("section", {}),
-    className: "flex min-h-0 flex-1 flex-col",
-    id: "history-pane",
-    tabIndex: undefined,
-    "data-state": wasShown ? "history" : undefined,
-    children: wasShown && /* @__PURE__ */ jsx_runtime20.jsx(Landed, {
-      history,
-      error: isError ? SERVER_DOWN : sourceError,
-      presses
-    })
+  if (view && marks.current.view !== view) {
+    const ids = new Set(view.items.map((item) => item.id));
+    const before = marks.current.ids;
+    marks.current = { view, ids, fresh: before ? new Set([...ids].filter((id) => !before.has(id))) : NO_ITEMS };
+  }
+  const { fresh } = marks.current;
+  const [line, setLine] = import_react17.useState("");
+  import_react17.useEffect(() => {
+    if (fresh.size === 0)
+      return;
+    setLine("");
+    const timer = setTimeout(() => setLine(fresh.size === 1 ? "1 new item" : `${fresh.size} new items`), 100);
+    return () => clearTimeout(timer);
+  }, [fresh]);
+  const comments = data && !isPlaceholderData ? data.items.filter((item) => item.kind === "comment").length : null;
+  import_react17.useEffect(() => {
+    if (comments !== null)
+      onCount?.(comments);
+  }, [comments, onCount]);
+  const failure = error && /* @__PURE__ */ jsx_runtime13.jsx("p", {
+    className: WARNING,
+    children: `Cannot read the issue: ${error.message}`
+  });
+  return /* @__PURE__ */ jsx_runtime13.jsxs(jsx_runtime13.Fragment, {
+    children: [
+      view ? /* @__PURE__ */ jsx_runtime13.jsxs(jsx_runtime13.Fragment, {
+        children: [
+          /* @__PURE__ */ jsx_runtime13.jsxs("div", {
+            className: "flex flex-wrap items-center gap-1.5",
+            children: [
+              /* @__PURE__ */ jsx_runtime13.jsx(Badge, {
+                variant: "secondary",
+                children: view.state === "open" ? "Open" : "Closed"
+              }),
+              view.labels.map((label) => /* @__PURE__ */ jsx_runtime13.jsx(Badge, {
+                variant: "outline",
+                children: label
+              }, label))
+            ]
+          }),
+          failure,
+          /* @__PURE__ */ jsx_runtime13.jsxs("ol", {
+            className: "m-0 flex list-none flex-col gap-4 p-0 [&>li+li]:border-t [&>li+li]:border-border [&>li+li]:pt-4",
+            children: [
+              /* @__PURE__ */ jsx_runtime13.jsxs("li", {
+                className: "flex flex-col gap-2",
+                children: [
+                  /* @__PURE__ */ jsx_runtime13.jsx("h3", {
+                    className: "m-0 text-[0.75rem] leading-normal font-medium text-card-foreground",
+                    children: "Description"
+                  }),
+                  view.body ? /* @__PURE__ */ jsx_runtime13.jsx(IssueMarkdown, {
+                    text: view.body,
+                    images: view.images
+                  }) : /* @__PURE__ */ jsx_runtime13.jsx("p", {
+                    className: "m-0 text-[0.8125rem] text-muted-foreground",
+                    children: "No description."
+                  })
+                ]
+              }),
+              view.items.map((item) => /* @__PURE__ */ jsx_runtime13.jsx(Item, {
+                item,
+                images: view.images,
+                isNew: fresh.has(item.id)
+              }, item.id))
+            ]
+          })
+        ]
+      }) : failure ?? /* @__PURE__ */ jsx_runtime13.jsx("p", {
+        className: "m-0 text-[0.8125rem] text-muted-foreground",
+        children: "Loading the issue…"
+      }),
+      /* @__PURE__ */ jsx_runtime13.jsx("p", {
+        className: "sr-only",
+        role: "status",
+        children: line
+      })
+    ]
   });
 }
 
 // engine/board/page/operations/panel.tsx
-var import_react25 = __toESM(require_react());
-
-// engine/node_modules/@base-ui/react/separator/Separator.mjs
-var React117 = __toESM(require_react(), 1);
-"use client";
-var Separator = /* @__PURE__ */ React117.forwardRef(function SeparatorComponent(componentProps, forwardedRef) {
-  const {
-    className,
-    render,
-    orientation = "horizontal",
-    style,
-    ...elementProps
-  } = componentProps;
-  const state = {
-    orientation
-  };
-  const element = useRenderElement("div", componentProps, {
-    state,
-    ref: forwardedRef,
-    props: [{
-      role: "separator",
-      "aria-orientation": orientation
-    }, elementProps]
-  });
-  return element;
-});
-if (false)
-  ;
-// engine/board/page/ui/separator.tsx
-var jsx_runtime21 = __toESM(require_jsx_runtime());
-function Separator2({ className, orientation = "horizontal", ...props }) {
-  return /* @__PURE__ */ jsx_runtime21.jsx(Separator, {
-    "data-slot": "separator",
-    orientation,
-    className: cn("shrink-0 bg-border data-horizontal:h-px data-horizontal:w-full data-vertical:w-px data-vertical:self-stretch", className),
-    ...props
-  });
-}
-
-// engine/board/page/operations/panel.tsx
-var jsx_runtime22 = __toESM(require_jsx_runtime());
+var jsx_runtime14 = __toESM(require_jsx_runtime());
 var SECTION_LABEL = "sec-label flex items-center gap-[7px] text-[0.6875rem] leading-none font-semibold tracking-[0.07em] text-muted-foreground uppercase";
 var MONO_ASIDE = "font-mono text-[0.71875rem] leading-none font-normal normal-nums";
 var TONES = {
@@ -38945,14 +48222,14 @@ var ASKS = {
 };
 var COPIES = { "no-progress": "command", "set-aside": "command", "dirty-tree": "path" };
 function Section({ title, aside = null, children }) {
-  return /* @__PURE__ */ jsx_runtime22.jsxs("section", {
+  return /* @__PURE__ */ jsx_runtime14.jsxs("section", {
     className: "flex flex-col gap-2",
     children: [
-      /* @__PURE__ */ jsx_runtime22.jsxs("h3", {
+      /* @__PURE__ */ jsx_runtime14.jsxs("h3", {
         className: SECTION_LABEL,
         children: [
           title,
-          aside && /* @__PURE__ */ jsx_runtime22.jsx("span", {
+          aside && /* @__PURE__ */ jsx_runtime14.jsx("span", {
             className: cn(MONO_ASIDE, "ml-auto tracking-[0] normal-case"),
             children: aside
           })
@@ -38962,30 +48239,30 @@ function Section({ title, aside = null, children }) {
     ]
   });
 }
-var Screen = ({ card }) => card.screen?.length ? /* @__PURE__ */ jsx_runtime22.jsx("pre", {
+var Screen = ({ card }) => card.screen?.length ? /* @__PURE__ */ jsx_runtime14.jsx("pre", {
   className: "m-0 rounded-lg border border-border bg-secondary px-3 py-2.5 font-mono text-[0.71875rem] leading-[1.55] font-normal [overflow-wrap:anywhere] whitespace-pre-wrap text-foreground",
   children: card.screen.join(`
 `)
 }) : null;
-function Ask2({ card, actions, registry }) {
+function Ask({ card, actions, registry }) {
   const [glyph, verb] = ASKS[card.waitFor] ?? ["target", "waits for your answer"];
-  return /* @__PURE__ */ jsx_runtime22.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime14.jsxs("div", {
     className: "flex flex-col gap-2.5 rounded-xl border border-[color-mix(in_srgb,var(--needs-tint)_34%,transparent)] bg-[color-mix(in_srgb,var(--needs-tint)_6%,var(--card))] px-3.5 py-3",
     children: [
-      /* @__PURE__ */ jsx_runtime22.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime14.jsxs("div", {
         className: "flex items-center gap-2 text-[0.75rem] text-muted-foreground [&_.icon]:size-3.5 [&_.icon]:text-needs",
         children: [
-          /* @__PURE__ */ jsx_runtime22.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime14.jsx(Icon, {
             name: glyph
           }),
-          /* @__PURE__ */ jsx_runtime22.jsx("b", {
+          /* @__PURE__ */ jsx_runtime14.jsx("b", {
             className: "font-medium text-card-foreground",
             children: agentOf(card, registry)?.name ?? "The agent"
           }),
-          /* @__PURE__ */ jsx_runtime22.jsx("span", {
+          /* @__PURE__ */ jsx_runtime14.jsx("span", {
             children: verb
           }),
-          /* @__PURE__ */ jsx_runtime22.jsx(Timed, {
+          /* @__PURE__ */ jsx_runtime14.jsx(Timed, {
             iso: card.since,
             isFine: LIVE.has(card.state),
             suffix: " ago",
@@ -38993,17 +48270,17 @@ function Ask2({ card, actions, registry }) {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime22.jsx(Screen, {
+      /* @__PURE__ */ jsx_runtime14.jsx(Screen, {
         card
       }),
-      /* @__PURE__ */ jsx_runtime22.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime14.jsxs("div", {
         className: "flex items-center justify-between gap-2",
         children: [
-          /* @__PURE__ */ jsx_runtime22.jsx("span", {
+          /* @__PURE__ */ jsx_runtime14.jsx("span", {
             className: "inline-flex items-center gap-1.5 text-[0.75rem] text-muted-foreground",
             children: "Answer it in the terminal pane."
           }),
-          actions.slice(0, 1).map((action) => /* @__PURE__ */ jsx_runtime22.jsx(ActionButton, {
+          actions.slice(0, 1).map((action) => /* @__PURE__ */ jsx_runtime14.jsx(ActionButton, {
             card,
             action,
             className: "phone:min-h-11"
@@ -39022,66 +48299,66 @@ function Steps({
   const track = laneTrack(card, flow);
   if (!track)
     return null;
-  return /* @__PURE__ */ jsx_runtime22.jsx(Section, {
+  return /* @__PURE__ */ jsx_runtime14.jsx(Section, {
     title: "Lane",
     aside: `${card.type} · step ${track.findIndex((step) => step.state === "now") + 1} of ${track.length}`,
-    children: /* @__PURE__ */ jsx_runtime22.jsx("ol", {
+    children: /* @__PURE__ */ jsx_runtime14.jsx("ol", {
       className: "m-0 grid list-none grid-cols-[16px_1fr_auto_auto] gap-x-2.5 py-0 pr-1 pl-0.5",
       "aria-label": `Steps of the lane ${card.type}`,
-      children: track.map((step) => /* @__PURE__ */ jsx_runtime22.jsxs("li", {
+      children: track.map((step) => /* @__PURE__ */ jsx_runtime14.jsxs("li", {
         "aria-current": step.state === "now" ? "step" : undefined,
         className: "relative col-span-full grid min-h-8 grid-cols-subgrid items-center gap-2.5 not-last:after:absolute not-last:after:top-[23px] not-last:after:left-[7.5px] not-last:after:h-[18px] not-last:after:w-px not-last:after:bg-border-strong not-last:after:content-['']",
         children: [
-          /* @__PURE__ */ jsx_runtime22.jsx("span", {
+          /* @__PURE__ */ jsx_runtime14.jsx("span", {
             className: cn("grid size-4 place-items-center text-muted-foreground [&_.icon]:size-3.5", step.state === "done" && "rounded-[50%] bg-accent text-card-foreground [&_.icon]:size-[11px] [&_.icon]:stroke-2", step.state === "now" && cn("text-foreground", !isWaiting && NODE_TONES[card.state])),
-            children: /* @__PURE__ */ jsx_runtime22.jsx(Icon, {
+            children: /* @__PURE__ */ jsx_runtime14.jsx(Icon, {
               name: step.state === "done" ? "check" : step.state === "now" ? PILL_ICONS[card.state] ?? "pending" : "pending"
             })
           }),
-          /* @__PURE__ */ jsx_runtime22.jsx("span", {
+          /* @__PURE__ */ jsx_runtime14.jsx("span", {
             className: cn("font-mono text-[0.78125rem] leading-none font-normal text-card-foreground", step.state === "now" && "font-medium text-foreground", step.state === "next" && "text-muted-foreground"),
             children: step.name
           }),
-          /* @__PURE__ */ jsx_runtime22.jsxs("span", {
+          /* @__PURE__ */ jsx_runtime14.jsxs("span", {
             className: cn("justify-self-end text-[0.75rem] text-muted-foreground", step.state === "now" && "first-letter:uppercase"),
             children: [
               step.state === "done" ? "done" : step.state === "now" ? card.state ? stateLabel(card) : "next" : "",
-              step.state === "next" && /* @__PURE__ */ jsx_runtime22.jsx("span", {
+              step.state === "next" && /* @__PURE__ */ jsx_runtime14.jsx("span", {
                 className: "sr-only",
                 children: "not started"
               })
             ]
           }),
-          gateOf(flow, card.type, step.name) === "auto" ? /* @__PURE__ */ jsx_runtime22.jsx(GateLabel, {
+          gateOf(flow, card.type, step.name) === "auto" ? /* @__PURE__ */ jsx_runtime14.jsx(GateLabel, {
             mode: auto,
             className: "cursor-default"
-          }) : /* @__PURE__ */ jsx_runtime22.jsx("span", {})
+          }) : /* @__PURE__ */ jsx_runtime14.jsx("span", {})
         ]
       }, step.name))
     })
   });
 }
 function Facts({ rows }) {
-  return /* @__PURE__ */ jsx_runtime22.jsx("dl", {
+  return /* @__PURE__ */ jsx_runtime14.jsx("dl", {
     className: "m-0 grid grid-cols-[96px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0.5",
     children: rows.filter((row) => Boolean(row)).map(([term, value, copyable]) => {
       const isText = typeof value === "string";
-      return /* @__PURE__ */ jsx_runtime22.jsxs(import_react25.Fragment, {
+      return /* @__PURE__ */ jsx_runtime14.jsxs(import_react18.Fragment, {
         children: [
-          /* @__PURE__ */ jsx_runtime22.jsx("dt", {
+          /* @__PURE__ */ jsx_runtime14.jsx("dt", {
             className: cn("text-[0.78125rem] leading-[1.875rem] text-muted-foreground", !isText && "[align-self:start]"),
             children: term
           }),
-          /* @__PURE__ */ jsx_runtime22.jsx("dd", {
+          /* @__PURE__ */ jsx_runtime14.jsx("dd", {
             className: cn("m-0 min-w-0 [overflow-wrap:anywhere] whitespace-normal text-foreground", isText ? "py-1.5 font-mono text-[0.75rem] leading-normal font-normal" : "py-0 font-sans text-[0.78125rem] leading-normal font-normal"),
             children: value
           }),
-          copyable ? /* @__PURE__ */ jsx_runtime22.jsx(IconButton, {
+          copyable ? /* @__PURE__ */ jsx_runtime14.jsx(IconButton, {
             name: "copy",
             label: `Copy the ${copyable[1]}`,
             press: () => copy(copyable[0], copyable[1]),
             className: "size-6 [&_.icon]:size-[13px]"
-          }) : /* @__PURE__ */ jsx_runtime22.jsx("span", {})
+          }) : /* @__PURE__ */ jsx_runtime14.jsx("span", {})
         ]
       }, term);
     })
@@ -39098,22 +48375,20 @@ var effortFacts = (pair) => pair ? [
   ["Effort", `${pair.level} · ${levelSource(pair)}`],
   [
     "Why",
-    /* @__PURE__ */ jsx_runtime22.jsx("span", {
+    /* @__PURE__ */ jsx_runtime14.jsx("span", {
       className: "block py-1.5 leading-[1.125rem] [overflow-wrap:anywhere] whitespace-normal",
       children: whyOf(pair)
     })
   ]
 ] : [];
-function Details({ card, isWaiting }) {
+function cardParts(card, isWaiting) {
   const { flow, registry, daemon } = screen.read();
   const actions = detailActions(card);
   const hasHelp = actions.some((action) => action.help);
   const firstGroup = actions.findIndex((action, at) => action.group && action.group !== actions[at - 1]?.group);
-  const on = onTracker();
   const { state } = card;
   const asks = state === "waits" && (card.number !== null || card.waitFor === "dialog");
   const isSession = Boolean(card.sessionId);
-  const open = safeUrl(card.url);
   const facts = isSession ? [
     ["Agent", agentOf(card, registry)?.name ?? "unknown"],
     card.cwd && ["Folder", card.cwd, [card.cwd, "folder"]],
@@ -39130,7 +48405,7 @@ function Details({ card, isWaiting }) {
     card.act && !COPIES[card.state] && ["Your act", card.act],
     card.rowHold?.reason && [
       "Reason",
-      /* @__PURE__ */ jsx_runtime22.jsx("span", {
+      /* @__PURE__ */ jsx_runtime14.jsx("span", {
         className: "block py-1.5 leading-[1.125rem] [overflow-wrap:anywhere] whitespace-normal",
         children: card.rowHold.reason
       })
@@ -39139,200 +48414,3626 @@ function Details({ card, isWaiting }) {
     ...effortFacts(card.effort),
     ["Updated", clock(card.since)]
   ];
-  return /* @__PURE__ */ jsx_runtime22.jsxs(jsx_runtime22.Fragment, {
+  const status = /* @__PURE__ */ jsx_runtime14.jsxs(jsx_runtime14.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime22.jsxs("div", {
+      asks ? /* @__PURE__ */ jsx_runtime14.jsx(Ask, {
+        card,
+        actions,
+        registry
+      }) : actions.length ? /* @__PURE__ */ jsx_runtime14.jsx("div", {
+        className: cn("flex flex-wrap gap-2", hasHelp && "grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1.5"),
+        children: actions.map((action, index) => /* @__PURE__ */ jsx_runtime14.jsxs(import_react18.Fragment, {
+          children: [
+            action.group && action.group !== actions[index - 1]?.group && /* @__PURE__ */ jsx_runtime14.jsx("span", {
+              className: cn("mt-1 basis-full text-[0.6875rem] leading-none font-semibold tracking-[0.07em] text-muted-foreground uppercase", hasHelp && "[grid-column:1/-1]"),
+              children: action.group
+            }),
+            /* @__PURE__ */ jsx_runtime14.jsx(ActionButton, {
+              card,
+              action,
+              className: cn("phone:min-h-11", hasHelp && firstGroup !== -1 && index >= firstGroup && "justify-self-start [grid-column:1/-1]")
+            }),
+            action.help && /* @__PURE__ */ jsx_runtime14.jsx("span", {
+              className: "self-center text-[0.75rem] text-muted-foreground",
+              children: action.help
+            })
+          ]
+        }, action.id))
+      }) : null,
+      prFacts(card.pr).length > 0 && /* @__PURE__ */ jsx_runtime14.jsx(Section, {
+        title: "Pull request",
+        children: /* @__PURE__ */ jsx_runtime14.jsx(PrChips, {
+          pr: card.pr
+        })
+      }),
+      /* @__PURE__ */ jsx_runtime14.jsx(Steps, {
+        card,
+        flow,
+        auto: daemon.auto,
+        isWaiting
+      }),
+      /* @__PURE__ */ jsx_runtime14.jsx(Section, {
+        title: isSession ? "Session" : "Issue",
+        children: /* @__PURE__ */ jsx_runtime14.jsx(Facts, {
+          rows: facts
+        })
+      }),
+      isSession && !asks && card.screen?.length ? /* @__PURE__ */ jsx_runtime14.jsx(Section, {
+        title: "Screen",
+        aside: "the last lines of its pane",
+        children: /* @__PURE__ */ jsx_runtime14.jsx(Screen, {
+          card
+        })
+      }) : null
+    ]
+  });
+  return {
+    number: card.number,
+    head: /* @__PURE__ */ jsx_runtime14.jsxs(jsx_runtime14.Fragment, {
+      children: [
+        /* @__PURE__ */ jsx_runtime14.jsx(Mark, {
+          card,
+          registry,
+          identifiedByText: true
+        }),
+        card.number === null ? /* @__PURE__ */ jsx_runtime14.jsx("span", {
+          className: "font-sans whitespace-nowrap text-muted-foreground tabular-nums",
+          children: "human session"
+        }) : /* @__PURE__ */ jsx_runtime14.jsx(Num, {
+          url: card.url,
+          children: `#${card.number}`
+        }),
+        [card.type, card.step === card.type ? null : card.step].map((part, at) => part && /* @__PURE__ */ jsx_runtime14.jsxs(import_react18.Fragment, {
+          children: [
+            /* @__PURE__ */ jsx_runtime14.jsx("span", {
+              className: "opacity-60",
+              children: "·"
+            }),
+            /* @__PURE__ */ jsx_runtime14.jsx("span", {
+              children: part
+            })
+          ]
+        }, at))
+      ]
+    }),
+    open: /* @__PURE__ */ jsx_runtime14.jsx(OpenLink, {
+      url: safeUrl(card.url),
+      shortcut: true
+    }),
+    title: /* @__PURE__ */ jsx_runtime14.jsxs(jsx_runtime14.Fragment, {
+      children: [
+        /* @__PURE__ */ jsx_runtime14.jsx(Title, {
+          children: card.title || (card.number === null ? "A session" : `Issue #${card.number}`)
+        }),
+        /* @__PURE__ */ jsx_runtime14.jsxs("div", {
+          className: "mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[0.78125rem] text-muted-foreground",
+          children: [
+            /* @__PURE__ */ jsx_runtime14.jsxs("span", {
+              className: cn("inline-flex min-h-6 items-center gap-1.5 rounded-[7px] py-1 pr-[9px] pl-[7px] text-[0.75rem] leading-[1.25] font-medium [&_.icon]:size-[13px]", (state && !isWaiting && (state !== "waits" || asks) ? TONES[state] : undefined) ?? MUTED_TONE, state === "starts" && "[&_.icon]:animate-turn [&_.icon]:text-working"),
+              children: [
+                /* @__PURE__ */ jsx_runtime14.jsx(Icon, {
+                  name: state ? PILL_ICONS[state] ?? "pending" : "pending"
+                }),
+                /* @__PURE__ */ jsx_runtime14.jsx("span", {
+                  className: "[overflow-wrap:anywhere] whitespace-normal first-letter:uppercase",
+                  children: state ? stateLabel(card) : `next: ${card.step}`
+                })
+              ]
+            }),
+            card.state !== "starts" && /* @__PURE__ */ jsx_runtime14.jsxs(jsx_runtime14.Fragment, {
+              children: [
+                /* @__PURE__ */ jsx_runtime14.jsx("span", {
+                  children: "since"
+                }),
+                /* @__PURE__ */ jsx_runtime14.jsx(Timed, {
+                  iso: card.since,
+                  isFine: Boolean(card.sessionId) && LIVE.has(card.state),
+                  className: "font-mono text-[0.75rem] leading-none font-normal normal-nums"
+                })
+              ]
+            })
+          ]
+        }),
+        card.warning && /* @__PURE__ */ jsx_runtime14.jsx("p", {
+          className: WARNING,
+          children: card.warning
+        })
+      ]
+    }),
+    status
+  };
+}
+var Title = ({ children }) => /* @__PURE__ */ jsx_runtime14.jsx("h2", {
+  className: "m-0 text-[1.03125rem] leading-[1.4] font-semibold tracking-[-0.016em] text-pretty text-foreground [overflow-wrap:anywhere]",
+  id: "panel-title",
+  children
+});
+var CLOSED = "m-0 text-[0.8125rem] text-muted-foreground";
+var useIssue = (number) => useQuery({
+  queryKey: issueKey(number, screen.read()?.revisions[number] ?? null),
+  queryFn: readIssue,
+  placeholderData: keepPreviousData
+});
+function IssueTitle({ number }) {
+  const { data, error } = useIssue(number);
+  const status = error?.cause;
+  import_react18.useEffect(() => {
+    if (status === 404 || status === 400)
+      closeDetails(false);
+  }, [status]);
+  return /* @__PURE__ */ jsx_runtime14.jsxs(jsx_runtime14.Fragment, {
+    children: [
+      /* @__PURE__ */ jsx_runtime14.jsx(Title, {
+        children: data?.title || `Issue #${number}`
+      }),
+      data && /* @__PURE__ */ jsx_runtime14.jsx("div", {
+        className: "mt-2.5 flex",
+        children: /* @__PURE__ */ jsx_runtime14.jsx(Badge, {
+          variant: "secondary",
+          children: data.state === "open" ? "Open" : "Closed"
+        })
+      })
+    ]
+  });
+}
+function IssueStatus({ number }) {
+  const { data } = useIssue(number);
+  if (!data)
+    return null;
+  return /* @__PURE__ */ jsx_runtime14.jsx("p", {
+    className: CLOSED,
+    children: data.state === "open" ? "This issue has no card on the board. No run belongs to it." : "This issue is closed. No run belongs to it."
+  });
+}
+function OpenLink({ url, shortcut }) {
+  const on = onTracker();
+  return url ? /* @__PURE__ */ jsx_runtime14.jsx("a", {
+    "data-slot": "button",
+    className: buttonVariants({ variant: "icon", size: "icon", className: "phone:size-11" }),
+    href: url,
+    target: "_blank",
+    rel: "noreferrer",
+    title: `Open the issue${on}${shortcut ? " (o)" : ""}`,
+    "aria-label": `Open the issue${on}`,
+    children: /* @__PURE__ */ jsx_runtime14.jsx(Icon, {
+      name: "open"
+    })
+  }) : null;
+}
+var IssueOpen = ({ number }) => /* @__PURE__ */ jsx_runtime14.jsx(OpenLink, {
+  url: safeUrl(useIssue(number).data?.url),
+  shortcut: false
+});
+var closedParts = (source) => source.kind === "landed" ? {
+  number: source.entry.number,
+  head: /* @__PURE__ */ jsx_runtime14.jsx(Num, {
+    url: source.entry.url,
+    children: `#${source.entry.number}`
+  }),
+  open: /* @__PURE__ */ jsx_runtime14.jsx(OpenLink, {
+    url: safeUrl(source.entry.url),
+    shortcut: false
+  }),
+  title: /* @__PURE__ */ jsx_runtime14.jsxs(jsx_runtime14.Fragment, {
+    children: [
+      /* @__PURE__ */ jsx_runtime14.jsx(Title, {
+        children: source.entry.title
+      }),
+      /* @__PURE__ */ jsx_runtime14.jsx("p", {
+        className: "mt-2.5 mb-0 text-[0.78125rem] text-muted-foreground",
+        children: `Landed on ${source.trunk} in ${source.entry.sha.slice(0, 7)}, ${clock(source.entry.committedAt, true)}`
+      })
+    ]
+  }),
+  status: /* @__PURE__ */ jsx_runtime14.jsx("p", {
+    className: CLOSED,
+    children: "This issue is closed. No run belongs to it."
+  })
+} : {
+  number: source.number,
+  head: /* @__PURE__ */ jsx_runtime14.jsx(Num, {
+    url: null,
+    children: `#${source.number}`
+  }),
+  open: /* @__PURE__ */ jsx_runtime14.jsx(IssueOpen, {
+    number: source.number
+  }),
+  title: /* @__PURE__ */ jsx_runtime14.jsx(IssueTitle, {
+    number: source.number
+  }),
+  status: /* @__PURE__ */ jsx_runtime14.jsx(IssueStatus, {
+    number: source.number
+  })
+};
+function Details({ source }) {
+  const { number, head, open, title, status } = source.kind === "card" ? cardParts(source.card, source.isWaiting) : closedParts(source);
+  const tab = useShellStore((shell) => shell.shell.detailsTab);
+  const revision = number === null ? null : screen.read()?.revisions[number] ?? null;
+  const [counted, setCounted] = import_react18.useState(null);
+  const onCount = import_react18.useCallback((comments) => setCounted({ revision, comments }), [revision]);
+  const comments = counted?.revision === revision ? counted.comments : source.kind === "card" ? source.card.comments : null;
+  return /* @__PURE__ */ jsx_runtime14.jsxs(jsx_runtime14.Fragment, {
+    children: [
+      /* @__PURE__ */ jsx_runtime14.jsxs("div", {
         className: "relative flex min-h-12 flex-none items-center gap-1 pr-2.5 pb-px pl-4 phone:min-h-14",
         children: [
-          /* @__PURE__ */ jsx_runtime22.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime14.jsx("div", {
             className: "flex min-w-0 flex-1 items-center gap-[7px] overflow-hidden font-mono text-[0.71875rem] leading-none font-normal whitespace-nowrap text-muted-foreground phone:[&_a]:inline-flex phone:[&_a]:min-h-11 phone:[&_a]:items-center",
-            children: [
-              /* @__PURE__ */ jsx_runtime22.jsx(Mark, {
-                card,
-                registry,
-                identifiedByText: true
-              }),
-              card.number === null ? /* @__PURE__ */ jsx_runtime22.jsx("span", {
-                className: "font-sans whitespace-nowrap text-muted-foreground tabular-nums",
-                children: "human session"
-              }) : /* @__PURE__ */ jsx_runtime22.jsx(Num, {
-                url: card.url,
-                children: `#${card.number}`
-              }),
-              [card.type, card.step === card.type ? null : card.step].map((part, at) => part && /* @__PURE__ */ jsx_runtime22.jsxs(import_react25.Fragment, {
-                children: [
-                  /* @__PURE__ */ jsx_runtime22.jsx("span", {
-                    className: "opacity-60",
-                    children: "·"
-                  }),
-                  /* @__PURE__ */ jsx_runtime22.jsx("span", {
-                    children: part
-                  })
-                ]
-              }, at))
-            ]
+            children: head
           }),
-          open && /* @__PURE__ */ jsx_runtime22.jsx("a", {
-            "data-slot": "button",
-            className: buttonVariants({ variant: "icon", size: "icon", className: "phone:size-11" }),
-            href: open,
-            target: "_blank",
-            rel: "noreferrer",
-            title: `Open the issue${on} (o)`,
-            "aria-label": `Open the issue${on}`,
-            children: /* @__PURE__ */ jsx_runtime22.jsx(Icon, {
-              name: "open"
-            })
-          }),
-          /* @__PURE__ */ jsx_runtime22.jsx(IconButton, {
+          open,
+          /* @__PURE__ */ jsx_runtime14.jsx(IconButton, {
             name: "close",
             label: "Close the details (Esc)",
             press: () => closeDetails(true),
             className: "phone:size-11"
           }),
-          /* @__PURE__ */ jsx_runtime22.jsx(Separator2, {
+          /* @__PURE__ */ jsx_runtime14.jsx(Separator2, {
             className: "absolute inset-x-0 bottom-0"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime22.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime14.jsxs("div", {
         className: "flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pt-4 pb-[22px] phone:scroll-pb-[calc(var(--dock)+8px)]",
         children: [
-          /* @__PURE__ */ jsx_runtime22.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime14.jsx("div", {
+            children: title
+          }),
+          number === null ? status : /* @__PURE__ */ jsx_runtime14.jsxs(Tabs, {
+            value: tab,
+            onValueChange: (value) => setDetailsTab(value === "conversation" ? "conversation" : "status"),
+            className: "flex-col gap-5",
             children: [
-              /* @__PURE__ */ jsx_runtime22.jsx("h2", {
-                className: "m-0 text-[1.03125rem] leading-[1.4] font-semibold tracking-[-0.016em] text-pretty text-foreground [overflow-wrap:anywhere]",
-                id: "panel-title",
-                children: card.title || (card.number === null ? "A session" : `Issue #${card.number}`)
-              }),
-              /* @__PURE__ */ jsx_runtime22.jsxs("div", {
-                className: "mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[0.78125rem] text-muted-foreground",
+              /* @__PURE__ */ jsx_runtime14.jsxs(TabsList2, {
+                loopFocus: true,
+                "aria-label": "Card details",
+                className: "self-start phone:self-stretch",
                 children: [
-                  /* @__PURE__ */ jsx_runtime22.jsxs("span", {
-                    className: cn("inline-flex min-h-6 items-center gap-1.5 rounded-[7px] py-1 pr-[9px] pl-[7px] text-[0.75rem] leading-[1.25] font-medium [&_.icon]:size-[13px]", (state && !isWaiting && (state !== "waits" || asks) ? TONES[state] : undefined) ?? MUTED_TONE, state === "starts" && "[&_.icon]:animate-turn [&_.icon]:text-working"),
-                    children: [
-                      /* @__PURE__ */ jsx_runtime22.jsx(Icon, {
-                        name: state ? PILL_ICONS[state] ?? "pending" : "pending"
-                      }),
-                      /* @__PURE__ */ jsx_runtime22.jsx("span", {
-                        className: "[overflow-wrap:anywhere] whitespace-normal first-letter:uppercase",
-                        children: state ? stateLabel(card) : `next: ${card.step}`
-                      })
-                    ]
+                  /* @__PURE__ */ jsx_runtime14.jsx(TabsTrigger, {
+                    value: "status",
+                    children: "Status"
                   }),
-                  card.state !== "starts" && /* @__PURE__ */ jsx_runtime22.jsxs(jsx_runtime22.Fragment, {
+                  /* @__PURE__ */ jsx_runtime14.jsxs(TabsTrigger, {
+                    value: "conversation",
                     children: [
-                      /* @__PURE__ */ jsx_runtime22.jsx("span", {
-                        children: "since"
-                      }),
-                      /* @__PURE__ */ jsx_runtime22.jsx(Timed, {
-                        iso: card.since,
-                        isFine: Boolean(card.sessionId) && LIVE.has(card.state),
-                        className: "font-mono text-[0.75rem] leading-none font-normal normal-nums"
+                      "Conversation ",
+                      comments !== null && /* @__PURE__ */ jsx_runtime14.jsx(Badge, {
+                        variant: "secondary",
+                        children: comments
                       })
                     ]
                   })
                 ]
               }),
-              card.warning && /* @__PURE__ */ jsx_runtime22.jsx("p", {
-                className: WARNING,
-                children: card.warning
+              /* @__PURE__ */ jsx_runtime14.jsx(TabsContent, {
+                value: "status",
+                className: "flex flex-col gap-5",
+                children: status
+              }),
+              /* @__PURE__ */ jsx_runtime14.jsx(TabsContent, {
+                value: "conversation",
+                className: "flex flex-col gap-4",
+                children: /* @__PURE__ */ jsx_runtime14.jsx(Conversation, {
+                  number,
+                  revision,
+                  onCount
+                })
               })
             ]
-          }),
-          asks ? /* @__PURE__ */ jsx_runtime22.jsx(Ask2, {
-            card,
-            actions,
-            registry
-          }) : actions.length ? /* @__PURE__ */ jsx_runtime22.jsx("div", {
-            className: cn("flex flex-wrap gap-2", hasHelp && "grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1.5"),
-            children: actions.map((action, index) => /* @__PURE__ */ jsx_runtime22.jsxs(import_react25.Fragment, {
-              children: [
-                action.group && action.group !== actions[index - 1]?.group && /* @__PURE__ */ jsx_runtime22.jsx("span", {
-                  className: cn("mt-1 basis-full text-[0.6875rem] leading-none font-semibold tracking-[0.07em] text-muted-foreground uppercase", hasHelp && "[grid-column:1/-1]"),
-                  children: action.group
-                }),
-                /* @__PURE__ */ jsx_runtime22.jsx(ActionButton, {
-                  card,
-                  action,
-                  className: cn("phone:min-h-11", hasHelp && firstGroup !== -1 && index >= firstGroup && "justify-self-start [grid-column:1/-1]")
-                }),
-                action.help && /* @__PURE__ */ jsx_runtime22.jsx("span", {
-                  className: "self-center text-[0.75rem] text-muted-foreground",
-                  children: action.help
-                })
-              ]
-            }, action.id))
-          }) : null,
-          prFacts(card.pr).length > 0 && /* @__PURE__ */ jsx_runtime22.jsx(Section, {
-            title: "Pull request",
-            children: /* @__PURE__ */ jsx_runtime22.jsx(PrChips, {
-              pr: card.pr
-            })
-          }),
-          /* @__PURE__ */ jsx_runtime22.jsx(Steps, {
-            card,
-            flow,
-            auto: daemon.auto,
-            isWaiting
-          }),
-          /* @__PURE__ */ jsx_runtime22.jsx(Section, {
-            title: isSession ? "Session" : "Issue",
-            children: /* @__PURE__ */ jsx_runtime22.jsx(Facts, {
-              rows: facts
-            })
-          }),
-          isSession && !asks && card.screen?.length ? /* @__PURE__ */ jsx_runtime22.jsx(Section, {
-            title: "Screen",
-            aside: "the last lines of its pane",
-            children: /* @__PURE__ */ jsx_runtime22.jsx(Screen, {
-              card
-            })
-          }) : null
+          })
         ]
       })
     ]
   });
 }
+var sourceOf = (key, opener) => {
+  const shown = screen.index().byKey.get(key);
+  if (shown)
+    return { kind: "card", card: shown.card, isWaiting: shown.column === "waiting" };
+  const history2 = screen.read()?.history;
+  const entry = history2?.entries.find((each) => keyOf({ number: each.number, sessionId: null }) === key);
+  if (history2 && entry)
+    return { kind: "landed", entry, trunk: history2.trunk };
+  const number = opener === "link" ? numberOf(key) : null;
+  return number === null ? null : { kind: "issue", number };
+};
 function Panel() {
-  const details = useShellStore((state) => state.shell.details);
+  const { details, opener } = useShellStore((state) => state.shell);
   useScreen((state) => state);
-  const entry = details === null ? undefined : screen.index().byKey.get(details);
-  const last = import_react25.useRef(null);
-  if (details !== null && entry)
-    last.current = { key: details, card: entry.card };
-  const card = details === null ? null : entry?.card ?? (last.current?.key === details ? last.current.card : null);
+  const found = details === null ? null : sourceOf(details, opener);
+  const last = import_react18.useRef(null);
+  if (details !== null && found?.kind === "card")
+    last.current = { key: details, card: found.card };
+  const source = found ?? (details !== null && last.current?.key === details ? { kind: "card", card: last.current.card, isWaiting: false } : null);
   const kept = useKeptFocus((box, lost) => {
     const label = lost.getAttribute("aria-label");
     if (!label)
       return null;
     return box.querySelector(`[aria-label="${CSS.escape(label)}"]`) ?? box.querySelector('[aria-label^="Close the details"]');
   });
-  return /* @__PURE__ */ jsx_runtime22.jsx("section", {
+  const state = source === null ? undefined : source.kind === "card" ? source.card.state ?? "next" : "closed";
+  return /* @__PURE__ */ jsx_runtime14.jsx("section", {
     ...kept,
     className: "flex min-h-0 min-w-0 flex-1 animate-panel-in flex-col overflow-hidden rounded-3xl border border-border-strong bg-panel phone:scroll-pb-[calc(var(--dock)+8px)] min-[720px]:group-data-[tab=pipeline]/ops:flex-[0_1_auto] min-[720px]:group-data-[tab=pipeline]/ops:[grid-area:1/2]",
     id: "panel",
     "aria-label": "Card details",
     tabIndex: -1,
-    hidden: card === null,
-    "aria-labelledby": card ? "panel-title" : undefined,
-    "data-state": card ? card.state ?? "next" : undefined,
-    "data-key": card ? details ?? undefined : undefined,
-    children: card && /* @__PURE__ */ jsx_runtime22.jsx(Details, {
-      card,
-      isWaiting: entry?.column === "waiting"
+    hidden: source === null,
+    "aria-labelledby": source ? "panel-title" : undefined,
+    "data-state": state,
+    "data-key": source ? details ?? undefined : undefined,
+    children: source && /* @__PURE__ */ jsx_runtime14.jsx(Details, {
+      source
     }, details)
   });
 }
 
+// engine/board/page/queue/state.ts
+var import_react19 = __toESM(require_react());
+var recordedHost = (record) => record?.choice?.kind === "explicit" ? record.choice.host : null;
+var chosenHost = (record) => record?.choice ? recordedHost(record) : agent || null;
+var board2 = null;
+var submitted = null;
+var agent = "";
+var busy2 = false;
+var uncertain = false;
+var retired = new Set;
+var listeners8 = new Set;
+var snapshot3 = {
+  board: board2,
+  submitted,
+  agent,
+  isBusy: busy2,
+  isUncertain: uncertain,
+  state: "empty",
+  isAuthoritative: false,
+  chosen: null,
+  available: []
+};
+var cards = () => Object.values(board2?.columns ?? {}).flat();
+var available = () => cards().flatMap(({ number, ...card }) => number !== null && !card.sessionId && card.run && card.step ? [{ ...card, number }] : []);
+var find2 = (number) => cards().find((card) => card.number === number);
+var expected = () => ({
+  id: submitted?.record?.id ?? null,
+  revision: submitted?.record?.revision ?? 0,
+  current: submitted?.record?.numbers[0] ?? null
+});
+var authoritative = () => Boolean(submitted && !uncertain && !board2?.source.error);
+function accept3(view) {
+  const old = submitted?.record;
+  const next = view.record;
+  if (next && (retired.has(next.id) || old?.id === next.id && next.revision < old.revision))
+    return;
+  if (!next && old) {
+    submitted = {
+      ...submitted,
+      error: view.error ?? "The queue record is unavailable. Refresh before acting.",
+      actions: { add: false, edit: false, continue: false, retry: false }
+    };
+    return;
+  }
+  if (old && next && old.id !== next.id)
+    retired.add(old.id);
+  submitted = view;
+}
+var request = async (action) => {
+  if (busy2 || !authoritative())
+    return;
+  busy2 = true;
+  announce("Saving the queue");
+  emit4();
+  try {
+    const response = await fetch("/api/queue", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action,
+        ...action.kind === "add" && chosenHost(submitted?.record) ? { agent: chosenHost(submitted?.record) } : {}
+      }),
+      signal: AbortSignal.timeout(150000)
+    });
+    if (!response.ok)
+      throw new Error((await response.json()).error);
+    accept3(await response.json());
+    announce(action.kind === "add" ? `#${action.number} is saved in the queue` : "The queue is saved");
+  } catch (error) {
+    uncertain = true;
+    toast("Queue action needs a refresh", {
+      detail: error instanceof Error ? error.message : String(error),
+      isError: true
+    });
+    try {
+      const response = await fetch("/api/queue", { signal: AbortSignal.timeout(30000) });
+      if (!response.ok)
+        throw new Error("Queue state is unavailable");
+      const view = await response.json();
+      accept3(view);
+      uncertain = !view.actions.add && !view.actions.edit && !view.actions.continue && !view.actions.retry;
+    } catch {
+      uncertain = true;
+    }
+    announce("Check the saved queue before another attempt");
+  } finally {
+    busy2 = false;
+    emit4();
+  }
+};
+var stateOf = () => {
+  const record = submitted?.record;
+  if (!record?.numbers.length)
+    return "empty";
+  if (record.state === "me-gate")
+    return "me-gate";
+  if (record.state === "error" || submitted?.error && !submitted.owner)
+    return "error";
+  const observed = cards().some((card) => card.number === record.numbers[0] && card.sessionId && card.step === record.current?.step && card.state !== null && card.state !== "starts");
+  return record.state === "running" && observed ? "running" : "starting";
+};
+var hostAvailable = (host) => {
+  const next = host ?? (board2?.next?.kind === "start" ? board2.next.host : null);
+  return next === null || !!board2 && knownAgent(board2.registry, next) && board2.agents?.[next]?.available === true;
+};
+function emit4() {
+  if (!board2)
+    return;
+  shellStore.setInputs({ queueCount: submitted?.record?.numbers.length ?? 0 });
+  snapshot3 = {
+    board: board2,
+    submitted,
+    agent,
+    isBusy: busy2,
+    isUncertain: uncertain,
+    state: stateOf(),
+    isAuthoritative: authoritative(),
+    chosen: chosenHost(submitted?.record),
+    available: available()
+  };
+  for (const listener of listeners8)
+    listener();
+}
+function update2(next) {
+  board2 = next;
+  const before = submitted?.record?.numbers.length;
+  if (board2.queue) {
+    accept3(board2.queue);
+    if (!board2.source.error && Object.values(board2.queue.actions).some(Boolean))
+      uncertain = false;
+  }
+  emit4();
+  if (before !== undefined && submitted?.record && before > submitted.record.numbers.length)
+    announce(`${submitted.record.numbers.length} issues remain in the queue`);
+}
+var queueStore = {
+  get: () => snapshot3,
+  subscribe: (listener) => {
+    listeners8.add(listener);
+    return () => {
+      listeners8.delete(listener);
+    };
+  },
+  update: update2,
+  act: request,
+  expected,
+  setAgent: (value) => {
+    agent = value;
+    emit4();
+  },
+  hostAvailable,
+  find: find2,
+  refresh: () => shellStore.handlers().readAgain()
+};
+var useQueue = (select) => import_react19.useSyncExternalStore(queueStore.subscribe, () => select(snapshot3));
+
+// engine/board/page/read/read.ts
+var shell4 = () => shellStore.get().shell;
+var settings2 = () => shellStore.get().settings;
+var needsKeys = null;
+var starting = null;
+var startupWarnings = new Map;
+var coordinatorLine = null;
+var { seenTurn: seenTurn2 } = screen;
+var faviconColors = () => {
+  const style = getComputedStyle(document.documentElement);
+  const token = (name) => style.getPropertyValue(name).trim();
+  return { tile: token("--card"), bar: token("--fg"), needs: token("--needs"), works: token("--working") };
+};
+var drawFavicon = () => {
+  const board = screen.board();
+  if (board)
+    document.getElementById("favicon").href = favicon(tone(board, seenTurn2), faviconColors());
+};
+var systemNotice = (title, body, tag, open) => {
+  const isAway = document.hidden || !document.hasFocus();
+  if (!settings2().notify || !isAway || !("Notification" in window) || Notification.permission !== "granted")
+    return;
+  const shown = new Notification(title, { body, tag, icon: favicon("needs", faviconColors()) });
+  shown.addEventListener("click", () => {
+    window.focus();
+    open();
+  });
+};
+var notify = (cards) => {
+  const keys = new Set(cards.map((card) => keyOf(card)));
+  const fresh = needsKeys === null ? [] : cards.filter((card) => !needsKeys.has(keyOf(card)) && !(card.sessionId === null && card.number !== null && starting?.has(card.number)));
+  for (const card of fresh) {
+    const { title, body } = notice(card);
+    systemNotice(title, body, keyOf(card), () => {
+      if (shell4().tab === "pipeline")
+        setTab("agents");
+      openDetails(keyOf(card));
+    });
+  }
+  needsKeys = keys;
+  return fresh.map((card) => isYourTurn(card, seenTurn2) ? turnLine(card) : notice(card).title);
+};
+var startNotices = (columns) => {
+  const cards = [...columns.needs, ...columns.waiting, ...columns.running, ...columns.idle];
+  const now = new Map;
+  for (const card of cards)
+    if (card.state === "starts" && card.number !== null)
+      now.set(card.number, card.step);
+  const lines = [];
+  const before = starting;
+  const previousWarnings = startupWarnings;
+  starting = now;
+  startupWarnings = new Map(cards.flatMap((card) => card.number !== null && card.warning ? [[card.number, card.warning]] : []));
+  if (before === null)
+    return lines;
+  for (const [number, warning] of startupWarnings)
+    if (previousWarnings.get(number) !== warning)
+      lines.push(warning.startsWith(`#${number}: `) ? warning : `#${number}: ${warning}`);
+  for (const [number, step] of now)
+    if (!before.has(number))
+      lines.push(step ? `#${number} is starting the ${step} step` : `#${number} is starting a session`);
+  for (const [number, step] of before) {
+    if (now.has(number))
+      continue;
+    const card = cards.find((other) => other.number === number);
+    if (card?.sessionId)
+      lines.push(step ? `#${number} started the ${step} step` : `#${number} opened a session`);
+  }
+  return lines;
+};
+var drawStatus = (isDown) => {
+  const data = screen.read();
+  if (data?.picker)
+    agentStore.update(data.picker, data.registry);
+  document.body.toggleAttribute("data-stale", isDown);
+  coordinator.down(isDown);
+};
+var drawNow = (all, work, home) => {
+  shellStore.setInputs({ badges: { home, operations: all, agents: work } });
+};
+var drawRead = (next) => {
+  queueStore.update(next);
+  const waiting = needsYou(next, seenTurn2);
+  document.title = pageTitle(next.repo, waiting.length);
+  drawFavicon();
+  drawNow(waiting.length, waiting.filter(isCard).length, next.columns.needs.length);
+  shellStore.setInputs({ board: next });
+  const lines = [
+    ...notify(waiting.filter(isCard)),
+    ...startNotices(next.columns),
+    ...coordinatorLine ? [coordinatorLine] : []
+  ];
+  coordinatorLine = null;
+  if (lines.length)
+    announce(lines.join(". "));
+  const { details } = shell4();
+  if (details !== null && sourceOf(details, shell4().opener) === null)
+    closeDetails(false);
+  showHints(document.activeElement?.closest?.("#columns .card[data-key]")?.dataset.key ?? null);
+};
+var tick = () => {
+  drawIntake();
+};
+var last = "";
+var render3 = () => {
+  drawIntake();
+  const next = screen.board();
+  const cards = JSON.stringify([
+    next.repo,
+    next.noRun,
+    next.agents,
+    next.next,
+    next.starts,
+    next.flow,
+    next.tracker,
+    next.grammar,
+    next.columns,
+    next.history,
+    next.source.error,
+    next.queue,
+    next.coordinator.state,
+    next.daemon.auto,
+    next.terminal.ok,
+    next.trends,
+    next.columns.human.map((card) => [card.sessionId, card.turn, isYourTurn(card, seenTurn2)]),
+    [...screen.startFailures()],
+    [...screen.asides().keys()],
+    [...screen.stops().keys()],
+    [...screen.refusals()],
+    [...screen.launches()].filter(([, entry]) => entry.phase === "pending").map(([number, entry]) => [number, entry.step])
+  ]);
+  if (cards === last) {
+    queueStore.update(next);
+    return;
+  }
+  drawRead(next);
+  last = cards;
+};
+var waiters = [];
+var settle = () => {
+  for (const resolve of waiters.splice(0))
+    resolve();
+};
+var readAgain2 = () => {
+  if (isReconnecting2())
+    return Promise.resolve();
+  const next = new Promise((resolve) => waiters.push(resolve));
+  queryClient.cancelQueries({ queryKey: boardKey }).then(() => queryClient.invalidateQueries({ queryKey: boardKey }));
+  return next;
+};
+var accept4 = (next) => {
+  coordinatorLine = coordinator.update(next.coordinator);
+  screen.accept({ ...next, coordinator: coordinator.view() });
+  render3();
+  drawStatus(false);
+};
+var fail2 = () => {
+  if (isReconnecting2())
+    return;
+  screen.fail();
+  drawStatus(true);
+  const board = screen.board();
+  if (board)
+    queueStore.update(board);
+};
+var dataAt = 0;
+var errorAt = 0;
+var onRead = ({ data: next, dataUpdatedAt, errorUpdatedAt }) => {
+  const isNew = dataUpdatedAt !== dataAt && next !== undefined;
+  const isFailed = errorUpdatedAt !== errorAt;
+  if (!isNew && !isFailed)
+    return;
+  dataAt = dataUpdatedAt;
+  errorAt = errorUpdatedAt;
+  try {
+    if (isNew)
+      accept4(next);
+    else
+      fail2();
+    tick();
+  } finally {
+    settle();
+  }
+};
+function startRead() {
+  const observer = new QueryObserver(queryClient, pollOptions);
+  const reconnect = () => {
+    drawIntake();
+    observer.setOptions({ ...pollOptions, enabled: false });
+    queryClient.cancelQueries({ queryKey: boardKey });
+    settle();
+    screen.fail();
+    const board = screen.board();
+    if (board)
+      queueStore.update(board);
+  };
+  const connected = () => {
+    drawIntake();
+    observer.setOptions({ ...pollOptions, enabled: true });
+  };
+  updateStore.handle({ reconnect, connected });
+  updateStore.start();
+  let drawnSettings = settings2();
+  shellStore.subscribe(() => {
+    if (settings2() === drawnSettings)
+      return;
+    drawnSettings = settings2();
+    drawFavicon();
+  });
+  coordinator.handle({
+    reveal: showChat,
+    changed: (next) => {
+      if (!screen.read())
+        return;
+      screen.setCoordinator(next);
+      render3();
+    },
+    notify: (title, open) => systemNotice(title, "", "coordinator", open)
+  });
+  let drawnShell = shellStore.get();
+  const followShell = () => {
+    drawnShell = shellStore.get();
+    const { area } = shell4();
+    if (area !== "control") {
+      updateStore.dismiss();
+      agentStore.closeMenu();
+    }
+  };
+  shellStore.subscribe(() => {
+    const next = shellStore.get();
+    if (next.shell !== drawnShell.shell || next.isPhone !== drawnShell.isPhone)
+      followShell();
+  });
+  let drawnTurns = screen.get().turns;
+  screen.subscribe(() => {
+    const was = drawnTurns;
+    drawnTurns = screen.get().turns;
+    if (drawnTurns !== was && screen.get().read)
+      render3();
+  });
+  addEventListener("blur", () => screen.markAllSeen());
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden)
+      screen.markAllSeen();
+    else
+      readAgain2();
+  });
+  shellStore.handle({
+    go: (area) => {
+      setArea(area);
+      if (area === "operations" && shellStore.get().inputs.badges.operations > 0)
+        focusNeed();
+    },
+    showChat,
+    agents: () => setPane("agents"),
+    intake: () => void openIntake(),
+    agentOrder,
+    readAgain: readAgain2,
+    isReconnecting: isReconnecting2,
+    open: openDetails
+  });
+  screen.handle({ openChat: coordinator.open, render: render3 });
+  drawIntake();
+  showHints(null);
+  setInterval(tick, 1000);
+  followShell();
+  drawStatus(false);
+  observer.subscribe(onRead);
+}
+
+// engine/board/page/toast/toaster.tsx
+var import_react20 = __toESM(require_react());
+var jsx_runtime15 = __toESM(require_jsx_runtime());
+var ROOT = "fixed bottom-12 left-1/2 z-20 flex w-max max-w-[min(560px,calc(100vw-32px))] items-center gap-2.5 rounded-xl bg-card py-2.5 pr-2 pl-3 text-[0.8125rem] leading-[1.45] text-foreground [box-shadow:var(--float)] [overflow-wrap:anywhere] [transform:translate(calc(-50%_+_var(--toast-swipe-movement-x,0px)),var(--toast-swipe-movement-y,0px))] animate-rise data-ending-style:hidden phone:bottom-[calc(var(--dock)+12px)]";
+var MARK2 = "grid size-5 flex-none place-items-center rounded-sm [&_.icon]:size-[13px]";
+var OK = "bg-[color-mix(in_srgb,var(--ready)_14%,transparent)] text-ready";
+var ERROR2 = "bg-[color-mix(in_srgb,var(--danger)_14%,transparent)] text-destructive";
+var DETAIL = "m-0 mt-px block text-[0.78125rem] text-card-foreground first-letter:uppercase";
+var CODE = "rounded-xs bg-accent px-[5px] py-px font-mono text-[0.75rem] leading-[1.4] font-normal text-foreground";
+var withCode = (text) => {
+  const node = [];
+  text.split("`").forEach((part, index) => {
+    if (part)
+      node.push(index % 2 ? /* @__PURE__ */ jsx_runtime15.jsx("code", {
+        className: CODE,
+        children: part
+      }, index) : part);
+  });
+  return node;
+};
+function ToastItem({ toast }) {
+  const isError = toast.type === "error";
+  const detail = toast.data?.detail ?? "";
+  const close = import_react20.useRef(null);
+  const [tookOver] = import_react20.useState(isFocusInToast);
+  import_react20.useLayoutEffect(() => {
+    if (tookOver)
+      close.current?.focus({ preventScroll: true });
+  }, [tookOver]);
+  return /* @__PURE__ */ jsx_runtime15.jsxs(ToastRoot, {
+    toast,
+    className: ROOT,
+    children: [
+      /* @__PURE__ */ jsx_runtime15.jsx("span", {
+        className: cn(MARK2, isError ? ERROR2 : OK),
+        children: /* @__PURE__ */ jsx_runtime15.jsx(Icon, {
+          name: isError ? "alert" : "check"
+        })
+      }),
+      /* @__PURE__ */ jsx_runtime15.jsxs("div", {
+        children: [
+          /* @__PURE__ */ jsx_runtime15.jsx(ToastTitle, {
+            render: /* @__PURE__ */ jsx_runtime15.jsx("strong", {}),
+            className: "block font-semibold"
+          }),
+          detail ? /* @__PURE__ */ jsx_runtime15.jsx(ToastDescription, {
+            className: DETAIL,
+            children: withCode(detail)
+          }) : null
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime15.jsx(ToastClose, {
+        ref: close,
+        render: /* @__PURE__ */ jsx_runtime15.jsx(Button2, {
+          variant: "icon",
+          size: "icon",
+          className: "px-1.5 py-px [border:0]",
+          "aria-label": "Close"
+        }),
+        children: /* @__PURE__ */ jsx_runtime15.jsx(Icon, {
+          name: "close"
+        })
+      })
+    ]
+  });
+}
+function ToastList() {
+  const { toasts } = useToastManager();
+  return /* @__PURE__ */ jsx_runtime15.jsx(ViewBoundary, {
+    snapshot: toasts,
+    fallback: null,
+    children: toasts.map((toast) => /* @__PURE__ */ jsx_runtime15.jsx(ToastItem, {
+      toast
+    }, toast.id))
+  });
+}
+function Toaster() {
+  return /* @__PURE__ */ jsx_runtime15.jsx(ToastProvider, {
+    toastManager,
+    limit: 1,
+    children: /* @__PURE__ */ jsx_runtime15.jsx(ToastPortal, {
+      children: /* @__PURE__ */ jsx_runtime15.jsx(ToastViewport, {
+        onKeyDown: (event) => {
+          if (event.key !== "Escape")
+            return;
+          event.preventDefault();
+          event.stopPropagation();
+          if (event.target === event.currentTarget)
+            toastManager.close();
+        },
+        onPointerEnter: (event) => event.pointerType !== "touch" && holdTimer("pointer", true),
+        onPointerMove: (event) => event.pointerType !== "touch" && holdTimer("pointer", true),
+        onPointerLeave: () => holdTimer("pointer", false),
+        onFocus: (event) => {
+          if (event.relatedTarget instanceof Element && !event.currentTarget.contains(event.relatedTarget))
+            rememberOrigin(event.relatedTarget);
+          if (event.target.matches(":focus-visible"))
+            holdTimer("focus", true);
+        },
+        onBlur: (event) => {
+          if (!event.currentTarget.contains(event.relatedTarget) && !event.currentTarget.contains(document.activeElement))
+            holdTimer("focus", false);
+        },
+        children: /* @__PURE__ */ jsx_runtime15.jsx(ToastList, {})
+      })
+    })
+  });
+}
+
+// engine/board/page/update/update.tsx
+var import_react21 = __toESM(require_react());
+var jsx_runtime16 = __toESM(require_jsx_runtime());
+var POPUP2 = "fixed z-[100] m-0 max-h-[calc(100dvh-24px)] w-[min(272px,calc(100vw-24px))] overflow-auto rounded-[12px] border border-border bg-card pt-[18px] pr-[18px] pb-4 pl-[18px] text-foreground [box-shadow:var(--float)] [font:inherit] [position-anchor:--update] [position-try-fallbacks:flip-block] [inset:calc(anchor(--update_bottom)+8px)_auto_auto_anchor(--update_left)] [scrollbar-color:var(--fg3)_var(--card)] phone:[position-anchor:--bar] phone:[position-try-fallbacks:none] phone:[inset:auto_12px_calc(anchor(--bar_top)+8px)_auto]";
+var NO_GUARDS = "[&>[data-base-ui-focus-guard]]:hidden";
+var NOTE = "m-[10px_0_0] text-[0.75rem] wrap-anywhere whitespace-pre-wrap";
+var ACTION = "w-full min-h-[34px] phone:min-h-11 aria-disabled:cursor-wait aria-disabled:opacity-50";
+var useUpdate = () => import_react21.useSyncExternalStore(updateStore.subscribe, updateStore.get);
+var control = () => document.getElementById("update-open");
+var titleNode = () => document.getElementById("update-title");
+var prior = null;
+var keepTabOrder = (event) => {
+  for (const node of event.currentTarget.querySelectorAll("[data-tabindex]")) {
+    const tabIndex = node.getAttribute("data-tabindex");
+    node.removeAttribute("data-tabindex");
+    if (tabIndex)
+      node.setAttribute("tabindex", tabIndex);
+    else
+      node.removeAttribute("tabindex");
+  }
+};
+function ControlBody({ shown }) {
+  const name = `${shown.label}, Celetis`;
+  return /* @__PURE__ */ jsx_runtime16.jsxs("button", {
+    type: "button",
+    className: cn("inline-flex min-h-6 flex-none items-center gap-[7px] rounded-[6px] [border:0] px-2 py-0 font-sans text-[0.75rem] leading-none font-normal [anchor-name:--update] aria-disabled:cursor-wait aria-disabled:bg-[var(--fill)] aria-disabled:text-working phone:min-h-11 phone:min-w-11 [&_.icon]:size-[13px]", shown.isAccent ? "bg-[color-mix(in_srgb,var(--needs-tint)_10%,transparent)] text-needs [&:hover]:bg-[color-mix(in_srgb,var(--needs-tint)_13%,transparent)]" : "bg-transparent text-muted-foreground [&:hover:not([aria-disabled=true])]:bg-accent [&:hover:not([aria-disabled=true])]:text-foreground", !shown.isAccent && !shown.isChecking && "-ms-2"),
+    id: "update-open",
+    "aria-controls": "update-dialog",
+    "aria-expanded": shown.isOpen,
+    "aria-disabled": shown.isChecking,
+    "aria-label": name,
+    title: name,
+    onClick: () => {
+      const isRepeat = shown.isOpen && !shown.isChecking;
+      const focused = document.activeElement;
+      updateStore.press();
+      if (!isRepeat)
+        return;
+      prior = focused;
+      titleNode()?.focus();
+    },
+    children: [
+      /* @__PURE__ */ jsx_runtime16.jsx(Icon, {
+        name: "refresh"
+      }),
+      /* @__PURE__ */ jsx_runtime16.jsx("span", {
+        className: "label",
+        children: shown.label
+      })
+    ]
+  });
+}
+function UpdateControl() {
+  const shown = useUpdate();
+  return /* @__PURE__ */ jsx_runtime16.jsx(ViewBoundary, {
+    snapshot: shown,
+    fallback: null,
+    children: /* @__PURE__ */ jsx_runtime16.jsx(ControlBody, {
+      shown
+    })
+  });
+}
+function Content({ shown }) {
+  const focusedBefore = document.activeElement;
+  const start = import_react21.useRef(null);
+  const check = import_react21.useRef(null);
+  import_react21.useLayoutEffect(() => {
+    if (focusedBefore === start.current && !shown.showStart || focusedBefore === check.current && !shown.showCheck)
+      titleNode()?.focus();
+  });
+  return /* @__PURE__ */ jsx_runtime16.jsxs(jsx_runtime16.Fragment, {
+    children: [
+      /* @__PURE__ */ jsx_runtime16.jsx(DialogTitle, {
+        id: "update-title",
+        tabIndex: -1,
+        className: "text-[0.875rem] leading-[1.4] font-semibold",
+        children: shown.title
+      }),
+      /* @__PURE__ */ jsx_runtime16.jsxs(DialogDescription, {
+        id: "update-description",
+        className: "m-[6px_0_0] text-[0.78125rem] leading-[1.5] text-muted-foreground",
+        children: [
+          shown.description,
+          shown.release ? /* @__PURE__ */ jsx_runtime16.jsx("span", {
+            id: "update-release",
+            className: "mt-[10px] block font-mono text-[0.6875rem] leading-[1.6] whitespace-pre-line wrap-anywhere text-card-foreground",
+            children: shown.release
+          }) : null
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime16.jsx("p", {
+        id: "update-progress",
+        "aria-hidden": "true",
+        className: cn("m-[12px_0_0] text-[0.75rem] text-working", shown.isProgressBusy ? "before:mr-2 before:inline-block before:h-[7px] before:w-[7px] before:rounded-[50%] before:bg-current before:content-['']" : "absolute h-px w-px overflow-hidden [clip-path:inset(50%)]"),
+        children: shown.progress
+      }),
+      /* @__PURE__ */ jsx_runtime16.jsx("p", {
+        id: "update-error",
+        className: cn(NOTE, "whitespace-pre-line text-[color:var(--danger)]"),
+        hidden: !shown.diagnostic,
+        children: shown.diagnostic
+      }),
+      /* @__PURE__ */ jsx_runtime16.jsx("p", {
+        id: "update-recovery",
+        className: cn(NOTE, "text-card-foreground"),
+        hidden: !shown.recovery,
+        children: shown.recovery
+      }),
+      /* @__PURE__ */ jsx_runtime16.jsxs("div", {
+        className: "mt-[18px] grid gap-1.5",
+        children: [
+          /* @__PURE__ */ jsx_runtime16.jsx(Button2, {
+            ref: start,
+            variant: "primary",
+            size: "action",
+            className: ACTION,
+            id: "update-start",
+            hidden: !shown.showStart,
+            "aria-disabled": shown.isStartDisabled,
+            onClick: updateStore.confirm,
+            children: shown.startLabel
+          }),
+          /* @__PURE__ */ jsx_runtime16.jsx(Button2, {
+            ref: check,
+            variant: "primary",
+            size: "action",
+            className: ACTION,
+            id: "update-check",
+            hidden: !shown.showCheck,
+            "aria-disabled": shown.isCheckDisabled,
+            onClick: updateStore.check,
+            children: "Check again"
+          }),
+          /* @__PURE__ */ jsx_runtime16.jsx(Button2, {
+            variant: "secondary",
+            size: "action",
+            className: cn("bg-transparent text-card-foreground [&:hover]:bg-[var(--fill)] [&:hover]:text-foreground", ACTION),
+            id: "update-later",
+            onClick: updateStore.close,
+            children: shown.later
+          })
+        ]
+      })
+    ]
+  });
+}
+function UpdateDialog() {
+  const shown = useUpdate();
+  const popup = import_react21.useRef(null);
+  const seen = import_react21.useRef({ isOpen: false, wasInside: false });
+  if (shown.isOpen !== seen.current.isOpen) {
+    const active = document.activeElement;
+    if (shown.isOpen)
+      prior = active;
+    else
+      seen.current.wasInside = popup.current?.contains(active) ?? false;
+    seen.current.isOpen = shown.isOpen;
+  }
+  import_react21.useLayoutEffect(() => {
+    if (shown.isOpen)
+      queueMicrotask(() => updateStore.get().isOpen && titleNode()?.focus());
+    else if (seen.current.wasInside)
+      (prior instanceof HTMLElement && prior.isConnected && !prior.hidden ? prior : control())?.focus();
+  }, [shown.isOpen]);
+  return /* @__PURE__ */ jsx_runtime16.jsxs(jsx_runtime16.Fragment, {
+    children: [
+      /* @__PURE__ */ jsx_runtime16.jsx("p", {
+        className: "sr-only",
+        id: "update-status",
+        role: "status",
+        "aria-live": "polite",
+        children: shown.status
+      }),
+      /* @__PURE__ */ jsx_runtime16.jsx("div", {
+        className: cn("contents", NO_GUARDS),
+        children: /* @__PURE__ */ jsx_runtime16.jsx(DialogRoot, {
+          modal: false,
+          disablePointerDismissal: true,
+          open: shown.isOpen,
+          onOpenChange: (next, details) => {
+            if (details.reason === "escape-key" && !popup.current?.contains(details.event.target)) {
+              details.cancel();
+              return;
+            }
+            if (!next)
+              updateStore.close();
+          },
+          children: /* @__PURE__ */ jsx_runtime16.jsx(DialogPortal, {
+            keepMounted: true,
+            className: NO_GUARDS,
+            children: /* @__PURE__ */ jsx_runtime16.jsx(DialogPopup, {
+              ref: popup,
+              id: "update-dialog",
+              className: POPUP2,
+              initialFocus: false,
+              finalFocus: false,
+              onBlur: keepTabOrder,
+              children: /* @__PURE__ */ jsx_runtime16.jsx(ViewBoundary, {
+                snapshot: shown,
+                fallback: null,
+                children: /* @__PURE__ */ jsx_runtime16.jsx(Content, {
+                  shown
+                })
+              })
+            })
+          })
+        })
+      })
+    ]
+  });
+}
+
+// engine/board/page/app/keys.ts
+var import_react22 = __toESM(require_react());
+var settings3 = () => shellStore.get().settings;
+var KEYS2 = {
+  r: () => void shellStore.refresh(),
+  "?": () => {
+    agentStore.closeMenu();
+    shellStore.setInputs({ moreOpen: false });
+    openShortcuts();
+  },
+  "/": () => {
+    agentStore.closeMenu();
+    shellStore.setInputs({ moreOpen: false });
+    openPalette();
+  }
+};
+function useGlobalKeys() {
+  import_react22.useEffect(() => {
+    const onKey = (event) => {
+      if (event.defaultPrevented || event.target instanceof Node && document.getElementById("update-dialog")?.contains(event.target))
+        return;
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        agentStore.closeMenu();
+        shellStore.setInputs({ moreOpen: false });
+        if (!paletteStore.get().isOpen)
+          openPalette();
+        return;
+      }
+      if (document.getElementById("agent-picker")?.contains(event.target))
+        return;
+      if (event.metaKey || event.ctrlKey || event.altKey || isShortcutsOpen() || paletteStore.get().isOpen || screen.get().stopFor !== null)
+        return;
+      if (event.target.closest?.("input, textarea, select, [contenteditable]"))
+        return;
+      if (event.key === "Escape" && shellStore.get().inputs.moreOpen)
+        return;
+      if (event.key === "Escape" && updateStore.dismiss()) {
+        event.preventDefault();
+        return;
+      }
+      if (handleKey(event))
+        return;
+      const press = settings3().keys && KEYS2[event.key];
+      if (!press)
+        return;
+      event.preventDefault();
+      press();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+}
+
+// engine/board/page/coordinator/button.tsx
+var jsx_runtime17 = __toESM(require_jsx_runtime());
+var MARKS = {
+  none: "bg-transparent shadow-[inset_0_0_0_1.5px_var(--fg3)]",
+  starting: "bg-transparent shadow-[inset_0_0_0_1.5px_var(--working)]",
+  works: "bg-working",
+  "turn-ended": "bg-card-foreground",
+  dialog: "rounded-[1.5px] bg-needs [transform:rotate(45deg)]"
+};
+function ChatMark({ state, stale, className }) {
+  return /* @__PURE__ */ jsx_runtime17.jsx("i", {
+    className: cn("size-[7px] flex-none rounded-[50%]", MARKS[state], stale && "opacity-55", className),
+    "aria-hidden": "true"
+  });
+}
+function ChatButton() {
+  const mirror = useCoordinator((state) => state.mirror);
+  const isDialog = mirror.state === "dialog";
+  return /* @__PURE__ */ jsx_runtime17.jsxs(Button2, {
+    type: "button",
+    variant: "secondary",
+    size: "action",
+    id: "pane-chat",
+    className: cn("gap-[7px] phone:min-h-11", isDialog && "bg-[color-mix(in_srgb,var(--needs-tint)_10%,transparent)] border-[color-mix(in_srgb,var(--needs)_45%,transparent)] [&:hover]:bg-[color-mix(in_srgb,var(--needs-tint)_10%,transparent)] [&:hover]:border-[color-mix(in_srgb,var(--needs)_45%,transparent)]"),
+    "data-state": mirror.state,
+    "data-stale": mirror.stale ? "" : undefined,
+    "data-new": mirror.unseen ? "" : undefined,
+    "aria-label": mirror.label,
+    title: mirror.title,
+    onClick: () => coordinator.open(),
+    children: [
+      /* @__PURE__ */ jsx_runtime17.jsx(Icon, {
+        name: "message"
+      }),
+      /* @__PURE__ */ jsx_runtime17.jsx("span", {
+        className: "label",
+        children: "Chat"
+      }),
+      /* @__PURE__ */ jsx_runtime17.jsx(ChatMark, {
+        state: mirror.state,
+        stale: mirror.stale
+      }),
+      /* @__PURE__ */ jsx_runtime17.jsx("span", {
+        className: cn("font-normal", mirror.stale ? "text-muted-foreground" : isDialog ? "text-foreground" : "text-card-foreground"),
+        children: mirror.words
+      }),
+      mirror.unseen && /* @__PURE__ */ jsx_runtime17.jsx("i", {
+        className: "-ml-0.5 size-[7px] flex-none rounded-[50%] bg-foreground shadow-[0_0_0_3px_color-mix(in_srgb,var(--fg)_14%,transparent)]",
+        "aria-hidden": "true"
+      })
+    ]
+  });
+}
+
+// engine/board/page/coordinator/panel.tsx
+var import_react25 = __toESM(require_react());
+
+// engine/board/page/ui/textarea.tsx
+var jsx_runtime18 = __toESM(require_jsx_runtime());
+function Textarea({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime18.jsx("textarea", {
+    "data-slot": "textarea",
+    className: cn("field-sizing-content max-h-42 min-h-11 w-full resize-none border-0 bg-transparent px-3.5 pt-[11px] pb-1 text-foreground caret-ring outline-none [font:inherit] placeholder:text-muted-foreground", className),
+    ...props
+  });
+}
+
+// engine/board/page/coordinator/log.tsx
+var import_react24 = __toESM(require_react());
+
+// engine/node_modules/use-stick-to-bottom/dist/useStickToBottom.js
+var import_react23 = __toESM(require_react(), 1);
+/*!---------------------------------------------------------------------------------------------
+ *  Copyright (c) StackBlitz. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+var DEFAULT_SPRING_ANIMATION = {
+  damping: 0.7,
+  stiffness: 0.05,
+  mass: 1.25
+};
+var STICK_TO_BOTTOM_OFFSET_PX = 70;
+var SIXTY_FPS_INTERVAL_MS = 1000 / 60;
+var RETAIN_ANIMATION_DURATION_MS = 350;
+var mouseDown2 = false;
+globalThis.document?.addEventListener("mousedown", () => {
+  mouseDown2 = true;
+});
+globalThis.document?.addEventListener("mouseup", () => {
+  mouseDown2 = false;
+});
+globalThis.document?.addEventListener("click", () => {
+  mouseDown2 = false;
+});
+var useStickToBottom = (options = {}) => {
+  const [escapedFromLock, updateEscapedFromLock] = import_react23.useState(false);
+  const [isAtBottom, updateIsAtBottom] = import_react23.useState(options.initial !== false);
+  const [isNearBottom, setIsNearBottom] = import_react23.useState(false);
+  const optionsRef = import_react23.useRef(null);
+  optionsRef.current = options;
+  const isSelecting = import_react23.useCallback(() => {
+    if (!mouseDown2) {
+      return false;
+    }
+    const selection = window.getSelection();
+    if (!selection || !selection.rangeCount) {
+      return false;
+    }
+    const range = selection.getRangeAt(0);
+    return range.commonAncestorContainer.contains(scrollRef.current) || scrollRef.current?.contains(range.commonAncestorContainer);
+  }, []);
+  const setIsAtBottom = import_react23.useCallback((isAtBottom) => {
+    state.isAtBottom = isAtBottom;
+    updateIsAtBottom(isAtBottom);
+  }, []);
+  const setEscapedFromLock = import_react23.useCallback((escapedFromLock) => {
+    state.escapedFromLock = escapedFromLock;
+    updateEscapedFromLock(escapedFromLock);
+  }, []);
+  const state = import_react23.useMemo(() => {
+    let lastCalculation;
+    return {
+      escapedFromLock,
+      isAtBottom,
+      resizeDifference: 0,
+      accumulated: 0,
+      velocity: 0,
+      listeners: new Set,
+      get scrollTop() {
+        return scrollRef.current?.scrollTop ?? 0;
+      },
+      set scrollTop(scrollTop) {
+        if (scrollRef.current) {
+          const { scrollBehavior } = getComputedStyle(scrollRef.current);
+          if (scrollBehavior !== "auto") {
+            scrollRef.current.style.scrollBehavior = "auto";
+          }
+          scrollRef.current.scrollTop = scrollTop;
+          state.ignoreScrollToTop = scrollRef.current.scrollTop;
+          if (scrollBehavior !== "auto") {
+            scrollRef.current.style.scrollBehavior = scrollBehavior;
+          }
+        }
+      },
+      get targetScrollTop() {
+        if (!scrollRef.current || !contentRef.current) {
+          return 0;
+        }
+        return scrollRef.current.scrollHeight - 1 - scrollRef.current.clientHeight;
+      },
+      get calculatedTargetScrollTop() {
+        if (!scrollRef.current || !contentRef.current) {
+          return 0;
+        }
+        const { targetScrollTop } = this;
+        if (!options.targetScrollTop) {
+          return targetScrollTop;
+        }
+        if (lastCalculation?.targetScrollTop === targetScrollTop) {
+          return lastCalculation.calculatedScrollTop;
+        }
+        const calculatedScrollTop = Math.max(Math.min(options.targetScrollTop(targetScrollTop, {
+          scrollElement: scrollRef.current,
+          contentElement: contentRef.current
+        }), targetScrollTop), 0);
+        lastCalculation = { targetScrollTop, calculatedScrollTop };
+        requestAnimationFrame(() => {
+          lastCalculation = undefined;
+        });
+        return calculatedScrollTop;
+      },
+      get scrollDifference() {
+        return this.calculatedTargetScrollTop - this.scrollTop;
+      },
+      get isNearBottom() {
+        return this.scrollDifference <= STICK_TO_BOTTOM_OFFSET_PX;
+      }
+    };
+  }, []);
+  const scrollToBottom = import_react23.useCallback((scrollOptions = {}) => {
+    if (typeof scrollOptions === "string") {
+      scrollOptions = { animation: scrollOptions };
+    }
+    if (!scrollOptions.preserveScrollPosition) {
+      setIsAtBottom(true);
+    }
+    const waitElapsed = Date.now() + (Number(scrollOptions.wait) || 0);
+    const behavior = mergeAnimations(optionsRef.current, scrollOptions.animation);
+    const { ignoreEscapes = false } = scrollOptions;
+    let durationElapsed;
+    let startTarget = state.calculatedTargetScrollTop;
+    if (scrollOptions.duration instanceof Promise) {
+      scrollOptions.duration.finally(() => {
+        durationElapsed = Date.now();
+      });
+    } else {
+      durationElapsed = waitElapsed + (scrollOptions.duration ?? 0);
+    }
+    const next = async () => {
+      const promise = new Promise(requestAnimationFrame).then(() => {
+        if (!state.isAtBottom) {
+          state.animation = undefined;
+          return false;
+        }
+        const { scrollTop } = state;
+        const tick = performance.now();
+        const tickDelta = (tick - (state.lastTick ?? tick)) / SIXTY_FPS_INTERVAL_MS;
+        state.animation || (state.animation = { behavior, promise, ignoreEscapes });
+        if (state.animation.behavior === behavior) {
+          state.lastTick = tick;
+        }
+        if (isSelecting()) {
+          return next();
+        }
+        if (waitElapsed > Date.now()) {
+          return next();
+        }
+        if (scrollTop < Math.min(startTarget, state.calculatedTargetScrollTop)) {
+          if (state.animation?.behavior === behavior) {
+            if (behavior === "instant") {
+              state.scrollTop = state.calculatedTargetScrollTop;
+              return next();
+            }
+            state.velocity = (behavior.damping * state.velocity + behavior.stiffness * state.scrollDifference) / behavior.mass;
+            state.accumulated += state.velocity * tickDelta;
+            state.scrollTop += state.accumulated;
+            if (state.scrollTop !== scrollTop) {
+              state.accumulated = 0;
+            }
+          }
+          return next();
+        }
+        if (durationElapsed > Date.now()) {
+          startTarget = state.calculatedTargetScrollTop;
+          return next();
+        }
+        state.animation = undefined;
+        if (state.scrollTop < state.calculatedTargetScrollTop) {
+          return scrollToBottom({
+            animation: mergeAnimations(optionsRef.current, optionsRef.current.resize),
+            ignoreEscapes,
+            duration: Math.max(0, durationElapsed - Date.now()) || undefined
+          });
+        }
+        return state.isAtBottom;
+      });
+      return promise.then((isAtBottom) => {
+        requestAnimationFrame(() => {
+          if (!state.animation) {
+            state.lastTick = undefined;
+            state.velocity = 0;
+          }
+        });
+        return isAtBottom;
+      });
+    };
+    if (scrollOptions.wait !== true) {
+      state.animation = undefined;
+    }
+    if (state.animation?.behavior === behavior) {
+      return state.animation.promise;
+    }
+    return next();
+  }, [setIsAtBottom, isSelecting, state]);
+  const stopScroll = import_react23.useCallback(() => {
+    setEscapedFromLock(true);
+    setIsAtBottom(false);
+  }, [setEscapedFromLock, setIsAtBottom]);
+  const handleScroll = import_react23.useCallback(({ target }) => {
+    if (target !== scrollRef.current) {
+      return;
+    }
+    const { scrollTop, ignoreScrollToTop } = state;
+    let { lastScrollTop = scrollTop } = state;
+    state.lastScrollTop = scrollTop;
+    state.ignoreScrollToTop = undefined;
+    if (ignoreScrollToTop && ignoreScrollToTop > scrollTop) {
+      lastScrollTop = ignoreScrollToTop;
+    }
+    setIsNearBottom(state.isNearBottom);
+    setTimeout(() => {
+      if (state.resizeDifference || scrollTop === ignoreScrollToTop) {
+        return;
+      }
+      if (isSelecting()) {
+        setEscapedFromLock(true);
+        setIsAtBottom(false);
+        return;
+      }
+      const isScrollingDown = scrollTop > lastScrollTop;
+      const isScrollingUp = scrollTop < lastScrollTop;
+      if (state.animation?.ignoreEscapes) {
+        state.scrollTop = lastScrollTop;
+        return;
+      }
+      if (isScrollingUp) {
+        setEscapedFromLock(true);
+        setIsAtBottom(false);
+      }
+      if (isScrollingDown) {
+        setEscapedFromLock(false);
+      }
+      if (!state.escapedFromLock && state.isNearBottom) {
+        setIsAtBottom(true);
+      }
+    }, 1);
+  }, [setEscapedFromLock, setIsAtBottom, isSelecting, state]);
+  const handleWheel = import_react23.useCallback(({ target, deltaY }) => {
+    let element = target;
+    while (!["scroll", "auto"].includes(getComputedStyle(element).overflow)) {
+      if (!element.parentElement) {
+        return;
+      }
+      element = element.parentElement;
+    }
+    if (element === scrollRef.current && deltaY < 0 && scrollRef.current.scrollHeight > scrollRef.current.clientHeight && !state.animation?.ignoreEscapes) {
+      setEscapedFromLock(true);
+      setIsAtBottom(false);
+    }
+  }, [setEscapedFromLock, setIsAtBottom, state]);
+  const scrollRef = useRefCallback((scroll) => {
+    scrollRef.current?.removeEventListener("scroll", handleScroll);
+    scrollRef.current?.removeEventListener("wheel", handleWheel);
+    scroll?.addEventListener("scroll", handleScroll, { passive: true });
+    scroll?.addEventListener("wheel", handleWheel, { passive: true });
+  }, []);
+  const contentRef = useRefCallback((content) => {
+    state.resizeObserver?.disconnect();
+    state.resizeObserver = undefined;
+    if (!content) {
+      return;
+    }
+    let previousHeight;
+    state.resizeObserver = new ResizeObserver(([entry]) => {
+      const { height } = entry.contentRect;
+      const difference = height - (previousHeight ?? height);
+      state.resizeDifference = difference;
+      if (state.scrollTop > state.targetScrollTop) {
+        state.scrollTop = state.targetScrollTop;
+      }
+      setIsNearBottom(state.isNearBottom);
+      if (difference >= 0) {
+        const animation = mergeAnimations(optionsRef.current, previousHeight ? optionsRef.current.resize : optionsRef.current.initial);
+        scrollToBottom({
+          animation,
+          wait: true,
+          preserveScrollPosition: true,
+          duration: animation === "instant" ? undefined : RETAIN_ANIMATION_DURATION_MS
+        });
+      } else {
+        if (state.isNearBottom) {
+          setEscapedFromLock(false);
+          setIsAtBottom(true);
+        }
+      }
+      previousHeight = height;
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (state.resizeDifference === difference) {
+            state.resizeDifference = 0;
+          }
+        }, 1);
+      });
+    });
+    state.resizeObserver?.observe(content);
+  }, []);
+  return {
+    contentRef,
+    scrollRef,
+    scrollToBottom,
+    stopScroll,
+    isAtBottom: isAtBottom || isNearBottom,
+    isNearBottom,
+    escapedFromLock,
+    state
+  };
+};
+function useRefCallback(callback, deps) {
+  const result = import_react23.useCallback((ref) => {
+    result.current = ref;
+    return callback(ref);
+  }, deps);
+  return result;
+}
+var animationCache = new Map;
+function mergeAnimations(...animations) {
+  const result = { ...DEFAULT_SPRING_ANIMATION };
+  let instant = false;
+  for (const animation of animations) {
+    if (animation === "instant") {
+      instant = true;
+      continue;
+    }
+    if (typeof animation !== "object") {
+      continue;
+    }
+    instant = false;
+    result.damping = animation.damping ?? result.damping;
+    result.stiffness = animation.stiffness ?? result.stiffness;
+    result.mass = animation.mass ?? result.mass;
+  }
+  const key = JSON.stringify(result);
+  if (!animationCache.has(key)) {
+    animationCache.set(key, Object.freeze(result));
+  }
+  return instant ? "instant" : animationCache.get(key);
+}
+
+// engine/node_modules/@base-ui/react/collapsible/root/CollapsibleRoot.mjs
+var React114 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/collapsible/root/useCollapsibleRoot.mjs
+var React112 = __toESM(require_react(), 1);
+"use client";
+function useCollapsibleRoot(parameters) {
+  const {
+    open: openParam,
+    defaultOpen = false,
+    onOpenChange,
+    disabled
+  } = parameters;
+  const [open, setOpen] = useControlled({
+    controlled: openParam,
+    default: defaultOpen,
+    name: "Collapsible",
+    state: "open"
+  });
+  const {
+    mounted,
+    setMounted,
+    transitionStatus
+  } = useTransitionStatus(open, true, true);
+  const defaultPanelId = useBaseUiId();
+  const [registeredPanelId, setPanelIdState] = React112.useState();
+  const panelId = registeredPanelId === null ? undefined : registeredPanelId ?? defaultPanelId;
+  const handleTrigger = useStableCallback((event) => {
+    const nextOpen = !open;
+    const eventDetails = createChangeEventDetails(triggerPress, event.nativeEvent);
+    onOpenChange(nextOpen, eventDetails);
+    if (eventDetails.isCanceled) {
+      return;
+    }
+    setOpen(nextOpen);
+  });
+  return React112.useMemo(() => ({
+    defaultPanelId,
+    disabled,
+    handleTrigger,
+    mounted,
+    open,
+    panelId,
+    setMounted,
+    setOpen,
+    setPanelIdState,
+    transitionStatus
+  }), [defaultPanelId, disabled, handleTrigger, mounted, open, panelId, setMounted, setOpen, setPanelIdState, transitionStatus]);
+}
+
+// engine/node_modules/@base-ui/react/collapsible/root/CollapsibleRootContext.mjs
+var React113 = __toESM(require_react(), 1);
+"use client";
+var CollapsibleRootContext = /* @__PURE__ */ React113.createContext(undefined);
+if (false)
+  ;
+function useCollapsibleRootContext() {
+  const context = React113.useContext(CollapsibleRootContext);
+  if (context === undefined) {
+    throw new Error(formatErrorMessage_default(15));
+  }
+  return context;
+}
+
+// engine/node_modules/@base-ui/react/collapsible/panel/CollapsiblePanelDataAttributes.mjs
+var open4 = "data-open";
+var closed3 = "data-closed";
+var startingStyle6 = startingStyle;
+var endingStyle6 = endingStyle;
+
+// engine/node_modules/@base-ui/react/collapsible/trigger/CollapsibleTriggerDataAttributes.mjs
+var panelOpen = "data-panel-open";
+
+// engine/node_modules/@base-ui/react/utils/collapsibleOpenStateMapping.mjs
+var PANEL_OPEN_HOOK = {
+  [open4]: ""
+};
+var PANEL_CLOSED_HOOK = {
+  [closed3]: ""
+};
+var triggerOpenStateMapping = {
+  open(value) {
+    if (value) {
+      return {
+        [panelOpen]: ""
+      };
+    }
+    return null;
+  }
+};
+var collapsibleOpenStateMapping = {
+  open(value) {
+    if (value) {
+      return PANEL_OPEN_HOOK;
+    }
+    return PANEL_CLOSED_HOOK;
+  }
+};
+
+// engine/node_modules/@base-ui/react/collapsible/root/stateAttributesMapping.mjs
+var collapsibleStateAttributesMapping = {
+  ...collapsibleOpenStateMapping,
+  ...transitionStatusMapping
+};
+
+// engine/node_modules/@base-ui/react/collapsible/root/CollapsibleRoot.mjs
+var import_jsx_runtime32 = __toESM(require_jsx_runtime(), 1);
+"use client";
+var CollapsibleRoot = /* @__PURE__ */ React114.forwardRef(function CollapsibleRoot(componentProps, forwardedRef) {
+  const {
+    render,
+    className,
+    defaultOpen = false,
+    disabled = false,
+    onOpenChange: onOpenChangeProp,
+    open,
+    style,
+    ...elementProps
+  } = componentProps;
+  const onOpenChange = useStableCallback(onOpenChangeProp);
+  const collapsible = useCollapsibleRoot({
+    open,
+    defaultOpen,
+    onOpenChange,
+    disabled
+  });
+  const state = React114.useMemo(() => ({
+    open: collapsible.open,
+    disabled: collapsible.disabled,
+    transitionStatus: collapsible.transitionStatus
+  }), [collapsible.open, collapsible.disabled, collapsible.transitionStatus]);
+  const contextValue = React114.useMemo(() => ({
+    ...collapsible,
+    onOpenChange,
+    state
+  }), [collapsible, onOpenChange, state]);
+  const element = useRenderElement("div", componentProps, {
+    state,
+    ref: forwardedRef,
+    props: elementProps,
+    stateAttributesMapping: collapsibleStateAttributesMapping
+  });
+  return /* @__PURE__ */ import_jsx_runtime32.jsx(CollapsibleRootContext.Provider, {
+    value: contextValue,
+    children: element
+  });
+});
+if (false)
+  ;
+// engine/node_modules/@base-ui/react/collapsible/trigger/CollapsibleTrigger.mjs
+var React115 = __toESM(require_react(), 1);
+"use client";
+var stateAttributesMapping2 = {
+  ...triggerOpenStateMapping,
+  ...transitionStatusMapping
+};
+var CollapsibleTrigger = /* @__PURE__ */ React115.forwardRef(function CollapsibleTrigger(componentProps, forwardedRef) {
+  const {
+    panelId,
+    open,
+    handleTrigger,
+    state,
+    disabled: contextDisabled
+  } = useCollapsibleRootContext();
+  const {
+    className,
+    disabled = contextDisabled,
+    render,
+    nativeButton = true,
+    style,
+    ...elementProps
+  } = componentProps;
+  const {
+    getButtonProps,
+    buttonRef
+  } = useButton({
+    disabled,
+    native: nativeButton
+  });
+  const element = useRenderElement("button", componentProps, {
+    state,
+    ref: [forwardedRef, buttonRef],
+    props: [{
+      "aria-controls": open ? panelId : undefined,
+      "aria-expanded": open,
+      onClick: handleTrigger
+    }, elementProps, getButtonProps],
+    stateAttributesMapping: stateAttributesMapping2
+  });
+  return element;
+});
+if (false)
+  ;
+// engine/node_modules/@base-ui/react/collapsible/panel/CollapsiblePanel.mjs
+var React117 = __toESM(require_react(), 1);
+
+// engine/node_modules/@base-ui/react/collapsible/panel/useCollapsiblePanel.mjs
+var React116 = __toESM(require_react(), 1);
+"use client";
+var EMPTY_DIMENSIONS = {
+  height: undefined,
+  width: undefined
+};
+function useCollapsiblePanel(parameters) {
+  const {
+    externalRef,
+    hiddenUntilFound,
+    id: idParam,
+    keepMounted,
+    mounted,
+    onOpenChange,
+    open,
+    setMounted,
+    setOpen,
+    transitionStatus
+  } = parameters;
+  const panelRef = React116.useRef(null);
+  const animationTypeRef = React116.useRef(null);
+  const [dimensions, setDimensionsUnwrapped] = React116.useState(EMPTY_DIMENSIONS);
+  const lastMeasuredDimensionsRef = React116.useRef(EMPTY_DIMENSIONS);
+  const shouldSkipNextOpenRef = React116.useRef(false);
+  const shouldPreventMountAnimationRef = React116.useRef(open);
+  const shouldPreventActivityResumeAnimationRef = React116.useRef(false);
+  const [forcePanelIdle, setForcePanelIdle] = React116.useState(false);
+  const pendingTemporaryStyleRestoreRef = React116.useRef(null);
+  const mergedPanelRef = useMergedRefs(externalRef, panelRef);
+  const latestOpenRef = useValueAsRef(open);
+  const runOnceCloseAnimationsFinish = useAnimationsFinished(panelRef);
+  const hidden = !open && !mounted;
+  const panelTransitionStatus = forcePanelIdle ? "idle" : transitionStatus;
+  const shouldPreventOpenAnimation = open && (shouldPreventMountAnimationRef.current || shouldPreventActivityResumeAnimationRef.current);
+  const renderedDimensions = !open && mounted && animationTypeRef.current === "css-animation" && dimensions.height === undefined && dimensions.width === undefined ? lastMeasuredDimensionsRef.current : dimensions;
+  const shouldPersistHiddenTransitionStyles = hiddenUntilFound && hidden && animationTypeRef.current !== "css-animation";
+  const setDimensions = useStableCallback((nextDimensions, shouldCacheMeasurement = true) => {
+    if (shouldCacheMeasurement) {
+      lastMeasuredDimensionsRef.current = nextDimensions;
+    }
+    setDimensionsUnwrapped(nextDimensions);
+  });
+  const restorePendingTemporaryStyle = useStableCallback(() => {
+    pendingTemporaryStyleRestoreRef.current?.();
+    pendingTemporaryStyleRestoreRef.current = null;
+  });
+  const setPendingTemporaryStyleRestore = useStableCallback((restore) => {
+    restorePendingTemporaryStyle();
+    pendingTemporaryStyleRestoreRef.current = () => {
+      pendingTemporaryStyleRestoreRef.current = null;
+      restore();
+    };
+  });
+  const markActivityResumeAnimationSuppressed = useStableCallback(() => {
+    if (open && mounted && animationTypeRef.current === "css-animation") {
+      shouldPreventActivityResumeAnimationRef.current = true;
+    }
+  });
+  useIsoLayoutEffect(() => {
+    if (!forcePanelIdle || transitionStatus === "starting") {
+      return;
+    }
+    setForcePanelIdle(false);
+  }, [forcePanelIdle, transitionStatus]);
+  React116.useEffect(() => {
+    return () => {
+      markActivityResumeAnimationSuppressed();
+      restorePendingTemporaryStyle();
+    };
+  }, [markActivityResumeAnimationSuppressed, restorePendingTemporaryStyle]);
+  useIsoLayoutEffect(() => {
+    if (!open) {
+      shouldPreventMountAnimationRef.current = false;
+      shouldPreventActivityResumeAnimationRef.current = false;
+    }
+    const panel = panelRef.current;
+    if (!panel) {
+      return;
+    }
+    if (!open && pendingTemporaryStyleRestoreRef.current) {
+      restorePendingTemporaryStyle();
+    }
+    const animationType = getAnimationType(panel, shouldPreventOpenAnimation);
+    animationTypeRef.current = animationType;
+    if (open && transitionStatus === "idle" && shouldPreventMountAnimationRef.current && animationType === "css-animation") {
+      lastMeasuredDimensionsRef.current = getDimensions2(panel);
+      return;
+    }
+    if (open && transitionStatus === "starting") {
+      const skipNextOpen = shouldSkipNextOpenRef.current;
+      shouldSkipNextOpenRef.current = false;
+      if (animationType === "none") {
+        setDimensions(getDimensions2(panel));
+        setForcePanelIdle(true);
+        return;
+      }
+      if (animationType === "css-transition") {
+        const restoreLayoutStyles = resetLayoutStyles(panel);
+        setDimensions(getDimensions2(panel));
+        if (!skipNextOpen) {
+          return restoreLayoutStyles;
+        }
+        const restoreTransitionDuration = setTemporaryStyle(panel, "transition-duration", "0s");
+        setPendingTemporaryStyleRestore(restoreTransitionDuration);
+        setForcePanelIdle(true);
+        return restoreLayoutStyles;
+      }
+      setDimensions(getDimensions2(panel));
+      const restoreAnimationName = setTemporaryStyle(panel, "animation-name", "none");
+      if (!skipNextOpen) {
+        restoreAnimationName();
+        return;
+      }
+      const restoreAnimationDuration = setTemporaryStyle(panel, "animation-duration", "0s");
+      restoreAnimationName();
+      setPendingTemporaryStyleRestore(restoreAnimationDuration);
+      setForcePanelIdle(true);
+      return;
+    }
+    if (!open && mounted && (transitionStatus === "idle" || transitionStatus === "starting")) {
+      if (animationType === "none") {
+        setDimensions(EMPTY_DIMENSIONS, false);
+        setMounted(false);
+        return;
+      }
+      setDimensions(getDimensions2(panel));
+      return;
+    }
+    if (transitionStatus !== "ending") {
+      return;
+    }
+    if (animationType === "none") {
+      setMounted(false);
+      return;
+    }
+    const nextDimensions = getDimensions2(panel);
+    const hasMeasuredSize = nextDimensions.height > 0 || nextDimensions.width > 0;
+    if (!hasMeasuredSize) {
+      setMounted(false);
+      return;
+    }
+    setDimensions(nextDimensions);
+    if (animationType === "css-animation") {
+      const restoreAnimationName = setTemporaryStyle(panel, "animation-name", "none");
+      restoreAnimationName();
+    }
+    return;
+  }, [mounted, open, restorePendingTemporaryStyle, setDimensions, setMounted, setPendingTemporaryStyleRestore, shouldPreventOpenAnimation, transitionStatus]);
+  useOpenChangeComplete({
+    enabled: open && mounted && panelTransitionStatus === "idle",
+    open: true,
+    ref: panelRef,
+    onComplete() {
+      if (!open) {
+        return;
+      }
+      setDimensions(EMPTY_DIMENSIONS, false);
+    }
+  });
+  React116.useEffect(() => {
+    if (open || !mounted || panelTransitionStatus !== "ending") {
+      return;
+    }
+    const panel = panelRef.current;
+    if (!panel) {
+      setMounted(false);
+      setDimensions(EMPTY_DIMENSIONS, false);
+      return;
+    }
+    const abortController = new AbortController;
+    let endingStyleFrame = -1;
+    function handleComplete() {
+      if (latestOpenRef.current) {
+        return;
+      }
+      setMounted(false);
+      setDimensions(EMPTY_DIMENSIONS, false);
+    }
+    endingStyleFrame = AnimationFrame.request(() => {
+      runOnceCloseAnimationsFinish(handleComplete, abortController.signal);
+    });
+    return () => {
+      AnimationFrame.cancel(endingStyleFrame);
+      abortController.abort();
+    };
+  }, [latestOpenRef, mounted, open, panelTransitionStatus, runOnceCloseAnimationsFinish, setDimensions, setMounted]);
+  useIsoLayoutEffect(() => {
+    const panel = panelRef.current;
+    if (!panel || !hiddenUntilFound || !hidden) {
+      return;
+    }
+    panel.setAttribute("hidden", "until-found");
+  }, [hidden, hiddenUntilFound]);
+  React116.useEffect(function registerBeforeMatchListener() {
+    const panel = panelRef.current;
+    if (!panel) {
+      return;
+    }
+    const revealDecisionTimeout = Timeout.create();
+    let revertRevealFrame = -1;
+    const scheduleRevealRevert = (revertSkippedMotion, restoreStartingStyle) => {
+      revealDecisionTimeout.start(0, () => {
+        if (latestOpenRef.current) {
+          return;
+        }
+        revertRevealFrame = AnimationFrame.request(() => {
+          if (latestOpenRef.current) {
+            return;
+          }
+          if (revertSkippedMotion) {
+            shouldSkipNextOpenRef.current = false;
+          }
+          if (restoreStartingStyle) {
+            panel.setAttribute(startingStyle6, "");
+          }
+          panel.setAttribute("hidden", "until-found");
+        });
+      });
+    };
+    const handleBeforeMatch = (event) => {
+      const eventDetails = createChangeEventDetails(none, event);
+      onOpenChange(true, eventDetails);
+      if (eventDetails.isCanceled) {
+        scheduleRevealRevert(false, false);
+        return;
+      }
+      shouldSkipNextOpenRef.current = true;
+      const hadStartingStyle = panel.hasAttribute(startingStyle6);
+      panel.removeAttribute(startingStyle6);
+      setOpen(true);
+      scheduleRevealRevert(true, hadStartingStyle);
+    };
+    const cleanupBeforeMatchListener = addEventListener2(panel, "beforematch", handleBeforeMatch);
+    return () => {
+      revealDecisionTimeout.clear();
+      AnimationFrame.cancel(revertRevealFrame);
+      cleanupBeforeMatchListener();
+    };
+  }, [latestOpenRef, onOpenChange, setOpen]);
+  const shouldRender = keepMounted || hiddenUntilFound || mounted || open;
+  return {
+    height: renderedDimensions.height,
+    props: {
+      ...shouldPersistHiddenTransitionStyles ? {
+        [startingStyle6]: ""
+      } : undefined,
+      hidden,
+      id: idParam
+    },
+    ref: mergedPanelRef,
+    shouldPreventOpenAnimation,
+    shouldRender,
+    transitionStatus: panelTransitionStatus,
+    width: renderedDimensions.width
+  };
+}
+function getDimensions2(element) {
+  return {
+    height: element.scrollHeight,
+    width: element.scrollWidth
+  };
+}
+function getAnimationType(element, hasSuppressedMountAnimation) {
+  const panelStyles = getWindow(element).getComputedStyle(element);
+  const hasAnimation = (panelStyles.animationName.split(",").map((name) => name.trim()).some((name) => name !== "" && name !== "none") || hasSuppressedMountAnimation) && hasNonZeroDuration(panelStyles.animationDuration);
+  const hasTransition = hasNonZeroDuration(panelStyles.transitionDuration);
+  if (hasAnimation && hasTransition) {
+    if (false) {}
+    return "css-transition";
+  }
+  if (hasTransition) {
+    return "css-transition";
+  }
+  if (hasAnimation) {
+    return "css-animation";
+  }
+  return "none";
+}
+function hasNonZeroDuration(value) {
+  return value.split(",").map((part) => part.trim()).some((part) => part !== "" && Number.parseFloat(part) > 0);
+}
+function setTemporaryStyle(element, property, value) {
+  const previousValue = element.style.getPropertyValue(property);
+  const previousPriority = element.style.getPropertyPriority(property);
+  element.style.setProperty(property, value);
+  return () => {
+    if (previousValue === "") {
+      element.style.removeProperty(property);
+      return;
+    }
+    element.style.setProperty(property, previousValue, previousPriority);
+  };
+}
+function resetLayoutStyles(element) {
+  const originalLayoutStyles = {
+    "justify-content": element.style.justifyContent,
+    "align-items": element.style.alignItems,
+    "align-content": element.style.alignContent,
+    "justify-items": element.style.justifyItems
+  };
+  Object.keys(originalLayoutStyles).forEach((key) => {
+    element.style.setProperty(key, "initial", "important");
+  });
+  function restoreLayoutStyles() {
+    Object.entries(originalLayoutStyles).forEach(([key, value]) => {
+      if (value === "") {
+        element.style.removeProperty(key);
+        return;
+      }
+      element.style.setProperty(key, value);
+    });
+  }
+  const frame = AnimationFrame.request(restoreLayoutStyles);
+  return () => {
+    AnimationFrame.cancel(frame);
+    restoreLayoutStyles();
+  };
+}
+
+// engine/node_modules/@base-ui/react/collapsible/panel/CollapsiblePanelCssVars.mjs
+var collapsiblePanelHeight = "--collapsible-panel-height";
+var collapsiblePanelWidth = "--collapsible-panel-width";
+
+// engine/node_modules/@base-ui/react/collapsible/panel/CollapsiblePanel.mjs
+"use client";
+var CollapsiblePanel = /* @__PURE__ */ React117.forwardRef(function CollapsiblePanel(componentProps, forwardedRef) {
+  const {
+    className,
+    hiddenUntilFound: hiddenUntilFoundProp,
+    keepMounted: keepMountedProp,
+    render,
+    id: idProp,
+    style,
+    ...elementProps
+  } = componentProps;
+  if (false) {}
+  const {
+    defaultPanelId,
+    mounted,
+    onOpenChange,
+    open,
+    setMounted,
+    setPanelIdState,
+    setOpen,
+    state,
+    transitionStatus
+  } = useCollapsibleRootContext();
+  const hiddenUntilFound = hiddenUntilFoundProp ?? false;
+  const keepMounted = keepMountedProp ?? false;
+  const registeredId = idProp || undefined;
+  const id = registeredId ?? defaultPanelId;
+  useIsoLayoutEffect(() => {
+    setPanelIdState((currentId) => registeredId ?? (currentId === null ? undefined : currentId));
+    return () => {
+      setPanelIdState((currentId) => currentId === registeredId ? null : currentId);
+    };
+  }, [registeredId, setPanelIdState]);
+  const {
+    height,
+    props,
+    ref,
+    shouldPreventOpenAnimation,
+    shouldRender,
+    transitionStatus: panelTransitionStatus,
+    width
+  } = useCollapsiblePanel({
+    externalRef: forwardedRef,
+    hiddenUntilFound,
+    id,
+    keepMounted,
+    mounted,
+    onOpenChange,
+    open,
+    setMounted,
+    setOpen,
+    transitionStatus
+  });
+  const panelState = {
+    ...state,
+    transitionStatus: panelTransitionStatus
+  };
+  const resolvedStyle = resolveStyle(style, panelState);
+  const element = useRenderElement("div", {
+    ...componentProps,
+    style: undefined
+  }, {
+    state: panelState,
+    ref,
+    props: [
+      props,
+      {
+        style: {
+          [collapsiblePanelHeight]: height === undefined ? "auto" : `${height}px`,
+          [collapsiblePanelWidth]: width === undefined ? "auto" : `${width}px`
+        }
+      },
+      elementProps,
+      resolvedStyle ? {
+        style: resolvedStyle
+      } : undefined,
+      shouldPreventOpenAnimation ? {
+        style: {
+          animationName: "none"
+        }
+      } : undefined
+    ],
+    stateAttributesMapping: collapsibleStateAttributesMapping
+  });
+  if (!shouldRender) {
+    return null;
+  }
+  return element;
+});
+if (false)
+  ;
+// engine/board/page/ui/collapsible.tsx
+var jsx_runtime19 = __toESM(require_jsx_runtime());
+function Collapsible(props) {
+  return /* @__PURE__ */ jsx_runtime19.jsx(CollapsibleRoot, {
+    "data-slot": "collapsible",
+    ...props
+  });
+}
+function CollapsibleTrigger2({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime19.jsx(CollapsibleTrigger, {
+    "data-slot": "collapsible-trigger",
+    className: cn(className),
+    ...props
+  });
+}
+function CollapsibleContent({ className, ...props }) {
+  return /* @__PURE__ */ jsx_runtime19.jsx(CollapsiblePanel, {
+    "data-slot": "collapsible-content",
+    className: cn(className),
+    ...props
+  });
+}
+
+// engine/board/page/coordinator/entries.tsx
+var jsx_runtime20 = __toESM(require_jsx_runtime());
+var VERBS = { runs: "Running", done: "Used", failed: "Failed", waits: "Waiting" };
+var MARKS2 = { runs: "works", done: "check", failed: "xcircle", waits: "target" };
+var INLINE_CODE = "rounded-[4px] bg-secondary px-1 py-px font-mono text-[0.75rem] leading-none font-normal";
+var TEXT = "m-0 rounded-lg bg-secondary p-2.5 font-mono text-[0.75rem] leading-[1.55] font-normal whitespace-pre-wrap [overflow-wrap:anywhere]";
+var TRIGGER = "flex min-h-7 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-0 py-1 text-left text-muted-foreground [font:inherit] [&:hover]:text-foreground phone:min-h-11 aria-expanded:[&_.i-chevron]:[transform:rotate(90deg)] [&_.i-chevron]:ml-auto [&_.i-chevron]:[transition:transform_0.2s_ease-out] [&_.i-works]:animate-turn-slow [&_.i-works]:text-working";
+var SUMMARY = "min-w-0 truncate font-mono text-[0.71875rem] leading-[1.4] font-normal";
+var STACK = "[&_:is(li,blockquote)>*+*]:mt-[7px]";
+var HEADINGS = ["h3", "h4", "h5", "h6"];
+var seconds = (calls) => {
+  const starts = calls.map((call) => Date.parse(call.startedAt ?? ""));
+  const ends = calls.map((call) => Date.parse(call.endedAt ?? ""));
+  if ([...starts, ...ends].some(Number.isNaN))
+    return null;
+  return Math.round((Math.max(...ends) - Math.min(...starts)) / 1000);
+};
+var steps = (count) => `${count} step${count === 1 ? "" : "s"}`;
+function Inline({ parts }) {
+  return parts.map((part, at) => {
+    if (typeof part === "string")
+      return part;
+    if (part.k === "link")
+      return /* @__PURE__ */ jsx_runtime20.jsx(Link, {
+        className: "underline underline-offset-2",
+        url: part.href,
+        children: /* @__PURE__ */ jsx_runtime20.jsx(Inline, {
+          parts: part.c
+        })
+      }, at);
+    const Tag = part.k;
+    return /* @__PURE__ */ jsx_runtime20.jsx(Tag, {
+      className: Tag === "code" ? INLINE_CODE : undefined,
+      children: /* @__PURE__ */ jsx_runtime20.jsx(Inline, {
+        parts: part.c
+      })
+    }, at);
+  });
+}
+function Block({ part }) {
+  switch (part.k) {
+    case "p":
+      return /* @__PURE__ */ jsx_runtime20.jsx("p", {
+        className: "m-0",
+        children: /* @__PURE__ */ jsx_runtime20.jsx(Inline, {
+          parts: part.c
+        })
+      });
+    case "h": {
+      const Heading = HEADINGS[part.level - 1] ?? "h6";
+      return /* @__PURE__ */ jsx_runtime20.jsx(Heading, {
+        className: "m-0 font-sans text-[0.84375rem] leading-[1.3] font-semibold",
+        children: /* @__PURE__ */ jsx_runtime20.jsx(Inline, {
+          parts: part.c
+        })
+      });
+    }
+    case "code":
+      return /* @__PURE__ */ jsx_runtime20.jsx("pre", {
+        className: TEXT,
+        children: part.text
+      });
+    case "list": {
+      const items = part.items.map((item, at) => /* @__PURE__ */ jsx_runtime20.jsx("li", {
+        children: /* @__PURE__ */ jsx_runtime20.jsx(Blocks, {
+          parts: item
+        })
+      }, at));
+      return part.ordered ? /* @__PURE__ */ jsx_runtime20.jsx("ol", {
+        className: "m-0 pl-[18px]",
+        start: part.start ?? undefined,
+        children: items
+      }) : /* @__PURE__ */ jsx_runtime20.jsx("ul", {
+        className: "m-0 pl-[18px]",
+        children: items
+      });
+    }
+    case "quote":
+      return /* @__PURE__ */ jsx_runtime20.jsx("blockquote", {
+        className: "m-0 border-l-2 border-border-strong pl-[18px] text-card-foreground",
+        children: /* @__PURE__ */ jsx_runtime20.jsx(Blocks, {
+          parts: part.c
+        })
+      });
+    case "rule":
+      return /* @__PURE__ */ jsx_runtime20.jsx("hr", {
+        className: "m-0 border-0 border-t border-border"
+      });
+  }
+}
+function Blocks({ parts }) {
+  return parts.map((part, at) => /* @__PURE__ */ jsx_runtime20.jsx(Block, {
+    part
+  }, at));
+}
+function Text({ value }) {
+  return /* @__PURE__ */ jsx_runtime20.jsxs(jsx_runtime20.Fragment, {
+    children: [
+      /* @__PURE__ */ jsx_runtime20.jsx("pre", {
+        className: TEXT,
+        children: value.text
+      }),
+      value.cut > 0 && /* @__PURE__ */ jsx_runtime20.jsx("p", {
+        className: "m-0 text-[0.75rem] text-muted-foreground",
+        children: `(${value.cut} characters left out)`
+      })
+    ]
+  });
+}
+function Call({ call, onToggle }) {
+  const row = `c:${call.id}`;
+  const isOpen = useCoordinator((state) => state.openRows.get(row) ?? false);
+  return /* @__PURE__ */ jsx_runtime20.jsxs(Collapsible, {
+    open: isOpen,
+    onOpenChange: (value) => onToggle(row, value),
+    "data-state": call.state,
+    render: /* @__PURE__ */ jsx_runtime20.jsx("li", {}),
+    children: [
+      /* @__PURE__ */ jsx_runtime20.jsxs(CollapsibleTrigger2, {
+        className: cn(TRIGGER, call.state === "done" && "[&_.i-check]:text-ready", call.state === "failed" && "[&_.i-xcircle]:text-destructive", call.state === "waits" && "[&_.i-target]:text-needs"),
+        "data-row": row,
+        children: [
+          /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
+            name: MARKS2[call.state]
+          }),
+          /* @__PURE__ */ jsx_runtime20.jsx("span", {
+            className: cn("flex-none", call.state === "runs" && "text-card-foreground", call.state === "failed" && "text-destructive"),
+            children: VERBS[call.state]
+          }),
+          " ",
+          /* @__PURE__ */ jsx_runtime20.jsx("span", {
+            className: "flex-none font-medium text-card-foreground",
+            children: call.tool
+          }),
+          " ",
+          /* @__PURE__ */ jsx_runtime20.jsx("span", {
+            className: SUMMARY,
+            children: call.summary
+          }),
+          /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
+            name: "chevron"
+          })
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime20.jsxs(CollapsibleContent, {
+        keepMounted: true,
+        className: "flex flex-col gap-2 pt-1 pb-2 pl-6",
+        render: /* @__PURE__ */ jsx_runtime20.jsx("div", {}),
+        children: [
+          /* @__PURE__ */ jsx_runtime20.jsx(Text, {
+            value: call.input
+          }),
+          call.result && /* @__PURE__ */ jsx_runtime20.jsxs(jsx_runtime20.Fragment, {
+            children: [
+              /* @__PURE__ */ jsx_runtime20.jsx("p", {
+                className: "m-0 text-[0.75rem] font-medium text-card-foreground",
+                children: call.state === "failed" ? "Error:" : "Result:"
+              }),
+              /* @__PURE__ */ jsx_runtime20.jsx(Text, {
+                value: call.result
+              })
+            ]
+          })
+        ]
+      })
+    ]
+  });
+}
+function Run({ entry, onToggle }) {
+  const isLive = entry.calls.some((call) => call.state === "runs" || call.state === "waits");
+  const failed = entry.calls.filter((call) => call.state === "failed").length;
+  const time = isLive ? null : seconds(entry.calls);
+  const words = isLive ? `Running ${steps(entry.calls.length)}` : `Ran ${steps(entry.calls.length)}${failed ? `, ${failed} failed` : ""}${time === null ? "" : ` · ${time}s`}`;
+  const row = `s:${entry.id}`;
+  const isOpen = useCoordinator((state) => state.openRows.get(row) ?? isLive);
+  return /* @__PURE__ */ jsx_runtime20.jsxs(Collapsible, {
+    open: isOpen,
+    onOpenChange: (value) => onToggle(row, value),
+    "data-state": isLive ? "runs" : failed ? "failed" : "done",
+    render: /* @__PURE__ */ jsx_runtime20.jsx("li", {}),
+    children: [
+      /* @__PURE__ */ jsx_runtime20.jsxs(CollapsibleTrigger2, {
+        className: cn(TRIGGER, isLive && "text-card-foreground", !isLive && !failed && "[&_.i-check]:text-ready", failed && "[&_.i-alert]:text-destructive"),
+        "data-row": row,
+        children: [
+          /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
+            name: isLive ? "works" : failed ? "alert" : "check"
+          }),
+          /* @__PURE__ */ jsx_runtime20.jsx("span", {
+            className: "flex-none",
+            children: words
+          }),
+          /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
+            name: "chevron"
+          })
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime20.jsx(CollapsibleContent, {
+        keepMounted: true,
+        className: "m-0 mt-0.5 flex list-none flex-col p-0 pl-6",
+        render: /* @__PURE__ */ jsx_runtime20.jsx("ol", {}),
+        children: entry.calls.map((call) => /* @__PURE__ */ jsx_runtime20.jsx(Call, {
+          call,
+          onToggle
+        }, call.id))
+      })
+    ]
+  });
+}
+function Entry({ entry, onToggle }) {
+  switch (entry.kind) {
+    case "you":
+      return /* @__PURE__ */ jsx_runtime20.jsx("li", {
+        className: "flex justify-end",
+        children: /* @__PURE__ */ jsx_runtime20.jsx("p", {
+          className: "m-0 max-w-[80%] rounded-2xl bg-accent px-3 py-[7px] whitespace-pre-wrap phone:max-w-[90%]",
+          title: entry.at ? clock(entry.at, true) : undefined,
+          children: entry.text
+        })
+      });
+    case "agent":
+      return /* @__PURE__ */ jsx_runtime20.jsx("li", {
+        className: cn("flex flex-col gap-[7px]", STACK),
+        children: /* @__PURE__ */ jsx_runtime20.jsx(Blocks, {
+          parts: entry.blocks
+        })
+      });
+    case "note":
+      return /* @__PURE__ */ jsx_runtime20.jsx("li", {
+        className: "self-center rounded-[999px] bg-secondary px-2.5 py-0.5 text-[0.75rem] text-muted-foreground",
+        children: `${entry.text.replace(/\.$/, "")}${entry.at ? ` · ${clock(entry.at)}` : ""}`
+      });
+    case "steps":
+      return /* @__PURE__ */ jsx_runtime20.jsx(Run, {
+        entry,
+        onToggle
+      });
+  }
+}
+function KeyButton({ name }) {
+  const busy = useCoordinator((state) => state.busy);
+  const { cap, name: words } = KEYS[name];
+  const differs = cap !== words;
+  const wait = busy && busy !== "key" ? `Wait: ${IN_FLIGHT[busy]}` : null;
+  return /* @__PURE__ */ jsx_runtime20.jsx("button", {
+    type: "button",
+    className: "inline-grid min-h-7 min-w-8 place-items-center rounded-lg border border-b-2 border-border-strong bg-secondary px-2 py-0 text-foreground [transition:background-color_0.15s,transform_0.1s] [&:hover]:bg-accent active:[transform:scale(0.97)] aria-disabled:cursor-not-allowed aria-disabled:opacity-[0.42] phone:min-h-11 phone:min-w-11",
+    "data-key": name,
+    "aria-label": differs ? words : undefined,
+    "aria-disabled": wait !== null,
+    "aria-busy": busy === "key",
+    title: wait ?? `Press ${words} in the session`,
+    onClick: () => void coordinator.pressKey(name),
+    children: /* @__PURE__ */ jsx_runtime20.jsx(Kbd, {
+      className: "h-auto min-w-0 border-0 bg-transparent p-0 font-mono text-[0.75rem] leading-none font-medium",
+      "aria-hidden": differs ? true : undefined,
+      children: cap
+    })
+  });
+}
+function Ask2({ item }) {
+  return /* @__PURE__ */ jsx_runtime20.jsx("li", {
+    children: /* @__PURE__ */ jsx_runtime20.jsxs("div", {
+      className: "flex flex-col gap-2 rounded-[10px] bg-[color-mix(in_srgb,var(--needs-tint)_9%,transparent)] px-3 pt-2 pb-3",
+      role: "group",
+      "aria-labelledby": "coordinator-ask-name",
+      children: [
+        /* @__PURE__ */ jsx_runtime20.jsxs("p", {
+          className: "m-0 flex min-h-7 items-center gap-2 font-semibold text-[color-mix(in_srgb,var(--fg)_20%,var(--needs))] phone:flex-wrap phone:gap-y-0.5",
+          children: [
+            /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
+              name: "target"
+            }),
+            /* @__PURE__ */ jsx_runtime20.jsx("span", {
+              id: "coordinator-ask-name",
+              children: item.call ? `Waiting on you: ${item.call.tool}` : "Waiting on you"
+            }),
+            item.call && /* @__PURE__ */ jsx_runtime20.jsxs(jsx_runtime20.Fragment, {
+              children: [
+                " ",
+                /* @__PURE__ */ jsx_runtime20.jsx("span", {
+                  className: "min-w-0 truncate font-mono text-[0.75rem] leading-[1.4] font-normal text-card-foreground phone:flex-[1_0_100%] phone:pl-6",
+                  children: item.call.summary
+                })
+              ]
+            })
+          ]
+        }),
+        item.lines.length > 0 && /* @__PURE__ */ jsx_runtime20.jsx("pre", {
+          className: cn(TEXT, "ml-6 bg-transparent p-0 text-[0.75rem] leading-[1.6] phone:ml-0"),
+          children: item.lines.join(`
+`)
+        }),
+        item.keys.length > 0 && /* @__PURE__ */ jsx_runtime20.jsx("div", {
+          className: "ml-6 flex flex-wrap gap-1.5 phone:ml-0 phone:grid phone:grid-cols-4",
+          children: item.keys.map((key) => /* @__PURE__ */ jsx_runtime20.jsx(KeyButton, {
+            name: key
+          }, key))
+        })
+      ]
+    })
+  });
+}
+function Item2({ item, onToggle }) {
+  switch (item.kind) {
+    case "entry":
+      return /* @__PURE__ */ jsx_runtime20.jsx(Entry, {
+        entry: item.entry,
+        onToggle
+      });
+    case "answer":
+      return /* @__PURE__ */ jsx_runtime20.jsxs("li", {
+        className: "flex items-center gap-2 text-muted-foreground [&_.i-check]:text-ready",
+        children: [
+          /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
+            name: item.isAnswered ? "check" : "target"
+          }),
+          /* @__PURE__ */ jsx_runtime20.jsx("span", {
+            children: item.words
+          })
+        ]
+      });
+    case "ask":
+      return /* @__PURE__ */ jsx_runtime20.jsx(Ask2, {
+        item
+      });
+    case "works":
+      return /* @__PURE__ */ jsx_runtime20.jsxs("li", {
+        className: "flex items-center gap-2 text-card-foreground [&_.i-works]:animate-turn-slow [&_.i-works]:text-working",
+        children: [
+          /* @__PURE__ */ jsx_runtime20.jsx(Icon, {
+            name: "works"
+          }),
+          /* @__PURE__ */ jsx_runtime20.jsx("span", {
+            children: "The coordinator works"
+          })
+        ]
+      });
+    case "empty":
+      return /* @__PURE__ */ jsx_runtime20.jsxs("li", {
+        className: "my-auto py-12 text-center",
+        children: [
+          /* @__PURE__ */ jsx_runtime20.jsx("p", {
+            className: "m-0 font-semibold",
+            children: item.title
+          }),
+          /* @__PURE__ */ jsx_runtime20.jsx("p", {
+            className: "m-0 mt-1 text-[0.78125rem] text-muted-foreground",
+            children: item.text
+          })
+        ]
+      });
+  }
+}
+function Entries({ items, onToggle }) {
+  return items.map((item) => /* @__PURE__ */ jsx_runtime20.jsx(Item2, {
+    item,
+    onToggle
+  }, item.key));
+}
+
+// engine/board/page/coordinator/log.tsx
+var jsx_runtime21 = __toESM(require_jsx_runtime());
+var CoordinatorLog = import_react24.memo(function CoordinatorLog() {
+  const entries = useCoordinator((state) => state.entries);
+  const answers = useCoordinator((state) => state.answers);
+  const lines = useCoordinator((state) => state.lines);
+  const shown = useCoordinator((state) => state.shown);
+  const view = useCoordinator((state) => state.view);
+  const scrollAsks = useCoordinator((state) => state.scrollAsks);
+  const sessionId = useCoordinator((state) => state.view.sessionId);
+  const { scrollRef, contentRef, scrollToBottom, stopScroll, isAtBottom, state } = useStickToBottom({
+    initial: "instant",
+    resize: "instant"
+  });
+  const heldAtEnd = import_react24.useRef(null);
+  const openedHeight = import_react24.useRef(null);
+  const toEnd = import_react24.useRef(null);
+  const reachEnd = import_react24.useCallback(() => {
+    openedHeight.current = null;
+    const log = scrollRef.current;
+    if (heldAtEnd.current === null || !log) {
+      scrollToBottom("instant");
+      return;
+    }
+    log.scrollTop = log.scrollHeight;
+    heldAtEnd.current = true;
+  }, [scrollRef, scrollToBottom]);
+  import_react24.useLayoutEffect(() => {
+    if (scrollAsks > 0)
+      reachEnd();
+  }, [scrollAsks, reachEnd]);
+  const lastSession = import_react24.useRef(sessionId);
+  const sessionAtEnd = import_react24.useRef(false);
+  const readerAbove = import_react24.useRef(false);
+  const sessionTop = import_react24.useRef(false);
+  import_react24.useLayoutEffect(() => {
+    if (lastSession.current === sessionId)
+      return;
+    lastSession.current = sessionId;
+    if (sessionId === null)
+      return;
+    sessionTop.current = readerAbove.current;
+    if (readerAbove.current) {
+      if (scrollRef.current)
+        scrollRef.current.scrollTop = 0;
+    } else {
+      sessionAtEnd.current = true;
+      const { scrollTop } = state;
+      state.scrollTop = scrollTop;
+    }
+    const selection = document.getSelection();
+    if (selection === null || selection.isCollapsed || !scrollRef.current?.contains(selection.anchorNode))
+      heldAtEnd.current = null;
+  }, [sessionId, scrollRef, state]);
+  import_react24.useLayoutEffect(() => {
+    if (!sessionAtEnd.current || entries.length === 0)
+      return;
+    sessionAtEnd.current = false;
+    reachEnd();
+  }, [entries, reachEnd]);
+  import_react24.useEffect(() => {
+    const log = scrollRef.current;
+    const content = contentRef.current;
+    if (!log || !content)
+      return;
+    const observer = new ResizeObserver((changes) => {
+      if (sessionTop.current && state.isAtBottom)
+        stopScroll();
+      if (state.isAtBottom)
+        openedHeight.current = null;
+      if (openedHeight.current !== null) {
+        if (content.offsetHeight <= openedHeight.current && !changes.some((change) => change.target === log))
+          return;
+        openedHeight.current = null;
+        scrollToBottom("instant");
+        return;
+      }
+      if (!state.isAtBottom)
+        return;
+      if (heldAtEnd.current !== null)
+        stopScroll();
+      else if (changes.some((change) => change.target === log))
+        scrollToBottom("instant");
+    });
+    observer.observe(log);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [scrollRef, contentRef, scrollToBottom, state, stopScroll]);
+  import_react24.useEffect(() => {
+    const log = scrollRef.current;
+    if (!log)
+      return;
+    let lastTop = log.scrollTop;
+    const onScroll = () => {
+      const isAtEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 4;
+      if (log.scrollTop < lastTop - 1)
+        openedHeight.current = null;
+      if (log.scrollTop > lastTop + 1 || isAtEnd)
+        sessionTop.current = false;
+      if (log.scrollTop < lastTop - 1 && !isAtEnd)
+        readerAbove.current = true;
+      else if (isAtEnd)
+        readerAbove.current = false;
+      if (heldAtEnd.current !== null) {
+        if (log.scrollTop < lastTop - 1 && !isAtEnd)
+          heldAtEnd.current = false;
+        else if (isAtEnd || log.scrollTop > lastTop + 1 && state.isNearBottom)
+          heldAtEnd.current = true;
+      }
+      lastTop = log.scrollTop;
+    };
+    const onSelection = () => {
+      const selection = document.getSelection();
+      const isHeld = selection !== null && !selection.isCollapsed && scrollRef.current?.contains(selection.anchorNode);
+      if (isHeld && heldAtEnd.current === null) {
+        heldAtEnd.current = state.isAtBottom || openedHeight.current !== null;
+        openedHeight.current = null;
+        if (state.isAtBottom)
+          stopScroll();
+      }
+      if (!isHeld && heldAtEnd.current !== null) {
+        const wasAtEnd = heldAtEnd.current;
+        heldAtEnd.current = null;
+        if (wasAtEnd)
+          scrollToBottom("instant");
+      }
+    };
+    log.addEventListener("scroll", onScroll, { passive: true });
+    document.addEventListener("selectionchange", onSelection);
+    return () => {
+      log.removeEventListener("scroll", onScroll);
+      document.removeEventListener("selectionchange", onSelection);
+    };
+  }, [scrollRef, scrollToBottom, state, stopScroll]);
+  const toEndHadFocus = toEnd.current !== null && document.activeElement === toEnd.current;
+  import_react24.useLayoutEffect(() => {
+    if (isAtBottom && toEndHadFocus)
+      scrollRef.current?.focus({ preventScroll: true });
+  }, [isAtBottom, toEndHadFocus, scrollRef]);
+  const onToggle = (row, isOpen) => {
+    const wasFollowing = state.isAtBottom || openedHeight.current !== null;
+    coordinator.setRowOpen(row, isOpen);
+    openedHeight.current = null;
+    if (!isOpen || !wasFollowing)
+      return;
+    stopScroll();
+    if (heldAtEnd.current === null && state.isNearBottom)
+      openedHeight.current = contentRef.current?.offsetHeight ?? null;
+  };
+  const goToEnd = () => {
+    scrollRef.current?.focus({ preventScroll: true });
+    reachEnd();
+  };
+  const keys = view.actions.includes("key") ? view.keys : [];
+  const items = logItems({ entries, answers, dialog: shown === "dialog" ? { lines, keys } : null, state: shown });
+  return /* @__PURE__ */ jsx_runtime21.jsxs(jsx_runtime21.Fragment, {
+    children: [
+      /* @__PURE__ */ jsx_runtime21.jsx("div", {
+        ref: scrollRef,
+        className: "m-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-[max(20px,calc((100%-72ch)/2))] pt-[18px] pb-7 font-sans text-[0.8125rem] leading-[1.55] font-normal text-foreground [overflow-wrap:anywhere] group-data-[stale]/co:opacity-70 focus-visible:rounded-none focus-visible:outline-offset-[-2px] phone:scroll-pb-[calc(var(--dock)+8px)] phone:px-3.5 phone:pt-4 phone:pb-6",
+        id: "coordinator-log",
+        role: "log",
+        tabIndex: 0,
+        "aria-label": "Conversation with the coordinator",
+        children: /* @__PURE__ */ jsx_runtime21.jsx("ol", {
+          ref: contentRef,
+          className: "m-0 flex min-h-full list-none flex-col gap-3.5 p-0",
+          children: /* @__PURE__ */ jsx_runtime21.jsx(Entries, {
+            items,
+            onToggle
+          })
+        })
+      }),
+      /* @__PURE__ */ jsx_runtime21.jsxs(Button2, {
+        ref: toEnd,
+        type: "button",
+        variant: "secondary",
+        size: "action",
+        className: "absolute bottom-2.5 left-1/2 border-border-strong bg-card shadow-raise [&:hover]:bg-card [transform:translateX(-50%)] active:scale-100 active:[transform:translateX(-50%)_scale(0.97)] phone:absolute phone:min-h-11 [&_.icon]:[transform:rotate(90deg)]",
+        id: "coordinator-to-end",
+        hidden: isAtBottom,
+        onClick: goToEnd,
+        children: [
+          /* @__PURE__ */ jsx_runtime21.jsx(Icon, {
+            name: "chevron"
+          }),
+          /* @__PURE__ */ jsx_runtime21.jsx("span", {
+            className: "label",
+            children: "Go to the end"
+          })
+        ]
+      })
+    ]
+  });
+});
+
+// engine/board/page/coordinator/panel.tsx
+var jsx_runtime22 = __toESM(require_jsx_runtime());
+var LIVE2 = "bg-[color-mix(in_srgb,var(--working)_12%,transparent)] text-[color-mix(in_srgb,var(--fg)_30%,var(--working))] [&_.time]:text-inherit";
+var NEEDS = "bg-[color-mix(in_srgb,var(--needs-tint)_12%,transparent)] text-[color-mix(in_srgb,var(--fg)_20%,var(--needs))] [&_.time]:text-inherit";
+var gate = (reason, title) => ({ "aria-disabled": reason !== null, title: reason ?? title });
+var sendOnEnter = (event) => {
+  if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing || event.keyCode === 229)
+    return;
+  event.preventDefault();
+  event.currentTarget.form?.requestSubmit();
+};
+var focusEntry = () => {
+  const target = ["coordinator-field", "coordinator-start"].map((id) => document.getElementById(id)).find((node) => node.checkVisibility());
+  (target ?? document.getElementById("coordinator-log")).focus({ preventScroll: true });
+};
+var submit = (event) => {
+  event.preventDefault();
+  coordinator.send();
+};
+function CoordinatorPanel() {
+  const state = useCoordinator((each) => each);
+  const {
+    view,
+    shown,
+    aged,
+    isOpen,
+    isDown,
+    busy,
+    line,
+    host,
+    chatAt,
+    chatError,
+    linesAt,
+    linesError,
+    text,
+    focusAsks
+  } = state;
+  const root = import_react25.useRef(null);
+  const hadFocus = root.current?.contains(document.activeElement) === true;
+  import_react25.useLayoutEffect(() => {
+    if (focusAsks > 0)
+      focusEntry();
+  }, [focusAsks]);
+  import_react25.useLayoutEffect(() => {
+    if (!isOpen || !hadFocus)
+      return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && root.current?.contains(active) && active.checkVisibility())
+      return;
+    focusEntry();
+  });
+  const ended = shown === "ended";
+  const absent = shown === "none" || ended;
+  const can = (action) => view.actions.includes(action) && !ended;
+  const cause = view.error ?? (isDown ? SERVER_DOWN : null);
+  const chatCause = isOpen ? chatError ?? cause : null;
+  const linesCause = isOpen && shown === "dialog" ? linesError : null;
+  const banner = bannerOf({ ended, chatCause, linesCause, chatAt, linesAt, timeOf });
+  const age = absent ? null : view.since;
+  const wait = busy ? `Wait: ${IN_FLIGHT[busy]}` : null;
+  const block = sendBlock({ busy, state: shown, canSay: can("say"), text });
+  const [hint, tone] = hintOf({ text, busy, line, state: shown });
+  const startLine = line?.act === "open" ? line.text : null;
+  return /* @__PURE__ */ jsx_runtime22.jsxs("section", {
+    ref: root,
+    className: "coordinator group/co flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-border-strong bg-panel",
+    id: "coordinator",
+    "aria-labelledby": "coordinator-title",
+    "data-state": shown,
+    "data-stale": ended || chatCause !== null || linesCause !== null || aged ? "" : undefined,
+    hidden: !isOpen,
+    children: [
+      /* @__PURE__ */ jsx_runtime22.jsxs("header", {
+        className: "flex min-h-12 flex-none flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-border py-2 pr-2.5 pl-5",
+        children: [
+          /* @__PURE__ */ jsx_runtime22.jsx("h2", {
+            className: "font-sans text-[0.875rem] leading-none font-semibold tracking-[-0.012em] text-foreground",
+            id: "coordinator-title",
+            children: "Coordinator"
+          }),
+          /* @__PURE__ */ jsx_runtime22.jsx("span", {
+            className: "font-mono text-[0.71875rem] leading-none font-normal text-muted-foreground",
+            id: "coordinator-host",
+            children: host
+          }),
+          /* @__PURE__ */ jsx_runtime22.jsxs("span", {
+            className: cn("inline-flex min-h-6 items-center gap-1.5 rounded-md py-1 pr-[9px] pl-[7px] font-sans text-[0.75rem] leading-[1.25] font-medium [&_.time]:font-mono [&_.time]:text-[0.75rem] [&_.time]:leading-none [&_.time]:font-normal [&_.time]:normal-nums", shown === "works" || shown === "starting" ? LIVE2 : shown === "dialog" ? NEEDS : "bg-secondary text-card-foreground [&_.time]:text-muted-foreground"),
+            id: "coordinator-head-state",
+            children: [
+              /* @__PURE__ */ jsx_runtime22.jsx("span", {
+                children: WORDS[shown]
+              }),
+              age && /* @__PURE__ */ jsx_runtime22.jsx(Timed, {
+                iso: age,
+                isFine: shown === "starting" || shown === "works" || shown === "dialog"
+              })
+            ]
+          }),
+          /* @__PURE__ */ jsx_runtime22.jsxs("span", {
+            className: "ml-auto flex items-center gap-1.5",
+            children: [
+              /* @__PURE__ */ jsx_runtime22.jsx(Button2, {
+                type: "button",
+                variant: "quiet",
+                size: "action",
+                className: "phone:min-h-11",
+                id: "coordinator-interrupt",
+                hidden: !can("interrupt"),
+                "aria-busy": busy === "interrupt",
+                ...gate(busy && busy !== "interrupt" ? wait : null, "Press the stop key in the session"),
+                onClick: () => coordinator.interrupt(),
+                children: /* @__PURE__ */ jsx_runtime22.jsx("span", {
+                  className: "label",
+                  children: "Interrupt"
+                })
+              }),
+              /* @__PURE__ */ jsx_runtime22.jsx(Button2, {
+                type: "button",
+                variant: "quiet",
+                size: "action",
+                className: "phone:min-h-11",
+                id: "coordinator-end",
+                hidden: !can("end"),
+                "aria-busy": busy === "end",
+                ...gate(busy && busy !== "end" ? wait : null, "Send the exit request of the host to the session"),
+                onClick: () => coordinator.end(),
+                children: /* @__PURE__ */ jsx_runtime22.jsx("span", {
+                  className: "label",
+                  children: "End session"
+                })
+              }),
+              /* @__PURE__ */ jsx_runtime22.jsxs(Button2, {
+                type: "button",
+                variant: "quiet",
+                size: "action",
+                className: "phone:min-h-11",
+                id: "coordinator-go",
+                title: "Show the tab of the session in the Herdr app",
+                hidden: !can("go") || !view.sessionId,
+                onClick: () => coordinator.go(),
+                children: [
+                  /* @__PURE__ */ jsx_runtime22.jsx(Icon, {
+                    name: "go"
+                  }),
+                  /* @__PURE__ */ jsx_runtime22.jsx("span", {
+                    className: "label",
+                    children: "Go"
+                  })
+                ]
+              })
+            ]
+          })
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime22.jsx("p", {
+        className: "m-0 flex-none border-b border-border bg-secondary px-5 py-2 text-[0.78125rem] text-foreground [overflow-wrap:anywhere] data-[tone=error]:shadow-[inset_3px_0_var(--danger)]",
+        id: "coordinator-banner",
+        role: "status",
+        "data-tone": ended ? "plain" : "error",
+        hidden: banner === null,
+        children: banner
+      }),
+      /* @__PURE__ */ jsx_runtime22.jsx("div", {
+        className: "relative flex min-h-0 flex-1",
+        children: /* @__PURE__ */ jsx_runtime22.jsx(CoordinatorLog, {})
+      }),
+      /* @__PURE__ */ jsx_runtime22.jsxs("div", {
+        className: "flex flex-none flex-col gap-2 px-[max(14px,calc((100%-104ch)/2-14px))] pb-3.5 font-mono text-[0.78125rem] leading-[1.5] font-normal phone:px-2.5 phone:pb-2.5",
+        children: [
+          /* @__PURE__ */ jsx_runtime22.jsxs("form", {
+            className: "flex flex-col overflow-hidden rounded-xl border border-border-strong bg-card font-sans text-[0.8125rem] leading-[1.5] shadow-raise has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-offset-2 has-[textarea:focus-visible]:outline-solid has-[textarea:focus-visible]:outline-ring has-[textarea[aria-invalid=true]]:border-[color-mix(in_srgb,var(--danger)_55%,transparent)]",
+            id: "coordinator-form",
+            hidden: absent,
+            onSubmit: submit,
+            children: [
+              /* @__PURE__ */ jsx_runtime22.jsx(Textarea, {
+                className: "w-auto",
+                id: "coordinator-field",
+                rows: 1,
+                "aria-label": "Message to the coordinator",
+                "aria-describedby": "coordinator-hint",
+                "aria-invalid": text.length > LIMIT || line?.act === "say" && line.tone === "error",
+                placeholder: "Write to the coordinator",
+                value: text,
+                onChange: (event) => coordinator.setText(event.target.value),
+                onKeyDown: sendOnEnter
+              }),
+              /* @__PURE__ */ jsx_runtime22.jsxs("div", {
+                className: "flex items-center gap-2.5 pt-1 pr-2 pb-2 pl-3.5",
+                children: [
+                  /* @__PURE__ */ jsx_runtime22.jsx("p", {
+                    className: "m-0 flex-1 text-[0.75rem] text-muted-foreground [overflow-wrap:anywhere] whitespace-pre-line data-[tone=error]:text-destructive",
+                    id: "coordinator-hint",
+                    "data-tone": tone,
+                    role: tone === "plain" ? undefined : tone === "error" ? "alert" : "status",
+                    children: hint
+                  }),
+                  /* @__PURE__ */ jsx_runtime22.jsx(Button2, {
+                    type: "submit",
+                    variant: "primary",
+                    size: "action",
+                    className: "phone:min-h-11",
+                    id: "coordinator-send",
+                    "aria-busy": busy === "say",
+                    ...gate(block, "Send the message (Enter)"),
+                    children: /* @__PURE__ */ jsx_runtime22.jsx("span", {
+                      className: "label",
+                      children: busy === "say" ? "Sending" : "Send"
+                    })
+                  })
+                ]
+              })
+            ]
+          }),
+          /* @__PURE__ */ jsx_runtime22.jsxs("div", {
+            className: "flex flex-wrap items-center gap-x-3 gap-y-2 font-sans text-[0.78125rem] leading-[1.5]",
+            id: "coordinator-start-block",
+            hidden: !(absent && view.actions.includes("open")),
+            children: [
+              /* @__PURE__ */ jsx_runtime22.jsx("p", {
+                className: "m-0 flex-[1_1_100%] text-destructive [overflow-wrap:anywhere] whitespace-pre-line",
+                id: "coordinator-start-text",
+                role: startLine ? "alert" : undefined,
+                hidden: startLine === null,
+                children: startLine
+              }),
+              /* @__PURE__ */ jsx_runtime22.jsx(Button2, {
+                type: "button",
+                variant: "primary",
+                size: "action",
+                className: "phone:min-h-11",
+                id: "coordinator-start",
+                ...gate(wait, "Start a coordinator session in a quiet tab of the Herdr app"),
+                onClick: () => coordinator.start(),
+                children: /* @__PURE__ */ jsx_runtime22.jsx("span", {
+                  className: "label",
+                  children: ended ? "Start a new session" : "Start a session"
+                })
+              })
+            ]
+          })
+        ]
+      })
+    ]
+  });
+}
+
+// engine/board/page/queue/queue.tsx
+var import_react27 = __toESM(require_react());
+
+// engine/board/page/ui/focused-key.ts
+var import_react26 = __toESM(require_react());
+function useFocusedKey(root, keyOf) {
+  const key = import_react26.useRef(null);
+  import_react26.useEffect(() => {
+    const node = root.current;
+    if (!node)
+      return;
+    const onIn = ({ target }) => {
+      key.current = target instanceof HTMLElement ? keyOf(target) : null;
+    };
+    const onOut = ({ relatedTarget }) => {
+      if (relatedTarget instanceof Node && node.contains(relatedTarget))
+        return;
+      queueMicrotask(() => {
+        if (!node.contains(document.activeElement))
+          key.current = null;
+      });
+    };
+    node.addEventListener("focusin", onIn);
+    node.addEventListener("focusout", onOut);
+    return () => {
+      node.removeEventListener("focusin", onIn);
+      node.removeEventListener("focusout", onOut);
+    };
+  }, [root, keyOf]);
+  return key;
+}
+
+// engine/board/page/queue/queue.tsx
+var jsx_runtime23 = __toESM(require_jsx_runtime());
+var DISABLED = "aria-disabled:cursor-default aria-disabled:opacity-50";
+var PHONE_TAP = "phone:min-h-11 phone:min-w-11";
+var PRESS = "active:scale-none active:[transform:scale(0.97)] aria-disabled:active:scale-none aria-disabled:active:[transform:none]";
+var ICON_PRESS = "active:scale-none aria-disabled:active:scale-none";
+var NUMBER = "block font-mono text-[0.6875rem] leading-[normal] text-muted-foreground";
+var TITLE = "block font-medium wrap-anywhere text-foreground";
+var EMPTY4 = "m-0 border-t border-t-border px-4 py-5 text-muted-foreground";
+var NOTE2 = "mt-1.5 mb-0 max-w-[65ch] text-card-foreground";
+var LIST = "m-0 list-none";
+var PICKER_NOTE = "mt-1 mb-5 text-muted-foreground";
+var SUBHEAD = "text-[0.8125rem]";
+var TONE = "text-working group-data-[state=me-gate]/queue:text-needs";
+var SECTION = "group/queue min-h-0 min-w-0 flex-1 overflow-y-auto text-foreground phone:scroll-pb-[calc(var(--dock)+8px)]";
+var SEGMENT = `min-h-[26px] rounded-[7px] border-0 bg-transparent px-2.5 py-0 text-[0.78125rem] leading-none font-medium whitespace-nowrap text-card-foreground phone:min-h-11 phone:px-2 [&:hover:not([aria-disabled=true])]:text-foreground aria-pressed:bg-card aria-pressed:text-foreground aria-pressed:[box-shadow:var(--raise)] ${DISABLED}`;
+var scrollOffset = 0;
+var controlKey = (node) => node.dataset.control ?? null;
+var isEnabled = (node) => node.getAttribute("aria-disabled") !== "true";
+var pressed3 = (action) => (event) => {
+  if (isEnabled(event.currentTarget))
+    action();
+};
+function TextButton({
+  text,
+  control,
+  label,
+  isDisabled = false,
+  action
+}) {
+  return /* @__PURE__ */ jsx_runtime23.jsx(Button2, {
+    variant: "secondary",
+    size: "action",
+    className: `${PHONE_TAP} ${DISABLED} ${PRESS}`,
+    "data-control": control,
+    "aria-label": label,
+    "aria-disabled": isDisabled,
+    onClick: pressed3(action),
+    children: text
+  });
+}
+function IconControl({
+  name,
+  label,
+  control,
+  className = "",
+  isDisabled,
+  action
+}) {
+  return /* @__PURE__ */ jsx_runtime23.jsx(Button2, {
+    variant: "icon",
+    size: "icon",
+    className: `size-[30px] p-1.5 ${PHONE_TAP} ${DISABLED} ${ICON_PRESS} ${className}`,
+    "aria-label": label,
+    title: label,
+    "data-control": control,
+    "aria-disabled": isDisabled,
+    onClick: (event) => {
+      event.stopPropagation();
+      pressed3(action)(event);
+    },
+    children: /* @__PURE__ */ jsx_runtime23.jsx(Icon, {
+      name
+    })
+  });
+}
+function Row({
+  number,
+  index,
+  numbers,
+  queue
+}) {
+  const { submitted, state, isBusy, isAuthoritative } = queue;
+  const next = submitted?.next;
+  const step = next?.kind === "run" ? next.step : submitted?.record?.current?.step;
+  const isLocked = isBusy || !isAuthoritative || !submitted?.actions.edit;
+  return /* @__PURE__ */ jsx_runtime23.jsxs("li", {
+    className: `flex min-w-0 items-center gap-3 py-4${index > 1 ? " border-t border-t-border" : ""}`,
+    "data-number": number,
+    children: [
+      /* @__PURE__ */ jsx_runtime23.jsx("span", {
+        className: `w-5 flex-[0_0_20px] text-center font-mono text-[0.75rem] leading-[normal] ${index === 0 ? TONE : "text-muted-foreground"}`,
+        children: index + 1
+      }),
+      /* @__PURE__ */ jsx_runtime23.jsxs("div", {
+        className: "grid min-w-0 flex-1 grid-cols-[1fr] gap-1",
+        children: [
+          /* @__PURE__ */ jsx_runtime23.jsx("span", {
+            className: NUMBER,
+            children: `#${number}`
+          }),
+          /* @__PURE__ */ jsx_runtime23.jsx("span", {
+            className: TITLE,
+            children: queueStore.find(number)?.title ?? `Issue #${number}`
+          }),
+          /* @__PURE__ */ jsx_runtime23.jsx("span", {
+            className: `text-[0.6875rem] ${index === 0 ? TONE : "text-muted-foreground"}`,
+            children: index === 0 ? `${state === "me-gate" ? "Waiting for approval" : state === "error" ? "Stopped" : state === "running" ? "Running" : "Saved · starting"}${step ? ` · ${step}` : ""}` : "Waiting"
+          })
+        ]
+      }),
+      index > 0 && /* @__PURE__ */ jsx_runtime23.jsxs("div", {
+        className: "flex flex-none gap-0.5",
+        children: [
+          ["up", "down"].map((direction) => /* @__PURE__ */ jsx_runtime23.jsx(IconControl, {
+            name: "chevron",
+            label: `Move #${number} ${direction}`,
+            control: `${direction}-${number}`,
+            className: direction === "up" ? "[&_.icon]:[transform:rotate(-90deg)]" : "[&_.icon]:[transform:rotate(90deg)]",
+            isDisabled: isLocked || (direction === "up" ? index === 1 : index === numbers.length - 1),
+            action: () => queueStore.act({ kind: "move", number, direction, expected: queueStore.expected() })
+          }, direction)),
+          /* @__PURE__ */ jsx_runtime23.jsx(IconControl, {
+            name: "close",
+            label: `Remove #${number} from queue`,
+            control: `remove-${number}`,
+            isDisabled: isLocked,
+            action: () => queueStore.act({ kind: "remove", number, expected: queueStore.expected() })
+          })
+        ]
+      })
+    ]
+  });
+}
+var headingText = ({ isBusy, state, submitted }) => {
+  const first = submitted?.record?.numbers[0];
+  if (isBusy)
+    return "Saving the queue";
+  if (state === "empty")
+    return "Ready for work";
+  if (state === "starting")
+    return `Starting #${first}`;
+  if (state === "running")
+    return `Running #${first}`;
+  return state === "me-gate" ? "Your approval is needed" : "The queue stopped";
+};
+function QueueBody() {
+  const root = import_react27.useRef(null);
+  const focused = useFocusedKey(root, controlKey);
+  const queue = useQueue((state) => state);
+  const { board, submitted, isBusy, isUncertain, state, isAuthoritative, chosen, available } = queue;
+  import_react27.useLayoutEffect(() => {
+    if (!root.current)
+      return;
+    root.current.scrollTop = scrollOffset;
+    scrollOffset = root.current.scrollTop;
+  }, []);
+  import_react27.useLayoutEffect(() => {
+    const section = root.current;
+    const key = focused.current;
+    if (!section || key === null)
+      return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && section.contains(active) && controlKey(active) === key && isEnabled(active))
+      return;
+    const controls = [...section.querySelectorAll("[data-control]")].filter(isEnabled);
+    const target = controls.find((control) => controlKey(control) === key) ?? controls.find((control) => /^(up|down|remove|add)-/.test(controlKey(control) ?? "")) ?? section.querySelector('[data-control="heading"]');
+    target?.focus({ preventScroll: true });
+  });
+  if (!board)
+    return /* @__PURE__ */ jsx_runtime23.jsx("section", {
+      ref: root,
+      className: SECTION,
+      id: "queue"
+    });
+  const record = submitted?.record;
+  const numbers = record?.numbers ?? [];
+  const first = numbers[0];
+  const next = submitted?.next;
+  const warning = !isAuthoritative ? "The queue state is unavailable. Refresh before acting." : submitted?.error ?? board.noRun;
+  const choices = [["", "Default order", true]];
+  for (const host of Object.keys(board.registry))
+    choices.push([host, board.registry[host].short, board.agents?.[host]?.available === true]);
+  return /* @__PURE__ */ jsx_runtime23.jsxs("section", {
+    ref: root,
+    className: SECTION,
+    id: "queue",
+    "data-state": state,
+    "aria-busy": isBusy,
+    onScroll: (event) => {
+      scrollOffset = event.currentTarget.scrollTop;
+    },
+    children: [
+      /* @__PURE__ */ jsx_runtime23.jsx("header", {
+        className: "flex flex-wrap items-center justify-between gap-2 px-4 pt-4",
+        children: /* @__PURE__ */ jsx_runtime23.jsxs("div", {
+          className: "flex min-w-0 items-baseline gap-2.5",
+          children: [
+            /* @__PURE__ */ jsx_runtime23.jsx("h2", {
+              className: "text-[0.875rem] font-semibold",
+              children: "Issue queue"
+            }),
+            /* @__PURE__ */ jsx_runtime23.jsx("span", {
+              className: "whitespace-nowrap text-muted-foreground tabular-nums",
+              children: `${numbers.length} remaining`
+            })
+          ]
+        })
+      }),
+      /* @__PURE__ */ jsx_runtime23.jsxs("div", {
+        className: "px-4 pt-4",
+        children: [
+          /* @__PURE__ */ jsx_runtime23.jsx("h3", {
+            tabIndex: -1,
+            "data-control": "heading",
+            className: "text-[1.03125rem] font-semibold group-data-[state=error]/queue:text-destructive group-data-[state=me-gate]/queue:text-needs group-data-[state=running]/queue:text-working",
+            children: headingText(queue)
+          }),
+          /* @__PURE__ */ jsx_runtime23.jsx("p", {
+            className: NOTE2,
+            children: state === "starting" ? "Your issue is saved. Waiting for a verified session." : state === "me-gate" ? "Continue starts the displayed step. Later issues stay queued." : "Add issues at any time. Finished issues leave automatically."
+          }),
+          warning && /* @__PURE__ */ jsx_runtime23.jsx("p", {
+            className: `${NOTE2} wrap-anywhere`,
+            role: "alert",
+            children: warning
+          }),
+          record?.act && /* @__PURE__ */ jsx_runtime23.jsx("p", {
+            className: `${NOTE2} wrap-anywhere`,
+            children: record.act
+          }),
+          /* @__PURE__ */ jsx_runtime23.jsxs("section", {
+            className: "mt-6",
+            children: [
+              /* @__PURE__ */ jsx_runtime23.jsx("h4", {
+                className: SUBHEAD,
+                children: "Current issue"
+              }),
+              first ? /* @__PURE__ */ jsx_runtime23.jsx("ol", {
+                className: `${LIST} p-0`,
+                children: /* @__PURE__ */ jsx_runtime23.jsx(Row, {
+                  number: first,
+                  index: 0,
+                  numbers,
+                  queue
+                })
+              }) : /* @__PURE__ */ jsx_runtime23.jsx("p", {
+                className: `${NOTE2} pt-4`,
+                children: "No issue is running."
+              })
+            ]
+          })
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime23.jsxs("div", {
+        className: "flex flex-wrap items-center justify-between gap-3 p-4",
+        children: [
+          /* @__PURE__ */ jsx_runtime23.jsxs("div", {
+            className: "flex min-w-0 flex-wrap items-center gap-2 text-card-foreground phone:flex-col phone:items-start phone:gap-1.5",
+            children: [
+              /* @__PURE__ */ jsx_runtime23.jsx("span", {
+                children: "Agent"
+              }),
+              /* @__PURE__ */ jsx_runtime23.jsx("div", {
+                className: "inline-flex max-w-full gap-0.5 rounded-[9px] bg-secondary p-0.5",
+                role: "group",
+                "aria-label": "Queue agent",
+                children: choices.map(([value, text, isUsable]) => /* @__PURE__ */ jsx_runtime23.jsx("button", {
+                  type: "button",
+                  className: SEGMENT,
+                  "data-control": `agent-${value || "default"}`,
+                  "aria-pressed": (chosen ?? "") === value,
+                  "aria-disabled": !isUsable || numbers.length > 0 || isBusy || !isAuthoritative,
+                  onClick: pressed3(() => queueStore.setAgent(value)),
+                  children: text
+                }, value || "default"))
+              })
+            ]
+          }),
+          submitted?.actions.continue && next?.kind === "run" ? /* @__PURE__ */ jsx_runtime23.jsx(TextButton, {
+            text: "Continue queue",
+            control: "continue",
+            isDisabled: isBusy || !isAuthoritative,
+            action: () => queueStore.act({ kind: "continue", step: next.step, expected: queueStore.expected() })
+          }) : submitted?.actions.retry ? /* @__PURE__ */ jsx_runtime23.jsx(TextButton, {
+            text: "Try again",
+            control: "retry",
+            isDisabled: isBusy || !isAuthoritative,
+            action: () => queueStore.act({
+              kind: "retry",
+              step: next?.kind === "run" ? next.step : null,
+              expected: queueStore.expected()
+            })
+          }) : null,
+          isUncertain && /* @__PURE__ */ jsx_runtime23.jsx(TextButton, {
+            text: "Refresh queue",
+            control: "refresh",
+            isDisabled: isBusy,
+            action: () => queueStore.refresh()
+          })
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime23.jsxs("div", {
+        className: "flex min-w-0 flex-col border-t border-t-border",
+        children: [
+          /* @__PURE__ */ jsx_runtime23.jsxs("section", {
+            className: "pt-4",
+            children: [
+              /* @__PURE__ */ jsx_runtime23.jsx("h3", {
+                className: `px-4 ${SUBHEAD}`,
+                children: "Up next"
+              }),
+              numbers.length > 1 ? /* @__PURE__ */ jsx_runtime23.jsx("ol", {
+                className: `${LIST} px-4 pb-4`,
+                "aria-label": "Waiting issues",
+                start: 2,
+                children: numbers.slice(1).map((number, index) => /* @__PURE__ */ jsx_runtime23.jsx(Row, {
+                  number,
+                  index: index + 1,
+                  numbers,
+                  queue
+                }, number))
+              }) : /* @__PURE__ */ jsx_runtime23.jsx("p", {
+                className: EMPTY4,
+                children: "No issue waits."
+              })
+            ]
+          }),
+          /* @__PURE__ */ jsx_runtime23.jsxs("section", {
+            className: "min-w-0 border-t border-t-border p-4",
+            children: [
+              /* @__PURE__ */ jsx_runtime23.jsx("h3", {
+                className: SUBHEAD,
+                children: "Add from the board"
+              }),
+              /* @__PURE__ */ jsx_runtime23.jsx("p", {
+                className: PICKER_NOTE,
+                children: "Add puts the issue at the end of the queue, and starts the queue when it is empty."
+              }),
+              available.map((card) => {
+                const { number } = card;
+                const isSelected = numbers.includes(number);
+                return /* @__PURE__ */ jsx_runtime23.jsxs("div", {
+                  className: "flex items-center gap-5 border-t border-t-border py-3.5",
+                  children: [
+                    /* @__PURE__ */ jsx_runtime23.jsxs("div", {
+                      className: "min-w-0 flex-1",
+                      children: [
+                        /* @__PURE__ */ jsx_runtime23.jsx("span", {
+                          className: NUMBER,
+                          children: `#${number}`
+                        }),
+                        /* @__PURE__ */ jsx_runtime23.jsx("span", {
+                          className: `${TITLE} mt-1`,
+                          children: card.title
+                        }),
+                        /* @__PURE__ */ jsx_runtime23.jsx("span", {
+                          className: "mt-[3px] block font-mono text-[0.71875rem] leading-[1.2] text-muted-foreground",
+                          children: `next ${card.step} · ${card.state ? stateLabel(card) : "ready"}`
+                        })
+                      ]
+                    }),
+                    /* @__PURE__ */ jsx_runtime23.jsx(TextButton, {
+                      text: isSelected ? "In queue" : "Add",
+                      control: `add-${number}`,
+                      label: `Add #${number} to queue`,
+                      isDisabled: isSelected || isBusy || !isAuthoritative || !submitted?.actions.add || !queueStore.hostAvailable(chosen) || Boolean(board.noRun),
+                      action: () => queueStore.act({ kind: "add", number, step: card.step, expected: queueStore.expected() })
+                    })
+                  ]
+                }, number);
+              }),
+              !available.length && /* @__PURE__ */ jsx_runtime23.jsx("p", {
+                className: PICKER_NOTE,
+                children: "No runnable issues are available."
+              })
+            ]
+          })
+        ]
+      })
+    ]
+  });
+}
+function Queue() {
+  const snapshot = useQueue((state) => state);
+  return /* @__PURE__ */ jsx_runtime23.jsx(ViewBoundary, {
+    snapshot,
+    fallback: /* @__PURE__ */ jsx_runtime23.jsx("section", {
+      className: SECTION,
+      id: "queue"
+    }),
+    children: /* @__PURE__ */ jsx_runtime23.jsx(QueueBody, {})
+  });
+}
+
+// engine/board/page/operations/history.tsx
+var import_react28 = __toESM(require_react());
+var jsx_runtime24 = __toESM(require_jsx_runtime());
+var NOTE3 = "my-3.5 text-[0.75rem] text-muted-foreground";
+var ACTION2 = "w-7 p-0 [grid-area:action] phone:min-h-11 phone:min-w-11";
+var LINK2 = "[a&:hover]:underline [a&:hover]:underline-offset-[3px]";
+var makeVisual = async (number) => {
+  if (screen.visualPresses().has(number))
+    return;
+  screen.setVisualPresses((presses) => presses.add(number));
+  await act("/api/visual", { number }, "Make visual failed");
+  screen.setVisualPresses((presses) => presses.delete(number));
+};
+function VisualControl({ entry, isPressed }) {
+  const { number } = entry;
+  const state = isPressed && entry.visual === "none" ? "starting" : entry.visual;
+  if (state === "ready") {
+    const name = `Open the visual of #${number}`;
+    return /* @__PURE__ */ jsx_runtime24.jsx("a", {
+      className: buttonVariants({ variant: "secondary", size: "action", className: ACTION2 }),
+      href: `/visual/${entry.sha}`,
+      target: "_blank",
+      rel: "noreferrer",
+      "aria-label": name,
+      title: name,
+      "data-visual": number,
+      children: /* @__PURE__ */ jsx_runtime24.jsx(Icon, {
+        name: "open"
+      })
+    });
+  }
+  if (state === "making") {
+    const name = `The visual of #${number} is in the making`;
+    return /* @__PURE__ */ jsx_runtime24.jsx("span", {
+      className: "inline-flex min-h-7 w-7 items-center justify-center gap-1.5 rounded-lg border phone:min-h-11 phone:min-w-11 border-[color-mix(in_srgb,var(--working)_30%,transparent)] bg-[color-mix(in_srgb,var(--working)_10%,transparent)] p-0 text-[0.78125rem] leading-none font-medium text-[color-mix(in_srgb,var(--working)_80%,var(--fg))] [grid-area:action] [&_.icon]:size-[13px] [&_.icon]:animate-turn",
+      role: "status",
+      tabIndex: -1,
+      "aria-label": name,
+      title: name,
+      "data-visual": number,
+      children: /* @__PURE__ */ jsx_runtime24.jsx(Icon, {
+        name: "pending"
+      })
+    });
+  }
+  const name = state === "starting" ? `Starting the visual of #${number}` : `Make the visual of #${number}`;
+  return /* @__PURE__ */ jsx_runtime24.jsx(Button2, {
+    variant: "secondary",
+    size: "action",
+    className: ACTION2,
+    "aria-busy": state === "starting" ? "true" : undefined,
+    "aria-label": name,
+    title: name,
+    "data-visual": number,
+    onClick: state === "starting" ? undefined : () => void makeVisual(number),
+    children: /* @__PURE__ */ jsx_runtime24.jsx(Icon, {
+      name: "diff"
+    })
+  });
+}
+function Landed({
+  history: history2,
+  error,
+  presses
+}) {
+  return /* @__PURE__ */ jsx_runtime24.jsxs(jsx_runtime24.Fragment, {
+    children: [
+      /* @__PURE__ */ jsx_runtime24.jsx("div", {
+        className: "flex min-h-12 flex-none items-center justify-between gap-3 py-2.5 pr-2.5 pl-4 phone:min-h-14",
+        children: /* @__PURE__ */ jsx_runtime24.jsx("h2", {
+          className: "m-0 text-[0.875rem] text-foreground [overflow-wrap:anywhere]",
+          children: history2 ? `Landed on ${history2.trunk}` : "Landed history"
+        })
+      }),
+      /* @__PURE__ */ jsx_runtime24.jsx("div", {
+        className: "min-h-0 flex-1 overflow-y-auto px-[18px] pb-[18px] phone:scroll-pb-[calc(var(--dock)+8px)]",
+        children: !history2 ? /* @__PURE__ */ jsx_runtime24.jsx("p", {
+          className: NOTE3,
+          children: error ? `Cannot read history: ${error}` : "Loading landed history…"
+        }) : /* @__PURE__ */ jsx_runtime24.jsxs(jsx_runtime24.Fragment, {
+          children: [
+            error && /* @__PURE__ */ jsx_runtime24.jsx("p", {
+              className: WARNING,
+              role: "status",
+              children: `${error}. History shows the last good read.`
+            }),
+            /* @__PURE__ */ jsx_runtime24.jsx("p", {
+              className: NOTE3,
+              children: "Latest 20 issues."
+            }),
+            history2.entries.length ? /* @__PURE__ */ jsx_runtime24.jsx("ol", {
+              className: "m-0 grid list-none grid-cols-[minmax(46px,max-content)_minmax(0,1fr)_auto] gap-x-2.5 p-0",
+              children: history2.entries.map((entry) => /* @__PURE__ */ jsx_runtime24.jsxs("li", {
+                className: "col-span-3 grid grid-cols-subgrid items-center gap-y-1.5 border-b border-border py-4 text-[0.8125rem] [grid-template-areas:'title_title_action'_'._meta_action'] [&:hover]:bg-secondary",
+                children: [
+                  /* @__PURE__ */ jsx_runtime24.jsxs("button", {
+                    type: "button",
+                    className: "group/open grid cursor-pointer grid-cols-subgrid items-baseline rounded-md phone:min-h-11 border-0 bg-transparent p-0 text-left text-[0.8125rem] [grid-area:title] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring focus-visible:outline-solid",
+                    "data-history-key": entry.number,
+                    onClick: () => openIssue(entry.number, "conversation", "history"),
+                    children: [
+                      /* @__PURE__ */ jsx_runtime24.jsx("span", {
+                        className: "font-mono text-[0.75rem] text-muted-foreground",
+                        children: `#${entry.number}`
+                      }),
+                      /* @__PURE__ */ jsx_runtime24.jsx("span", {
+                        className: "text-foreground [overflow-wrap:anywhere] group-hover/open:underline group-hover/open:underline-offset-[3px]",
+                        children: entry.title
+                      })
+                    ]
+                  }),
+                  /* @__PURE__ */ jsx_runtime24.jsxs("span", {
+                    className: "flex items-baseline gap-1.5 text-[0.75rem] text-muted-foreground [align-self:start] [grid-area:meta]",
+                    children: [
+                      /* @__PURE__ */ jsx_runtime24.jsx(CommitLink, {
+                        entry
+                      }),
+                      /* @__PURE__ */ jsx_runtime24.jsx("span", {
+                        "aria-hidden": "true",
+                        children: "·"
+                      }),
+                      /* @__PURE__ */ jsx_runtime24.jsx("time", {
+                        dateTime: entry.committedAt,
+                        title: `Commit time: ${clock(entry.committedAt, true)}`,
+                        children: clock(entry.committedAt, true)
+                      })
+                    ]
+                  }),
+                  /* @__PURE__ */ jsx_runtime24.jsx(VisualControl, {
+                    entry,
+                    isPressed: presses.has(entry.number)
+                  })
+                ]
+              }, entry.number))
+            }) : /* @__PURE__ */ jsx_runtime24.jsx("p", {
+              className: NOTE3,
+              children: `No landed issues found on ${history2.trunk}.`
+            }),
+            history2.url && /* @__PURE__ */ jsx_runtime24.jsx(Link, {
+              className: "mt-4 inline-block text-card-foreground underline underline-offset-[3px] [overflow-wrap:anywhere]",
+              url: history2.url,
+              children: `View ${history2.trunk}`
+            })
+          ]
+        })
+      })
+    ]
+  });
+}
+function CommitLink({ entry }) {
+  return /* @__PURE__ */ jsx_runtime24.jsx(Link, {
+    className: cn("font-mono text-[0.75rem] text-muted-foreground", LINK2),
+    url: entry.commitUrl,
+    label: `Commit ${entry.sha}`,
+    title: entry.sha,
+    children: entry.sha.slice(0, 7)
+  });
+}
+function History() {
+  const isShown = useShellStore((state) => state.shell.tab === "history");
+  const [wasShown, setShown] = import_react28.useState(isShown);
+  if (isShown && !wasShown)
+    setShown(true);
+  const history2 = useScreen((state) => state.read?.history);
+  const sourceError = useScreen((state) => state.read?.source.error);
+  const presses = useScreen((state) => state.visualPresses);
+  const { isError } = useQuery(viewOptions);
+  const kept = useKeptFocus((box, lost) => {
+    const historyKey = lost.dataset.historyKey;
+    const visual = lost.dataset.visual;
+    const href = lost.getAttribute("href");
+    const label = lost.getAttribute("aria-label");
+    const match = [...box.querySelectorAll("a, button, [data-visual]")].find((node) => historyKey ? node.dataset.historyKey === historyKey : visual ? node.dataset.visual === visual : href ? node.getAttribute("href") === href && node.className === lost.className && node.getAttribute("aria-label") === label : node.getAttribute("aria-label") === label);
+    return match ?? box.querySelector("button");
+  });
+  useKeptScroll(() => [...kept.ref.current?.querySelectorAll(".overflow-y-auto") ?? []], history2);
+  return /* @__PURE__ */ jsx_runtime24.jsx(TabsContent, {
+    ...kept,
+    value: "history",
+    keepMounted: true,
+    render: /* @__PURE__ */ jsx_runtime24.jsx("section", {}),
+    className: "flex min-h-0 flex-1 flex-col",
+    id: "history-pane",
+    tabIndex: undefined,
+    "data-state": wasShown ? "history" : undefined,
+    children: wasShown && /* @__PURE__ */ jsx_runtime24.jsx(Landed, {
+      history: history2,
+      error: isError ? SERVER_DOWN : sourceError,
+      presses
+    })
+  });
+}
+
 // engine/board/page/operations/views.tsx
-var import_react29 = __toESM(require_react());
+var import_react32 = __toESM(require_react());
 
 // engine/board/page/operations/card.tsx
-var import_react28 = __toESM(require_react());
+var import_react31 = __toESM(require_react());
 
 // engine/board/page/ui/card.tsx
-var jsx_runtime23 = __toESM(require_jsx_runtime());
+var jsx_runtime25 = __toESM(require_jsx_runtime());
 var cardVariants = cva("group/card rounded-xl border border-border bg-card text-card-foreground", {
   variants: { inset: { default: "min-w-0 p-5 shadow-raise phone:p-4", none: "" } },
   defaultVariants: { inset: "default" }
@@ -39351,14 +52052,14 @@ function Card({
   });
 }
 function CardTitle({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime23.jsx("h3", {
+  return /* @__PURE__ */ jsx_runtime25.jsx("h3", {
     "data-slot": "card-title",
     className: cn("text-sm leading-[1.4] font-semibold text-foreground", className),
     ...props
   });
 }
 function CardDescription({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime23.jsx("p", {
+  return /* @__PURE__ */ jsx_runtime25.jsx("p", {
     "data-slot": "card-description",
     className: cn("mt-2 mb-0 text-[0.78125rem] leading-normal text-pretty text-muted-foreground", className),
     ...props
@@ -39584,7 +52285,7 @@ function useMenuItem(params) {
 
 // engine/node_modules/@base-ui/react/menu/item/MenuItem.mjs
 var React124 = __toESM(require_react(), 1);
-var import_jsx_runtime32 = __toESM(require_jsx_runtime(), 1);
+var import_jsx_runtime33 = __toESM(require_jsx_runtime(), 1);
 "use client";
 var MenuItemPlain = /* @__PURE__ */ React124.forwardRef(function MenuItemPlain(componentProps, forwardedRef) {
   const {
@@ -39641,7 +52342,7 @@ var MenuItem = /* @__PURE__ */ React124.forwardRef(function MenuItem(props, forw
   if (!filterItem.visible) {
     return null;
   }
-  return /* @__PURE__ */ import_jsx_runtime32.jsx(MenuItemPlain, {
+  return /* @__PURE__ */ import_jsx_runtime33.jsx(MenuItemPlain, {
     ...props,
     ref: filterItem.ref
   });
@@ -39708,7 +52409,7 @@ function resolvePopupLabel(props, activeTriggerElement, activeTriggerId) {
 }
 
 // engine/node_modules/@base-ui/react/menu/popup/MenuPopup.mjs
-var import_jsx_runtime33 = __toESM(require_jsx_runtime(), 1);
+var import_jsx_runtime34 = __toESM(require_jsx_runtime(), 1);
 "use client";
 var MenuPopupPlain = /* @__PURE__ */ React129.forwardRef(function MenuPopupPlain(componentProps, forwardedRef) {
   const {
@@ -39828,7 +52529,7 @@ var MenuPopupPlain = /* @__PURE__ */ React129.forwardRef(function MenuPopupPlain
     returnFocus = true;
   }
   const dynamicReturnFocus = submenuRootContext?.getReturnElement ?? parentVirtualFocusRef;
-  return /* @__PURE__ */ import_jsx_runtime33.jsx(FloatingFocusManager, {
+  return /* @__PURE__ */ import_jsx_runtime34.jsx(FloatingFocusManager, {
     context: floatingContext,
     openInteractionType: openMethod,
     modal: isContextMenu,
@@ -39856,7 +52557,7 @@ function useNoParentHandoff() {
 }
 var MenuPopup = /* @__PURE__ */ React129.forwardRef(function MenuPopup(props, forwardedRef) {
   const Popup = useMenuFilterImpl()?.Popup ?? MenuPopupPlain;
-  return /* @__PURE__ */ import_jsx_runtime33.jsx(Popup, {
+  return /* @__PURE__ */ import_jsx_runtime34.jsx(Popup, {
     ...props,
     ref: forwardedRef
   });
@@ -39881,7 +52582,7 @@ function useMenuPortalContext() {
 }
 
 // engine/node_modules/@base-ui/react/menu/portal/MenuPortal.mjs
-var import_jsx_runtime34 = __toESM(require_jsx_runtime(), 1);
+var import_jsx_runtime35 = __toESM(require_jsx_runtime(), 1);
 "use client";
 var MenuPortal = /* @__PURE__ */ React131.forwardRef(function MenuPortal(props, forwardedRef) {
   const {
@@ -39898,9 +52599,9 @@ var MenuPortal = /* @__PURE__ */ React131.forwardRef(function MenuPortal(props, 
     return null;
   }
   const portalOwnerRole = parent.type === "menu" || parent.type === "menubar" ? "group" : undefined;
-  return /* @__PURE__ */ import_jsx_runtime34.jsx(MenuPortalContext.Provider, {
+  return /* @__PURE__ */ import_jsx_runtime35.jsx(MenuPortalContext.Provider, {
     value: keepMounted,
-    children: /* @__PURE__ */ import_jsx_runtime34.jsx(FloatingPortal, {
+    children: /* @__PURE__ */ import_jsx_runtime35.jsx(FloatingPortal, {
       ref: forwardedRef,
       ...portalProps,
       portalOwnerRole
@@ -39962,7 +52663,7 @@ function useTriggerSwitchTransition(parameters) {
 }
 
 // engine/node_modules/@base-ui/react/menu/positioner/MenuPositioner.mjs
-var import_jsx_runtime35 = __toESM(require_jsx_runtime(), 1);
+var import_jsx_runtime36 = __toESM(require_jsx_runtime(), 1);
 "use client";
 var MenuPositioner = /* @__PURE__ */ React133.forwardRef(function MenuPositioner(componentProps, forwardedRef) {
   const {
@@ -40159,15 +52860,15 @@ var MenuPositioner = /* @__PURE__ */ React133.forwardRef(function MenuPositioner
   } else if (parent.type === undefined) {
     backdropCutout = triggerElement;
   }
-  return /* @__PURE__ */ import_jsx_runtime35.jsxs(MenuPositionerContext.Provider, {
+  return /* @__PURE__ */ import_jsx_runtime36.jsxs(MenuPositionerContext.Provider, {
     value: positioner,
-    children: [shouldRenderBackdrop && /* @__PURE__ */ import_jsx_runtime35.jsx(InternalBackdrop, {
+    children: [shouldRenderBackdrop && /* @__PURE__ */ import_jsx_runtime36.jsx(InternalBackdrop, {
       ref: parent.type === "context-menu" || parent.type === "nested-context-menu" ? parent.context.internalBackdropRef : null,
       inert: inertValue(!open),
       cutout: backdropCutout
-    }), /* @__PURE__ */ import_jsx_runtime35.jsx(FloatingNode, {
+    }), /* @__PURE__ */ import_jsx_runtime36.jsx(FloatingNode, {
       id: floatingNodeId,
-      children: /* @__PURE__ */ import_jsx_runtime35.jsx(CompositeList, {
+      children: /* @__PURE__ */ import_jsx_runtime36.jsx(CompositeList, {
         elementsRef: store.context.itemDomElements,
         labelsRef: store.context.itemLabels,
         onMapChange: syncHighlightedItem,
@@ -40380,7 +53081,7 @@ function isKeyboardOpen(reason, event) {
 }
 
 // engine/node_modules/@base-ui/react/menu/root/MenuRoot.mjs
-var import_jsx_runtime36 = __toESM(require_jsx_runtime(), 1);
+var import_jsx_runtime37 = __toESM(require_jsx_runtime(), 1);
 "use client";
 var MenuRootInternal = fastComponent(function MenuRootInternal(props) {
   const {
@@ -40808,15 +53509,15 @@ var MenuRootInternal = fastComponent(function MenuRootInternal(props) {
   const renderedChildren = typeof children === "function" ? children({
     payload
   }) : children;
-  let content = /* @__PURE__ */ import_jsx_runtime36.jsxs(MenuRootContext.Provider, {
+  let content = /* @__PURE__ */ import_jsx_runtime37.jsxs(MenuRootContext.Provider, {
     value: context,
-    children: [handle && /* @__PURE__ */ import_jsx_runtime36.jsx(PopupHandleAttachment, {
+    children: [handle && /* @__PURE__ */ import_jsx_runtime37.jsx(PopupHandleAttachment, {
       handle,
       store
     }), renderedChildren]
   });
   if (parent.type === undefined || parent.type === "context-menu") {
-    content = /* @__PURE__ */ import_jsx_runtime36.jsx(FloatingTree, {
+    content = /* @__PURE__ */ import_jsx_runtime37.jsx(FloatingTree, {
       externalTree: floatingTreeRoot,
       children: content
     });
@@ -40828,14 +53529,14 @@ if (false)
 function MenuRoot(props) {
   const filterProvider = React137.useContext(MenuFilterProviderContext);
   if (filterProvider === null) {
-    return /* @__PURE__ */ import_jsx_runtime36.jsx(MenuRootInternal, {
+    return /* @__PURE__ */ import_jsx_runtime37.jsx(MenuRootInternal, {
       ...props
     });
   }
   const FilterRoot = filterProvider.Root;
-  return /* @__PURE__ */ import_jsx_runtime36.jsx(MenuFilterProviderContext.Provider, {
+  return /* @__PURE__ */ import_jsx_runtime37.jsx(MenuFilterProviderContext.Provider, {
     value: null,
-    children: /* @__PURE__ */ import_jsx_runtime36.jsx(FilterRoot, {
+    children: /* @__PURE__ */ import_jsx_runtime37.jsx(FilterRoot, {
       ...filterProvider.options,
       ...props
     })
@@ -40948,7 +53649,7 @@ function useMixedToggleClickHandler(params) {
 }
 
 // engine/node_modules/@base-ui/react/menu/trigger/MenuTrigger.mjs
-var import_jsx_runtime37 = __toESM(require_jsx_runtime(), 1);
+var import_jsx_runtime38 = __toESM(require_jsx_runtime(), 1);
 "use client";
 var MenuTrigger = fastComponentRef(function MenuTrigger(componentProps, forwardedRef) {
   const {
@@ -41120,7 +53821,7 @@ var MenuTrigger = fastComponentRef(function MenuTrigger(componentProps, forwarde
     props
   });
   if (isInMenubar) {
-    return /* @__PURE__ */ import_jsx_runtime37.jsx(CompositeItem, {
+    return /* @__PURE__ */ import_jsx_runtime38.jsx(CompositeItem, {
       tag: "button",
       render,
       className,
@@ -41132,19 +53833,19 @@ var MenuTrigger = fastComponentRef(function MenuTrigger(componentProps, forwarde
     });
   }
   if (isOpenedByThisTrigger) {
-    return /* @__PURE__ */ import_jsx_runtime37.jsxs(React139.Fragment, {
-      children: [/* @__PURE__ */ import_jsx_runtime37.jsx(FocusGuard, {
+    return /* @__PURE__ */ import_jsx_runtime38.jsxs(React139.Fragment, {
+      children: [/* @__PURE__ */ import_jsx_runtime38.jsx(FocusGuard, {
         ref: store.context.beforeTriggerFocusGuardRef,
         onFocus: handlePreFocusGuardFocus
-      }, `${thisTriggerId}-pre-focus-guard`), /* @__PURE__ */ import_jsx_runtime37.jsx(React139.Fragment, {
+      }, `${thisTriggerId}-pre-focus-guard`), /* @__PURE__ */ import_jsx_runtime38.jsx(React139.Fragment, {
         children: element
-      }, thisTriggerId), /* @__PURE__ */ import_jsx_runtime37.jsx(FocusGuard, {
+      }, thisTriggerId), /* @__PURE__ */ import_jsx_runtime38.jsx(FocusGuard, {
         ref: store.context.triggerFocusTargetRef,
         onFocus: handleFocusTargetFocus
       }, `${thisTriggerId}-post-focus-guard`)]
     });
   }
-  return /* @__PURE__ */ import_jsx_runtime37.jsx(React139.Fragment, {
+  return /* @__PURE__ */ import_jsx_runtime38.jsx(React139.Fragment, {
     children: element
   }, thisTriggerId);
 });
@@ -41182,15 +53883,15 @@ function useMenuParent() {
   return parent;
 }
 // engine/board/page/ui/dropdown-menu.tsx
-var jsx_runtime24 = __toESM(require_jsx_runtime());
+var jsx_runtime26 = __toESM(require_jsx_runtime());
 function DropdownMenu(props) {
-  return /* @__PURE__ */ jsx_runtime24.jsx(MenuRoot, {
+  return /* @__PURE__ */ jsx_runtime26.jsx(MenuRoot, {
     "data-slot": "dropdown-menu",
     ...props
   });
 }
 function DropdownMenuTrigger(props) {
-  return /* @__PURE__ */ jsx_runtime24.jsx(MenuTrigger, {
+  return /* @__PURE__ */ jsx_runtime26.jsx(MenuTrigger, {
     "data-slot": "dropdown-menu-trigger",
     ...props
   });
@@ -41204,15 +53905,15 @@ function DropdownMenuContent({
   className,
   ...props
 }) {
-  return /* @__PURE__ */ jsx_runtime24.jsx(MenuPortal, {
-    children: /* @__PURE__ */ jsx_runtime24.jsx(MenuPositioner, {
+  return /* @__PURE__ */ jsx_runtime26.jsx(MenuPortal, {
+    children: /* @__PURE__ */ jsx_runtime26.jsx(MenuPositioner, {
       className: cn("isolate z-50 outline-none", positionerClassName),
       anchor,
       align,
       side,
       sideOffset,
       collisionPadding: 12,
-      children: /* @__PURE__ */ jsx_runtime24.jsx(MenuPopup, {
+      children: /* @__PURE__ */ jsx_runtime26.jsx(MenuPopup, {
         "data-slot": "dropdown-menu-content",
         className: cn("max-h-(--available-height) w-max min-w-60 max-w-[min(340px,calc(100vw-16px))] overflow-auto rounded-xl bg-popover p-[5px] text-popover-foreground shadow-float outline-none phone:max-w-[calc(100vw-24px)]", className),
         ...props
@@ -41221,14 +53922,14 @@ function DropdownMenuContent({
   });
 }
 function DropdownMenuItem({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime24.jsx(MenuItem, {
+  return /* @__PURE__ */ jsx_runtime26.jsx(MenuItem, {
     "data-slot": "dropdown-menu-item",
     className: cn("grid min-h-8 w-full cursor-pointer grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[7px] px-[9px] py-1.5 text-left text-[0.8125rem] outline-none [&:hover]:bg-accent focus-visible:bg-accent focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-ring aria-disabled:cursor-not-allowed aria-disabled:opacity-45 phone:min-h-11 [&_.icon]:size-3.5 [&_.icon]:text-muted-foreground [&_kbd]:min-h-5 [&_kbd]:min-w-5 [&_kbd]:text-[0.6875rem] [&_kbd]:text-card-foreground pointer-coarse:[&_kbd]:hidden phone:[&_kbd]:hidden", className),
     ...props
   });
 }
 function DropdownMenuSeparator({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime24.jsx(Separator, {
+  return /* @__PURE__ */ jsx_runtime26.jsx(Separator, {
     "data-slot": "dropdown-menu-separator",
     className: cn("mx-1 my-[5px] h-px bg-border", className),
     ...props
@@ -41236,10 +53937,10 @@ function DropdownMenuSeparator({ className, ...props }) {
 }
 
 // engine/board/page/ui/menu-entries.tsx
-var import_react26 = __toESM(require_react());
-var jsx_runtime25 = __toESM(require_jsx_runtime());
+var import_react29 = __toESM(require_react());
+var jsx_runtime27 = __toESM(require_jsx_runtime());
 function Entries2({ list, close }) {
-  return list().map((entry, at) => entry === "rule" ? /* @__PURE__ */ jsx_runtime25.jsx(DropdownMenuSeparator, {}, `rule-${at}`) : /* @__PURE__ */ jsx_runtime25.jsxs(DropdownMenuItem, {
+  return list().map((entry, at) => entry === "rule" ? /* @__PURE__ */ jsx_runtime27.jsx(DropdownMenuSeparator, {}, `rule-${at}`) : /* @__PURE__ */ jsx_runtime27.jsxs(DropdownMenuItem, {
     title: entry.title,
     "aria-disabled": entry.isDisabled ? "true" : undefined,
     closeOnClick: false,
@@ -41248,69 +53949,69 @@ function Entries2({ list, close }) {
       queueMicrotask(entry.run);
     },
     children: [
-      entry.host ? /* @__PURE__ */ jsx_runtime25.jsx("span", {
+      entry.host ? /* @__PURE__ */ jsx_runtime27.jsx("span", {
         className: "grid size-4 place-items-center",
-        children: /* @__PURE__ */ jsx_runtime25.jsx("img", {
+        children: /* @__PURE__ */ jsx_runtime27.jsx("img", {
           className: "block size-4",
           src: AGENT_ICONS[entry.host],
           alt: ""
         })
-      }) : /* @__PURE__ */ jsx_runtime25.jsx(Icon, {
+      }) : /* @__PURE__ */ jsx_runtime27.jsx(Icon, {
         name: entry.icon
       }),
-      /* @__PURE__ */ jsx_runtime25.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime27.jsxs("div", {
         className: "flex min-w-0 items-center gap-2",
         children: [
-          /* @__PURE__ */ jsx_runtime25.jsx("span", {
+          /* @__PURE__ */ jsx_runtime27.jsx("span", {
             children: entry.label
           }),
-          entry.tag && /* @__PURE__ */ jsx_runtime25.jsx("em", {
+          entry.tag && /* @__PURE__ */ jsx_runtime27.jsx("em", {
             className: "flex-none rounded-full bg-accent px-[7px] py-px text-[0.6875rem] text-foreground not-italic",
             children: entry.tag
           })
         ]
       }),
-      entry.key ? /* @__PURE__ */ jsx_runtime25.jsx(Kbd, {
+      entry.key ? /* @__PURE__ */ jsx_runtime27.jsx(Kbd, {
         children: entry.key
-      }) : /* @__PURE__ */ jsx_runtime25.jsx("span", {})
+      }) : /* @__PURE__ */ jsx_runtime27.jsx("span", {})
     ]
   }, entry.label));
 }
 function FirstFocus() {
-  const ref = import_react26.useRef(null);
-  import_react26.useEffect(() => {
+  const ref = import_react29.useRef(null);
+  import_react29.useEffect(() => {
     ref.current?.parentElement?.querySelector('[role="menuitem"]')?.focus({ preventScroll: true });
   }, []);
-  return /* @__PURE__ */ jsx_runtime25.jsx("span", {
+  return /* @__PURE__ */ jsx_runtime27.jsx("span", {
     ref,
     hidden: true
   });
 }
 
 // engine/board/page/operations/held.tsx
-var import_react27 = __toESM(require_react());
-var jsx_runtime26 = __toESM(require_jsx_runtime());
+var import_react30 = __toESM(require_react());
+var jsx_runtime28 = __toESM(require_jsx_runtime());
 var short = (sha) => sha.slice(0, 7);
 function Moved({ card, held, id }) {
   if (held.state !== "held" || held.tip === held.head)
     return null;
   if (held.tip === null)
-    return /* @__PURE__ */ jsx_runtime26.jsx("p", {
+    return /* @__PURE__ */ jsx_runtime28.jsx("p", {
       id,
       className: WARNING,
       children: `The board cannot read the branch tip of #${card.number}, so Land is off. Check the lane branch.`
     });
-  return /* @__PURE__ */ jsx_runtime26.jsxs("p", {
+  return /* @__PURE__ */ jsx_runtime28.jsxs("p", {
     id,
     className: WARNING,
     children: [
       `The lane branch moved from head ${short(held.head)} to ${short(held.tip)}, so Land is off. Review it:`,
-      /* @__PURE__ */ jsx_runtime26.jsx("code", {
+      /* @__PURE__ */ jsx_runtime28.jsx("code", {
         className: "mt-1 mb-2 block font-mono [overflow-wrap:anywhere]",
         children: `git diff ${held.head}..${held.tip}`
       }),
       "Then land it by hand:",
-      /* @__PURE__ */ jsx_runtime26.jsx("code", {
+      /* @__PURE__ */ jsx_runtime28.jsx("code", {
         className: "mt-1 block font-mono [overflow-wrap:anywhere]",
         children: `celetis --agent <host> land ${card.number} '<subject>'`
       })
@@ -41319,23 +54020,23 @@ function Moved({ card, held, id }) {
 }
 function HeldPanel({ card }) {
   const { held } = card;
-  const noteId = import_react27.useId();
-  const [isOpen, setOpen] = import_react27.useState(false);
-  const [pressed, setPressed] = import_react27.useState(null);
-  const [refused, setRefused] = import_react27.useState(null);
-  const pressing = import_react27.useRef(false);
-  const cancel = import_react27.useRef(null);
+  const noteId = import_react30.useId();
+  const [isOpen, setOpen] = import_react30.useState(false);
+  const [pressed, setPressed] = import_react30.useState(null);
+  const [refused, setRefused] = import_react30.useState(null);
+  const pressing = import_react30.useRef(false);
+  const cancel = import_react30.useRef(null);
   const isLanding = pressed === "land" || Boolean(card.landing);
   const isDiscarding = pressed === "discard";
   const isBusy = isLanding || isDiscarding;
   const isOff = held !== null && held !== undefined && held.state === "held" && held.tip !== held.head;
-  import_react27.useEffect(() => {
+  import_react30.useEffect(() => {
     if (isLanding) {
       announce("Landing…");
       setOpen(false);
     }
   }, [isLanding]);
-  import_react27.useEffect(() => {
+  import_react30.useEffect(() => {
     if (isDiscarding)
       announce("Discarding…");
   }, [isDiscarding]);
@@ -41361,20 +54062,20 @@ function HeldPanel({ card }) {
         setRefused({ head: held.head, line });
     });
   };
-  return /* @__PURE__ */ jsx_runtime26.jsxs(jsx_runtime26.Fragment, {
+  return /* @__PURE__ */ jsx_runtime28.jsxs(jsx_runtime28.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime26.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime28.jsxs("div", {
         "data-held": "",
         className: "flex flex-wrap items-center justify-between gap-x-2.5 gap-y-1.5",
         children: [
-          held && /* @__PURE__ */ jsx_runtime26.jsxs("span", {
+          held && /* @__PURE__ */ jsx_runtime28.jsxs("span", {
             className: "inline-flex min-w-0 gap-[5px] font-mono text-[0.6875rem] leading-none whitespace-nowrap text-muted-foreground tabular-nums",
             children: [
-              /* @__PURE__ */ jsx_runtime26.jsxs("span", {
+              /* @__PURE__ */ jsx_runtime28.jsxs("span", {
                 title: "Head commit",
                 children: [
                   "head ",
-                  /* @__PURE__ */ jsx_runtime26.jsx("button", {
+                  /* @__PURE__ */ jsx_runtime28.jsx("button", {
                     type: "button",
                     "aria-label": `Copy the full head SHA ${short(held.head)}`,
                     title: "Copy the full head SHA",
@@ -41384,20 +54085,20 @@ function HeldPanel({ card }) {
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime26.jsx("span", {
+              /* @__PURE__ */ jsx_runtime28.jsx("span", {
                 "aria-hidden": "true",
                 children: "·"
               }),
-              /* @__PURE__ */ jsx_runtime26.jsx("span", {
+              /* @__PURE__ */ jsx_runtime28.jsx("span", {
                 title: "Patch ID",
                 children: `patch ${short(held.patch)}`
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime26.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime28.jsxs("div", {
             className: "ml-auto inline-flex flex-none items-center gap-1",
             children: [
-              held && /* @__PURE__ */ jsx_runtime26.jsx(Button2, {
+              held && /* @__PURE__ */ jsx_runtime28.jsx(Button2, {
                 variant: "primary",
                 size: "action",
                 "aria-disabled": isOff || isBusy ? "true" : undefined,
@@ -41406,7 +54107,7 @@ function HeldPanel({ card }) {
                 onClick: land,
                 children: isLanding ? "Landing…" : "Land"
               }),
-              /* @__PURE__ */ jsx_runtime26.jsx(Button2, {
+              /* @__PURE__ */ jsx_runtime28.jsx(Button2, {
                 variant: "quiet",
                 size: "action",
                 "aria-disabled": isBusy ? "true" : undefined,
@@ -41421,38 +54122,38 @@ function HeldPanel({ card }) {
           })
         ]
       }),
-      held && /* @__PURE__ */ jsx_runtime26.jsx(Moved, {
+      held && /* @__PURE__ */ jsx_runtime28.jsx(Moved, {
         card,
         held,
         id: noteId
       }),
-      held?.state === "released" && refused?.head === held.head && /* @__PURE__ */ jsx_runtime26.jsx("p", {
+      held?.state === "released" && refused?.head === held.head && /* @__PURE__ */ jsx_runtime28.jsx("p", {
         className: WARNING,
         children: refused.line
       }),
-      /* @__PURE__ */ jsx_runtime26.jsx(AlertDialog, {
+      /* @__PURE__ */ jsx_runtime28.jsx(AlertDialog, {
         open: isOpen,
         onOpenChange: setOpen,
-        children: /* @__PURE__ */ jsx_runtime26.jsxs(AlertDialogContent, {
+        children: /* @__PURE__ */ jsx_runtime28.jsxs(AlertDialogContent, {
           initialFocus: cancel,
           children: [
-            /* @__PURE__ */ jsx_runtime26.jsxs(AlertDialogTitle, {
+            /* @__PURE__ */ jsx_runtime28.jsxs(AlertDialogTitle, {
               children: [
                 "Discard #",
                 card.number,
                 "?"
               ]
             }),
-            /* @__PURE__ */ jsx_runtime26.jsx(AlertDialogDescription, {
+            /* @__PURE__ */ jsx_runtime28.jsx(AlertDialogDescription, {
               children: "The issue closes as wontfix and the worktree goes. The commits stay on the origin branch."
             }),
-            /* @__PURE__ */ jsx_runtime26.jsxs(AlertDialogFooter, {
+            /* @__PURE__ */ jsx_runtime28.jsxs(AlertDialogFooter, {
               children: [
-                /* @__PURE__ */ jsx_runtime26.jsx(AlertDialogCancel, {
+                /* @__PURE__ */ jsx_runtime28.jsx(AlertDialogCancel, {
                   ref: cancel,
                   children: "Cancel"
                 }),
-                /* @__PURE__ */ jsx_runtime26.jsx(AlertDialogAction, {
+                /* @__PURE__ */ jsx_runtime28.jsx(AlertDialogAction, {
                   onClick: () => {
                     setOpen(false);
                     press("discard", () => discardHeld(card));
@@ -41469,7 +54170,7 @@ function HeldPanel({ card }) {
 }
 
 // engine/board/page/operations/card.tsx
-var jsx_runtime27 = __toESM(require_jsx_runtime());
+var jsx_runtime29 = __toESM(require_jsx_runtime());
 var STATUS_ICONS = {
   works: "works",
   starts: "works",
@@ -41481,10 +54182,10 @@ var STATUS_ICONS = {
   "quota-wait": "clock"
 };
 function UnseenDot({ className }) {
-  return /* @__PURE__ */ jsx_runtime27.jsx("i", {
+  return /* @__PURE__ */ jsx_runtime29.jsx("i", {
     className: cn("size-[7px] flex-none rounded-[50%] bg-foreground shadow-[0_0_0_3px_color-mix(in_srgb,var(--fg)_14%,transparent)]", className),
     title: "Changed since you last looked",
-    children: /* @__PURE__ */ jsx_runtime27.jsx("span", {
+    children: /* @__PURE__ */ jsx_runtime29.jsx("span", {
       className: "sr-only",
       children: "Changed since you last looked"
     })
@@ -41504,20 +54205,20 @@ function Track({ card, flow, isMuted }) {
   if (!steps)
     return null;
   const at = steps.findIndex((step) => step.state === "now");
-  return /* @__PURE__ */ jsx_runtime27.jsx("span", {
+  return /* @__PURE__ */ jsx_runtime29.jsx("span", {
     className: "ml-auto inline-flex flex-none items-center gap-[3px] pl-2",
     "data-track": "",
     role: "img",
     "aria-label": `Step ${at + 1} of ${steps.length}: ${steps[at]?.name}`,
     title: steps.map((step) => step.state === "next" ? step.name : `${step.name} (${step.state === "now" ? "now" : "done"})`).join(" · "),
-    children: steps.map((step) => /* @__PURE__ */ jsx_runtime27.jsx("i", {
+    children: steps.map((step) => /* @__PURE__ */ jsx_runtime29.jsx("i", {
       className: `h-1.5 rounded-[3px] ${segOf(step.state, isMuted ? null : card.state)}`
     }, step.name))
   });
 }
 function StartLabel({ pair }) {
   const name = startName(pair);
-  return /* @__PURE__ */ jsx_runtime27.jsx("span", {
+  return /* @__PURE__ */ jsx_runtime29.jsx("span", {
     className: "inline-flex min-h-[18px] cursor-help items-stretch font-mono text-[0.6875rem] leading-none font-medium whitespace-nowrap text-card-foreground",
     title: name,
     role: "img",
@@ -41525,15 +54226,15 @@ function StartLabel({ pair }) {
     children: ["model", "level"].map((part) => {
       const isDefault = pair.source[part] === "default";
       const bothDefault = pair.source.model === "default" && pair.source.level === "default";
-      return /* @__PURE__ */ jsx_runtime27.jsxs("span", {
+      return /* @__PURE__ */ jsx_runtime29.jsxs("span", {
         className: cn("inline-flex items-center gap-[3px] px-[7px] text-foreground [&_svg.icon]:size-[9px]", part === "model" ? "rounded-l-[9px] bg-[color-mix(in_srgb,var(--fg)_17%,transparent)]" : "rounded-r-[9px] bg-accent text-card-foreground", part === "level" && pair.source.model !== "default" && !isDefault && "ml-px", isDefault && "border border-dashed border-current bg-transparent px-1.5 text-muted-foreground", isDefault && part === "level" && bothDefault && "border-l-0 pl-[7px]"),
         "data-part": part,
         "data-source": pair.source[part],
         children: [
-          pair.source[part] === "pinned" && /* @__PURE__ */ jsx_runtime27.jsx(Icon, {
+          pair.source[part] === "pinned" && /* @__PURE__ */ jsx_runtime29.jsx(Icon, {
             name: "pin"
           }),
-          /* @__PURE__ */ jsx_runtime27.jsx("span", {
+          /* @__PURE__ */ jsx_runtime29.jsx("span", {
             children: pair[part]
           })
         ]
@@ -41561,17 +54262,17 @@ function Status({
 }) {
   const quiet = isShort ? "text-muted-foreground" : "text-card-foreground";
   if (card.state === "set-aside")
-    return /* @__PURE__ */ jsx_runtime27.jsxs("span", {
+    return /* @__PURE__ */ jsx_runtime29.jsxs("span", {
       className: cn(STATUS, "min-w-0 gap-1 rounded-[999px] border border-dashed border-border-strong py-px pr-[7px] pl-[5px] text-card-foreground [&>:last-child]:flex-[0_1_auto] [&>:last-child]:overflow-hidden [&_.icon]:size-3", className),
       children: [
-        /* @__PURE__ */ jsx_runtime27.jsx(Icon, {
+        /* @__PURE__ */ jsx_runtime29.jsx(Icon, {
           name: "aside"
         }),
-        /* @__PURE__ */ jsx_runtime27.jsx("span", {
+        /* @__PURE__ */ jsx_runtime29.jsx("span", {
           className: "font-semibold text-foreground first-letter:uppercase",
           children: stateLabel(card)
         }),
-        card.step && /* @__PURE__ */ jsx_runtime27.jsx("span", {
+        card.step && /* @__PURE__ */ jsx_runtime29.jsx("span", {
           className: cn(DETAIL2, STEP, "cq-300:hidden"),
           children: card.step
         })
@@ -41579,21 +54280,21 @@ function Status({
     });
   if (card.state) {
     const agent = isShort ? null : agentOf(card, env.registry);
-    return /* @__PURE__ */ jsx_runtime27.jsxs("span", {
+    return /* @__PURE__ */ jsx_runtime29.jsxs("span", {
       className: cn(STATUS, "min-w-0 gap-[7px] [&>:last-child]:flex-[0_1_auto] [&>:last-child]:overflow-hidden", isMuted ? "text-card-foreground" : STATE_TEXT[card.state] ?? quiet, card.state === "starts" && "[&_.icon]:animate-turn [&_.icon]:text-working", className),
       children: [
-        hasGlyph && /* @__PURE__ */ jsx_runtime27.jsx(Icon, {
+        hasGlyph && /* @__PURE__ */ jsx_runtime29.jsx(Icon, {
           name: STATUS_ICONS[card.state] ?? "pending"
         }),
-        /* @__PURE__ */ jsx_runtime27.jsx("span", {
+        /* @__PURE__ */ jsx_runtime29.jsx("span", {
           className: "first-letter:uppercase",
           children: stateLabel(card)
         }),
-        agent && /* @__PURE__ */ jsx_runtime27.jsx("span", {
+        agent && /* @__PURE__ */ jsx_runtime29.jsx("span", {
           className: cn(DETAIL2, "cq-360:absolute cq-360:-m-px cq-360:size-px cq-360:overflow-hidden cq-360:[clip:rect(0_0_0_0)] cq-360:whitespace-nowrap"),
           children: agent.name
         }),
-        !isShort && card.step && card.step !== card.type && /* @__PURE__ */ jsx_runtime27.jsx("span", {
+        !isShort && card.step && card.step !== card.type && /* @__PURE__ */ jsx_runtime29.jsx("span", {
           className: cn(DETAIL2, STEP, "cq-300:hidden"),
           children: card.step
         })
@@ -41601,27 +54302,27 @@ function Status({
     });
   }
   if (!card.step)
-    return /* @__PURE__ */ jsx_runtime27.jsx("span", {
+    return /* @__PURE__ */ jsx_runtime29.jsx("span", {
       className: cn(STATUS, "min-w-0 gap-[7px] [&>:last-child]:overflow-hidden", quiet, className)
     });
-  return /* @__PURE__ */ jsx_runtime27.jsxs("span", {
+  return /* @__PURE__ */ jsx_runtime29.jsxs("span", {
     className: cn(STATUS, "min-w-[auto] gap-1 overflow-visible [&>:last-child]:flex-none [&>:last-child]:overflow-visible [&_.icon]:text-muted-foreground", isShort && "flex-wrap gap-y-1", quiet, className),
     children: [
-      hasGlyph && /* @__PURE__ */ jsx_runtime27.jsx(Icon, {
+      hasGlyph && /* @__PURE__ */ jsx_runtime29.jsx(Icon, {
         name: "pending"
       }),
-      /* @__PURE__ */ jsx_runtime27.jsx("span", {
+      /* @__PURE__ */ jsx_runtime29.jsx("span", {
         className: "font-normal text-muted-foreground",
         children: "next"
       }),
-      /* @__PURE__ */ jsx_runtime27.jsx("span", {
+      /* @__PURE__ */ jsx_runtime29.jsx("span", {
         className: cn(STEP, "font-normal text-foreground"),
         children: card.step
       }),
-      card.effort && /* @__PURE__ */ jsx_runtime27.jsx(StartLabel, {
+      card.effort && /* @__PURE__ */ jsx_runtime29.jsx(StartLabel, {
         pair: card.effort
       }),
-      card.gate === "auto" && /* @__PURE__ */ jsx_runtime27.jsx(GateLabel, {
+      card.gate === "auto" && /* @__PURE__ */ jsx_runtime29.jsx(GateLabel, {
         mode: env.auto
       })
     ]
@@ -41630,21 +54331,21 @@ function Status({
 function LiveLine({ card }) {
   if (!card.diff)
     return null;
-  return /* @__PURE__ */ jsx_runtime27.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime29.jsxs("div", {
     className: "flex min-h-[18px] min-w-0 items-center gap-2 font-mono text-[0.75rem] leading-none font-normal text-card-foreground [&_.icon]:size-[13px] [&_.icon]:text-working",
     title: "Changed since the branch left its base",
     children: [
-      /* @__PURE__ */ jsx_runtime27.jsx(Icon, {
+      /* @__PURE__ */ jsx_runtime29.jsx(Icon, {
         name: "diff"
       }),
-      /* @__PURE__ */ jsx_runtime27.jsx("span", {
+      /* @__PURE__ */ jsx_runtime29.jsx("span", {
         className: "min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap",
         children: `${card.diff.files} ${card.diff.files === 1 ? "file" : "files"} changed`
       }),
-      /* @__PURE__ */ jsx_runtime27.jsxs("span", {
+      /* @__PURE__ */ jsx_runtime29.jsxs("span", {
         className: "ml-auto flex-none text-muted-foreground tabular-nums",
         children: [
-          /* @__PURE__ */ jsx_runtime27.jsx("i", {
+          /* @__PURE__ */ jsx_runtime29.jsx("i", {
             className: "text-card-foreground not-italic",
             children: `+${card.diff.added}`
           }),
@@ -41659,21 +54360,21 @@ function ActLine({ card }) {
   const what = copyWhat(card);
   const act = card.act;
   if (!what)
-    return /* @__PURE__ */ jsx_runtime27.jsx("p", {
+    return /* @__PURE__ */ jsx_runtime29.jsx("p", {
       className: ACT,
       children: card.act
     });
-  return /* @__PURE__ */ jsx_runtime27.jsxs("p", {
+  return /* @__PURE__ */ jsx_runtime29.jsxs("p", {
     className: cn(ACT, "flex items-center gap-1.5 border-border bg-secondary py-[3px] pr-[3px] pl-2.5"),
     children: [
-      /* @__PURE__ */ jsx_runtime27.jsx("code", {
+      /* @__PURE__ */ jsx_runtime29.jsx("code", {
         className: "min-w-0 flex-1 font-mono text-[0.71875rem] leading-normal font-normal text-foreground [overflow-wrap:normal]",
         title: act,
-        children: shortPath(act).split("/").map((part, index) => /* @__PURE__ */ jsx_runtime27.jsx(import_react28.Fragment, {
-          children: index ? [/* @__PURE__ */ jsx_runtime27.jsx("wbr", {}, "w"), `/${part}`] : part
+        children: shortPath(act).split("/").map((part, index) => /* @__PURE__ */ jsx_runtime29.jsx(import_react31.Fragment, {
+          children: index ? [/* @__PURE__ */ jsx_runtime29.jsx("wbr", {}, "w"), `/${part}`] : part
         }, index))
       }),
-      /* @__PURE__ */ jsx_runtime27.jsx(IconButton, {
+      /* @__PURE__ */ jsx_runtime29.jsx(IconButton, {
         name: "copy",
         label: `Copy the ${what}`,
         title: `Copy the ${what} (c)`,
@@ -41687,11 +54388,11 @@ var NOTE4 = "m-0 text-[0.75rem] leading-[1.45] [overflow-wrap:anywhere]";
 function StartLine({ number, launch, isCompact }) {
   const now = useScreen((state) => state.now);
   const isSlow = launch.phase === "pending" && now - launch.at >= SLOW_START;
-  import_react28.useEffect(() => {
+  import_react31.useEffect(() => {
     if (isSlow)
       screen.announceStart(number);
   }, [isSlow, number]);
-  return /* @__PURE__ */ jsx_runtime27.jsx("p", {
+  return /* @__PURE__ */ jsx_runtime29.jsx("p", {
     className: cn(NOTE4, "text-card-foreground", isCompact && "col-[2/-1]"),
     "data-number": number,
     hidden: !isSlow,
@@ -41705,13 +54406,13 @@ function StartNote({
   isCompact
 }) {
   if (failure !== undefined)
-    return /* @__PURE__ */ jsx_runtime27.jsx("p", {
+    return /* @__PURE__ */ jsx_runtime29.jsx("p", {
       className: cn(NOTE4, "text-destructive", isCompact && "col-[2/-1]"),
       children: `Last start failed: ${failure}`
     });
   if (card.state !== "starts" || card.number === null || launch?.phase !== "pending")
     return null;
-  return /* @__PURE__ */ jsx_runtime27.jsx(StartLine, {
+  return /* @__PURE__ */ jsx_runtime29.jsx(StartLine, {
     number: card.number,
     launch,
     isCompact
@@ -41719,7 +54420,7 @@ function StartNote({
 }
 function AsideChip({ action }) {
   const isOpen = action.isBusy;
-  return /* @__PURE__ */ jsx_runtime27.jsxs("button", {
+  return /* @__PURE__ */ jsx_runtime29.jsxs("button", {
     type: "button",
     className: cn('group/chip ml-1 inline-flex [&_.icon]:size-[13px] h-[26px] min-w-[26px] shrink-0 cursor-pointer items-center gap-0 py-0 rounded-[7px] border border-transparent bg-transparent px-1.5 text-[0.75rem] font-medium text-muted-foreground transition-[background,border-color,color,gap] duration-150 ease-[ease] group-focus-within/card:text-card-foreground group-[:hover]/card:text-card-foreground focus-visible:gap-[5px] focus-visible:border-border focus-visible:bg-accent focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-ring no-hover:gap-[5px] phone:relative phone:before:absolute phone:before:top-1/2 phone:before:left-1/2 phone:before:h-[max(100%,44px)] phone:before:w-[max(100%,44px)] phone:before:content-[""] phone:before:[transform:translate(-50%,-50%)]', !action.isDisabled && "[&:hover]:gap-[5px] [&:hover]:border-border [&:hover]:bg-accent [&:hover]:text-foreground", action.isDisabled && "cursor-not-allowed opacity-[0.42]", isOpen && "cursor-not-allowed gap-[5px] opacity-70"),
     title: action.title,
@@ -41728,10 +54429,10 @@ function AsideChip({ action }) {
     "aria-busy": action.isBusy ? "true" : undefined,
     onClick: () => void action.run?.(),
     children: [
-      /* @__PURE__ */ jsx_runtime27.jsx(Icon, {
+      /* @__PURE__ */ jsx_runtime29.jsx(Icon, {
         name: action.icon
       }),
-      /* @__PURE__ */ jsx_runtime27.jsx("span", {
+      /* @__PURE__ */ jsx_runtime29.jsx("span", {
         className: cn("max-w-0 overflow-hidden whitespace-nowrap transition-[max-width] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-focus-visible/chip:max-w-[80px] no-hover:max-w-[80px]", !action.isDisabled && "group-[:hover]/chip:max-w-[80px]", isOpen && "max-w-[100px] group-focus-visible/chip:max-w-[100px] group-[:hover]/chip:max-w-[100px] no-hover:max-w-[100px]"),
         children: action.label
       })
@@ -41759,19 +54460,19 @@ function CardMenu({
   children
 }) {
   const close = () => screen.closeMenu(cardKey, kind);
-  return /* @__PURE__ */ jsx_runtime27.jsxs(DropdownMenu, {
+  return /* @__PURE__ */ jsx_runtime29.jsxs(DropdownMenu, {
     open: menu === kind,
     modal: false,
     onOpenChange: (isOpen) => isOpen ? screen.openMenu(cardKey, kind, isCompact) : close(),
     children: [
       children,
-      /* @__PURE__ */ jsx_runtime27.jsxs(DropdownMenuContent, {
+      /* @__PURE__ */ jsx_runtime29.jsxs(DropdownMenuContent, {
         anchor,
         "aria-label": menuName(card, kind === "actions" ? "Actions of" : "Run options of"),
         finalFocus: finalFocus(trigger, cardKey, column),
         children: [
-          /* @__PURE__ */ jsx_runtime27.jsx(FirstFocus, {}),
-          /* @__PURE__ */ jsx_runtime27.jsx(Entries2, {
+          /* @__PURE__ */ jsx_runtime29.jsx(FirstFocus, {}),
+          /* @__PURE__ */ jsx_runtime29.jsx(Entries2, {
             list,
             close
           })
@@ -41802,7 +54503,7 @@ var OPEN = {
   stop: { idle: "open-288:hidden open-304:hidden", busy: "open-317:hidden open-333:hidden" },
   aside: { idle: "open-324:hidden open-340:hidden", busy: "open-353:hidden open-369:hidden" }
 };
-var Card2 = import_react28.memo(function Card2({
+var Card2 = import_react31.memo(function Card2({
   card,
   cardKey,
   column,
@@ -41820,11 +54521,11 @@ var Card2 = import_react28.memo(function Card2({
   failure,
   launch
 }) {
-  const node = import_react28.useRef(null);
-  const more = import_react28.useRef(null);
-  const runWith = import_react28.useRef(null);
-  const columnOf = import_react28.useRef(null);
-  import_react28.useEffect(() => {
+  const node = import_react31.useRef(null);
+  const more = import_react31.useRef(null);
+  const runWith = import_react31.useRef(null);
+  const columnOf = import_react31.useRef(null);
+  import_react31.useEffect(() => {
     const col = node.current?.closest(".col");
     columnOf.current = col ? columnId(col) : null;
   });
@@ -41834,17 +54535,17 @@ var Card2 = import_react28.memo(function Card2({
   const isWaiting = column === "waiting";
   const text = card.title || `Issue #${card.number}`;
   const Heading = level;
-  const title = /* @__PURE__ */ jsx_runtime27.jsx(Heading, {
+  const title = /* @__PURE__ */ jsx_runtime29.jsx(Heading, {
     className: cn("m-0 line-clamp-2 min-w-0 font-sans text-[0.875rem] leading-[1.38] font-semibold tracking-[-0.012em] text-pretty text-foreground [&_a:hover]:underline [&_a:hover]:decoration-border-strong [&_a:hover]:underline-offset-3", isCompact && "text-[0.8125rem] leading-[1.125rem] font-medium"),
     id: `t-${cardKey}`,
     title: text,
-    children: /* @__PURE__ */ jsx_runtime27.jsx(Link, {
+    children: /* @__PURE__ */ jsx_runtime29.jsx(Link, {
       className: "",
       url: card.url,
       children: text
     })
   });
-  const number = /* @__PURE__ */ jsx_runtime27.jsx(Num, {
+  const number = /* @__PURE__ */ jsx_runtime29.jsx(Num, {
     className: isCompact ? "flex-none" : undefined,
     url: card.url,
     children: `#${card.number}`
@@ -41852,11 +54553,11 @@ var Card2 = import_react28.memo(function Card2({
   const runs = runEntries(card);
   const hasTrigger = menu !== null && (menu.kind === "run" ? runs.length > 0 : menu.isCompact === isCompact);
   const open = hasTrigger ? menu.kind : null;
-  import_react28.useEffect(() => {
+  import_react31.useEffect(() => {
     if (menu !== null && !hasTrigger)
       screen.closeMenu(cardKey, menu.kind);
   });
-  const runMenu = runs.length === 0 ? null : /* @__PURE__ */ jsx_runtime27.jsx(CardMenu, {
+  const runMenu = runs.length === 0 ? null : /* @__PURE__ */ jsx_runtime29.jsx(CardMenu, {
     kind: "run",
     card,
     cardKey,
@@ -41866,7 +54567,7 @@ var Card2 = import_react28.memo(function Card2({
     trigger: runWith,
     column: columnOf,
     list: () => runEntries(card),
-    children: /* @__PURE__ */ jsx_runtime27.jsx(DropdownMenuTrigger, {
+    children: /* @__PURE__ */ jsx_runtime29.jsx(DropdownMenuTrigger, {
       ref: runWith,
       className: buttonVariants({
         variant: "icon",
@@ -41875,13 +54576,13 @@ var Card2 = import_react28.memo(function Card2({
       }),
       "aria-label": runs.includes("rule") ? "Run with another agent or at another level" : "Run with another agent",
       title: runs.includes("rule") ? "Run with another agent or at another level" : "Run with another agent",
-      children: /* @__PURE__ */ jsx_runtime27.jsx(Icon, {
+      children: /* @__PURE__ */ jsx_runtime29.jsx(Icon, {
         name: "chevron"
       })
     })
   });
   const isIconOnly = isPipeline && isCompact && main !== undefined && !main.isMain;
-  const mainButton = main ? /* @__PURE__ */ jsx_runtime27.jsx(ActionButton, {
+  const mainButton = main ? /* @__PURE__ */ jsx_runtime29.jsx(ActionButton, {
     card,
     action: main,
     isQuiet,
@@ -41895,35 +54596,35 @@ var Card2 = import_react28.memo(function Card2({
   const isNext = !card.state && Boolean(card.step);
   const className = cn("@container cursor-default", isCompact ? "compact flex-col grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-[5px] py-2.5 pr-2.5 pl-3" : "flex flex-col gap-2 px-3.5 py-3", "relative flex-none transition-[border-color,background-color] duration-150 ease-[ease]", lookOf(isSelected, isWaits, isPipeline && column === "needs", isWaiting), isHold && "w-[340px] phone:w-auto", isSelected && "is-selected", isUnseen && "is-unseen", column === "needs" && "is-needs");
   const warning = isCompact ? cn(WARNING, "col-[2/-1] mt-1.5 px-2 py-[5px]") : WARNING;
-  const body = isCompact ? /* @__PURE__ */ jsx_runtime27.jsxs(jsx_runtime27.Fragment, {
+  const body = isCompact ? /* @__PURE__ */ jsx_runtime29.jsxs(jsx_runtime29.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime27.jsx(Mark, {
+      /* @__PURE__ */ jsx_runtime29.jsx(Mark, {
         card,
         registry: env.registry
       }),
-      /* @__PURE__ */ jsx_runtime27.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime29.jsxs("div", {
         className: "contents",
         children: [
           title,
-          /* @__PURE__ */ jsx_runtime27.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime29.jsxs("div", {
             className: "col-[2/-1] flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 overflow-hidden font-mono text-[0.75rem] leading-[1.3] font-normal text-muted-foreground",
             children: [
               number,
-              card.type && card.type !== card.step && /* @__PURE__ */ jsx_runtime27.jsxs("span", {
+              card.type && card.type !== card.step && /* @__PURE__ */ jsx_runtime29.jsxs("span", {
                 className: "inline-flex flex-none gap-1.5 whitespace-nowrap cq-340:hidden",
                 children: [
-                  /* @__PURE__ */ jsx_runtime27.jsx("span", {
+                  /* @__PURE__ */ jsx_runtime29.jsx("span", {
                     className: "opacity-60",
                     children: "·"
                   }),
                   card.type
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime27.jsx("span", {
+              /* @__PURE__ */ jsx_runtime29.jsx("span", {
                 className: isNext ? "hidden flex-none whitespace-nowrap opacity-60" : "flex-none whitespace-nowrap opacity-60",
                 children: "·"
               }),
-              /* @__PURE__ */ jsx_runtime27.jsx(Status, {
+              /* @__PURE__ */ jsx_runtime29.jsx(Status, {
                 card,
                 env,
                 hasGlyph: card.state === "starts",
@@ -41933,72 +54634,72 @@ var Card2 = import_react28.memo(function Card2({
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime27.jsx(StartNote, {
+          /* @__PURE__ */ jsx_runtime29.jsx(StartNote, {
             card,
             failure,
             launch,
             isCompact: true
           }),
-          card.warning && /* @__PURE__ */ jsx_runtime27.jsx("p", {
+          card.warning && /* @__PURE__ */ jsx_runtime29.jsx("p", {
             className: warning,
             children: card.warning
           }),
-          aside && /* @__PURE__ */ jsx_runtime27.jsx("p", {
+          aside && /* @__PURE__ */ jsx_runtime29.jsx("p", {
             className: warning,
             children: aside
           }),
-          card.state === "held" && /* @__PURE__ */ jsx_runtime27.jsx("div", {
+          card.state === "held" && /* @__PURE__ */ jsx_runtime29.jsx("div", {
             className: "col-[2/-1] mt-1",
-            children: /* @__PURE__ */ jsx_runtime27.jsx(HeldPanel, {
+            children: /* @__PURE__ */ jsx_runtime29.jsx(HeldPanel, {
               card
             })
           })
         ]
       }),
-      mainButton && (runMenu ? /* @__PURE__ */ jsx_runtime27.jsxs("div", {
+      mainButton && (runMenu ? /* @__PURE__ */ jsx_runtime29.jsxs("div", {
         className: "inline-flex items-center gap-1.5 [grid-area:1/3] cq-259:justify-self-start cq-259:[grid-area:3/2]",
         children: [
           mainButton,
           runMenu
         ]
       }) : mainButton),
-      isUnseen && /* @__PURE__ */ jsx_runtime27.jsx(UnseenDot, {
+      isUnseen && /* @__PURE__ */ jsx_runtime29.jsx(UnseenDot, {
         className: "absolute top-[9px] left-[5px]"
       })
     ]
-  }) : /* @__PURE__ */ jsx_runtime27.jsxs(jsx_runtime27.Fragment, {
+  }) : /* @__PURE__ */ jsx_runtime29.jsxs(jsx_runtime29.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime27.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime29.jsxs("div", {
         className: "flex h-[18px] min-w-0 items-center gap-[7px] [&:not(:has(>[data-track]))>button:first-of-type]:ml-auto font-mono text-[0.71875rem] leading-none font-normal text-muted-foreground phone:min-h-8",
         children: [
-          isUnseen && /* @__PURE__ */ jsx_runtime27.jsx(UnseenDot, {}),
-          /* @__PURE__ */ jsx_runtime27.jsx(Mark, {
+          isUnseen && /* @__PURE__ */ jsx_runtime29.jsx(UnseenDot, {}),
+          /* @__PURE__ */ jsx_runtime29.jsx(Mark, {
             card,
             registry: env.registry,
             identifiedByText: Boolean(card.state)
           }),
           number,
-          card.type && /* @__PURE__ */ jsx_runtime27.jsxs(jsx_runtime27.Fragment, {
+          card.type && /* @__PURE__ */ jsx_runtime29.jsxs(jsx_runtime29.Fragment, {
             children: [
-              /* @__PURE__ */ jsx_runtime27.jsx("span", {
+              /* @__PURE__ */ jsx_runtime29.jsx("span", {
                 className: cn("opacity-60", hideOnOpen),
                 children: "·"
               }),
-              /* @__PURE__ */ jsx_runtime27.jsx("span", {
+              /* @__PURE__ */ jsx_runtime29.jsx("span", {
                 className: cn("min-w-0 overflow-hidden text-ellipsis whitespace-nowrap", hideOnOpen),
                 children: card.type
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime27.jsx(Track, {
+          /* @__PURE__ */ jsx_runtime29.jsx(Track, {
             card,
             flow: env.flow,
             isMuted: isWaiting
           }),
-          headAct && /* @__PURE__ */ jsx_runtime27.jsx(AsideChip, {
+          headAct && /* @__PURE__ */ jsx_runtime29.jsx(AsideChip, {
             action: headAct
           }),
-          /* @__PURE__ */ jsx_runtime27.jsx(DropdownMenuTrigger, {
+          /* @__PURE__ */ jsx_runtime29.jsx(DropdownMenuTrigger, {
             ref: more,
             className: buttonVariants({
               variant: "icon",
@@ -42007,51 +54708,51 @@ var Card2 = import_react28.memo(function Card2({
             }),
             "aria-label": "More actions (m)",
             title: "More actions (m)",
-            children: /* @__PURE__ */ jsx_runtime27.jsx(Icon, {
+            children: /* @__PURE__ */ jsx_runtime29.jsx(Icon, {
               name: "dots"
             })
           })
         ]
       }),
       title,
-      /* @__PURE__ */ jsx_runtime27.jsx(StartNote, {
+      /* @__PURE__ */ jsx_runtime29.jsx(StartNote, {
         card,
         failure,
         launch,
         isCompact: false
       }),
-      card.state === "works" && /* @__PURE__ */ jsx_runtime27.jsx(LiveLine, {
+      card.state === "works" && /* @__PURE__ */ jsx_runtime29.jsx(LiveLine, {
         card
       }),
-      /* @__PURE__ */ jsx_runtime27.jsx(PrChips, {
+      /* @__PURE__ */ jsx_runtime29.jsx(PrChips, {
         pr: card.pr
       }),
-      card.act && card.state !== "no-progress" && /* @__PURE__ */ jsx_runtime27.jsx(ActLine, {
+      card.act && card.state !== "no-progress" && /* @__PURE__ */ jsx_runtime29.jsx(ActLine, {
         card
       }),
-      card.warning && /* @__PURE__ */ jsx_runtime27.jsx("p", {
+      card.warning && /* @__PURE__ */ jsx_runtime29.jsx("p", {
         className: warning,
         children: card.warning
       }),
-      refusal && /* @__PURE__ */ jsx_runtime27.jsx("p", {
+      refusal && /* @__PURE__ */ jsx_runtime29.jsx("p", {
         className: warning,
         children: refusal
       }),
-      card.state === "held" && /* @__PURE__ */ jsx_runtime27.jsx(HeldPanel, {
+      card.state === "held" && /* @__PURE__ */ jsx_runtime29.jsx(HeldPanel, {
         card
       }),
-      /* @__PURE__ */ jsx_runtime27.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime29.jsxs("div", {
         className: "flex min-h-7 items-center justify-between gap-2.5 cq-360:flex-col cq-360:items-stretch",
         children: [
-          /* @__PURE__ */ jsx_runtime27.jsx(Status, {
+          /* @__PURE__ */ jsx_runtime29.jsx(Status, {
             card,
             env,
             isMuted: isWaiting
           }),
-          /* @__PURE__ */ jsx_runtime27.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime29.jsxs("div", {
             className: "flex flex-none items-center gap-2 cq-360:justify-end",
             children: [
-              card.state !== "starts" && /* @__PURE__ */ jsx_runtime27.jsx(Timed, {
+              card.state !== "starts" && /* @__PURE__ */ jsx_runtime29.jsx(Timed, {
                 iso: card.since,
                 isFine: Boolean(card.sessionId) && LIVE.has(card.state),
                 className: "mr-0.5 font-mono text-[0.71875rem] leading-none font-normal text-muted-foreground normal-nums cq-360:mr-auto"
@@ -42064,7 +54765,7 @@ var Card2 = import_react28.memo(function Card2({
       })
     ]
   });
-  return /* @__PURE__ */ jsx_runtime27.jsx(CardMenu, {
+  return /* @__PURE__ */ jsx_runtime29.jsx(CardMenu, {
     kind: "actions",
     card,
     cardKey,
@@ -42074,9 +54775,9 @@ var Card2 = import_react28.memo(function Card2({
     trigger: isCompact ? node : more,
     column: columnOf,
     list: () => menuOf(card, cardKey),
-    children: /* @__PURE__ */ jsx_runtime27.jsx(Card, {
+    children: /* @__PURE__ */ jsx_runtime29.jsx(Card, {
       inset: "none",
-      render: /* @__PURE__ */ jsx_runtime27.jsx("article", {}),
+      render: /* @__PURE__ */ jsx_runtime29.jsx("article", {}),
       ref: node,
       className: `card ${className}`,
       "data-state": card.state ?? "next",
@@ -42091,7 +54792,7 @@ var Card2 = import_react28.memo(function Card2({
 });
 
 // engine/board/page/operations/views.tsx
-var jsx_runtime28 = __toESM(require_jsx_runtime());
+var jsx_runtime30 = __toESM(require_jsx_runtime());
 var MENU = '[data-slot="dropdown-menu-content"]';
 document.documentElement.style.viewTransitionName = "root";
 var markOf = (active, menu) => {
@@ -42156,9 +54857,9 @@ var targetOf = (mark) => {
 };
 var handed = null;
 var useRescue = (menu) => {
-  const mark = import_react29.useRef(null);
+  const mark = import_react32.useRef(null);
   mark.current = markOf(document.activeElement, menu);
-  import_react29.useLayoutEffect(() => {
+  import_react32.useLayoutEffect(() => {
     const lost = mark.current ?? handed;
     handed = null;
     if (!lost || lost.node.isConnected && lost.node.checkVisibility() || screen.cause() === "quiet")
@@ -42170,7 +54871,7 @@ var useRescue = (menu) => {
       return;
     targetOf(lost)?.focus({ preventScroll: true });
   });
-  import_react29.useLayoutEffect(() => () => {
+  import_react32.useLayoutEffect(() => () => {
     handed = markOf(document.activeElement, null);
     queueMicrotask(() => {
       handed = null;
@@ -42203,22 +54904,22 @@ var measureOf = (columns, isPipeline) => {
 };
 var sameMeasure = (a, b) => a.isMeasured === b.isMeasured && a.text === b.text && a.fade === b.fade && a.below.size === b.below.size && [...a.below].every((key) => b.below.has(key));
 var useMeasure = (columns, isPipeline) => {
-  const [measure, setMeasure] = import_react29.useState(UNMEASURED);
+  const [measure, setMeasure] = import_react32.useState(UNMEASURED);
   const update = () => {
     if (!columns.current)
       return;
     const next = measureOf(columns.current, isPipeline);
     setMeasure((was) => sameMeasure(was, next) ? was : next);
   };
-  const latest = import_react29.useRef(update);
+  const latest = import_react32.useRef(update);
   latest.current = update;
-  const frame = import_react29.useRef(0);
-  const later = import_react29.useRef(() => {
+  const frame = import_react32.useRef(0);
+  const later = import_react32.useRef(() => {
     cancelAnimationFrame(frame.current);
     frame.current = requestAnimationFrame(() => latest.current());
   });
-  import_react29.useLayoutEffect(() => later.current());
-  import_react29.useEffect(() => {
+  import_react32.useLayoutEffect(() => later.current());
+  import_react32.useEffect(() => {
     const board = columns.current?.parentElement;
     const measureLater = later.current;
     board?.addEventListener("scroll", measureLater, true);
@@ -42237,40 +54938,40 @@ var COL = {
   now: "flex min-h-0 min-w-0 flex-none flex-col",
   pipeline: "flex min-h-0 min-w-0 flex-col rounded-3xl border border-border bg-panel phone:w-[min(300px,80vw)] phone:flex-none"
 };
-var HEAD = {
+var HEAD2 = {
   now: "-top-2.5 sticky z-4 -mx-2.5 flex min-h-10 flex-none items-center gap-2.5 bg-panel px-4",
   pipeline: "flex min-h-[46px] flex-none items-center gap-2.5 pr-3.5 pl-4"
 };
-var BODY = {
+var BODY2 = {
   now: "relative flex min-h-0 flex-none flex-col gap-2.5 overflow-visible px-0.5 pt-0.5 pb-3",
   pipeline: "relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2.5 pt-1 pb-3 [mask-image:linear-gradient(to_bottom,#000_calc(100%-40px),transparent)]"
 };
 var COL_NAME = "min-w-0 flex-1 font-sans text-[0.84375rem] leading-[1.125rem] font-semibold tracking-[-0.01em] text-foreground";
 var GHOSTS = ["h-[116px]", "h-[92px]", "h-[76px] opacity-60"];
-var glyph = (key, hasWaits = false) => /* @__PURE__ */ jsx_runtime28.jsx("span", {
+var glyph = (key, hasWaits = false) => /* @__PURE__ */ jsx_runtime30.jsx("span", {
   className: cn("grid size-[18px] flex-none place-items-center", GLYPH[key], hasWaits && "[&_.core]:origin-[8px_8px] [&_.core]:animate-breathe"),
-  children: /* @__PURE__ */ jsx_runtime28.jsx(Icon, {
+  children: /* @__PURE__ */ jsx_runtime30.jsx(Icon, {
     name: `col-${key}`
   })
 });
 function Skeleton({ isPipeline }) {
   const at = isPipeline ? "pipeline" : "now";
-  return COLUMNS.map(({ key, name }) => /* @__PURE__ */ jsx_runtime28.jsxs("section", {
+  return COLUMNS.map(({ key, name }) => /* @__PURE__ */ jsx_runtime30.jsxs("section", {
     className: `col col-${key} ${COL[at]}`,
     children: [
-      /* @__PURE__ */ jsx_runtime28.jsxs("header", {
-        className: HEAD[at],
+      /* @__PURE__ */ jsx_runtime30.jsxs("header", {
+        className: HEAD2[at],
         children: [
           glyph(key),
-          /* @__PURE__ */ jsx_runtime28.jsx("h2", {
+          /* @__PURE__ */ jsx_runtime30.jsx("h2", {
             className: COL_NAME,
             children: name
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime28.jsx("div", {
-        className: BODY[at],
-        children: GHOSTS.map((size) => /* @__PURE__ */ jsx_runtime28.jsx("div", {
+      /* @__PURE__ */ jsx_runtime30.jsx("div", {
+        className: BODY2[at],
+        children: GHOSTS.map((size) => /* @__PURE__ */ jsx_runtime30.jsx("div", {
           className: `card @container relative flex flex-none animate-flow-fast cursor-default flex-col gap-2 rounded-xl border border-transparent px-3.5 py-3 transition-[border-color,background-color] duration-150 ease-[ease] [background:linear-gradient(100deg,var(--card)_40%,var(--card-hover)_50%,var(--card)_60%)_0_0/300%_100%] [box-shadow:none] ${size}`
         }, size))
       })
@@ -42287,42 +54988,42 @@ function HumanPill({
   const [go] = actionsOf(card);
   const isDialog = card.waitFor === "dialog";
   const isAlert = isTurn || isDialog;
-  return /* @__PURE__ */ jsx_runtime28.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime30.jsxs("div", {
     className: cn("human-pill inline-flex min-h-7 max-w-full min-w-0 items-center rounded-lg border shadow-raise phone:min-h-[46px]", isSelected ? "border-[color-mix(in_srgb,var(--focus)_70%,transparent)]" : isDialog ? "border-[color-mix(in_srgb,var(--needs-tint)_55%,transparent)]" : "border-border", isDialog ? "bg-[color-mix(in_srgb,var(--needs-tint)_8%,var(--card))]" : "bg-card [&:hover]:bg-card-hover"),
     "data-state": card.state ?? "",
     "data-wait": card.waitFor ?? "",
     "data-your-turn": isTurn ? "" : undefined,
     children: [
-      /* @__PURE__ */ jsx_runtime28.jsxs("button", {
+      /* @__PURE__ */ jsx_runtime30.jsxs("button", {
         type: "button",
         className: cn("inline-flex min-w-0 items-center gap-2 self-stretch rounded-l-lg border-0 bg-transparent py-0 pr-2 pl-[7px] font-sans text-[0.78125rem] leading-none font-medium whitespace-nowrap text-muted-foreground", isSelected && "is-selected"),
         "data-key": cardKey,
         title: "Show the details and the screen of this session",
         onClick: () => isSelected ? closeDetails(true) : openDetails(cardKey),
         children: [
-          /* @__PURE__ */ jsx_runtime28.jsx(Mark, {
+          /* @__PURE__ */ jsx_runtime30.jsx(Mark, {
             card,
             registry
           }),
-          /* @__PURE__ */ jsx_runtime28.jsx("span", {
+          /* @__PURE__ */ jsx_runtime30.jsx("span", {
             className: cn("max-w-[14em] shrink-0 overflow-hidden leading-[1.3] text-ellipsis text-foreground phone:min-w-0 phone:shrink", isTurn && "font-semibold"),
             children: card.title || "A session"
           }),
-          /* @__PURE__ */ jsx_runtime28.jsx("i", {
+          /* @__PURE__ */ jsx_runtime30.jsx("i", {
             className: cn("size-1.5 flex-none rounded-[50%]", isAlert ? "bg-needs" : card.state === "works" ? "bg-working" : "bg-muted-foreground")
           }),
-          /* @__PURE__ */ jsx_runtime28.jsx("span", {
+          /* @__PURE__ */ jsx_runtime30.jsx("span", {
             className: cn("min-w-0 flex-[0_100_auto] overflow-hidden text-ellipsis phone:flex-none", isAlert ? "text-needs" : card.state === "works" && "text-working"),
             children: isTurn ? "your turn" : stateLabel(card)
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime28.jsx(Timed, {
+      /* @__PURE__ */ jsx_runtime30.jsx(Timed, {
         iso: card.since,
         isFine: LIVE.has(card.state),
         className: "mr-1.5 flex-none font-mono text-[0.71875rem] leading-none font-normal text-muted-foreground normal-nums"
       }),
-      go && /* @__PURE__ */ jsx_runtime28.jsx(IconButton, {
+      go && /* @__PURE__ */ jsx_runtime30.jsx(IconButton, {
         name: "go",
         label: go.name,
         press: () => go.run?.(),
@@ -42334,25 +55035,25 @@ function HumanPill({
 var WAIT_PLACE = { column: "waiting", isCompact: true, level: "h4" };
 function WaitHead({ group }) {
   const [first, ...others] = group.blockers;
-  return /* @__PURE__ */ jsx_runtime28.jsxs("h3", {
+  return /* @__PURE__ */ jsx_runtime30.jsxs("h3", {
     className: "m-0 flex items-baseline gap-1.5 px-1 py-0.5 text-[0.78125rem] font-semibold text-foreground",
     children: [
-      first ? /* @__PURE__ */ jsx_runtime28.jsx("span", {
+      first ? /* @__PURE__ */ jsx_runtime30.jsx("span", {
         className: "flex-none font-mono font-medium text-muted-foreground",
         children: group.blockers.map((blocker) => blocker.ref).join(", ")
-      }) : /* @__PURE__ */ jsx_runtime28.jsx("span", {
+      }) : /* @__PURE__ */ jsx_runtime30.jsx("span", {
         className: "min-w-0 wrap-anywhere",
         children: "Deferred by you"
       }),
-      first && others.length === 0 && first.title && /* @__PURE__ */ jsx_runtime28.jsx("span", {
+      first && others.length === 0 && first.title && /* @__PURE__ */ jsx_runtime30.jsx("span", {
         className: "min-w-0 wrap-anywhere",
         children: first.title
       }),
-      /* @__PURE__ */ jsx_runtime28.jsxs("span", {
+      /* @__PURE__ */ jsx_runtime30.jsxs("span", {
         className: "ml-auto flex-none font-medium text-muted-foreground tabular-nums",
         children: [
           group.cards.length,
-          /* @__PURE__ */ jsx_runtime28.jsx("span", {
+          /* @__PURE__ */ jsx_runtime30.jsx("span", {
             className: "sr-only",
             children: group.cards.length === 1 ? " issue" : " issues"
           })
@@ -42367,45 +55068,45 @@ function WaitingRow({
   isOpen,
   render
 }) {
-  return /* @__PURE__ */ jsx_runtime28.jsxs("details", {
+  return /* @__PURE__ */ jsx_runtime30.jsxs("details", {
     className: "wait-fold mt-0.5 rounded-xl border border-border [&[open]>summary_.icon]:rotate-90",
     open: isOpen,
     onToggle: (event) => screen.setWaitingOpen(event.currentTarget.open),
     children: [
-      /* @__PURE__ */ jsx_runtime28.jsxs("summary", {
+      /* @__PURE__ */ jsx_runtime30.jsxs("summary", {
         className: "flex min-h-[38px] cursor-pointer list-none items-center gap-2 rounded-[11px] px-3 py-1.5 text-[0.78125rem] font-medium text-card-foreground hover:bg-[color-mix(in_srgb,var(--fg3)_10%,transparent)] hover:text-foreground phone:min-h-11 [&::-webkit-details-marker]:hidden [&_.icon]:size-[13px] [&_.icon]:flex-none [&_.icon]:transition-transform [&_.icon]:duration-150 [&_.icon]:ease-[ease]",
         children: [
-          /* @__PURE__ */ jsx_runtime28.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime30.jsx(Icon, {
             name: "chevron"
           }),
-          /* @__PURE__ */ jsx_runtime28.jsx("span", {
+          /* @__PURE__ */ jsx_runtime30.jsx("span", {
             children: "Waiting"
           }),
-          /* @__PURE__ */ jsx_runtime28.jsxs("span", {
+          /* @__PURE__ */ jsx_runtime30.jsxs("span", {
             className: "font-semibold tabular-nums",
             children: [
               count,
-              /* @__PURE__ */ jsx_runtime28.jsx("span", {
+              /* @__PURE__ */ jsx_runtime30.jsx("span", {
                 className: "sr-only",
                 children: count === 1 ? " issue" : " issues"
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime28.jsx("span", {
+          /* @__PURE__ */ jsx_runtime30.jsx("span", {
             className: "ml-auto font-normal text-muted-foreground",
             children: "No act from you now"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime28.jsx("div", {
+      /* @__PURE__ */ jsx_runtime30.jsx("div", {
         className: "flex flex-col gap-2.5 px-2 pt-1 pb-2.5",
-        children: groups.map((group) => /* @__PURE__ */ jsx_runtime28.jsxs("div", {
+        children: groups.map((group) => /* @__PURE__ */ jsx_runtime30.jsxs("div", {
           className: "flex flex-col gap-1.5",
           children: [
-            /* @__PURE__ */ jsx_runtime28.jsx(WaitHead, {
+            /* @__PURE__ */ jsx_runtime30.jsx(WaitHead, {
               group
             }),
-            /* @__PURE__ */ jsx_runtime28.jsx("div", {
+            /* @__PURE__ */ jsx_runtime30.jsx("div", {
               className: "ml-1.5 flex flex-col gap-2 border-l border-l-border-strong pl-3",
               children: group.cards.map(render)
             })
@@ -42416,7 +55117,7 @@ function WaitingRow({
   });
 }
 var cardAt = (target) => target instanceof Element ? target.closest(".card[data-key]") : null;
-var useColumnEvents = (columns) => import_react29.useEffect(() => {
+var useColumnEvents = (columns) => import_react32.useEffect(() => {
   const board = columns.current;
   if (!board)
     return;
@@ -42483,7 +55184,7 @@ var useEnv = (read) => {
   const next = read?.next ?? null;
   const starts = read?.starts ?? null;
   const tracker = read?.tracker ?? null;
-  return import_react29.useMemo(() => registry === undefined ? null : { registry, flow, auto, agents, noRun, record, next, starts, tracker }, [registry, flow, auto, agents, noRun, record, next, starts, tracker]);
+  return import_react32.useMemo(() => registry === undefined ? null : { registry, flow, auto, agents, noRun, record, next, starts, tracker }, [registry, flow, auto, agents, noRun, record, next, starts, tracker]);
 };
 function Board() {
   const shell = useShellStore((state) => state.shell);
@@ -42499,27 +55200,27 @@ function Board() {
   const menu = useScreen((state) => state.menu);
   const columnStops = useScreen((state) => state.columnStops);
   const waitingOpen = useScreen((state) => state.waitingOpen);
-  const columns = import_react29.useRef(null);
+  const columns = import_react32.useRef(null);
   const isPipeline = shell.tab === "pipeline";
   useRescue(menu);
   useColumnEvents(columns);
   const measure = useMeasure(columns, isPipeline);
   const env = useEnv(read);
   const live = read && screen.board();
-  const now = import_react29.useMemo(() => ({ read, board: live }), [read, live]);
-  const [shown, setShown] = import_react29.useState(now);
+  const now = import_react32.useMemo(() => ({ read, board: live }), [read, live]);
+  const [shown, setShown] = import_react32.useState(now);
   const isCalm = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const isHeld = shown.read !== read && shown.board !== null && live !== null && !document.hidden && !isCalm && (menu === null || screen.index().byKey.has(menu.key)) && layoutOf(shown.board, view()) !== layoutOf(live, view());
-  import_react29.useEffect(() => {
+  import_react32.useEffect(() => {
     if (shown === now)
       return;
     if (isHeld)
-      import_react29.startTransition(() => setShown(now));
+      import_react32.startTransition(() => setShown(now));
     else
       setShown(now);
   });
   const board = isHeld ? shown.board : live;
-  const heldIndex = import_react29.useMemo(() => isHeld && board ? indexCards(board, view()) : null, [isHeld, board]);
+  const heldIndex = import_react32.useMemo(() => isHeld && board ? indexCards(board, view()) : null, [isHeld, board]);
   useKeptScroll(() => {
     const root = columns.current?.parentElement;
     return root ? [root, ...root.querySelectorAll(".col-body")] : [];
@@ -42527,20 +55228,20 @@ function Board() {
   const boardCls = isPipeline ? "grid min-h-0 flex-1 grid-cols-[repeat(var(--stages),minmax(200px,1fr))] grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-x-auto px-2 [scroll-padding-inline:8px_56px] data-[fade]:[mask-image:linear-gradient(to_right,#000_calc(100%-56px),transparent)] phone:flex phone:gap-2.5" : "flex min-h-0 flex-none flex-col gap-1.5 overflow-visible";
   const humanCls = "flex flex-none flex-wrap items-center gap-1.5 rounded-xl border border-border bg-panel py-1.5 pr-2 pl-3 phone:p-2";
   if (!board || !env)
-    return /* @__PURE__ */ jsx_runtime28.jsxs(jsx_runtime28.Fragment, {
+    return /* @__PURE__ */ jsx_runtime30.jsxs(jsx_runtime30.Fragment, {
       children: [
-        /* @__PURE__ */ jsx_runtime28.jsx("section", {
+        /* @__PURE__ */ jsx_runtime30.jsx("section", {
           className: humanCls,
           id: "human",
           "aria-labelledby": "human-title",
           hidden: true
         }),
-        /* @__PURE__ */ jsx_runtime28.jsx("div", {
+        /* @__PURE__ */ jsx_runtime30.jsx("div", {
           ref: columns,
           className: boardCls,
           id: "columns",
           "aria-busy": "true",
-          children: /* @__PURE__ */ jsx_runtime28.jsx(Skeleton, {
+          children: /* @__PURE__ */ jsx_runtime30.jsx(Skeleton, {
             isPipeline
           })
         })
@@ -42557,10 +55258,10 @@ function Board() {
     const key = keyFor(card);
     const number = card.number;
     const has = (pressed) => pressed.has(number);
-    return /* @__PURE__ */ jsx_runtime28.jsx(import_react29.ViewTransition, {
+    return /* @__PURE__ */ jsx_runtime30.jsx(import_react32.ViewTransition, {
       name: key,
       default: isCalm ? "none" : "auto",
-      children: /* @__PURE__ */ jsx_runtime28.jsx(Card2, {
+      children: /* @__PURE__ */ jsx_runtime30.jsx(Card2, {
         card,
         cardKey: key,
         ...place,
@@ -42593,11 +55294,11 @@ function Board() {
     const isOpen = openEpics.has(epic.number);
     const hasHiddenUnseen = !isOpen && cards.some((card) => screen.isUnseen(keyFor(card)));
     const EPIC_MONO = "flex-none font-mono text-[0.75rem] leading-[1.125rem] font-normal text-muted-foreground";
-    return /* @__PURE__ */ jsx_runtime28.jsxs("div", {
+    return /* @__PURE__ */ jsx_runtime30.jsxs("div", {
       className: "epic-group flex flex-none flex-col gap-2",
       "data-epic": epic.number,
       children: [
-        /* @__PURE__ */ jsx_runtime28.jsxs("button", {
+        /* @__PURE__ */ jsx_runtime30.jsxs("button", {
           type: "button",
           className: cn("epic-row flex min-h-10 phone:min-h-11 w-full cursor-pointer items-start gap-2 rounded-xl border border-border bg-secondary px-3 py-2.5 text-left font-sans text-[0.8125rem] leading-[1.125rem] font-medium text-foreground transition-[border-color,background-color] duration-150 ease-[ease] [&:hover]:border-border-strong [&:hover]:bg-accent [&_.icon]:mt-px [&_.icon]:flex-none [&_.icon]:text-card-foreground [&_.icon]:[transition:transform_0.15s]", isOpen && "[&_.icon]:[transform:rotate(90deg)]"),
           tabIndex: group === stop ? 0 : -1,
@@ -42608,33 +55309,33 @@ function Board() {
           "aria-controls": id,
           onClick: () => screen.setEpicOpen(epic.number, !isOpen),
           children: [
-            /* @__PURE__ */ jsx_runtime28.jsx(Icon, {
+            /* @__PURE__ */ jsx_runtime30.jsx(Icon, {
               name: "chevron"
             }),
-            /* @__PURE__ */ jsx_runtime28.jsx("span", {
+            /* @__PURE__ */ jsx_runtime30.jsx("span", {
               className: EPIC_MONO,
               children: `#${epic.number}`
             }),
-            /* @__PURE__ */ jsx_runtime28.jsx("span", {
+            /* @__PURE__ */ jsx_runtime30.jsx("span", {
               className: "min-w-0 flex-1 [overflow-wrap:anywhere]",
               children: epic.title
             }),
-            /* @__PURE__ */ jsx_runtime28.jsxs("span", {
+            /* @__PURE__ */ jsx_runtime30.jsxs("span", {
               className: EPIC_MONO,
               children: [
                 cards.length,
-                /* @__PURE__ */ jsx_runtime28.jsx("span", {
+                /* @__PURE__ */ jsx_runtime30.jsx("span", {
                   className: "sr-only",
                   children: cards.length === 1 ? " issue" : " issues"
                 })
               ]
             }),
-            /* @__PURE__ */ jsx_runtime28.jsx(UnseenDot, {
+            /* @__PURE__ */ jsx_runtime30.jsx(UnseenDot, {
               className: hasHiddenUnseen ? "mt-[5px]" : "mt-[5px] hidden"
             })
           ]
         }),
-        /* @__PURE__ */ jsx_runtime28.jsx("div", {
+        /* @__PURE__ */ jsx_runtime30.jsx("div", {
           className: "epic-children ml-1.5 flex flex-col gap-2 border-l border-l-border-strong pl-3",
           id,
           hidden: !isOpen,
@@ -42664,67 +55365,67 @@ function Board() {
     const held = key === "needs" ? waitGroups(waiting) : [];
     const heldItems = held.flatMap((group) => group.cards.map((card) => ({ kind: "card", card, place: WAIT_PLACE })));
     const stop = stopOf(id, waitingOpen ? [...items, ...heldItems] : items);
-    return /* @__PURE__ */ jsx_runtime28.jsxs("section", {
+    return /* @__PURE__ */ jsx_runtime30.jsxs("section", {
       className: `col col-${key} ${COL.now}`,
       id,
       "aria-labelledby": `h-${key}`,
       children: [
-        /* @__PURE__ */ jsx_runtime28.jsxs("header", {
-          className: HEAD.now,
+        /* @__PURE__ */ jsx_runtime30.jsxs("header", {
+          className: HEAD2.now,
           title: note,
           children: [
             glyph(key, key === "needs" && cards.some((card) => card.state === "waits")),
-            /* @__PURE__ */ jsx_runtime28.jsx("h2", {
+            /* @__PURE__ */ jsx_runtime30.jsx("h2", {
               className: COL_NAME,
               id: `h-${key}`,
               children: name
             }),
-            /* @__PURE__ */ jsx_runtime28.jsx(Badge, {
+            /* @__PURE__ */ jsx_runtime30.jsx(Badge, {
               variant: "column",
               children: cards.length
             })
           ]
         }),
-        /* @__PURE__ */ jsx_runtime28.jsx("div", {
-          className: `col-body ${BODY.now}`,
-          children: cards.length === 0 && held.length === 0 ? /* @__PURE__ */ jsx_runtime28.jsxs("div", {
+        /* @__PURE__ */ jsx_runtime30.jsx("div", {
+          className: `col-body ${BODY2.now}`,
+          children: cards.length === 0 && held.length === 0 ? /* @__PURE__ */ jsx_runtime30.jsxs("div", {
             className: cn("empty mt-1 flex flex-col items-center gap-1 rounded-xl border px-5 py-8 text-center", key === "needs" ? "border-solid border-[color-mix(in_srgb,var(--ready)_25%,transparent)] bg-[color-mix(in_srgb,var(--ready)_5%,transparent)] [&_.icon]:text-ready" : "border-dashed border-border-strong [&_.icon]:text-muted-foreground", "[&_.icon]:mb-1.5 [&_.icon]:size-[22px]"),
             tabIndex: -1,
             children: [
-              /* @__PURE__ */ jsx_runtime28.jsx(Icon, {
+              /* @__PURE__ */ jsx_runtime30.jsx(Icon, {
                 name: key === "needs" ? "clear" : `col-${key}`
               }),
-              /* @__PURE__ */ jsx_runtime28.jsx("p", {
+              /* @__PURE__ */ jsx_runtime30.jsx("p", {
                 className: "m-0 font-sans text-[0.8125rem] leading-[1.4] font-semibold text-foreground",
                 children: emptyTitle
               }),
-              /* @__PURE__ */ jsx_runtime28.jsx("p", {
+              /* @__PURE__ */ jsx_runtime30.jsx("p", {
                 className: "m-0 max-w-[32ch] text-[0.75rem] leading-normal text-balance text-muted-foreground",
                 children: emptyText
               })
             ]
-          }) : key === "needs" ? /* @__PURE__ */ jsx_runtime28.jsxs(jsx_runtime28.Fragment, {
+          }) : key === "needs" ? /* @__PURE__ */ jsx_runtime30.jsxs(jsx_runtime30.Fragment, {
             children: [
-              cards.length === 0 && /* @__PURE__ */ jsx_runtime28.jsx("p", {
+              cards.length === 0 && /* @__PURE__ */ jsx_runtime30.jsx("p", {
                 className: "empty m-0 mt-1 rounded-xl border border-solid border-[color-mix(in_srgb,var(--ready)_25%,transparent)] bg-[color-mix(in_srgb,var(--ready)_5%,transparent)] px-3 py-2.5 text-[0.8125rem] font-semibold text-foreground",
                 tabIndex: -1,
                 children: emptyTitle
               }),
-              groups.map((each, at) => /* @__PURE__ */ jsx_runtime28.jsxs("div", {
+              groups.map((each, at) => /* @__PURE__ */ jsx_runtime30.jsxs("div", {
                 className: cn("group flex flex-col gap-2", at > 0 && "mt-0.5"),
                 "data-group": each.key,
                 "data-short": each.short,
                 role: "group",
                 "aria-labelledby": `g-${each.key}`,
                 children: [
-                  /* @__PURE__ */ jsx_runtime28.jsxs("h3", {
+                  /* @__PURE__ */ jsx_runtime30.jsxs("h3", {
                     className: cn("sticky top-[30px] z-3 -mx-3 flex items-center gap-[7px] bg-panel px-4 pt-2.5 pb-2 text-[0.6875rem] leading-none font-semibold tracking-[0.07em] uppercase", each.key === "answer" ? "text-needs" : "text-muted-foreground"),
                     id: `g-${each.key}`,
                     children: [
-                      /* @__PURE__ */ jsx_runtime28.jsx("span", {
+                      /* @__PURE__ */ jsx_runtime30.jsx("span", {
                         children: each.label
                       }),
-                      /* @__PURE__ */ jsx_runtime28.jsx("span", {
+                      /* @__PURE__ */ jsx_runtime30.jsx("span", {
                         className: "font-medium tracking-[0] tabular-nums",
                         children: each.cards.length
                       })
@@ -42733,16 +55434,16 @@ function Board() {
                   each.cards.map((card) => cardOf(card, { column: "needs", isCompact: each.isCompact, level: "h4" }, stop))
                 ]
               }, each.key)),
-              held.length > 0 && /* @__PURE__ */ jsx_runtime28.jsx(WaitingRow, {
+              held.length > 0 && /* @__PURE__ */ jsx_runtime30.jsx(WaitingRow, {
                 groups: held,
                 count: waiting.length,
                 isOpen: waitingOpen,
                 render: (card) => cardOf(card, WAIT_PLACE, waitingOpen ? stop : undefined)
               }),
-              /* @__PURE__ */ jsx_runtime28.jsx("div", {
+              /* @__PURE__ */ jsx_runtime30.jsx("div", {
                 className: "tail-wrap sticky bottom-0 z-3 -mx-3 bg-[linear-gradient(to_bottom,transparent,var(--panel)_35%)] px-3 pt-2.5 pb-3",
                 hidden: measure.text === "",
-                children: /* @__PURE__ */ jsx_runtime28.jsxs("button", {
+                children: /* @__PURE__ */ jsx_runtime30.jsxs("button", {
                   type: "button",
                   className: "tail flex min-h-[34px] w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-card font-sans text-[0.78125rem] leading-none font-medium text-card-foreground shadow-raise [&:hover]:border-[color-mix(in_srgb,var(--fg3)_60%,transparent)] [&:hover]:text-foreground [&_.icon]:size-[13px] [&_.icon]:[transform:rotate(90deg)]",
                   onClick: () => {
@@ -42754,10 +55455,10 @@ function Board() {
                     first?.focus({ preventScroll: true });
                   },
                   children: [
-                    /* @__PURE__ */ jsx_runtime28.jsx(Icon, {
+                    /* @__PURE__ */ jsx_runtime30.jsx(Icon, {
                       name: "chevron"
                     }),
-                    /* @__PURE__ */ jsx_runtime28.jsx("span", {
+                    /* @__PURE__ */ jsx_runtime30.jsx("span", {
                       children: measure.text
                     })
                   ]
@@ -42785,16 +55486,16 @@ function Board() {
     }));
     const holdStop = stopOf("hold-title", holdItems);
     return [
-      hold.length > 0 && /* @__PURE__ */ jsx_runtime28.jsxs("section", {
+      hold.length > 0 && /* @__PURE__ */ jsx_runtime30.jsxs("section", {
         className: "col col-span-full flex min-h-0 min-w-0 flex-row items-center gap-3 rounded-3xl border border-border bg-panel py-2 pr-2.5 pl-4 phone:w-[min(300px,80vw)] phone:flex-none phone:flex-col phone:items-stretch",
         "aria-labelledby": "hold-title",
         children: [
-          /* @__PURE__ */ jsx_runtime28.jsx("h2", {
+          /* @__PURE__ */ jsx_runtime30.jsx("h2", {
             className: HOLD_LABEL,
             id: "hold-title",
             children: "Not in a step"
           }),
-          /* @__PURE__ */ jsx_runtime28.jsx("div", {
+          /* @__PURE__ */ jsx_runtime30.jsx("div", {
             className: "flex min-w-0 gap-2 overflow-x-auto p-0.5 phone:flex-col phone:overflow-x-hidden phone:overflow-y-auto",
             children: holdItems.map((item) => itemOf(item, holdStop))
           })
@@ -42809,28 +55510,28 @@ function Board() {
           place: placeOf(item.cards[0])
         } : { kind: "card", card: item.card, place: placeOf(item.card) });
         const stop = stopOf(`s-${stage.key}`, items);
-        return /* @__PURE__ */ jsx_runtime28.jsxs("section", {
+        return /* @__PURE__ */ jsx_runtime30.jsxs("section", {
           className: `col ${COL.pipeline}`,
           "aria-labelledby": `s-${stage.key}`,
           children: [
-            /* @__PURE__ */ jsx_runtime28.jsxs("header", {
-              className: HEAD.pipeline,
+            /* @__PURE__ */ jsx_runtime30.jsxs("header", {
+              className: HEAD2.pipeline,
               title: stage.steps.join(", "),
               children: [
-                /* @__PURE__ */ jsx_runtime28.jsx("h2", {
+                /* @__PURE__ */ jsx_runtime30.jsx("h2", {
                   className: COL_NAME,
                   id: `s-${stage.key}`,
                   children: stage.name
                 }),
-                /* @__PURE__ */ jsx_runtime28.jsx(Badge, {
+                /* @__PURE__ */ jsx_runtime30.jsx(Badge, {
                   variant: "column",
                   children: stage.cards.length
                 })
               ]
             }),
-            /* @__PURE__ */ jsx_runtime28.jsx("div", {
-              className: `col-body ${BODY.pipeline}`,
-              children: stage.cards.length ? items.map((item) => itemOf(item, stop)) : /* @__PURE__ */ jsx_runtime28.jsx("p", {
+            /* @__PURE__ */ jsx_runtime30.jsx("div", {
+              className: `col-body ${BODY2.pipeline}`,
+              children: stage.cards.length ? items.map((item) => itemOf(item, stop)) : /* @__PURE__ */ jsx_runtime30.jsx("p", {
                 className: "mx-0.5 my-1 rounded-xl border border-dashed border-border-strong p-3.5 text-center text-[0.75rem] text-muted-foreground",
                 children: "No issue at this step"
               })
@@ -42840,22 +55541,22 @@ function Board() {
       })
     ];
   };
-  return /* @__PURE__ */ jsx_runtime28.jsxs(jsx_runtime28.Fragment, {
+  return /* @__PURE__ */ jsx_runtime30.jsxs(jsx_runtime30.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime28.jsxs("section", {
+      /* @__PURE__ */ jsx_runtime30.jsxs("section", {
         className: humanCls,
         id: "human",
         "aria-labelledby": "human-title",
         hidden: human.length === 0,
         children: [
-          human.length > 0 && /* @__PURE__ */ jsx_runtime28.jsx("h2", {
+          human.length > 0 && /* @__PURE__ */ jsx_runtime30.jsx("h2", {
             className: `${HOLD_LABEL} mr-1.5 phone:my-0.5 phone:mr-0 phone:ml-1.5 phone:basis-full`,
             id: "human-title",
             children: "Human sessions"
           }),
           human.map((card) => {
             const key = keyFor(card);
-            return /* @__PURE__ */ jsx_runtime28.jsx(HumanPill, {
+            return /* @__PURE__ */ jsx_runtime30.jsx(HumanPill, {
               card,
               cardKey: key,
               isSelected: key === shell.details,
@@ -42864,7 +55565,7 @@ function Board() {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime28.jsx("div", {
+      /* @__PURE__ */ jsx_runtime30.jsx("div", {
         ref: columns,
         className: boardCls,
         id: "columns",
@@ -42879,7 +55580,7 @@ function Board() {
 }
 
 // engine/board/page/operations/operations.tsx
-var jsx_runtime29 = __toESM(require_jsx_runtime());
+var jsx_runtime31 = __toESM(require_jsx_runtime());
 var NAMES = { agents: "Agents", pipeline: "Pipeline", queue: "Queue", history: "History" };
 var CONTROLS = { agents: "tp-board", pipeline: "tp-board", history: "history-pane" };
 function Operations() {
@@ -42887,48 +55588,48 @@ function Operations() {
   const isPhone = useShellStore((state) => state.isPhone);
   const agents = useShellStore((state) => state.inputs.badges.agents);
   const queueCount = useShellStore((state) => state.inputs.queueCount);
-  return /* @__PURE__ */ jsx_runtime29.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime31.jsxs("div", {
     className: "group/ops grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_clamp(360px,30vw,452px)] grid-rows-[minmax(0,1fr)] gap-3.5 phone:grid-cols-[minmax(0,1fr)] min-[720px]:data-[tab=pipeline]:grid-cols-[minmax(0,1fr)] min-[720px]:data-[tab=pipeline]:data-[details]:grid-cols-[minmax(0,1fr)_clamp(360px,30vw,452px)]",
     id: "area-operations",
     "data-tab": tab,
     "data-pane": pane,
     "data-details": details === null ? undefined : "",
     children: [
-      /* @__PURE__ */ jsx_runtime29.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime31.jsxs("div", {
         className: "flex min-h-0 min-w-0 flex-col phone:group-data-[pane=agents]/ops:hidden min-[720px]:group-data-[tab=pipeline]/ops:contents min-[720px]:group-data-[tab=pipeline]/ops:[&>.coordinator]:hidden [&>.coordinator]:flex-1",
         id: "center",
         children: [
-          /* @__PURE__ */ jsx_runtime29.jsx(CoordinatorPanel, {}),
-          /* @__PURE__ */ jsx_runtime29.jsx(Panel, {})
+          /* @__PURE__ */ jsx_runtime31.jsx(CoordinatorPanel, {}),
+          /* @__PURE__ */ jsx_runtime31.jsx(Panel, {})
         ]
       }),
-      /* @__PURE__ */ jsx_runtime29.jsxs(Tabs, {
+      /* @__PURE__ */ jsx_runtime31.jsxs(Tabs, {
         value: tab,
         onValueChange: (value) => {
           const next = TABS.find((each) => each === value);
           if (next)
             setTab(next);
         },
-        render: /* @__PURE__ */ jsx_runtime29.jsx("section", {}),
+        render: /* @__PURE__ */ jsx_runtime31.jsx("section", {}),
         className: "min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-border bg-panel phone:group-data-[pane=chat]/ops:hidden min-[720px]:group-data-[tab=pipeline]/ops:[grid-area:1/1]",
         id: "pane",
         "aria-label": "Work views",
         tabIndex: -1,
         children: [
-          /* @__PURE__ */ jsx_runtime29.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime31.jsxs("div", {
             className: "flex min-h-12 flex-none items-center gap-2 border-b border-border px-2.5 py-2 phone:p-1.5",
             children: [
-              /* @__PURE__ */ jsx_runtime29.jsx("div", {
+              /* @__PURE__ */ jsx_runtime31.jsx("div", {
                 className: "contents",
                 hidden: tab !== "pipeline" || isPhone,
-                children: /* @__PURE__ */ jsx_runtime29.jsx(ChatButton, {})
+                children: /* @__PURE__ */ jsx_runtime31.jsx(ChatButton, {})
               }),
-              /* @__PURE__ */ jsx_runtime29.jsx(TabsList2, {
+              /* @__PURE__ */ jsx_runtime31.jsx(TabsList2, {
                 activateOnFocus: true,
                 loopFocus: true,
                 id: "tabs",
                 "aria-label": "Work views",
-                children: TABS.map((each) => /* @__PURE__ */ jsx_runtime29.jsxs(TabsTrigger, {
+                children: TABS.map((each) => /* @__PURE__ */ jsx_runtime31.jsxs(TabsTrigger, {
                   value: each,
                   id: `tab-${each}`,
                   "data-tab": each,
@@ -42936,11 +55637,11 @@ function Operations() {
                   ...CONTROLS[each] ? { "aria-controls": CONTROLS[each] } : {},
                   "aria-label": each === "agents" ? agents === 0 ? "Agents" : `Agents, ${agents} need you` : undefined,
                   children: [
-                    /* @__PURE__ */ jsx_runtime29.jsx("span", {
+                    /* @__PURE__ */ jsx_runtime31.jsx("span", {
                       className: "label",
                       children: each === "queue" && queueCount > 0 ? `Queue ${queueCount}` : NAMES[each]
                     }),
-                    each === "agents" && /* @__PURE__ */ jsx_runtime29.jsx(Badge, {
+                    each === "agents" && /* @__PURE__ */ jsx_runtime31.jsx(Badge, {
                       variant: "tab",
                       id: "agents-badge",
                       hidden: agents === 0,
@@ -42951,20 +55652,20 @@ function Operations() {
               })
             ]
           }),
-          (tab === "agents" || tab === "pipeline") && /* @__PURE__ */ jsx_runtime29.jsx("div", {
+          (tab === "agents" || tab === "pipeline") && /* @__PURE__ */ jsx_runtime31.jsx("div", {
             className: `flex min-h-0 flex-1 flex-col gap-2.5 px-2.5 pt-2.5 phone:scroll-pb-[calc(var(--dock)+8px)] ${tab === "pipeline" ? "overflow-hidden pb-2.5" : "overflow-y-auto pb-0"}`,
             id: "tp-board",
             role: "tabpanel",
             "aria-labelledby": `tab-${tab}`,
-            children: /* @__PURE__ */ jsx_runtime29.jsx(Board, {})
+            children: /* @__PURE__ */ jsx_runtime31.jsx(Board, {})
           }, tab),
-          /* @__PURE__ */ jsx_runtime29.jsx(TabsContent, {
+          /* @__PURE__ */ jsx_runtime31.jsx(TabsContent, {
             value: "queue",
             tabIndex: undefined,
             className: "flex min-h-0 flex-1 flex-col",
-            children: /* @__PURE__ */ jsx_runtime29.jsx(Queue, {})
+            children: /* @__PURE__ */ jsx_runtime31.jsx(Queue, {})
           }),
-          /* @__PURE__ */ jsx_runtime29.jsx(History, {})
+          /* @__PURE__ */ jsx_runtime31.jsx(History, {})
         ]
       })
     ]
@@ -42972,37 +55673,37 @@ function Operations() {
 }
 
 // engine/board/page/ui/sidebar.tsx
-var jsx_runtime30 = __toESM(require_jsx_runtime());
+var jsx_runtime32 = __toESM(require_jsx_runtime());
 function Sidebar({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime30.jsx("nav", {
+  return /* @__PURE__ */ jsx_runtime32.jsx("nav", {
     "data-slot": "sidebar",
     className: cn("col-start-1 row-start-1 flex min-h-0 flex-col gap-1.5 overflow-y-auto border-r border-border bg-background px-2.5 pt-3 pb-2.5", "rail:px-2 rail:pt-2.5 rail:pb-2", "phone:min-h-14 phone:flex-row phone:items-center phone:gap-2 phone:overflow-visible phone:border-r-0 phone:border-b phone:px-4 phone:py-1.5", className),
     ...props
   });
 }
 function SidebarHeader({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime30.jsx("div", {
+  return /* @__PURE__ */ jsx_runtime32.jsx("div", {
     "data-slot": "sidebar-header",
     className: cn("mb-1.5 flex min-h-9 min-w-0 items-center gap-2.5 px-1.5", "rail:min-h-0 rail:flex-col rail:gap-1.5 rail:px-0 rail:pt-0.5 rail:pb-1", "phone:m-0 phone:min-h-0 phone:flex-1 phone:p-0", className),
     ...props
   });
 }
 function SidebarFooter({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime30.jsx("div", {
+  return /* @__PURE__ */ jsx_runtime32.jsx("div", {
     "data-slot": "sidebar-footer",
     className: cn("mt-auto flex flex-col items-stretch gap-0.5 border-t border-border px-0.5 pt-2.5 text-xs text-muted-foreground rail:hidden phone:hidden", className),
     ...props
   });
 }
 function SidebarMenu({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime30.jsx("ul", {
+  return /* @__PURE__ */ jsx_runtime32.jsx("ul", {
     "data-slot": "sidebar-menu",
     className: cn("m-0 mt-2 flex min-h-[calc(11px+2*34px+2px)] list-none flex-col gap-0.5 overflow-y-auto border-t border-border p-0 pt-2.5", "rail:min-h-[calc(11px+2*50px+2px)] phone:hidden", className),
     ...props
   });
 }
 function SidebarMenuItem({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime30.jsx("li", {
+  return /* @__PURE__ */ jsx_runtime32.jsx("li", {
     "data-slot": "sidebar-menu-item",
     className: cn("relative", className),
     ...props
@@ -43023,25 +55724,25 @@ function SidebarMenuButton({ className, render, ...props }) {
 var AREA_SCREEN = "min-h-0 flex-1 grid rounded-3xl border border-border bg-panel";
 
 // engine/board/page/app/control.tsx
-var import_react32 = __toESM(require_react());
+var import_react35 = __toESM(require_react());
 
 // engine/board/page/agents/agents.tsx
-var import_react31 = __toESM(require_react());
+var import_react34 = __toESM(require_react());
 var import_react_dom6 = __toESM(require_react_dom());
 
 // engine/board/page/agents/drag.ts
-var import_react30 = __toESM(require_react());
+var import_react33 = __toESM(require_react());
 var THRESHOLD = 4;
 function useHandleDrag({
   list,
   marker,
   preview
 }) {
-  const [dragging, setDragging] = import_react30.useState(null);
-  const press = import_react30.useRef(null);
-  const top = import_react30.useRef(0);
-  const suppressClick = import_react30.useRef(false);
-  const clear = import_react30.useCallback(() => {
+  const [dragging, setDragging] = import_react33.useState(null);
+  const press = import_react33.useRef(null);
+  const top = import_react33.useRef(0);
+  const suppressClick = import_react33.useRef(false);
+  const clear = import_react33.useCallback(() => {
     const current = press.current;
     if (!current)
       return;
@@ -43052,11 +55753,11 @@ function useHandleDrag({
       current.handle.releasePointerCapture(current.pointer);
     setDragging(null);
   }, [marker]);
-  import_react30.useEffect(() => () => {
+  import_react33.useEffect(() => () => {
     agentStore.setDrag(null);
     clear();
   }, [clear]);
-  import_react30.useEffect(() => {
+  import_react33.useEffect(() => {
     const onPress = ({ target }) => {
       if (target instanceof Node && list.current?.contains(target))
         suppressClick.current = false;
@@ -43064,7 +55765,7 @@ function useHandleDrag({
     addEventListener("pointerdown", onPress, true);
     return () => removeEventListener("pointerdown", onPress, true);
   }, [list]);
-  import_react30.useLayoutEffect(() => {
+  import_react33.useLayoutEffect(() => {
     const current = press.current;
     const node = preview.current;
     if (dragging === null || !current || !node)
@@ -43171,7 +55872,7 @@ function useHandleDrag({
 }
 
 // engine/board/page/agents/agents.tsx
-var jsx_runtime31 = __toESM(require_jsx_runtime());
+var jsx_runtime33 = __toESM(require_jsx_runtime());
 var ROOT2 = "group/order relative font-sans text-[0.8125rem] leading-[1.4] font-normal whitespace-normal text-foreground data-[dragging]:cursor-grabbing";
 var HANDLE = "grid h-7 w-6 flex-none cursor-grab touch-none place-items-center rounded-sm border-0 bg-transparent text-muted-foreground group-data-[dragging]/order:cursor-grabbing aria-disabled:cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring phone:min-h-11 phone:min-w-11 [&:hover]:bg-accent [&:hover]:text-foreground";
 var ROW3 = "flex min-h-10 items-center gap-2.5 rounded-lg py-1 pr-2 pl-1 select-none phone:min-h-12";
@@ -43184,11 +55885,11 @@ var keyOf2 = (node) => {
   return node.dataset.wait ? `wait:${node.dataset.wait}` : null;
 };
 var handleOf = (root, host) => host ? root?.querySelector(`[data-host="${host}"] [data-handle]`) ?? null : null;
-var Grip = () => /* @__PURE__ */ jsx_runtime31.jsx("svg", {
+var Grip = () => /* @__PURE__ */ jsx_runtime33.jsx("svg", {
   className: "h-3.5 w-2.5",
   viewBox: "0 0 10 14",
   "aria-hidden": "true",
-  children: GRIP.map(({ cx, cy }) => /* @__PURE__ */ jsx_runtime31.jsx("circle", {
+  children: GRIP.map(({ cx, cy }) => /* @__PURE__ */ jsx_runtime33.jsx("circle", {
     cx,
     cy,
     r: "1.3",
@@ -43196,32 +55897,32 @@ var Grip = () => /* @__PURE__ */ jsx_runtime31.jsx("svg", {
   }, `${cx}-${cy}`))
 });
 function RowBody({ host, rank, name, detail }) {
-  return /* @__PURE__ */ jsx_runtime31.jsxs(jsx_runtime31.Fragment, {
+  return /* @__PURE__ */ jsx_runtime33.jsxs(jsx_runtime33.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime31.jsx("span", {
+      /* @__PURE__ */ jsx_runtime33.jsx("span", {
         className: "w-3.5 text-right text-[0.75rem] text-muted-foreground tabular-nums",
         children: rank === null ? "–" : rank
       }),
-      /* @__PURE__ */ jsx_runtime31.jsx("span", {
+      /* @__PURE__ */ jsx_runtime33.jsx("span", {
         className: "relative grid size-[18px] flex-none place-items-center rounded-[50%] bg-panel [box-shadow:0_0_0_2px_transparent] group-data-[excluded]/row:grayscale",
-        children: /* @__PURE__ */ jsx_runtime31.jsx("img", {
+        children: /* @__PURE__ */ jsx_runtime33.jsx("img", {
           className: "block size-3",
           src: AGENT_ICONS[host],
           alt: ""
         })
       }),
-      /* @__PURE__ */ jsx_runtime31.jsxs("span", {
+      /* @__PURE__ */ jsx_runtime33.jsxs("span", {
         className: "min-w-0 flex-1 group-data-[excluded]/row:text-card-foreground",
         children: [
           name,
-          /* @__PURE__ */ jsx_runtime31.jsx("small", {
+          /* @__PURE__ */ jsx_runtime33.jsx("small", {
             className: "line-clamp-2 text-[0.75rem] leading-[1.25] wrap-anywhere text-muted-foreground",
             title: detail,
             children: detail
           })
         ]
       }),
-      rank === 1 && /* @__PURE__ */ jsx_runtime31.jsx("span", {
+      rank === 1 && /* @__PURE__ */ jsx_runtime33.jsx("span", {
         className: "flex-none rounded-[999px] bg-accent px-[7px] py-px text-[0.6875rem] text-card-foreground",
         children: "First"
       })
@@ -43229,14 +55930,14 @@ function RowBody({ host, rank, name, detail }) {
   });
 }
 function WaitLine({ wait, isBusy }) {
-  return /* @__PURE__ */ jsx_runtime31.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime33.jsxs("div", {
     className: "mx-2.5 my-1.5",
     children: [
-      /* @__PURE__ */ jsx_runtime31.jsx("p", {
+      /* @__PURE__ */ jsx_runtime33.jsx("p", {
         className: "mx-0 mt-0 mb-1.5 text-[0.75rem] text-card-foreground",
         children: `#${wait.number} is paused: every included agent reached a usage limit. ${wait.nextResetAt === null ? "No reset time is known." : `It tries again at ${agentStore.resetText(wait.nextResetAt).replace("resets ", "")}.`}`
       }),
-      /* @__PURE__ */ jsx_runtime31.jsx(Button2, {
+      /* @__PURE__ */ jsx_runtime33.jsx(Button2, {
         variant: "secondary",
         size: "action",
         className: "phone:min-h-11 active:scale-none active:[transform:scale(0.97)]",
@@ -43250,24 +55951,24 @@ function WaitLine({ wait, isBusy }) {
   });
 }
 function AgentOrderBody() {
-  const root = import_react31.useRef(null);
-  const list = import_react31.useRef(null);
-  const marker = import_react31.useRef(null);
-  const preview = import_react31.useRef(null);
+  const root = import_react34.useRef(null);
+  const list = import_react34.useRef(null);
+  const marker = import_react34.useRef(null);
+  const preview = import_react34.useRef(null);
   const drag = useHandleDrag({ list, marker, preview });
   const focused = useFocusedKey(root, keyOf2);
-  const pressedWith = import_react31.useRef(null);
-  const lastHost = import_react31.useRef(null);
-  const wasOutsidePress = import_react31.useRef(false);
-  const knownNames = import_react31.useRef(new Map);
-  const drawnToggle = import_react31.useRef({ host: null, isIncluded: false });
+  const pressedWith = import_react34.useRef(null);
+  const lastHost = import_react34.useRef(null);
+  const wasOutsidePress = import_react34.useRef(false);
+  const knownNames = import_react34.useRef(new Map);
+  const drawnToggle = import_react34.useRef({ host: null, isIncluded: false });
   const shown = useAgents((state) => state.shown);
   const live = useAgents((state) => state.live);
   const menuFor = useAgents((state) => state.menuFor);
   if (menuFor)
     lastHost.current = menuFor;
   const anchorHost = menuFor ?? lastHost.current;
-  const rows = import_react31.useMemo(() => shown ? [
+  const rows = import_react34.useMemo(() => shown ? [
     ...shown.order.map((host, at) => ({ host, rank: at + 1 })),
     ...shown.excluded.map((host) => ({ host, rank: null }))
   ].map((row) => {
@@ -43275,7 +55976,7 @@ function AgentOrderBody() {
     knownNames.current.set(row.host, name);
     return { ...row, name, detail: agentStore.detail(row.host) };
   }) : [], [shown]);
-  import_react31.useEffect(() => {
+  import_react34.useEffect(() => {
     const onPress = ({ target }) => {
       const handle = target instanceof Element ? target.closest("[data-handle]") : null;
       pressedWith.current = handle && root.current?.contains(handle) ? agentStore.get().menuFor : null;
@@ -43283,7 +55984,7 @@ function AgentOrderBody() {
     addEventListener("pointerdown", onPress, true);
     return () => removeEventListener("pointerdown", onPress, true);
   }, []);
-  import_react31.useLayoutEffect(() => {
+  import_react34.useLayoutEffect(() => {
     const section = root.current;
     const key = focused.current;
     if (!section || key === null)
@@ -43297,7 +55998,7 @@ function AgentOrderBody() {
     (control ?? section.querySelector("[data-handle]"))?.focus({ preventScroll: true });
   });
   const isIncluded = Boolean(menuFor && shown?.order.includes(menuFor));
-  import_react31.useEffect(() => {
+  import_react34.useEffect(() => {
     const was = drawnToggle.current;
     drawnToggle.current = { host: menuFor, isIncluded };
     if (!menuFor || was.host !== menuFor || was.isIncluded === isIncluded)
@@ -43308,7 +56009,7 @@ function AgentOrderBody() {
       items[0]?.focus({ preventScroll: true });
   }, [menuFor, isIncluded]);
   const ghost = drag.dragging ? rows.find((row) => row.host === drag.dragging) : undefined;
-  const anchor = import_react31.useCallback(() => handleOf(root.current, anchorHost), [anchorHost]);
+  const anchor = import_react34.useCallback(() => handleOf(root.current, anchorHost), [anchorHost]);
   const finalFocus = () => {
     const wasOutside = wasOutsidePress.current;
     wasOutsidePress.current = false;
@@ -43367,29 +56068,29 @@ function AgentOrderBody() {
     import_react_dom6.flushSync(() => agentStore.closeMenu());
     handle?.focus();
   };
-  return /* @__PURE__ */ jsx_runtime31.jsxs(jsx_runtime31.Fragment, {
+  return /* @__PURE__ */ jsx_runtime33.jsxs(jsx_runtime33.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime31.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime33.jsxs("div", {
         ref: root,
         className: ROOT2,
         "data-dragging": drag.dragging ? "" : undefined,
         id: "agent-picker",
         onKeyDown: onRootKey,
         children: [
-          shown ? /* @__PURE__ */ jsx_runtime31.jsxs(jsx_runtime31.Fragment, {
+          shown ? /* @__PURE__ */ jsx_runtime33.jsxs(jsx_runtime33.Fragment, {
             children: [
-              /* @__PURE__ */ jsx_runtime31.jsx("ol", {
+              /* @__PURE__ */ jsx_runtime33.jsx("ol", {
                 ref: list,
                 className: "relative m-0 list-none px-0 py-0.5",
                 "aria-label": "Agents in priority order",
                 "aria-busy": shown.isSaving,
-                children: rows.map(({ host, rank, name, detail }, index) => /* @__PURE__ */ jsx_runtime31.jsxs("li", {
+                children: rows.map(({ host, rank, name, detail }, index) => /* @__PURE__ */ jsx_runtime33.jsxs("li", {
                   className: `${index > 0 ? "mt-0.5" : ""} group/row relative ${ROW3} [&:hover]:bg-secondary data-[dragging]:opacity-40`,
                   "data-host": host,
                   "data-excluded": rank === null ? "" : undefined,
                   "data-dragging": drag.dragging === host ? "" : undefined,
                   children: [
-                    /* @__PURE__ */ jsx_runtime31.jsx("button", {
+                    /* @__PURE__ */ jsx_runtime33.jsx("button", {
                       type: "button",
                       className: HANDLE,
                       "data-handle": "",
@@ -43400,9 +56101,9 @@ function AgentOrderBody() {
                       onClick: (event) => onClick(event, host),
                       onKeyDown: (event) => onHandleKey(event, host),
                       ...rank === null ? {} : drag.handlers(host),
-                      children: /* @__PURE__ */ jsx_runtime31.jsx(Grip, {})
+                      children: /* @__PURE__ */ jsx_runtime33.jsx(Grip, {})
                     }),
-                    /* @__PURE__ */ jsx_runtime31.jsx(RowBody, {
+                    /* @__PURE__ */ jsx_runtime33.jsx(RowBody, {
                       host,
                       rank,
                       name,
@@ -43411,49 +56112,49 @@ function AgentOrderBody() {
                   ]
                 }, host))
               }),
-              /* @__PURE__ */ jsx_runtime31.jsx("div", {
+              /* @__PURE__ */ jsx_runtime33.jsx("div", {
                 ref: marker,
                 className: "pointer-events-none absolute right-3.5 left-3.5 h-0.5 rounded-[1px] bg-ring before:absolute before:-top-[3px] before:-left-2 before:box-border before:h-2 before:w-2 before:rounded-[50%] before:border-2 before:border-solid before:border-ring before:content-['']",
                 hidden: true
               }),
-              /* @__PURE__ */ jsx_runtime31.jsx("p", {
+              /* @__PURE__ */ jsx_runtime33.jsx("p", {
                 className: NOTICE,
                 hidden: !shown.status,
                 children: shown.status
               }),
-              /* @__PURE__ */ jsx_runtime31.jsx("div", {
-                children: shown.view.waits.map((wait) => /* @__PURE__ */ jsx_runtime31.jsx(WaitLine, {
+              /* @__PURE__ */ jsx_runtime33.jsx("div", {
+                children: shown.view.waits.map((wait) => /* @__PURE__ */ jsx_runtime33.jsx(WaitLine, {
                   wait,
                   isBusy: shown.retrying.has(wait.waitId)
                 }, wait.waitId))
               })
             ]
-          }) : /* @__PURE__ */ jsx_runtime31.jsx("p", {
+          }) : /* @__PURE__ */ jsx_runtime33.jsx("p", {
             className: NOTICE,
             children: "The agent order is not read yet."
           }),
-          /* @__PURE__ */ jsx_runtime31.jsx("p", {
+          /* @__PURE__ */ jsx_runtime33.jsx("p", {
             className: "sr-only",
             "aria-live": "polite",
             children: live
           }),
-          ghost && /* @__PURE__ */ jsx_runtime31.jsxs("div", {
+          ghost && /* @__PURE__ */ jsx_runtime33.jsxs("div", {
             ref: preview,
             className: `fixed z-50 ${ROW3} bg-card opacity-95 pointer-events-none [box-shadow:var(--float)]`,
             "aria-hidden": "true",
             children: [
-              /* @__PURE__ */ jsx_runtime31.jsx("span", {
+              /* @__PURE__ */ jsx_runtime33.jsx("span", {
                 className: `${HANDLE} px-1.5 py-px text-center`,
-                children: /* @__PURE__ */ jsx_runtime31.jsx(Grip, {})
+                children: /* @__PURE__ */ jsx_runtime33.jsx(Grip, {})
               }),
-              /* @__PURE__ */ jsx_runtime31.jsx(RowBody, {
+              /* @__PURE__ */ jsx_runtime33.jsx(RowBody, {
                 ...ghost
               })
             ]
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime31.jsx(DropdownMenu, {
+      /* @__PURE__ */ jsx_runtime33.jsx(DropdownMenu, {
         modal: false,
         open: menuFor !== null,
         onOpenChange: (isOpen, details) => {
@@ -43462,7 +56163,7 @@ function AgentOrderBody() {
           wasOutsidePress.current = details.reason === "outside-press";
           agentStore.closeMenu();
         },
-        children: /* @__PURE__ */ jsx_runtime31.jsxs(DropdownMenuContent, {
+        children: /* @__PURE__ */ jsx_runtime33.jsxs(DropdownMenuContent, {
           anchor,
           align: "start",
           "aria-label": menuFor ? `${shown?.registry[menuFor]?.name ?? menuFor} actions` : undefined,
@@ -43470,8 +56171,8 @@ function AgentOrderBody() {
           finalFocus,
           onKeyDown: onPopupKey,
           children: [
-            menuFor && /* @__PURE__ */ jsx_runtime31.jsx(FirstFocus, {}, menuFor),
-            menuFor && /* @__PURE__ */ jsx_runtime31.jsx(Entries2, {
+            menuFor && /* @__PURE__ */ jsx_runtime33.jsx(FirstFocus, {}, menuFor),
+            menuFor && /* @__PURE__ */ jsx_runtime33.jsx(Entries2, {
               list: () => agentStore.entries(menuFor),
               close: agentStore.closeMenu
             })
@@ -43483,14 +56184,14 @@ function AgentOrderBody() {
 }
 function AgentOrder() {
   const shown = useAgents((state) => state.shown);
-  return /* @__PURE__ */ jsx_runtime31.jsx(ViewBoundary, {
+  return /* @__PURE__ */ jsx_runtime33.jsx(ViewBoundary, {
     snapshot: shown,
-    fallback: /* @__PURE__ */ jsx_runtime31.jsx("div", {
+    fallback: /* @__PURE__ */ jsx_runtime33.jsx("div", {
       className: ROOT2,
       id: "agent-picker"
     }),
     onFail: agentStore.closeMenu,
-    children: /* @__PURE__ */ jsx_runtime31.jsx(AgentOrderBody, {})
+    children: /* @__PURE__ */ jsx_runtime33.jsx(AgentOrderBody, {})
   });
 }
 
@@ -43508,7 +56209,7 @@ function useToggleGroupContext() {
 }
 
 // engine/node_modules/@base-ui/react/toggle/Toggle.mjs
-var import_jsx_runtime38 = __toESM(require_jsx_runtime(), 1);
+var import_jsx_runtime39 = __toESM(require_jsx_runtime(), 1);
 "use client";
 var Toggle = /* @__PURE__ */ React141.forwardRef(function Toggle(componentProps, forwardedRef) {
   const {
@@ -43577,7 +56278,7 @@ var Toggle = /* @__PURE__ */ React141.forwardRef(function Toggle(componentProps,
     focusableWhenDisabled: false
   }), [disabled]);
   if (groupContext) {
-    return /* @__PURE__ */ import_jsx_runtime38.jsx(CompositeItem, {
+    return /* @__PURE__ */ import_jsx_runtime39.jsx(CompositeItem, {
       tag: "button",
       render,
       className,
@@ -43593,7 +56294,7 @@ var Toggle = /* @__PURE__ */ React141.forwardRef(function Toggle(componentProps,
 if (false)
   ;
 // engine/board/page/ui/toggle.tsx
-var jsx_runtime32 = __toESM(require_jsx_runtime());
+var jsx_runtime34 = __toESM(require_jsx_runtime());
 var toggleVariants = cva("group/toggle inline-flex shrink-0 select-none items-center justify-center py-0 text-[0.78125rem] leading-none font-medium whitespace-nowrap transition-[background-color,border-color,box-shadow,opacity,transform] duration-150 outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-[0.97] aria-busy:cursor-progress aria-busy:opacity-70 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0", {
   variants: {
     variant: {
@@ -43616,7 +56317,7 @@ function Toggle2({
   size = "default",
   ...props
 }) {
-  return /* @__PURE__ */ jsx_runtime32.jsx(Toggle, {
+  return /* @__PURE__ */ jsx_runtime34.jsx(Toggle, {
     "data-slot": "toggle",
     className: cn(toggleVariants({ variant, size, className })),
     ...props
@@ -43624,7 +56325,7 @@ function Toggle2({
 }
 
 // engine/board/page/app/control.tsx
-var jsx_runtime33 = __toESM(require_jsx_runtime());
+var jsx_runtime35 = __toESM(require_jsx_runtime());
 var AUTO = {
   on: { tone: "ok", title: "Auto mode starts each auto step.", words: "Auto mode is on." },
   off: { tone: "off", title: "Auto mode is off: auto steps wait.", words: "Auto mode is off." },
@@ -43632,27 +56333,27 @@ var AUTO = {
 };
 var SMALL = "h-6 gap-[7px] rounded-sm border-0 px-2 transition-all duration-0 text-xs font-normal phone:min-h-11 phone:min-w-11";
 function Code({ children }) {
-  return /* @__PURE__ */ jsx_runtime33.jsx("code", {
+  return /* @__PURE__ */ jsx_runtime35.jsx("code", {
     className: "font-mono text-xs leading-none",
     children
   });
 }
 function Row2({ isFirst = false, children }) {
-  return /* @__PURE__ */ jsx_runtime33.jsx("div", {
+  return /* @__PURE__ */ jsx_runtime35.jsx("div", {
     className: cn("mt-3.5 flex flex-wrap items-center justify-end gap-x-4 gap-y-2.5 phone:justify-start", !isFirst && "border-t border-border pt-3.5"),
     children
   });
 }
 function RowText({ id, label, help }) {
-  return /* @__PURE__ */ jsx_runtime33.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime35.jsxs("div", {
     className: "min-w-0 flex-[1_1_280px] phone:basis-full",
     children: [
-      /* @__PURE__ */ jsx_runtime33.jsx("span", {
+      /* @__PURE__ */ jsx_runtime35.jsx("span", {
         className: "text-[0.8125rem] font-medium text-foreground",
         id: `${id}-label`,
         children: label
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx("p", {
+      /* @__PURE__ */ jsx_runtime35.jsx("p", {
         className: "mt-0.5 mb-0 text-xs leading-[1.45] text-pretty text-muted-foreground",
         id: `${id}-help`,
         children: help
@@ -43662,37 +56363,37 @@ function RowText({ id, label, help }) {
 }
 function Automation({ daemon, isDown }) {
   const auto = isDown ? null : daemon?.auto ?? null;
-  return /* @__PURE__ */ jsx_runtime33.jsxs(Card, {
+  return /* @__PURE__ */ jsx_runtime35.jsxs(Card, {
     id: "ctl-auto",
     "aria-labelledby": "ctl-auto-title",
     children: [
-      /* @__PURE__ */ jsx_runtime33.jsx(CardTitle, {
+      /* @__PURE__ */ jsx_runtime35.jsx(CardTitle, {
         id: "ctl-auto-title",
         children: "Automation"
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx(CardDescription, {
+      /* @__PURE__ */ jsx_runtime35.jsx(CardDescription, {
         children: "Auto mode of the daemon starts each auto step by itself. The board shows its state only."
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx("p", {
+      /* @__PURE__ */ jsx_runtime35.jsx("p", {
         className: "mt-3 mb-0 text-[0.8125rem] text-card-foreground",
         id: "ctl-auto-state",
-        children: isDown ? /* @__PURE__ */ jsx_runtime33.jsxs(jsx_runtime33.Fragment, {
+        children: isDown ? /* @__PURE__ */ jsx_runtime35.jsxs(jsx_runtime35.Fragment, {
           children: [
             "No daemon answers. Start it in a terminal: ",
-            /* @__PURE__ */ jsx_runtime33.jsx(Code, {
+            /* @__PURE__ */ jsx_runtime35.jsx(Code, {
               children: "celetis daemon start"
             })
           ]
         }) : auto ? AUTO[auto].words : "The daemon state is not read yet."
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx("p", {
+      /* @__PURE__ */ jsx_runtime35.jsx("p", {
         className: "mt-3 mb-0 text-[0.8125rem] text-card-foreground",
         id: "ctl-auto-command",
         hidden: auto === null,
-        children: auto && /* @__PURE__ */ jsx_runtime33.jsxs(jsx_runtime33.Fragment, {
+        children: auto && /* @__PURE__ */ jsx_runtime35.jsxs(jsx_runtime35.Fragment, {
           children: [
             "Change it in a terminal: ",
-            /* @__PURE__ */ jsx_runtime33.jsx(Code, {
+            /* @__PURE__ */ jsx_runtime35.jsx(Code, {
               children: `celetis daemon auto ${auto === "on" ? "off" : "on"}`
             })
           ]
@@ -43714,20 +56415,20 @@ function StatusRow({
   name,
   children
 }) {
-  return /* @__PURE__ */ jsx_runtime33.jsxs("span", {
+  return /* @__PURE__ */ jsx_runtime35.jsxs("span", {
     className: "mt-3 flex min-h-7 min-w-0 items-center gap-[7px] text-[0.8125rem] tabular-nums",
     id,
     "data-tone": tone,
     title: title || undefined,
     children: [
-      /* @__PURE__ */ jsx_runtime33.jsx("i", {
+      /* @__PURE__ */ jsx_runtime35.jsx("i", {
         className: cn("size-1.5 flex-none rounded-full", DOT[tone])
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx("span", {
+      /* @__PURE__ */ jsx_runtime35.jsx("span", {
         className: "text-muted-foreground",
         children: name
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx("span", {
+      /* @__PURE__ */ jsx_runtime35.jsx("span", {
         className: cn("min-w-0 font-medium wrap-anywhere", tone === "fail" ? "text-caution" : "text-card-foreground"),
         children
       })
@@ -43735,8 +56436,8 @@ function StatusRow({
   });
 }
 var useNow = () => {
-  const [now, setNow] = import_react32.useState(Date.now);
-  import_react32.useEffect(() => {
+  const [now, setNow] = import_react35.useState(Date.now);
+  import_react35.useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
@@ -43758,27 +56459,27 @@ function Status2({ data, isDown }) {
     tone: AUTO[daemon.auto].tone,
     title: `The daemon PID ${daemon.pid} runs. ${AUTO[daemon.auto].title}`
   } : { text: "checking", tone: "wait", title: "" };
-  return /* @__PURE__ */ jsx_runtime33.jsxs(Card, {
+  return /* @__PURE__ */ jsx_runtime35.jsxs(Card, {
     id: "ctl-status",
     "aria-labelledby": "ctl-status-title",
     children: [
-      /* @__PURE__ */ jsx_runtime33.jsx(CardTitle, {
+      /* @__PURE__ */ jsx_runtime35.jsx(CardTitle, {
         id: "ctl-status-title",
         children: "Board status"
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx(CardDescription, {
+      /* @__PURE__ */ jsx_runtime35.jsx(CardDescription, {
         children: "What the board reads, and the parts that Run and Go use."
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx(StatusRow, {
+      /* @__PURE__ */ jsx_runtime35.jsx(StatusRow, {
         id: "fresh",
         tone: freshTone,
         title: freshTitle,
         name,
-        children: isDown ? SERVER_DOWN : source.error ? `cannot read: ${source.error}` : source.readAt ? /* @__PURE__ */ jsx_runtime33.jsxs(jsx_runtime33.Fragment, {
+        children: isDown ? SERVER_DOWN : source.error ? `cannot read: ${source.error}` : source.readAt ? /* @__PURE__ */ jsx_runtime35.jsxs(jsx_runtime35.Fragment, {
           children: [
             "read",
             " ",
-            /* @__PURE__ */ jsx_runtime33.jsxs("time", {
+            /* @__PURE__ */ jsx_runtime35.jsxs("time", {
               className: "time tabular-nums",
               dateTime: source.readAt,
               title: clock(source.readAt, true),
@@ -43790,21 +56491,21 @@ function Status2({ data, isDown }) {
           ]
         }) : "no data yet"
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx(StatusRow, {
+      /* @__PURE__ */ jsx_runtime35.jsx(StatusRow, {
         id: "terminal",
         tone: terminalTone,
         title: terminal?.error ? `herdr: ${terminal.error}` : "Run and Go use herdr",
         name: "herdr",
         children: terminal?.ok === true ? "up" : terminal?.ok === false ? "down" : "checking"
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx(StatusRow, {
+      /* @__PURE__ */ jsx_runtime35.jsx(StatusRow, {
         id: "daemon",
         tone: daemonItem.tone,
         title: daemonItem.title,
         name: "Daemon",
         children: daemonItem.text
       }),
-      /* @__PURE__ */ jsx_runtime33.jsxs(Button2, {
+      /* @__PURE__ */ jsx_runtime35.jsxs(Button2, {
         variant: "outline",
         id: "refresh",
         className: "mt-3 phone:min-h-11 phone:min-w-11 data-done:[&_.icon]:text-ready",
@@ -43813,10 +56514,10 @@ function Status2({ data, isDown }) {
         title: control.refresh === "done" ? `${readAgain}: done` : `${readAgain} (r)`,
         onClick: () => void shellStore.refresh(),
         children: [
-          /* @__PURE__ */ jsx_runtime33.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime35.jsx(Icon, {
             name: "refresh"
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx("span", {
+          /* @__PURE__ */ jsx_runtime35.jsx("span", {
             className: "label",
             children: "Refresh"
           })
@@ -43831,26 +56532,26 @@ function Preferences() {
   const isBlocked = "Notification" in window && Notification.permission === "denied";
   const isOn = notify && !isBlocked;
   const themeLabel = `Theme: ${THEME_WORDS[theme]}. Press to change`;
-  return /* @__PURE__ */ jsx_runtime33.jsxs(Card, {
+  return /* @__PURE__ */ jsx_runtime35.jsxs(Card, {
     id: "ctl-prefs",
     "aria-labelledby": "ctl-prefs-title",
     children: [
-      /* @__PURE__ */ jsx_runtime33.jsx(CardTitle, {
+      /* @__PURE__ */ jsx_runtime35.jsx(CardTitle, {
         id: "ctl-prefs-title",
         children: "Notifications, keys, and theme"
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx(CardDescription, {
+      /* @__PURE__ */ jsx_runtime35.jsx(CardDescription, {
         children: "Settings of this browser. A change takes effect at once."
       }),
-      /* @__PURE__ */ jsx_runtime33.jsxs(Row2, {
+      /* @__PURE__ */ jsx_runtime35.jsxs(Row2, {
         isFirst: true,
         children: [
-          /* @__PURE__ */ jsx_runtime33.jsx(RowText, {
+          /* @__PURE__ */ jsx_runtime35.jsx(RowText, {
             id: "notify",
             label: "Notify",
             help: "A system notification shows when a card needs you and the board is not in front."
           }),
-          /* @__PURE__ */ jsx_runtime33.jsxs(Toggle2, {
+          /* @__PURE__ */ jsx_runtime35.jsxs(Toggle2, {
             variant: "default",
             size: "sm",
             id: "notify",
@@ -43860,14 +56561,14 @@ function Preferences() {
             title: isBlocked ? "The browser blocks notifications for this page" : isOn ? "A system notification shows when a card needs you" : "Show a system notification when a card needs you",
             onPressedChange: () => void shellStore.toggleNotify(),
             children: [
-              /* @__PURE__ */ jsx_runtime33.jsx(Icon, {
+              /* @__PURE__ */ jsx_runtime35.jsx(Icon, {
                 name: isOn ? "bell" : "bell-off"
               }),
-              /* @__PURE__ */ jsx_runtime33.jsx("span", {
+              /* @__PURE__ */ jsx_runtime35.jsx("span", {
                 className: "text-muted-foreground",
                 children: "Notify"
               }),
-              /* @__PURE__ */ jsx_runtime33.jsx("b", {
+              /* @__PURE__ */ jsx_runtime35.jsx("b", {
                 className: "font-medium text-card-foreground",
                 children: isBlocked ? "blocked" : isOn ? "on" : "off"
               })
@@ -43875,14 +56576,14 @@ function Preferences() {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime33.jsxs(Row2, {
+      /* @__PURE__ */ jsx_runtime35.jsxs(Row2, {
         children: [
-          /* @__PURE__ */ jsx_runtime33.jsx(RowText, {
+          /* @__PURE__ */ jsx_runtime35.jsx(RowText, {
             id: "keys",
             label: "Single-key shortcuts",
             help: "j k h l v d r / ?. The keys of a focused card always work."
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx(Toggle2, {
+          /* @__PURE__ */ jsx_runtime35.jsx(Toggle2, {
             id: "keys-switch",
             className: "phone:min-h-11 phone:min-w-11",
             pressed: keys,
@@ -43891,43 +56592,43 @@ function Preferences() {
             onPressedChange: (next) => shellStore.setKeys(next),
             children: keys ? "On" : "Off"
           }),
-          /* @__PURE__ */ jsx_runtime33.jsxs(Button2, {
+          /* @__PURE__ */ jsx_runtime35.jsxs(Button2, {
             variant: "ghost",
             id: "keys-open",
             className: SMALL,
             title: "Keyboard shortcuts (?)",
             onClick: openShortcuts,
             children: [
-              /* @__PURE__ */ jsx_runtime33.jsx(Icon, {
+              /* @__PURE__ */ jsx_runtime35.jsx(Icon, {
                 name: "keyboard"
               }),
-              /* @__PURE__ */ jsx_runtime33.jsx("span", {
+              /* @__PURE__ */ jsx_runtime35.jsx("span", {
                 children: "Keys"
               })
             ]
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime33.jsxs(Row2, {
+      /* @__PURE__ */ jsx_runtime35.jsxs(Row2, {
         children: [
-          /* @__PURE__ */ jsx_runtime33.jsx(RowText, {
+          /* @__PURE__ */ jsx_runtime35.jsx(RowText, {
             id: "theme",
             label: "Theme",
             help: "System follows the setting of the device."
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx("span", {
+          /* @__PURE__ */ jsx_runtime35.jsx("span", {
             className: "text-[0.78125rem] text-card-foreground",
             id: "theme-words",
             children: THEME_WORDS[theme]
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx(Button2, {
+          /* @__PURE__ */ jsx_runtime35.jsx(Button2, {
             variant: "ghost",
             id: "theme",
             className: "size-6 gap-0 rounded-sm p-0 transition-all duration-0 phone:size-11 [&_.icon]:size-3.5",
             "aria-label": themeLabel,
             title: themeLabel,
             onClick: () => shellStore.cycleTheme(),
-            children: /* @__PURE__ */ jsx_runtime33.jsx(Icon, {
+            children: /* @__PURE__ */ jsx_runtime35.jsx(Icon, {
               name: `theme-${theme}`
             })
           })
@@ -43938,57 +56639,57 @@ function Preferences() {
 }
 function Control() {
   const { data, isError } = useQuery(viewOptions);
-  return /* @__PURE__ */ jsx_runtime33.jsxs("section", {
+  return /* @__PURE__ */ jsx_runtime35.jsxs("section", {
     className: cn(AREA_SCREEN, "content-start items-start justify-center justify-items-stretch gap-3.5 overflow-auto grid-cols-[minmax(0,min(100%,720px))] p-5 phone:scroll-pb-[calc(var(--dock)+8px)] phone:p-3"),
     id: "area-control",
     "aria-labelledby": "area-control-title",
     children: [
-      /* @__PURE__ */ jsx_runtime33.jsx("h2", {
+      /* @__PURE__ */ jsx_runtime35.jsx("h2", {
         className: "text-sm leading-[1.38] font-semibold tracking-[-0.012em] text-foreground",
         id: "area-control-title",
         children: "Control"
       }),
-      /* @__PURE__ */ jsx_runtime33.jsxs(Card, {
+      /* @__PURE__ */ jsx_runtime35.jsxs(Card, {
         id: "ctl-agents",
         tabIndex: -1,
         "aria-labelledby": "ctl-agents-title",
         children: [
-          /* @__PURE__ */ jsx_runtime33.jsx(CardTitle, {
+          /* @__PURE__ */ jsx_runtime35.jsx(CardTitle, {
             id: "ctl-agents-title",
             children: "Agents"
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx(CardDescription, {
+          /* @__PURE__ */ jsx_runtime35.jsx(CardDescription, {
             children: "New default work uses the first available agent. Drag a handle, or press it for the move actions."
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx("div", {
+          /* @__PURE__ */ jsx_runtime35.jsx("div", {
             className: "mt-3",
-            children: /* @__PURE__ */ jsx_runtime33.jsx(AgentOrder, {})
+            children: /* @__PURE__ */ jsx_runtime35.jsx(AgentOrder, {})
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx(Automation, {
+      /* @__PURE__ */ jsx_runtime35.jsx(Automation, {
         daemon: data?.daemon ?? null,
         isDown: isError
       }),
-      /* @__PURE__ */ jsx_runtime33.jsxs(Card, {
+      /* @__PURE__ */ jsx_runtime35.jsxs(Card, {
         id: "ctl-updates",
         "aria-labelledby": "ctl-updates-title",
         children: [
-          /* @__PURE__ */ jsx_runtime33.jsx(CardTitle, {
+          /* @__PURE__ */ jsx_runtime35.jsx(CardTitle, {
             id: "ctl-updates-title",
             children: "Updates"
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx(CardDescription, {
+          /* @__PURE__ */ jsx_runtime35.jsx(CardDescription, {
             children: "The installed engine and plugins of Celetis. Update and restart needs your click, and the daemon restarts after it."
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx("div", {
+          /* @__PURE__ */ jsx_runtime35.jsx("div", {
             className: "mt-3",
-            children: /* @__PURE__ */ jsx_runtime33.jsx(UpdateControl, {})
+            children: /* @__PURE__ */ jsx_runtime35.jsx(UpdateControl, {})
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx(Preferences, {}),
-      /* @__PURE__ */ jsx_runtime33.jsx(Status2, {
+      /* @__PURE__ */ jsx_runtime35.jsx(Preferences, {}),
+      /* @__PURE__ */ jsx_runtime35.jsx(Status2, {
         data,
         isDown: isError
       })
@@ -43997,7 +56698,7 @@ function Control() {
 }
 
 // engine/board/page/app/home.tsx
-var import_react33 = __toESM(require_react());
+var import_react36 = __toESM(require_react());
 
 // engine/board/page/home.ts
 var queueText = (board) => {
@@ -44104,11 +56805,11 @@ var tileOf = (kind, board) => {
 };
 
 // engine/board/page/app/home.tsx
-var jsx_runtime34 = __toESM(require_jsx_runtime());
+var jsx_runtime36 = __toESM(require_jsx_runtime());
 var KINDS = ["needs", "working", "landed", "median"];
 var PAD = "p-[12px_14px] [box-shadow:var(--raise)] phone:p-[12px_14px]";
 var LIST2 = "mt-2 mb-0 list-none p-0 [&>li+li]:border-t [&>li+li]:border-t-border";
-var EMPTY4 = "mt-2 mb-0 text-[0.78125rem] text-muted-foreground";
+var EMPTY5 = "mt-2 mb-0 text-[0.78125rem] text-muted-foreground";
 var TITLE2 = "m-0 text-[0.8125rem] leading-[1.4] text-foreground wrap-anywhere text-pretty";
 var META = "m-0 block font-mono text-[0.75rem] leading-[1.4] font-normal wrap-anywhere";
 var SMALL2 = "m-0 text-[0.75rem] leading-normal";
@@ -44119,36 +56820,36 @@ var rowOf = (event) => {
 };
 function TileCard({ tile }) {
   const spark = tile.state.kind === "line" ? sparkPath(tile.state.points) : null;
-  return /* @__PURE__ */ jsx_runtime34.jsxs(Card, {
+  return /* @__PURE__ */ jsx_runtime36.jsxs(Card, {
     className: PAD,
     role: "group",
     "aria-label": tile.name,
     children: [
-      /* @__PURE__ */ jsx_runtime34.jsx(CardTitle, {
+      /* @__PURE__ */ jsx_runtime36.jsx(CardTitle, {
         children: tile.label
       }),
-      /* @__PURE__ */ jsx_runtime34.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime36.jsxs("div", {
         className: "mt-2 flex flex-wrap items-center gap-x-3 gap-y-1",
         children: [
-          /* @__PURE__ */ jsx_runtime34.jsx("p", {
+          /* @__PURE__ */ jsx_runtime36.jsx("p", {
             className: "my-0 mr-auto ml-0 font-mono text-[1.5rem] leading-8 font-semibold text-foreground",
             children: tile.value
           }),
-          tile.state.kind !== "line" && /* @__PURE__ */ jsx_runtime34.jsx("p", {
+          tile.state.kind !== "line" && /* @__PURE__ */ jsx_runtime36.jsx("p", {
             className: "m-0 text-[0.8125rem] leading-[1.4] text-muted-foreground",
             children: tile.state.text
           }),
-          spark && /* @__PURE__ */ jsx_runtime34.jsxs(jsx_runtime34.Fragment, {
+          spark && /* @__PURE__ */ jsx_runtime36.jsxs(jsx_runtime36.Fragment, {
             children: [
-              /* @__PURE__ */ jsx_runtime34.jsxs("svg", {
+              /* @__PURE__ */ jsx_runtime36.jsxs("svg", {
                 className: "h-8 w-24 flex-none fill-none stroke-card-foreground stroke-[1.5] [stroke-linecap:round] [stroke-linejoin:round]",
                 viewBox: "0 0 96 32",
                 "aria-hidden": "true",
                 children: [
-                  /* @__PURE__ */ jsx_runtime34.jsx("path", {
+                  /* @__PURE__ */ jsx_runtime36.jsx("path", {
                     d: spark.d
                   }),
-                  /* @__PURE__ */ jsx_runtime34.jsx("circle", {
+                  /* @__PURE__ */ jsx_runtime36.jsx("circle", {
                     className: "fill-foreground stroke-none",
                     cx: String(spark.dot.x),
                     cy: String(spark.dot.y),
@@ -44156,7 +56857,7 @@ function TileCard({ tile }) {
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime34.jsx("span", {
+              /* @__PURE__ */ jsx_runtime36.jsx("span", {
                 className: "font-mono text-[0.6875rem] leading-none font-normal text-card-foreground",
                 "aria-hidden": "true",
                 children: spark.last % 1 ? spark.last.toFixed(1) : String(spark.last)
@@ -44165,22 +56866,22 @@ function TileCard({ tile }) {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime34.jsx("p", {
+      /* @__PURE__ */ jsx_runtime36.jsx("p", {
         className: "mt-1 mb-0 text-[0.75rem] leading-normal text-card-foreground",
         children: tile.unit
       }),
-      tile.change && /* @__PURE__ */ jsx_runtime34.jsxs("p", {
+      tile.change && /* @__PURE__ */ jsx_runtime36.jsxs("p", {
         className: `${SMALL2} flex items-center gap-1 text-card-foreground`,
         children: [
-          tile.change.dir && /* @__PURE__ */ jsx_runtime34.jsx(Icon, {
+          tile.change.dir && /* @__PURE__ */ jsx_runtime36.jsx(Icon, {
             name: tile.change.dir === "up" ? "trend-up" : "trend-down"
           }),
-          /* @__PURE__ */ jsx_runtime34.jsx("span", {
+          /* @__PURE__ */ jsx_runtime36.jsx("span", {
             children: tile.change.text
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime34.jsx("p", {
+      /* @__PURE__ */ jsx_runtime36.jsx("p", {
         className: `${SMALL2} text-muted-foreground`,
         children: tile.window
       })
@@ -44189,24 +56890,24 @@ function TileCard({ tile }) {
 }
 function NeedsRow({ card }) {
   const meta = stateLabel(card) ?? card.reason ?? "";
-  return /* @__PURE__ */ jsx_runtime34.jsxs("li", {
+  return /* @__PURE__ */ jsx_runtime36.jsxs("li", {
     className: "flex min-h-11 items-center gap-3 py-2",
     "data-key": keyOf(card),
     children: [
-      /* @__PURE__ */ jsx_runtime34.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime36.jsxs("div", {
         className: "min-w-0 flex-1",
         children: [
-          /* @__PURE__ */ jsx_runtime34.jsx("p", {
+          /* @__PURE__ */ jsx_runtime36.jsx("p", {
             className: TITLE2,
             children: card.title
           }),
-          /* @__PURE__ */ jsx_runtime34.jsx("p", {
+          /* @__PURE__ */ jsx_runtime36.jsx("p", {
             className: `${META} text-needs`,
             children: card.number === null ? meta : `#${card.number} · ${meta}`
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime34.jsx(Button2, {
+      /* @__PURE__ */ jsx_runtime36.jsx(Button2, {
         className: "min-h-7 hover:opacity-[0.88] [&:hover]:opacity-[0.88] phone:h-11 phone:min-h-11 phone:min-w-11",
         "aria-label": `Open #${card.number} ${card.title}`,
         onClick: () => open5(card),
@@ -44217,18 +56918,18 @@ function NeedsRow({ card }) {
 }
 function AgentRow({ card, board }) {
   const meta = [card.step, agentOf(card, board.registry)?.name, stateLabel(card)].filter(Boolean).join(" · ");
-  return /* @__PURE__ */ jsx_runtime34.jsx("li", {
+  return /* @__PURE__ */ jsx_runtime36.jsx("li", {
     "data-key": keyOf(card),
-    children: /* @__PURE__ */ jsx_runtime34.jsxs("button", {
+    children: /* @__PURE__ */ jsx_runtime36.jsxs("button", {
       type: "button",
       className: "flex min-h-11 w-full flex-col items-start justify-center gap-0.5 [border:0] bg-transparent px-0 py-2 text-start",
       onClick: () => open5(card),
       children: [
-        /* @__PURE__ */ jsx_runtime34.jsx("span", {
+        /* @__PURE__ */ jsx_runtime36.jsx("span", {
           className: `${TITLE2} [button:hover>&]:underline`,
           children: `#${card.number} ${card.title}`
         }),
-        /* @__PURE__ */ jsx_runtime34.jsx("span", {
+        /* @__PURE__ */ jsx_runtime36.jsx("span", {
           className: `${META} text-working`,
           children: meta
         })
@@ -44241,8 +56942,8 @@ function Home() {
   const needs = board?.columns.needs ?? [];
   const waiting = board?.columns.waiting.length ?? 0;
   const running = board?.columns.running ?? [];
-  const spot = import_react33.useRef(null);
-  const lists = { "home-needs": import_react33.useRef(null), "home-agents": import_react33.useRef(null) };
+  const spot = import_react36.useRef(null);
+  const lists = { "home-needs": import_react36.useRef(null), "home-agents": import_react36.useRef(null) };
   const rows = (list) => [...lists[list].current?.children ?? []];
   const focusIn = (list) => (event) => {
     const node = rowOf(event);
@@ -44256,7 +56957,7 @@ function Home() {
         spot.current = null;
     });
   };
-  import_react33.useLayoutEffect(() => {
+  import_react36.useLayoutEffect(() => {
     const was = spot.current;
     if (!was)
       return;
@@ -44271,111 +56972,111 @@ function Home() {
     const row = mine.find((each) => each.dataset.key === was.key) ?? mine[Math.min(was.index, mine.length - 1)] ?? rows(was.list === "home-needs" ? "home-agents" : "home-needs")[0];
     (row?.querySelector("button") ?? document.getElementById("work"))?.focus({ preventScroll: true });
   }, [board]);
-  return /* @__PURE__ */ jsx_runtime34.jsxs("section", {
+  return /* @__PURE__ */ jsx_runtime36.jsxs("section", {
     className: cn(AREA_SCREEN, "flex flex-col place-items-stretch gap-3 overflow-auto p-5 phone:scroll-pb-[calc(var(--dock)+8px)] phone:p-3"),
     id: "area-home",
     "aria-labelledby": "area-home-title",
     children: [
-      /* @__PURE__ */ jsx_runtime34.jsx("h2", {
+      /* @__PURE__ */ jsx_runtime36.jsx("h2", {
         className: "text-sm leading-[1.38] font-semibold tracking-[-0.012em] text-foreground",
         id: "area-home-title",
         children: "Home"
       }),
-      /* @__PURE__ */ jsx_runtime34.jsx("div", {
+      /* @__PURE__ */ jsx_runtime36.jsx("div", {
         className: "grid grid-cols-[minmax(0,1fr)] gap-3 empty:hidden min-[720px]:grid-cols-2 min-[1200px]:grid-cols-4 phone:order-2",
         id: "home-tiles",
-        children: board && KINDS.map((kind) => /* @__PURE__ */ jsx_runtime34.jsx(TileCard, {
+        children: board && KINDS.map((kind) => /* @__PURE__ */ jsx_runtime36.jsx(TileCard, {
           tile: tileOf(kind, board)
         }, kind))
       }),
-      /* @__PURE__ */ jsx_runtime34.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime36.jsxs("div", {
         className: "grid grid-cols-[minmax(0,1fr)] gap-3 [align-items:start] wide:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] phone:contents",
         children: [
-          /* @__PURE__ */ jsx_runtime34.jsxs(Card, {
+          /* @__PURE__ */ jsx_runtime36.jsxs(Card, {
             className: `${PAD} phone:order-1`,
             id: "home-needs",
             "aria-labelledby": "home-needs-title",
             children: [
-              /* @__PURE__ */ jsx_runtime34.jsx(CardTitle, {
+              /* @__PURE__ */ jsx_runtime36.jsx(CardTitle, {
                 id: "home-needs-title",
                 children: "Needs you"
               }),
-              /* @__PURE__ */ jsx_runtime34.jsx("ul", {
+              /* @__PURE__ */ jsx_runtime36.jsx("ul", {
                 className: LIST2,
                 id: "home-needs-list",
                 hidden: board !== null && needs.length === 0,
                 ref: lists["home-needs"],
                 onFocus: focusIn("home-needs"),
                 onBlur: focusOut,
-                children: needs.map((card) => /* @__PURE__ */ jsx_runtime34.jsx(NeedsRow, {
+                children: needs.map((card) => /* @__PURE__ */ jsx_runtime36.jsx(NeedsRow, {
                   card
                 }, keyOf(card)))
               }),
-              /* @__PURE__ */ jsx_runtime34.jsx("p", {
-                className: EMPTY4,
+              /* @__PURE__ */ jsx_runtime36.jsx("p", {
+                className: EMPTY5,
                 id: "home-needs-empty",
                 hidden: board === null || needs.length > 0,
                 children: "No issue needs you."
               }),
-              waiting > 0 && /* @__PURE__ */ jsx_runtime34.jsx("p", {
-                className: EMPTY4,
+              waiting > 0 && /* @__PURE__ */ jsx_runtime36.jsx("p", {
+                className: EMPTY5,
                 id: "home-waiting",
                 children: `${waiting} ${waiting === 1 ? "issue waits" : "issues wait"}. No act from you now.`
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime34.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime36.jsxs("div", {
             className: "grid min-w-0 gap-3 phone:order-3",
             children: [
-              /* @__PURE__ */ jsx_runtime34.jsxs(Card, {
+              /* @__PURE__ */ jsx_runtime36.jsxs(Card, {
                 className: PAD,
                 id: "home-agents",
                 "aria-labelledby": "home-agents-title",
                 children: [
-                  /* @__PURE__ */ jsx_runtime34.jsx(CardTitle, {
+                  /* @__PURE__ */ jsx_runtime36.jsx(CardTitle, {
                     id: "home-agents-title",
                     children: "Agents now"
                   }),
-                  /* @__PURE__ */ jsx_runtime34.jsx("ul", {
+                  /* @__PURE__ */ jsx_runtime36.jsx("ul", {
                     className: LIST2,
                     id: "home-agents-list",
                     hidden: board !== null && running.length === 0,
                     ref: lists["home-agents"],
                     onFocus: focusIn("home-agents"),
                     onBlur: focusOut,
-                    children: board && running.map((card) => /* @__PURE__ */ jsx_runtime34.jsx(AgentRow, {
+                    children: board && running.map((card) => /* @__PURE__ */ jsx_runtime36.jsx(AgentRow, {
                       card,
                       board
                     }, keyOf(card)))
                   }),
-                  /* @__PURE__ */ jsx_runtime34.jsx("p", {
-                    className: EMPTY4,
+                  /* @__PURE__ */ jsx_runtime36.jsx("p", {
+                    className: EMPTY5,
                     id: "home-agents-empty",
                     hidden: board === null || running.length > 0,
                     children: "No agent works now."
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime34.jsxs(Card, {
+              /* @__PURE__ */ jsx_runtime36.jsxs(Card, {
                 className: PAD,
                 id: "home-system",
                 "aria-labelledby": "home-system-title",
                 children: [
-                  /* @__PURE__ */ jsx_runtime34.jsx(CardTitle, {
+                  /* @__PURE__ */ jsx_runtime36.jsx(CardTitle, {
                     id: "home-system-title",
                     children: "System"
                   }),
-                  /* @__PURE__ */ jsx_runtime34.jsx("dl", {
+                  /* @__PURE__ */ jsx_runtime36.jsx("dl", {
                     className: "mt-2 mb-0",
                     id: "home-system-facts",
-                    children: board && facts(board).map(([name, value]) => /* @__PURE__ */ jsx_runtime34.jsxs("div", {
+                    children: board && facts(board).map(([name, value]) => /* @__PURE__ */ jsx_runtime36.jsxs("div", {
                       className: "flex min-h-7 items-center justify-between gap-3 text-[0.8125rem]",
                       children: [
-                        /* @__PURE__ */ jsx_runtime34.jsx("dt", {
+                        /* @__PURE__ */ jsx_runtime36.jsx("dt", {
                           className: "text-muted-foreground",
                           children: name
                         }),
-                        /* @__PURE__ */ jsx_runtime34.jsx("dd", {
+                        /* @__PURE__ */ jsx_runtime36.jsx("dd", {
                           className: "m-0 text-end text-foreground wrap-anywhere",
                           children: value
                         })
@@ -44393,8 +57094,8 @@ function Home() {
 }
 
 // engine/board/page/app/shell.tsx
-var jsx_runtime35 = __toESM(require_jsx_runtime());
-var SKIP = "absolute -top-[60px] left-2 z-[200] inline-flex min-h-8 items-center rounded-lg border border-border-strong bg-card px-3 text-[0.78125rem] leading-none font-medium text-foreground focus:top-2 focus:shadow-float phone:min-h-11";
+var jsx_runtime37 = __toESM(require_jsx_runtime());
+var SKIP2 = "absolute -top-[60px] left-2 z-[200] inline-flex min-h-8 items-center rounded-lg border border-border-strong bg-card px-3 text-[0.78125rem] leading-none font-medium text-foreground focus:top-2 focus:shadow-float phone:min-h-11";
 var BANNER = "banner m-0 flex items-center gap-2.5 rounded-xl border border-border-strong bg-secondary px-3.5 py-[9px] text-[0.78125rem] text-foreground [overflow-wrap:anywhere] before:size-[7px] before:flex-none before:rounded-full before:bg-muted-foreground before:content-['']";
 var WARN = "border-[color-mix(in_srgb,var(--amber)_30%,transparent)] bg-[color-mix(in_srgb,var(--amber)_9%,transparent)] before:bg-caution";
 var BADGES = {
@@ -44421,10 +57122,10 @@ var useControlMark = () => {
 };
 function Intake({ inBar }) {
   const { reason, pending } = useShellStore((state) => state.inputs.intake);
-  return /* @__PURE__ */ jsx_runtime35.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime37.jsxs("div", {
     className: cn("flex flex-none gap-1.5", inBar ? "relative items-center justify-center" : "flex-col items-stretch"),
     children: [
-      /* @__PURE__ */ jsx_runtime35.jsxs(Button2, {
+      /* @__PURE__ */ jsx_runtime37.jsxs(Button2, {
         variant: "outline",
         id: "intake",
         "aria-describedby": "intake-reason",
@@ -44434,16 +57135,16 @@ function Intake({ inBar }) {
         onClick: () => shellStore.handlers().intake(),
         className: inBar ? "h-12 w-[calc(100%-8px)] flex-col rounded-xl gap-1 border-border-strong bg-accent p-0 text-[0.6875rem] leading-none text-foreground aria-disabled:border-border aria-disabled:bg-transparent aria-disabled:text-muted-foreground [&_.icon]:box-content [&_.icon]:size-[18px] [&_.icon]:rounded-[14px] [&_.icon]:px-[15px] [&_.icon]:py-[3px]" : "h-8 justify-start gap-2.5 px-2.5 rail:h-[50px] rail:flex-col rail:justify-center rail:gap-[5px] rail:px-0.5 rail:py-1.5 rail:text-center rail:text-[0.6875rem] rail:leading-[1.1]",
         children: [
-          /* @__PURE__ */ jsx_runtime35.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
             name: "spark"
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx("span", {
+          /* @__PURE__ */ jsx_runtime37.jsx("span", {
             className: "label",
             children: pending ? "Opening…" : "New intake"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx("span", {
+      /* @__PURE__ */ jsx_runtime37.jsx("span", {
         id: "intake-reason",
         className: cn("text-xs text-card-foreground [overflow-wrap:anywhere]", inBar ? "pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 w-max max-w-[calc(100vw-32px)] -translate-x-1/2 rounded-sm border border-border bg-card px-2 py-1" : "px-2.5 rail:p-0 rail:text-center rail:text-[0.6875rem]"),
         hidden: pending || reason === null,
@@ -44457,24 +57158,24 @@ function SkipLinks() {
   const isPhone = useShellStore((state) => state.isPhone);
   const isOps = shell.area === "operations";
   const isDetails = isOps && shell.details !== null && (!isPhone || shell.pane === "chat");
-  return /* @__PURE__ */ jsx_runtime35.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime37.jsxs("div", {
     className: "contents",
     id: "skips",
     children: [
-      /* @__PURE__ */ jsx_runtime35.jsx("a", {
-        className: SKIP,
+      /* @__PURE__ */ jsx_runtime37.jsx("a", {
+        className: SKIP2,
         href: "#side",
         children: "Skip to the sidebar"
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx("a", {
-        className: SKIP,
+      /* @__PURE__ */ jsx_runtime37.jsx("a", {
+        className: SKIP2,
         id: "skip-center",
         href: !isOps ? `#area-${shell.area}` : isDetails ? "#panel" : "#coordinator",
         hidden: isOps && !isChatShown(shell, isPhone) && !isDetails,
         children: !isOps ? "Skip to the work area" : isDetails ? "Skip to the details" : "Skip to the chat"
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx("a", {
-        className: SKIP,
+      /* @__PURE__ */ jsx_runtime37.jsx("a", {
+        className: SKIP2,
         id: "skip-pane",
         href: "#pane",
         hidden: !isOps || isPhone && shell.pane !== "agents",
@@ -44488,21 +57189,21 @@ function Destination({ area, mark }) {
   const badges = useShellStore((state) => state.inputs.badges);
   const badge = BADGES[area];
   const count = badge ? badges[badge.count] : 0;
-  return /* @__PURE__ */ jsx_runtime35.jsxs(SidebarMenuButton, {
+  return /* @__PURE__ */ jsx_runtime37.jsxs(SidebarMenuButton, {
     "data-area": area,
     "aria-current": current3(isCurrent),
     ...mark ?? { "aria-label": badge ? needLabel(AREA_NAMES[area], count) : undefined },
     className: cn(area === "control" && 'data-mark:after:absolute data-mark:after:top-1/2 data-mark:after:right-2.5 data-mark:after:-mt-1 data-mark:after:size-2 data-mark:after:rounded-full data-mark:after:bg-needs data-mark:after:content-[""] data-[mark=fail]:after:bg-caution rail:data-mark:after:top-1 rail:data-mark:after:right-auto rail:data-mark:after:left-[calc(50%+6px)] rail:data-mark:after:mt-0'),
     onClick: () => shellStore.handlers().go(area),
     children: [
-      /* @__PURE__ */ jsx_runtime35.jsx(Icon, {
+      /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
         name: AREA_ICONS[area]
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx("span", {
+      /* @__PURE__ */ jsx_runtime37.jsx("span", {
         className: "label min-w-0 flex-1 rail:flex-none",
         children: AREA_NAMES[area]
       }),
-      badge && /* @__PURE__ */ jsx_runtime35.jsx(Badge, {
+      badge && /* @__PURE__ */ jsx_runtime37.jsx(Badge, {
         variant: "count",
         id: badge.id,
         className: "rail:absolute rail:top-[3px] rail:left-[calc(50%+4px)]",
@@ -44513,7 +57214,7 @@ function Destination({ area, mark }) {
   });
 }
 function ControlDestination() {
-  return /* @__PURE__ */ jsx_runtime35.jsx(Destination, {
+  return /* @__PURE__ */ jsx_runtime37.jsx(Destination, {
     area: "control",
     mark: useControlMark()
   });
@@ -44522,24 +57223,24 @@ function Sidebar2() {
   const { data } = useQuery(viewOptions);
   const isPhone = useShellStore((state) => state.isPhone);
   const hints = useShellStore((state) => state.inputs.hints);
-  return /* @__PURE__ */ jsx_runtime35.jsxs(Sidebar, {
+  return /* @__PURE__ */ jsx_runtime37.jsxs(Sidebar, {
     id: "side",
     "aria-label": "Board",
     children: [
-      /* @__PURE__ */ jsx_runtime35.jsxs(SidebarHeader, {
+      /* @__PURE__ */ jsx_runtime37.jsxs(SidebarHeader, {
         children: [
-          /* @__PURE__ */ jsx_runtime35.jsx("span", {
+          /* @__PURE__ */ jsx_runtime37.jsx("span", {
             className: "grid size-[26px] flex-none place-items-center rounded-lg bg-foreground text-background [&_.icon]:size-3.5",
             id: "logo",
-            children: /* @__PURE__ */ jsx_runtime35.jsx(Icon, {
+            children: /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
               name: "logo"
             })
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx("h1", {
+          /* @__PURE__ */ jsx_runtime37.jsx("h1", {
             className: "sr-only",
             children: "Agent board"
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx("span", {
+          /* @__PURE__ */ jsx_runtime37.jsx("span", {
             className: "min-w-0 truncate text-sm leading-none font-semibold tracking-[-0.012em] text-foreground rail:max-w-full rail:text-[0.6875rem] rail:font-medium rail:text-card-foreground",
             id: "repo",
             title: data?.repo,
@@ -44547,10 +57248,10 @@ function Sidebar2() {
           })
         ]
       }),
-      !isPhone && /* @__PURE__ */ jsx_runtime35.jsx(Intake, {
+      !isPhone && /* @__PURE__ */ jsx_runtime37.jsx(Intake, {
         inBar: false
       }),
-      /* @__PURE__ */ jsx_runtime35.jsxs(Button2, {
+      /* @__PURE__ */ jsx_runtime37.jsxs(Button2, {
         variant: "outline",
         id: "find",
         onClick: openPalette,
@@ -44558,37 +57259,37 @@ function Sidebar2() {
         "aria-keyshortcuts": "Control+K Meta+K /",
         className: "h-8 w-full justify-start gap-2.5 py-0 pr-1.5 pl-2.5 text-left leading-normal font-normal text-muted-foreground hover:bg-secondary hover:text-card-foreground rail:h-[50px] rail:flex-col rail:justify-center rail:gap-[5px] rail:px-0.5 rail:py-1.5 rail:text-center rail:text-[0.6875rem] rail:leading-[1.1] rail:font-medium phone:size-11 phone:flex-none phone:justify-center phone:p-0 [&_.icon]:size-3.5",
         children: [
-          /* @__PURE__ */ jsx_runtime35.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
             name: "search"
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx("span", {
+          /* @__PURE__ */ jsx_runtime37.jsx("span", {
             className: "min-w-0 flex-1 truncate rail:flex-none rail:text-card-foreground phone:hidden",
             children: "Search"
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx(Kbd, {
+          /* @__PURE__ */ jsx_runtime37.jsx(Kbd, {
             className: "rail:hidden phone:hidden",
             children: FIND_KEY
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx(SidebarMenu, {
+      /* @__PURE__ */ jsx_runtime37.jsx(SidebarMenu, {
         id: "dests",
-        children: AREAS.map((area) => /* @__PURE__ */ jsx_runtime35.jsx(SidebarMenuItem, {
-          children: area === "control" ? /* @__PURE__ */ jsx_runtime35.jsx(ControlDestination, {}) : /* @__PURE__ */ jsx_runtime35.jsx(Destination, {
+        children: AREAS.map((area) => /* @__PURE__ */ jsx_runtime37.jsx(SidebarMenuItem, {
+          children: area === "control" ? /* @__PURE__ */ jsx_runtime37.jsx(ControlDestination, {}) : /* @__PURE__ */ jsx_runtime37.jsx(Destination, {
             area
           })
         }, area))
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx(SidebarFooter, {
+      /* @__PURE__ */ jsx_runtime37.jsx(SidebarFooter, {
         id: "side-foot",
-        children: /* @__PURE__ */ jsx_runtime35.jsx("span", {
+        children: /* @__PURE__ */ jsx_runtime37.jsx("span", {
           className: "mb-1.5 flex flex-wrap gap-x-2.5 gap-y-1.5 border-b border-border px-2 pb-2",
           id: "hints",
           "aria-hidden": "true",
-          children: hints.map((pair) => /* @__PURE__ */ jsx_runtime35.jsxs("span", {
+          children: hints.map((pair) => /* @__PURE__ */ jsx_runtime37.jsxs("span", {
             className: "inline-flex items-center gap-1.5",
             children: [
-              pair.slice(0, -1).map((key) => /* @__PURE__ */ jsx_runtime35.jsx(Kbd, {
+              pair.slice(0, -1).map((key) => /* @__PURE__ */ jsx_runtime37.jsx(Kbd, {
                 className: "min-h-[18px] min-w-[18px] px-1",
                 children: key
               }, key)),
@@ -44602,26 +57303,26 @@ function Sidebar2() {
 }
 function AreaBox({ area, children }) {
   const isShown = useShellStore((state) => state.shell.area === area);
-  return /* @__PURE__ */ jsx_runtime35.jsx("div", {
+  return /* @__PURE__ */ jsx_runtime37.jsx("div", {
     className: isShown ? "contents" : undefined,
     hidden: !isShown,
     children
   });
 }
 function Throughput() {
-  return /* @__PURE__ */ jsx_runtime35.jsx("section", {
+  return /* @__PURE__ */ jsx_runtime37.jsx("section", {
     className: `${AREA_SCREEN} place-items-center`,
     id: "area-throughput",
     "aria-labelledby": "area-throughput-title",
-    children: /* @__PURE__ */ jsx_runtime35.jsxs("div", {
+    children: /* @__PURE__ */ jsx_runtime37.jsxs("div", {
       className: "max-w-[46ch] p-6 text-center",
       children: [
-        /* @__PURE__ */ jsx_runtime35.jsx("h2", {
+        /* @__PURE__ */ jsx_runtime37.jsx("h2", {
           className: "text-sm leading-[1.38] font-semibold tracking-[-0.012em] text-foreground",
           id: "area-throughput-title",
           children: "Throughput is not built yet."
         }),
-        /* @__PURE__ */ jsx_runtime35.jsx("p", {
+        /* @__PURE__ */ jsx_runtime37.jsx("p", {
           className: "mt-1.5 mb-0 text-[0.78125rem] text-muted-foreground text-pretty",
           children: "Throughput will show how fast the issues move from intent to the trunk."
         })
@@ -44632,24 +57333,24 @@ function Throughput() {
 function Work() {
   const { data, isError } = useQuery(viewOptions);
   const area = useShellStore((state) => state.shell.area);
-  return /* @__PURE__ */ jsx_runtime35.jsxs("main", {
+  return /* @__PURE__ */ jsx_runtime37.jsxs("main", {
     className: "col-start-2 row-start-1 flex min-h-0 min-w-0 flex-col gap-3 px-4 pt-3 pb-3.5 focus:[outline:none] phone:col-start-1 phone:row-start-2 phone:px-3 phone:pb-[calc(12px+var(--dock))]",
     id: "work",
     tabIndex: -1,
     "aria-label": "Work area",
     "data-area": area,
     children: [
-      /* @__PURE__ */ jsx_runtime35.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime37.jsxs("div", {
         className: "flex-none not-has-[.banner:not([hidden])]:hidden",
         children: [
-          /* @__PURE__ */ jsx_runtime35.jsx("p", {
+          /* @__PURE__ */ jsx_runtime37.jsx("p", {
             className: cn(BANNER, WARN),
             id: "dirty",
             role: "alert",
             hidden: !data?.noRun,
             children: data?.noRun
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx("p", {
+          /* @__PURE__ */ jsx_runtime37.jsx("p", {
             className: BANNER,
             id: "stale",
             role: "alert",
@@ -44658,27 +57359,27 @@ function Work() {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime37.jsx(AreaBox, {
         area: "home",
-        children: /* @__PURE__ */ jsx_runtime35.jsx(Home, {})
+        children: /* @__PURE__ */ jsx_runtime37.jsx(Home, {})
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime37.jsx(AreaBox, {
         area: "control",
-        children: /* @__PURE__ */ jsx_runtime35.jsx(Control, {})
+        children: /* @__PURE__ */ jsx_runtime37.jsx(Control, {})
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime37.jsx(AreaBox, {
         area: "throughput",
-        children: /* @__PURE__ */ jsx_runtime35.jsx(Throughput, {})
+        children: /* @__PURE__ */ jsx_runtime37.jsx(Throughput, {})
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime37.jsx(AreaBox, {
         area: "operations",
-        children: /* @__PURE__ */ jsx_runtime35.jsx(Operations, {})
+        children: /* @__PURE__ */ jsx_runtime37.jsx(Operations, {})
       })
     ]
   });
 }
 function DockItem({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime35.jsx(Button2, {
+  return /* @__PURE__ */ jsx_runtime37.jsx(Button2, {
     variant: "ghost",
     className: cn("relative h-14 flex-col gap-1 rounded-xl border-0 p-0 transition-all duration-0 hover:bg-transparent text-[0.6875rem] leading-none text-muted-foreground aria-[current=page]:text-foreground aria-expanded:text-foreground [&_.icon]:box-content [&_.icon]:size-[18px] [&_.icon]:rounded-[14px] [&_.icon]:px-[15px] [&_.icon]:py-[5px] aria-[current=page]:[&_.icon]:bg-accent aria-expanded:[&_.icon]:bg-accent", className),
     ...props
@@ -44699,26 +57400,26 @@ function BottomBar() {
   const moreOpen = useShellStore((state) => state.inputs.moreOpen);
   const mark = useControlMark();
   const isOps = shell.area === "operations";
-  return /* @__PURE__ */ jsx_runtime35.jsxs("nav", {
+  return /* @__PURE__ */ jsx_runtime37.jsxs("nav", {
     id: "bar",
     "aria-label": "Panes",
     className: "fixed inset-x-0 bottom-0 z-[7] hidden h-[var(--dock)] grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.25fr)_repeat(2,minmax(0,1fr))] items-center border-t border-border bg-background px-2 py-1.5 [anchor-name:--bar] phone:grid",
     children: [
-      /* @__PURE__ */ jsx_runtime35.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime37.jsxs(DockItem, {
         id: "pb-home",
         "aria-current": current3(isPhone && shell.area === "home"),
         onClick: () => shellStore.handlers().go("home"),
         children: [
-          /* @__PURE__ */ jsx_runtime35.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
             name: "home"
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx("span", {
+          /* @__PURE__ */ jsx_runtime37.jsx("span", {
             className: "label",
             children: "Home"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime35.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime37.jsxs(DockItem, {
         className: "min-h-11",
         id: "pb-chat",
         "data-state": chat.state,
@@ -44729,34 +57430,34 @@ function BottomBar() {
         "aria-current": current3(isPhone && isOps && shell.pane === "chat"),
         onClick: () => shellStore.handlers().showChat(),
         children: [
-          /* @__PURE__ */ jsx_runtime35.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
             name: "message"
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx("span", {
+          /* @__PURE__ */ jsx_runtime37.jsx("span", {
             className: "label",
             children: "Chat"
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx(ChatMark, {
+          /* @__PURE__ */ jsx_runtime37.jsx(ChatMark, {
             state: chat.state,
             stale: chat.stale,
             className: "absolute top-1.5 left-[calc(50%+9px)]"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime35.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime37.jsxs(DockItem, {
         id: "pb-agents",
         "aria-label": needLabel("Agents", agents),
         "aria-current": current3(isPhone && isOps && shell.pane === "agents"),
         onClick: () => shellStore.handlers().agents(),
         children: [
-          /* @__PURE__ */ jsx_runtime35.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
             name: "board"
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx("span", {
+          /* @__PURE__ */ jsx_runtime37.jsx("span", {
             className: "label",
             children: "Agents"
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx(Badge, {
+          /* @__PURE__ */ jsx_runtime37.jsx(Badge, {
             variant: "count",
             className: "absolute top-0.5 left-[calc(50%+6px)]",
             id: "now-badge",
@@ -44765,48 +57466,48 @@ function BottomBar() {
           })
         ]
       }),
-      isPhone && /* @__PURE__ */ jsx_runtime35.jsx(Intake, {
+      isPhone && /* @__PURE__ */ jsx_runtime37.jsx(Intake, {
         inBar: true
       }),
-      /* @__PURE__ */ jsx_runtime35.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime37.jsxs(DockItem, {
         id: "pb-control",
         className: "data-mark:after:absolute data-mark:after:top-1.5 data-mark:after:left-[calc(50%+8px)] data-mark:after:size-2 data-mark:after:rounded-full data-mark:after:bg-needs data-mark:after:content-[''] data-[mark=fail]:after:bg-caution",
         "aria-current": current3(isPhone && shell.area === "control"),
         ...mark,
         onClick: () => shellStore.handlers().go("control"),
         children: [
-          /* @__PURE__ */ jsx_runtime35.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
             name: "sliders"
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx("span", {
+          /* @__PURE__ */ jsx_runtime37.jsx("span", {
             className: "label",
             children: "Control"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime35.jsxs(DropdownMenu, {
+      /* @__PURE__ */ jsx_runtime37.jsxs(DropdownMenu, {
         modal: false,
         open: moreOpen,
         onOpenChange: (isOpen) => shellStore.setInputs({ moreOpen: isOpen }),
         children: [
-          /* @__PURE__ */ jsx_runtime35.jsxs(DropdownMenuTrigger, {
-            render: /* @__PURE__ */ jsx_runtime35.jsx(DockItem, {
+          /* @__PURE__ */ jsx_runtime37.jsxs(DropdownMenuTrigger, {
+            render: /* @__PURE__ */ jsx_runtime37.jsx(DockItem, {
               id: "board-more",
               "aria-label": "More board actions",
               "aria-current": current3(isPhone && shell.area === "throughput"),
               title: "More board actions"
             }),
             children: [
-              /* @__PURE__ */ jsx_runtime35.jsx(Icon, {
+              /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
                 name: "dots"
               }),
-              /* @__PURE__ */ jsx_runtime35.jsx("span", {
+              /* @__PURE__ */ jsx_runtime37.jsx("span", {
                 className: "label",
                 children: "More"
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime35.jsxs(DropdownMenuContent, {
+          /* @__PURE__ */ jsx_runtime37.jsxs(DropdownMenuContent, {
             "aria-label": "Board actions",
             "data-more-menu": "",
             side: "top",
@@ -44816,12 +57517,12 @@ function BottomBar() {
                 event.preventBaseUIHandler();
             },
             children: [
-              /* @__PURE__ */ jsx_runtime35.jsx(FirstFocus, {}),
-              /* @__PURE__ */ jsx_runtime35.jsx(ViewBoundary, {
+              /* @__PURE__ */ jsx_runtime37.jsx(FirstFocus, {}),
+              /* @__PURE__ */ jsx_runtime37.jsx(ViewBoundary, {
                 snapshot: shell,
                 fallback: null,
                 onFail: closeMore,
-                children: /* @__PURE__ */ jsx_runtime35.jsx(Entries2, {
+                children: /* @__PURE__ */ jsx_runtime37.jsx(Entries2, {
                   list: phoneMenu,
                   close: closeMore
                 })
@@ -44834,21 +57535,21 @@ function BottomBar() {
   });
 }
 function Shell() {
-  return /* @__PURE__ */ jsx_runtime35.jsxs(jsx_runtime35.Fragment, {
+  return /* @__PURE__ */ jsx_runtime37.jsxs(jsx_runtime37.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime35.jsx(SkipLinks, {}),
-      /* @__PURE__ */ jsx_runtime35.jsx(Sidebar2, {}),
-      /* @__PURE__ */ jsx_runtime35.jsx(Work, {}),
-      /* @__PURE__ */ jsx_runtime35.jsx(BottomBar, {})
+      /* @__PURE__ */ jsx_runtime37.jsx(SkipLinks, {}),
+      /* @__PURE__ */ jsx_runtime37.jsx(Sidebar2, {}),
+      /* @__PURE__ */ jsx_runtime37.jsx(Work, {}),
+      /* @__PURE__ */ jsx_runtime37.jsx(BottomBar, {})
     ]
   });
 }
 
 // engine/board/page/app/app.tsx
-var jsx_runtime36 = __toESM(require_jsx_runtime());
-var Announcer = import_react34.memo(() => {
-  const text = import_react34.useSyncExternalStore(announcement.subscribe, announcement.get);
-  return /* @__PURE__ */ jsx_runtime36.jsx("p", {
+var jsx_runtime38 = __toESM(require_jsx_runtime());
+var Announcer = import_react37.memo(() => {
+  const text = import_react37.useSyncExternalStore(announcement.subscribe, announcement.get);
+  return /* @__PURE__ */ jsx_runtime38.jsx("p", {
     className: "sr-only",
     id: "announce",
     "aria-live": "polite",
@@ -44857,25 +57558,25 @@ var Announcer = import_react34.memo(() => {
 });
 function App() {
   useGlobalKeys();
-  import_react34.useEffect(() => queueMicrotask(startRead), []);
-  return /* @__PURE__ */ jsx_runtime36.jsx(CSPProvider, {
+  import_react37.useEffect(() => queueMicrotask(startRead), []);
+  return /* @__PURE__ */ jsx_runtime38.jsx(CSPProvider, {
     disableStyleElements: true,
-    children: /* @__PURE__ */ jsx_runtime36.jsxs(QueryClientProvider, {
+    children: /* @__PURE__ */ jsx_runtime38.jsxs(QueryClientProvider, {
       client: queryClient,
       children: [
-        /* @__PURE__ */ jsx_runtime36.jsx(Shell, {}),
-        /* @__PURE__ */ jsx_runtime36.jsx(Announcer, {}),
-        /* @__PURE__ */ jsx_runtime36.jsx(UpdateDialog, {}),
-        /* @__PURE__ */ jsx_runtime36.jsx(StopDialog, {}),
-        /* @__PURE__ */ jsx_runtime36.jsx(Palette, {}),
-        /* @__PURE__ */ jsx_runtime36.jsx(Shortcuts, {}),
-        /* @__PURE__ */ jsx_runtime36.jsx(Toaster, {})
+        /* @__PURE__ */ jsx_runtime38.jsx(Shell, {}),
+        /* @__PURE__ */ jsx_runtime38.jsx(Announcer, {}),
+        /* @__PURE__ */ jsx_runtime38.jsx(UpdateDialog, {}),
+        /* @__PURE__ */ jsx_runtime38.jsx(StopDialog, {}),
+        /* @__PURE__ */ jsx_runtime38.jsx(Palette, {}),
+        /* @__PURE__ */ jsx_runtime38.jsx(Shortcuts, {}),
+        /* @__PURE__ */ jsx_runtime38.jsx(Toaster, {})
       ]
     })
   });
 }
 
 // engine/board/page/main.tsx
-var jsx_runtime37 = __toESM(require_jsx_runtime());
-var root2 = import_client.createRoot(document.body);
-import_react_dom7.flushSync(() => root2.render(/* @__PURE__ */ jsx_runtime37.jsx(App, {})));
+var jsx_runtime39 = __toESM(require_jsx_runtime());
+var root5 = import_client.createRoot(document.body);
+import_react_dom7.flushSync(() => root5.render(/* @__PURE__ */ jsx_runtime39.jsx(App, {})));

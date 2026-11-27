@@ -74,6 +74,12 @@ const agentOf = (number: IssueKey, choice: unknown) => {
   return isHost(choice) ? choice : undefined;
 };
 
+export const parseIssueQuery = (search: string): IssueKey => {
+  const key = new URLSearchParams(search).get('key');
+  if (!isKey(key)) throw new Refusal(400, 'the key is not an issue of this tracker');
+  return key;
+};
+
 export const parseRequest = (path: string, body: unknown): BoardRequest => {
   if (
     (path.startsWith('/api/update/') ||

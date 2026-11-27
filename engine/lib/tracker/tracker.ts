@@ -12,6 +12,7 @@ export type Issue = Readonly<{
   labels: readonly string[];
   body: string | null;
   comments: number;
+  createdAt: string;
   updatedAt: string;
   closedAt: string | null;
   pull: boolean;
@@ -37,6 +38,7 @@ export type Blocker = Readonly<{
 }>;
 export type NewLabel = Readonly<{ name: string; description: string; color: string }>;
 export type NewIssue = Readonly<{ title: string; body: string; labels: readonly Label[] }>;
+export type IssueFile = Readonly<{ hash: string; bytes: Uint8Array | null }>;
 
 export type Tracker = Readonly<{
   name: string;
@@ -46,6 +48,7 @@ export type Tracker = Readonly<{
   issue(n: IssueKey): Promise<Issue>;
   issues(state: Issue['state'], label?: string): Promise<readonly Issue[]>;
   history(n: IssueKey): Promise<readonly Authored[]>;
+  files(n: IssueKey, limit: number, total: number): Promise<readonly IssueFile[]>;
   children(n: IssueKey): Promise<readonly Child[]>;
   link(epic: IssueKey, child: IssueKey): Promise<void>;
   blockers(n: IssueKey): Promise<readonly Blocker[]>;

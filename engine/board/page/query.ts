@@ -1,5 +1,6 @@
 import { QueryClient, type QueryFunctionContext } from '@tanstack/react-query';
-import type { Board } from '../types.ts';
+import type { IssueKey } from '../../lib/tracker/key.ts';
+import type { Board, IssueView } from '../types.ts';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -15,6 +16,22 @@ export const readBoard = async ({ signal }: QueryFunctionContext<typeof boardKey
   const response = await fetch(`/api/board${isLocal ? '?local=1' : ''}`, { signal });
   if (!response.ok) throw new Error(response.statusText);
   return (await response.json()) as Board;
+};
+
+export const issueKey = (n: IssueKey, revision: string | null) => ['issue', n, revision] as const;
+
+export const readIssue = async ({
+  queryKey: [, n],
+  signal,
+}: QueryFunctionContext<ReturnType<typeof issueKey>>): Promise<IssueView> => {
+  const response = await fetch(`/api/issue?key=${encodeURIComponent(n)}`, { signal });
+  if (!response.ok) {
+    const answer = (await response.json().catch(() => null)) as { error?: unknown } | null;
+    throw new Error(typeof answer?.error === 'string' ? answer.error : response.statusText, {
+      cause: response.status,
+    });
+  }
+  return (await response.json()) as IssueView;
 };
 
 export const pollOptions = {

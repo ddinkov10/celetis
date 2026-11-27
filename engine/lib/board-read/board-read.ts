@@ -21,7 +21,9 @@ import { services } from '../services/services.ts';
 import { commit, isCommit } from '../state/fields.ts';
 import { laneFolder } from '../state/state.ts';
 import type { Exec } from '../terminal/terminal.ts';
-import { compareKeys, type IssueKey } from '../tracker/key.ts';
+import { grammar } from '../tracker/grammar.ts';
+import { compareIssues, type IssueKey, parseKey } from '../tracker/key.ts';
+import { type Issue, type Tracker, TrackerError } from '../tracker/tracker.ts';
 import { levels } from '../workflow/effort.ts';
 import { hasPage, visualPage } from '../workflow/visual.ts';
 import {
@@ -37,7 +39,18 @@ import {
   subjectKey,
 } from '../workflow/workflow.ts';
 import { appendCache, deliveryWindows, readCache } from './trends.ts';
-import type { CacheLine, DeliveryWindow, Diff, Document, Flow, History, LandedIssue, QuotaState } from './types.ts';
+import type {
+  CacheLine,
+  DeliveryWindow,
+  Diff,
+  Document,
+  Flow,
+  History,
+  IssueItem,
+  IssueView,
+  LandedIssue,
+  QuotaState,
+} from './types.ts';
 
 export { commonDir } from '../process/git.ts';
 export { mainNoRun } from '../resolver/resolver.ts';
@@ -90,7 +103,7 @@ async function readDocument(
     target && !data.closed
       ? target.previous.history
       : config.tracker === 'local'
-        ? await localHistory(main, signal)
+        ? await localHistory(main, tracker, signal)
         : await readHistory(client(main, signal), common);
   const flow: Flow = {
     lanes: Object.fromEntries(Object.entries(lanes).map(([lane, definition]) => [lane, [...definition.steps]])),
@@ -121,7 +134,7 @@ async function readDocument(
   if (target) {
     const selected = new Set(target.numbers);
     issues.push(...target.previous.issues.filter((issue) => !selected.has(issue.number)));
-    issues.sort((a, b) => compareKeys(a.number, b.number));
+    issues.sort(compareIssues);
   }
   signal.throwIfAborted();
   const agents = Object.fromEntries(
@@ -456,17 +469,85 @@ export async function readHistory(gh: Pick<Client, 'graphql'>, common: string): 
 }
 
 // The merge landing keeps the main checkout on the trunk, so its branch names the trunk with no network read.
-async function localHistory(main: string, signal: AbortSignal): Promise<History> {
-  const branch = async (ref: string) => {
-    const read = await run('git', ['--no-optional-locks', 'symbolic-ref', '--quiet', '--short', ref], {
-      cwd: main,
-      signal,
-    });
-    return read.code === 0 ? read.stdout.trim() : '';
-  };
+async function localHistory(main: string, tracker: Tracker, signal: AbortSignal): Promise<History> {
+  const { trunk, tip } = await trunkTip(main, signal);
+  const issues = await issueMap(tracker);
+  const entries: LandedIssue[] = [];
+  const seen = new Set<IssueKey>();
+  for (let skip = 0, size = 500, more = Boolean(tip); more && entries.length < 20; skip += size, size *= 2) {
+    const page = await git(main, signal, ['log', ...keyedLog(), `--skip=${skip}`, '-n', `${size}`, tip]);
+    more = page.trim().split('\n').length === size;
+    for (const { key, sha, committedAt } of landings(page, issues)) {
+      const issue = issues.get(key);
+      if (!issue || seen.has(key)) continue;
+      seen.add(key);
+      entries.push({ number: key, title: issue.title, url: null, sha, commitUrl: null, committedAt });
+      if (entries.length === 20) break;
+    }
+  }
+  return { trunk, url: '', head: tip, entries };
+}
+
+const keyedLog = () => ['--format=%H%x1f%cI%x1f%s', '-E', `--grep=\\(#(${grammar().pattern})\\)$`];
+
+async function git(main: string, signal: AbortSignal, args: string[]): Promise<string> {
+  const read = await run('git', ['--no-optional-locks', ...args], { cwd: main, signal });
+  return read.code === 0 ? read.stdout : '';
+}
+
+const bugRef = /^refs\/bugs\/([0-9a-f]{64}) ([0-9a-f]{40}|[0-9a-f]{64})$/;
+
+export async function readRevisions(main: string, signal: AbortSignal): Promise<ReadonlyMap<IssueKey, string>> {
+  const read = await run(
+    'git',
+    ['--no-optional-locks', 'for-each-ref', '--format=%(refname) %(objectname)', 'refs/bugs/'],
+    { cwd: main, signal },
+  );
+  if (read.code !== 0) throw new Error(read.stderr.trim().split(/\r?\n/)[0] || 'git for-each-ref failed');
+  const names = new Map<IssueKey, string[]>();
+  for (const line of read.stdout.split(/\r?\n/)) {
+    const [, id = '', name = ''] = bugRef.exec(line) ?? [];
+    const key = parseKey(id.slice(0, 7));
+    if (key) names.set(key, [...(names.get(key) ?? []), name]);
+  }
+  return new Map([...names].map(([key, list]) => [key, list.sort().join(',')]));
+}
+
+async function trunkTip(main: string, signal: AbortSignal): Promise<{ trunk: string; tip: string }> {
+  const branch = async (ref: string) => (await git(main, signal, ['symbolic-ref', '--quiet', '--short', ref])).trim();
   const trunk =
     (await branch('refs/remotes/origin/HEAD')).replace(/^origin\//, '') || (await branch('HEAD')) || 'trunk';
-  return { trunk, url: '', head: '', entries: [] };
+  const commitOf = async (ref: string) =>
+    (await git(main, signal, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`])).trim();
+  return { trunk, tip: (await commitOf(`refs/remotes/origin/${trunk}`)) || (await commitOf('HEAD')) };
+}
+
+async function issueMap(tracker: Tracker): Promise<ReadonlyMap<IssueKey, Issue>> {
+  const [open, closed] = [await tracker.issues('open'), await tracker.issues('closed')];
+  return new Map([...open, ...closed].map((issue) => [issue.key, issue]));
+}
+
+function landings(page: string, issues: ReadonlyMap<IssueKey, Issue>) {
+  return page.split(/\r?\n/).flatMap((line) => {
+    const [sha = '', committedAt = '', ...subject] = line.split('\x1f');
+    const key = subjectKey(subject.join('\x1f'));
+    return sha && committedAt && key && issues.has(key) ? [{ key, sha, committedAt }] : [];
+  });
+}
+
+async function localDelivery(main: string, tracker: Tracker, now: number, signal: AbortSignal) {
+  const { tip } = await trunkTip(main, signal);
+  const issues = await issueMap(tracker);
+  const since = `--since=${new Date(now - walkDays * 86_400_000).toISOString()}`;
+  const page = tip ? await git(main, signal, ['log', ...keyedLog(), since, tip]) : '';
+  const landed = new Map<IssueKey, number>();
+  for (const { key, committedAt } of landings(page, issues)) {
+    if (!landed.has(key)) landed.set(key, Date.parse(committedAt));
+  }
+  return deliveryWindows(
+    [...landed].map(([key, at]) => ({ at, createdAt: Date.parse(issues.get(key)?.createdAt ?? '') })),
+    now,
+  );
 }
 
 export async function readDelivery(
@@ -475,7 +556,10 @@ export async function readDelivery(
   now: number,
   signal: AbortSignal,
 ): Promise<DeliveryWindow[]> {
-  if ((await createOperation(await locateCheckouts(main), {}, 'main')).mainConfig?.tracker === 'local') return [];
+  const { mainConfig } = await createOperation(await locateCheckouts(main), {}, 'main');
+  if (mainConfig?.tracker === 'local') {
+    return localDelivery(main, services(mainConfig as Config, main, signal).tracker, now, signal);
+  }
   const gh = client(main, signal);
   const from = now - walkDays * 86_400_000;
   const since = `, since: "${new Date(from).toISOString()}"`;
@@ -515,6 +599,63 @@ export async function readDelivery(
     }),
     now,
   );
+}
+
+const fileLimit = 10 * 1024 * 1024;
+const imagesLimit = 32 * 1024 * 1024;
+
+const signed = (bytes: Uint8Array, offset: number, text: string) =>
+  [...text].every((char, i) => bytes[offset + i] === char.charCodeAt(0));
+
+function imageType(bytes: Uint8Array): string | null {
+  if (signed(bytes, 0, '\x89PNG\r\n\x1a\n')) return 'png';
+  if (signed(bytes, 0, '\xff\xd8\xff')) return 'jpeg';
+  if (signed(bytes, 0, 'GIF87a') || signed(bytes, 0, 'GIF89a')) return 'gif';
+  if (signed(bytes, 0, 'RIFF') && signed(bytes, 8, 'WEBP')) return 'webp';
+  return null;
+}
+
+export async function readIssueView(main: string, key: IssueKey, signal: AbortSignal): Promise<IssueView | null> {
+  const { mainConfig } = await createOperation(await locateCheckouts(main), {}, 'main');
+  const { tracker } = services(mainConfig as Config, main, signal);
+  try {
+    const issue = await tracker.issue(key);
+    if (issue.pull) return null;
+    const history = await tracker.history(key);
+    const files = await tracker.files(key, fileLimit, imagesLimit);
+    const seen = new Map<string, number>();
+    const items = history.map((entry): IssueItem => {
+      if (entry.kind === 'comment')
+        return { kind: 'comment', id: `comment:${entry.id}`, at: entry.at, author: entry.author, body: entry.body };
+      const id = `label:${entry.at}:${entry.change}:${entry.name}`;
+      const count = seen.get(id) ?? 0;
+      seen.set(id, count + 1);
+      return { kind: 'label', id: `${id}:${count}`, at: entry.at, change: entry.change, name: entry.name };
+    });
+    const images: Record<string, string> = {};
+    let total = 0;
+    for (const { hash, bytes } of files) {
+      const type = bytes && imageType(bytes);
+      if (!bytes || !type || total + bytes.length > imagesLimit) continue;
+      total += bytes.length;
+      images[hash] = `data:image/${type};base64,${Buffer.from(bytes).toString('base64')}`;
+    }
+    return {
+      number: issue.key,
+      title: issue.title,
+      url: issue.url,
+      state: issue.state,
+      labels: [...issue.labels],
+      body: issue.body ?? '',
+      updatedAt: issue.updatedAt,
+      closedAt: issue.closedAt,
+      items,
+      images,
+    };
+  } catch (error) {
+    if (error instanceof TrackerError && error.notFound) return null;
+    throw error;
+  }
 }
 
 export type AgentState = Readonly<{

@@ -15,7 +15,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { AgentOrderConflict } from '../lib/agent/order.ts';
-import { queueReadView, readVisualPage } from '../lib/board-read/board-read.ts';
+import { queueReadView, readIssueView, readVisualPage } from '../lib/board-read/board-read.ts';
 import { createCodexClient } from '../lib/host/codex/app-server.ts';
 import { childEnv } from '../lib/process/process.ts';
 import { recordEvent } from '../lib/state/events.ts';
@@ -23,7 +23,7 @@ import { createCoordinatorReads } from './coordinator.ts';
 import { createPlacement } from './place.ts';
 import { createPressBook, createPresses } from './presses.ts';
 import { createReads } from './reads.ts';
-import { firstLine, POSTS, parseRequest, Refusal } from './requests.ts';
+import { firstLine, POSTS, parseIssueQuery, parseRequest, Refusal } from './requests.ts';
 import { createTrends } from './trends.ts';
 
 const HERE = import.meta.dirname;
@@ -71,6 +71,7 @@ export const createBoard = ({
   read,
   readTargets,
   hints,
+  revisions,
   common,
   readDelivery,
   adapter,
@@ -83,6 +84,7 @@ export const createBoard = ({
   read: (signal: AbortSignal) => Promise<Document>;
   readTargets: (keys: readonly IssueKey[], previous: Document, signal: AbortSignal) => Promise<Document>;
   hints: () => Promise<ReadonlyMap<string, IssueKey> | null>;
+  revisions: (signal: AbortSignal) => Promise<ReadonlyMap<IssueKey, string>>;
   common: string;
   readDelivery: (signal: AbortSignal) => Promise<DeliveryWindow[]>;
   adapter: Adapter;
@@ -91,7 +93,7 @@ export const createBoard = ({
   exec?: Execute;
   now?: () => number;
 }) => {
-  const reads = createReads({ read, readTargets, hints, now });
+  const reads = createReads({ read, readTargets, hints, revisions, now });
   const book = createPressBook({ now, target: reads.target });
   const coordinator = createCoordinatorReads({ adapter, exec, now, codex: () => createCodexClient(main) });
   const placer = createPlacement({
@@ -169,6 +171,23 @@ export const createBoard = ({
     if (request.method === 'GET' && path === '/api/coordinator') {
       const since = new URLSearchParams(url.split('?')[1] ?? '').get('since');
       return sendJson(response, 200, await coordinator.chat(since !== null && SINCE.test(since) ? since : null));
+    }
+    if (request.method === 'GET' && path === '/api/issue') {
+      const site = request.headers['sec-fetch-site'];
+      if (site !== undefined && site !== 'same-origin') throw new Refusal(403, 'the request is not from this page');
+      const closed = new AbortController();
+      response.once('close', () => closed.abort());
+      const view = await readIssueView(
+        main,
+        parseIssueQuery(url.slice(path.length)),
+        AbortSignal.any([closed.signal, AbortSignal.timeout(60_000)]),
+      ).catch((cause) => {
+        if (closed.signal.aborted) return undefined;
+        throw cause;
+      });
+      if (view === undefined) return;
+      if (view === null) throw new Refusal(404, 'no such issue');
+      return sendJson(response, 200, view);
     }
     if (request.method === 'GET' && path === '/api/update')
       return sendJson(response, 200, { runtime, update: updates().snapshot() });

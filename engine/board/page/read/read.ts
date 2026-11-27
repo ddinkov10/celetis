@@ -6,6 +6,7 @@ import { agentStore } from '../agents/state.ts';
 import { coordinator } from '../coordinator/coordinator.ts';
 import { drawIntake, openIntake } from '../intake/intake.ts';
 import { showHints } from '../operations/keys.ts';
+import { sourceOf } from '../operations/panel.tsx';
 import {
   closeDetails,
   focusNeed,
@@ -127,7 +128,7 @@ const drawRead = (next: Board) => {
   coordinatorLine = null;
   if (lines.length) announce(lines.join('. '));
   const { details } = shell();
-  if (details !== null && !screen.index().byKey.has(details)) closeDetails(false);
+  if (details !== null && sourceOf(details, shell().opener) === null) closeDetails(false);
   showHints(
     (document.activeElement as HTMLElement | null)?.closest?.<HTMLElement>('#columns .card[data-key]')?.dataset.key ??
       null,

@@ -1,14 +1,23 @@
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs';
 import { cn } from 'cn';
+import type { FocusEvent } from 'react';
 
 function Tabs({ className, ...props }: TabsPrimitive.Root.Props) {
   return <TabsPrimitive.Root data-slot="tabs" className={cn('group/tabs flex', className)} {...props} />;
+}
+
+function enterOnSelected(event: FocusEvent<HTMLDivElement>) {
+  const list = event.currentTarget;
+  if (list.contains(event.relatedTarget) || !event.target.matches(':focus-visible')) return;
+  const selected = list.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+  if (selected && selected !== event.target) selected.focus();
 }
 
 function TabsList({ className, ...props }: TabsPrimitive.List.Props) {
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
+      onFocus={enterOnSelected}
       className={cn(
         'flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-[9px] border border-border bg-secondary p-0.5 phone:flex-1',
         className,

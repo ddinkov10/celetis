@@ -5,6 +5,7 @@ import {
   readBoardTargets,
   readDelivery,
   readRefreshHints,
+  readRevisions,
 } from '../lib/board-read/board-read.ts';
 import { HostError } from '../lib/command/errors.ts';
 import { exits } from '../lib/contract/contract.ts';
@@ -50,6 +51,7 @@ export async function startBoard(
     readTargets: (keys, previous, signal) =>
       readBoardTargets(main, adapter.reconcileQueue, keys, previous, AbortSignal.any([signal, work.signal])),
     hints: () => readRefreshHints(common),
+    revisions: (signal) => readRevisions(main, AbortSignal.any([signal, work.signal])),
     common,
     readDelivery: (signal) => readDelivery(main, common, Date.now(), AbortSignal.any([signal, work.signal])),
     adapter,

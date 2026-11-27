@@ -114,6 +114,7 @@ The GitHub adapter of the tracker port (`engine/lib/github/tracker.ts`) is the o
 | `issue` | none | refused |
 | `issues` | none | left out of the list, a pull request too |
 | `children` | none | left out of the list |
+| `files` | none (the GitHub adapter gives no files) | none |
 | `blockers` | none | kept, with an empty title; a blocker of another repository has an empty title too |
 
 So no lifecycle heading, effort marker, epic reference, `view` history entry, or `view --latest` result comes from an untrusted author, and `issue list`, the board, and the resolver show no issue of one. Label events stay in each history: only a user with triage access or higher can change a label. The child snapshot of `epic-state` keeps each child, because it holds no text of the child, and the completion guard counts each child. The `comments` count of an issue stays the count of GitHub.
@@ -549,6 +550,6 @@ merged lane PR must match the trunk, repository identities, commit merge SHA, an
 number. A PR number is never substituted for its issue. A nonempty but unsupported PR association
 has no suffix fallback. Ambiguous associations are omitted. Malformed data or a request failure
 retains the last good document with an error. Closing an issue alone supplies no landing evidence.
-This panel does not alter the resolver's finished-issue rule or issue state. Each row links the
-issue and trunk commit, with commit time; the recent list has no closure window and can include
+This panel does not alter the resolver's finished-issue rule or issue state. Each row opens the
+issue in the details of the board and links the trunk commit, with commit time; the recent list has no closure window and can include
 open issues. A later revert does not erase an earlier landing. `View <trunk>` opens older history.

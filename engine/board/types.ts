@@ -3,6 +3,8 @@ import type {
   Document,
   Flow,
   History,
+  IssueItem,
+  IssueView,
   LandedIssue,
   QuotaState,
   QuotaWait,
@@ -26,8 +28,10 @@ export type {
   HeldView,
   History,
   HoldBlocker,
+  IssueItem,
   IssueKey,
   IssueRow,
+  IssueView,
   LandedIssue,
   ParentEpic,
   Pull,
@@ -172,6 +176,8 @@ export type Card = {
   gate: string | null;
   state: string | null;
   since: string;
+  createdAt: string | null;
+  comments: number | null;
   act: string | null;
   reason: string | null;
   urgent: boolean;
@@ -216,6 +222,7 @@ export type Board = Placement & {
   source: { readAt: string | null; error: string | null };
   repo: string;
   trends: Trends;
+  revisions: Record<string, string>;
 };
 export type Action = {
   id: string;

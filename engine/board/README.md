@@ -276,6 +276,45 @@ marks one more read for its end. A read ends at 60 seconds with `the trend read 
 seconds`, and at the board stop. A failed read sets `delivery.error` and keeps the last `windows`;
 it does not change `source.error`. `view()` never waits for a read, so `windows` is `null` and
 `error` is `null` until the first read ends. These reads do not wait for GitHub.
+When the key grammar of the process is local, each tick of the one-second refresh-hint loop, also
+the first tick before the first full read, then polls the issue refs (`readRevisions` of
+`engine/lib/board-read/board-read.ts`):
+`git --no-optional-locks for-each-ref --format=%(refname) %(objectname) refs/bugs/` in the main
+checkout, with a limit of 10 seconds. The poll keeps each line `refs/bugs/<64 lowercase hex> <40 or 64
+lowercase hex>`, takes the key from the first 7 characters of the ID, and maps the key to the sorted
+object names of its refs joined with `,`. The loop is sequential, so at most one poll runs at a time and
+at most one starts each second. The first good poll only records its map. Each later good poll
+selects for a target read the keys whose value changed, is new, or is gone. A failed poll keeps the
+last map and writes `board: the ref poll failed: <first line>` once for a run of failures; a good poll
+ends the run. The reply adds `revisions`: for a local project the map of the last good poll, for a
+GitHub project each key of `issues` with its `updatedAt`. A write to a local issue so reaches the
+page in about 7 seconds: at most 1 second to the poll, the target read, and at most 5 seconds of the
+page poll.
+`GET /api/issue?key=<key>` reads one issue for the page (`readIssueView` of
+`engine/lib/board-read/board-read.ts`), with a limit of 60 seconds; a closed request stops the read. A request whose `Sec-Fetch-Site`
+is there and is not `same-origin` gets 403 `the request is not from this page` before any read. A `key` that the grammar of the
+tracker does not accept (`parseIssueQuery` of `engine/board/requests.ts`) gets 400 `the key is not
+an issue of this tracker`. The read makes the tracker of the main `.celetis.yaml` and reads the issue,
+its history, and its files through the tracker port. An issue that the tracker does not find, an
+issue that the GitHub tracker refuses for its author, and a GitHub pull request get 404 `no such
+issue`. With the GitHub tracker, `items` holds only the comments of trusted authors
+(`plugins/celetis/docs/issue-tracker.md`, "Trusted authors"). The answer is an `IssueView`
+(`engine/lib/board-read/types.ts`): `number`, `title`, `url`, `state`, `labels`, `body` (`''` for
+no body), `updatedAt`, `closedAt`, `items`, and `images`. `items` holds the comments and the label
+changes in the order of the history. A comment has the id `comment:<id>` and an `author`: the name,
+else the email, of the local identity, or the GitHub login. A label change has the id
+`label:<at>:<change>:<name>:<i>`, with `i` the count of the earlier label changes with the same first
+three parts. `images` maps a blob hash to a `data:image/<png|jpeg|gif|webp>;base64,` URL. The files
+of a local issue are the blobs that its create, comment, and comment-edit operations name, each a
+full hash of 40 or 64 lowercase hex digits. The read runs one
+`git --no-optional-locks cat-file --batch-check=%(objectname) %(objecttype) %(objectsize)` for all of
+them in the main checkout. Then it runs `git --no-optional-locks cat-file blob <hash>` only for an
+object of the type `blob` of at most 10 MiB, and only while the sizes of the blobs that it reads add
+up to at most 32 MiB. So a tag, a tree, or a commit with that hash is never read. A blob becomes an
+image only when it starts with the signature of PNG, JPEG, GIF, or WebP, and while the images of one
+answer hold at most 32 MiB. A missing object, an object that is not a blob, a larger blob, a blob past
+the budget, and a blob of another type get no entry. A blob that is not an image counts against the
+budget too. A GitHub issue has no files, so its `images` is `{}`.
 The tables below give the value of each field and the rule that gives each row its state.
 
 A full read lists the open issues and the open PRs with REST. It reads the timelines of the open
@@ -416,8 +455,11 @@ History is the tab History of the right pane in Operations. A press on the tab, 
 and the Search command open it. A second `d` shows the tab Agents again, and a press on another tab
 shows that tab. The tab has no close button and no `landed` chip, and the landed count shows
 nowhere else. The page keeps the last tab in the browser storage, so a load opens the tab History
-again when it was the last tab; refresh keeps its scroll and matching focused link. Card details open in the center and do
-not close the tab; Escape closes them and shows the tab Agents with the focus on the card. Search
+again when it was the last tab; refresh keeps its scroll and the focused control of the same row. Card details open in the center and do
+not close the tab; Escape closes them and shows the tab Agents with the focus on the card. The number
+and the title of a row are one button (`data-history-key="<n>"`): a press opens the details of that
+issue on the tab Conversation, and the tab History stays. Escape or Close then puts the focus back on
+that button. Search
 finds landed issue numbers and titles. On a phone the tab History is in the Agents pane, which
 fills the space between the top bar and the bottom bar, and the More menu has no History row.
 
@@ -463,27 +505,32 @@ result is 8 windows of 7 days that end
 now, oldest first. Each window holds the count of its landings and the median of their intent to
 landing time (landing commit time minus issue creation time) in days, or null with no landing.
 
-A project with the local tracker calls neither `readHistory` nor `readDelivery` (the full view is
-#336). Its History is `{trunk, url: '', head: '', entries: []}`, with the trunk from
-`refs/remotes/origin/HEAD` of the main checkout, else from the branch of the main checkout, else
-`trunk`. The read makes no network call.
-Its delivery read gives an empty list of windows. A card of an issue whose URL is not `http:` or
+A project with the local tracker calls neither `readHistory` nor the GitHub walk of `readDelivery`. Its
+trunk comes from `refs/remotes/origin/HEAD` of the main checkout, else from the branch of the main
+checkout, else `trunk`. Its tip is `refs/remotes/origin/<trunk>` when that ref resolves to a commit,
+else `HEAD`. History walks `git log` of the tip, with `--no-optional-locks`, and `-E --grep` keeps only the
+commits whose message has a line that ends with an issue key in parentheses. It reads them in pages that
+start at 500 commits and double in size, until it holds 20 entries or a page is short. A commit whose subject has an issue key (`subjectKey`) that
+the tracker holds, open or closed, makes an entry for the first commit of that key in log order; any
+other commit is skipped. The title comes from the tracker. `History` is `{trunk, url: '', head: <full
+sha of the tip>, entries}`, and each entry has `url: null` and `commitUrl: null`. The delivery read
+takes the same filtered log since 56 days before now, and takes the newest commit of each key as its landing. The read makes no network call.
+A card of an issue whose URL is not `http:` or
 `https:` has `url: null`, so the page shows its key with no link.
 
 `History` contains `trunk`, its history `url`, the captured full `head`, and `entries`. Each
 `LandedIssue` contains `number`, issue `title` and `url`, full commit `sha`, `commitUrl`, and
-`committedAt`. The snapshot's history is null until the first successful document. It shares the
+`committedAt`; a local project has `null` for `url` and `commitUrl`. The snapshot's history is null until the first successful document. It shares the
 existing refresh, abort signal, timeout, and last-good-document failure behavior with active work.
 No extra poller or workflow state exists for History (the trend sampler and the delivery read of
 `trends` have their own schedule). Display links allow only absolute HTTP(S) URLs without
 credentials or control characters. Titles and branch names remain text.
 
-Rows expose issue and commit links, a short SHA with its full accessible identity, and commit
+Rows expose the button that opens the issue, a commit link (text when `commitUrl` is null), a short SHA with its full accessible identity, and commit
 time with its full accessible timestamp. The time is neither issue-close nor push time. Before
 the first result, History shows loading; an initial failure shows an error. Successful empty
-history shows `No landed issues found on <trunk>.` A local project lists no landings, so its
-History shows `The local tracker does not list landed issues.`, and it draws `View <trunk>` only
-when `history.url` is not empty. A failed refresh retains the rows and shows
+history shows `No landed issues found on <trunk>.` for each tracker. A local project has no history
+`url`, so History draws `View <trunk>` only when `history.url` is not empty. A failed refresh retains the rows and shows
 the read error; recovery clears it. History has no Run or Resume action.
 Each row has one icon control on its right side, 28 px wide (44 px below 720 px). Its accessible
 name and its `title` are one text. The issue number is Ink Faint in Geist Mono. A row with no page
@@ -660,7 +707,7 @@ to the card of its row, and Run starts the step again.
   that list has no track, so a card at `triage` has no track.
 
 **The order.** Needs you has the urgent cards first, then the dialogs, then the longest wait first.
-Waiting has the lowest issue number first, and `waitGroups` groups its cards by `rowHold.group`, the group of the lowest open blocker first and `deferred` last. A `dirty`, `stuck`, `aside`, or `starting` card keeps its place, also when its row is deferred. Running has the newest first, and Idle has the highest number first. In Idle, and in each Pipeline stage for its Idle cards, the cards of one epic (`epic` of the card) take one group row at the place of their first card; Needs you, Running, and Not in a step never group. History follows remote trunk traversal order.
+Waiting has the lowest issue number first, and `waitGroups` groups its cards by `rowHold.group`, the group of the lowest open blocker first and `deferred` last. A `dirty`, `stuck`, `aside`, or `starting` card keeps its place, also when its row is deferred. Running has the newest first. Idle has the newest created issue first with the local tracker, and the highest number first with GitHub. In Idle, and in each Pipeline stage for its Idle cards, the cards of one epic (`epic` of the card) take one group row at the place of their first card; Needs you, Running, and Not in a step never group. History follows remote trunk traversal order (the log order of the tip with the local tracker).
 Human sessions has the order of their titles, with numbers in numeric order, and two sessions
 with one title in the order of their terminal ids.
 
@@ -727,6 +774,7 @@ A press that fails ends the `Starting` card at once, and the next read gives the
 | Coordinator, with the state `none` | `open` of the dispatcher of the master daemon ("The acts of the coordinator session"): the open of the coordinator session with the default agent order, in a quiet tab. |
 | A message, a key, Interrupt, End session | `act` of the dispatcher with one act for the terminal of the coordinator record. |
 | The chat of the coordinator session | `GET /api/coordinator` ("The reads"). |
+| One issue | `GET /api/issue` ("The data"). |
 
 **The requests of Run and Resume.** The fixed adapter gives each press as one request to the
 dispatcher of the master daemon that serves the board, in the same process, with only these fixed
@@ -924,11 +972,12 @@ tab of the repository joins it.
 **The reads.** While the page is in view, it asks the server each 5 seconds. While its tab is
 hidden, it asks each 15 seconds with `?local=1`, so the tab title, the tab icon, and the
 notifications stay true. The server checks local refresh hints each second, without overlapping
-listings, even with no page open. At startup it first lists existing hints and seeds its seen
-names, then starts a full read. New valid names select their issue numbers for the next batch.
-Each board consumes hints independently. A missing folder is empty; a listing failure keeps
-the prior seen names and pending targets without a diagnostic. Hints contain no issue data and
-authorize no action.
+listings, even with no page open. For a local project the same tick polls the issue refs ("The
+data"). At startup it first lists existing hints and seeds its seen names, takes the first ref
+poll as its baseline, then starts a full read. New valid names select their issue numbers for the
+next batch. Each board consumes hints independently. A missing folder is empty; a listing failure
+keeps the prior seen names and pending targets without a diagnostic. Hints contain no issue data
+and authorize no action.
 
 A session card that disappears selects its known issue, including at a local request. A session
 with no issue keeps the full-read cause only at a request that is not local. Other full-read
@@ -1172,11 +1221,17 @@ process. Twelve rules hold for the server and the page:
 1. The server listens on `127.0.0.1` only.
 2. It refuses, with 403, a request whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>`.
 3. It refuses, with 403, a POST whose `Origin` is not `http://` and that `Host`, or whose content
-   type is not `application/json`.
+   type is not `application/json`. It refuses, with 403, a `GET /api/issue` whose `Sec-Fetch-Site`
+   is there and is not `same-origin`, before it reads data. A navigation, an image GET, and a no-cors
+   GET of another page carry no `Origin`, but they carry `Sec-Fetch-Site: cross-site`; so in a
+   browser that sends `Sec-Fetch-Site`, another page cannot make the issue read spend the `gh` quota
+   or read the blobs. A browser that sends no `Sec-Fetch-Site` gets the answer, which another page
+   cannot read, but the read of such a GET runs and can spend the `gh` quota.
 4. It refuses, with 403, each request whose `Origin` is `null`, on every path and method, before
    it reads a file or data. The board page never sends that value; a sandboxed page or a `file://`
    page sends it on a cors request and on a POST.
-5. It accepts only a JSON string that the grammar of the tracker accepts (`isKey`) as the number of an issue, only the terminal
+5. It accepts only a JSON string that the grammar of the tracker accepts (`isKey`) as the number of an issue, only
+   a `key` parameter that `isKey` accepts as the issue of `GET /api/issue`, only the terminal
    id of a session of the repository ("The cards") or the terminal of the coordinator record of
    the daemon as the id of a session, and only `low`,
    `medium`, `high`, `xhigh`, or `max` as the effort level of a Run, and only 40 lowercase hex
@@ -1197,10 +1252,15 @@ process. Twelve rules hold for the server and the page:
    `engine/lib/terminal/terminal.ts`). An id that is absent goes into no command.
 8. The server starts `hc`, `herdr-app`, `git`, and the `codex` app-server of the coordinator read
    with no shell. The issue read starts `gh` (only for a GitHub project),
-   `git`, and, on macOS and Linux, `ps`, and the status read of a placement starts `ps`, each with
-   no shell.
+   `git`, and, on macOS and Linux, `ps`, the status read of a placement starts `ps`, the ref
+   poll of a local project starts one fixed `git for-each-ref` argv, and the issue view of
+   `GET /api/issue` starts `gh` (only for a GitHub project) and `git`, also one `git cat-file
+   --batch-check` with the full hashes that the operations of that issue name on its stdin and
+   `git cat-file blob` with each such hash of a blob, each with no shell.
 9. For issue and session data, it runs `git` only in the main checkout or in a lane worktree.
-   The `git diff` of a session runs with `--no-optional-locks`, so it writes nothing. Update
+   The `git diff` of a session, the ref poll, and the `git cat-file` of the issue view run with
+   `--no-optional-locks`, so they write nothing. The ref poll and the issue view run in the main
+   checkout. Update
    workers also validate the native plugin and engine installations. For an engine that follows a release, they read
    the npm registry and check the package document, the tarball, and the release tag of the fixed source before any
    write (ADR-0138).
@@ -1217,9 +1277,19 @@ process. Twelve rules hold for the server and the page:
     and it removes and adds the `celetis` marketplace record of Codex with the same source. The
     `claude plugin marketplace add` of that move then writes the user settings again, and the record
     `celetis` of `plugins/known_marketplaces.json`, with the same source and that ref.
-12. The page writes each text of the data, of a terminal screen, and of an error as text, never as HTML. Its
+12. The page writes each text of the data, of a terminal screen, and of an error as text, never as HTML. The
+    page renders the body and the comments of an issue with `react-markdown` as React elements: HTML of the
+    data is skipped, a link keeps only an `http:` or `https:` URL, and an image renders only from a
+    `data:` URL of the issue answer. Its
     Content-Security-Policy allows its own files (the page, its two scripts, `theme.js` and `board.js`, its stylesheet, and
-    its two fonts) and `data:` images (the tab icon) only. A visual page at `/visual/<sha>` is
+    its two fonts) and `data:` images (the tab icon and the images of an issue) only. The answer of
+    `GET /api/issue` embeds the images of an issue as `data:` URLs. The server makes them only from the
+    blobs that the operations of that issue name, only for an object of the type `blob` within the size
+    limits, and after the signature check of "The data". So `GET /api/issue` serves only those image
+    blobs, and no other blob or file of the repository. For `GET /api/issue`, the `Origin: null` refusal of rule 4 stops a
+    cors fetch of an opaque origin. A navigation, an image GET, and a no-cors GET carry no `Origin`; each
+    one that carries `Sec-Fetch-Site: cross-site` gets 403 (rule 3), and in a browser that sends no
+    `Sec-Fetch-Site` it gets the JSON, which another origin cannot read. A visual page at `/visual/<sha>` is
     model-written HTML. The server sends it only when `<sha>` is 40 lowercase hex digits and
     `docs/superpowers/visuals/<sha>.html` of the main checkout is a regular file, not a symbolic
     link. Its response has `Content-Security-Policy: sandbox allow-scripts allow-popups
@@ -1227,7 +1297,8 @@ process. Twelve rules hold for the server and the page:
     `allow-same-origin`. So the page has an opaque origin, and it cannot read a board response.
     Its cors requests and its POSTs have `Origin: null` and get 403 (rule 4). A navigation, a
     popup, and a no-cors GET (an image or a script) have no `Origin` and get the normal answer,
-    which the page cannot read. No GET of the board is a press. A `GET /api/board` can start the
+    which the page cannot read; a `GET /api/issue` with a `Sec-Fetch-Site` other than `same-origin`
+    gets 403 (rule 3). No GET of the board is a press. A `GET /api/board` can start the
     full read of the data, which the timer of the server also starts. That read sends the
     reconcile request to the master daemon, which can update the queue record and start a queue
     run that is due. ADR-0065 records this route.
@@ -1300,15 +1371,15 @@ These files enforce the rules. They are the trust files of the board:
 | Rule | Files that enforce it |
 | --- | --- |
 | 1 (listen on `127.0.0.1`) | `engine/board/start.ts` |
-| 2, 3, 4 (the `Host`, the POST `Origin` and content type, `Origin: null` first) | `engine/board/perimeter.ts` |
-| 5 (issue keys, a session of the repository, five levels, the head and the patch of a Land) | `engine/board/requests.ts`, `engine/lib/tracker/key.ts` (`isKey`), `engine/lib/tracker/grammar.ts`, `engine/board/presses.ts` (Go, Stop, Land, Discard, Hold landing), `engine/lib/workflow/effort.ts` (`isLevel`), `engine/lib/state/fields.ts` (`isCommit`), `engine/lib/landing/press.ts` (the comparison with the record and the branch) |
+| 2, 3, 4 (the `Host`, the POST `Origin` and content type, the `Sec-Fetch-Site` of the issue view, `Origin: null` first) | `engine/board/perimeter.ts` |
+| 5 (issue keys, a session of the repository, five levels, the head and the patch of a Land) | `engine/board/requests.ts` (`parseIssueQuery`), `engine/lib/tracker/key.ts` (`isKey`), `engine/lib/tracker/grammar.ts`, `engine/board/presses.ts` (Go, Stop, Land, Discard, Hold landing), `engine/lib/workflow/effort.ts` (`isLevel`), `engine/lib/state/fields.ts` (`isCommit`), `engine/lib/landing/press.ts` (the comparison with the record and the branch) |
 | 6 (what the page sends) | `engine/board/requests.ts`, the page modules of `engine/board/page/` |
 | 7 (`isSafeId`) | `engine/lib/terminal/terminal.ts` |
 | 8 (no shell) | `engine/board/perimeter.ts` (`run`), `engine/lib/process/process.ts` (`run` of the issue and status reads), `engine/lib/host/codex/app-server.ts` (`createCodexClient`) |
-| 9 (`git` only in the repository, `--no-optional-locks`; update workers validate the installations) | `engine/lib/board-read/board-read.ts` (`isInside`, `readDiff`), `engine/board/update/worker.ts`, `engine/lib/update/updater.ts`, `engine/lib/update/target.ts` (`resolveRef`, the ref of a target), `engine/lib/release/release.ts` (`releaseParts`, the release form), `engine/lib/install/dependencies.ts`, `engine/lib/package/registry.ts` (`parseDocument`, `download`), `engine/lib/package/archive.ts` (`readArchive`), `engine/lib/package/package.ts` (`checkReleaseTag`, `readTarget`) |
+| 9 (`git` only in the repository, `--no-optional-locks`; update workers validate the installations) | `engine/lib/board-read/board-read.ts` (`isInside`, `readDiff`, `readRevisions`), `engine/lib/local/format.ts` (`blobHash`), `engine/lib/local/local.ts` (`blobSizes`, `blobOf`, `files`), `engine/board/update/worker.ts`, `engine/lib/update/updater.ts`, `engine/lib/update/target.ts` (`resolveRef`, the ref of a target), `engine/lib/release/release.ts` (`releaseParts`, the release form), `engine/lib/install/dependencies.ts`, `engine/lib/package/registry.ts` (`parseDocument`, `download`), `engine/lib/package/archive.ts` (`readArchive`), `engine/lib/package/package.ts` (`checkReleaseTag`, `readTarget`) |
 | 10 (Open shell under `.claude/worktrees/`) | `engine/board/presses.ts`, `engine/lib/board-read/board-read.ts` (`isInside`) |
 | 11 (no write in a product working tree; the trend files only in the git common dir) | No one file: each module of the board; the read model reads, and only `engine/board/trends.ts` through `engine/lib/board-read/trends.ts` and the History read through the trend cache write, in `<git common dir>/celetis/` |
-| 12 (text as text, the Content-Security-Policies, the visual page) | `engine/board/perimeter.ts`, `engine/lib/state/fields.ts` (`isCommit`), `engine/lib/board-read/board-read.ts` (`readVisualPage`), `engine/lib/workflow/visual.ts` (`hasPage`), the page modules |
+| 12 (text as text, the Content-Security-Policies, the visual page, the images of an issue) | `engine/board/perimeter.ts`, `engine/lib/state/fields.ts` (`isCommit`), `engine/lib/board-read/board-read.ts` (`readVisualPage`, `readIssueView`), `engine/lib/local/format.ts` (`blobHash`), `engine/lib/local/local.ts` (`blobSizes`, `files`), `engine/lib/workflow/visual.ts` (`hasPage`), the page modules |
 | Start rule 1 (the engine read) | `engine/board/adapter.ts`, `engine/lib/install/installation.ts` (`readEngine`) |
 | Start rule 2 (fixed argvs and requests) | `engine/board/adapter.ts`, `engine/lib/landing/press.ts` (Land and Discard in the daemon), `engine/lib/terminal/terminal.ts` (`openTab`), `engine/lib/host/codex/app-server.ts` (`createCodexClient`) |
 | Start rule 3 (only validated values) | `engine/board/requests.ts`, `engine/lib/landing/press.ts`, `engine/lib/tracker/key.ts` (`isKey`), `engine/lib/tracker/grammar.ts`, `engine/lib/state/fields.ts`, `engine/lib/host/names.ts` (`isHost`), `engine/board/adapter.ts`, `engine/lib/queue/queue.ts` (`parseQueueAction`), `engine/lib/queue/types.ts` (`queueAction`), `engine/lib/state/schemas.ts` |
@@ -1489,7 +1560,7 @@ loads nothing from the network.
   tab shows its panel when it gets the focus. Each tab names its panel with `aria-controls`, and
   each panel names its tab with `aria-labelledby`. A change of the tab sends nothing.
 - The page holds one shell value: the area, the tab of the right pane, the details of one card or
-  none, and below 720 px the pane (Chat or Agents). Each change of the area, the tab, the details,
+  none with their tab, and below 720 px the pane (Chat or Agents). Each change of the area, the tab, the details,
   or the pane is one change of that value, and the page draws each region from it. So the chat, the
   details, Queue, and History cannot open over each other: the details take the place of the chat
   in the center, and Queue and History are tabs. The chat shows while the area is Operations, no
@@ -1741,6 +1812,21 @@ loads nothing from the network.
   that no longer lists the card closes its details and keeps the tab and the pane; a focus in the
   details goes to the selected tab when it shows, else to the work area. Below 720 px a change to a
   tab closes the details.
+- The details of an issue card have a `tablist` `Card details` under the title and the state line,
+  with the tabs Status and Conversation. A session card with no issue has no tabs. The details open
+  on Status, which holds the sections above. A board read keeps the selected tab while the details
+  stay open on the same card; another card opens on Status. Left and Right Arrow move the focus
+  between the two tabs and wrap, and Enter or Space selects the focused tab; only the selected tab
+  is in the Tab order. Conversation reads `GET /api/issue` when it opens and again when the
+  revision of the issue changes in a board read. It shows a state badge `Open` or `Closed`, the
+  labels, and one list, oldest first: the body under `Description` (`No description.` when it is
+  empty), each comment with its author (`unknown` when it has none) and its time, and each label
+  change as one line `Added` or `Removed` with the label and the time. The tab label shows the
+  number of comments. The tab shows `Loading the issue…` until its first read ends; while a later
+  read runs, the last content stays. A failed read shows `Cannot read the issue: <cause>`, under
+  the labels when there is content to keep. After a later read, each item that the last content did
+  not have gets the badge `New`, and a hidden status line announces `1 new item` or
+  `<N> new items`.
 - A card that changed since you last looked at the board has a dot, until you point at it or focus
   it. The board takes the cards as seen when its window loses the focus. A closed group row shows
   the dot while one of its hidden cards has it.
@@ -1805,7 +1891,7 @@ loads nothing from the network.
   (Light or Dark; System stores nothing). A load restores the area and the tab: a missing or
   unknown area gives Home, and an unknown or missing tab gives Agents. A stored Pipeline
   also gives Agents, so a load never starts with the wide Pipeline over the chat, and below 720 px
-  Operations opens on the Chat pane. A load shows no details. It also keeps the last ended turn of the
+  Operations opens on the Chat pane. A load shows no details, unless its fragment names an issue. It also keeps the last ended turn of the
   coordinator session that the chat showed, and the last ended turn of each human session that you
   saw, by terminal and hc `turn`; an entry leaves the storage at the next good read that lists no
   such session, and a failed read removes none. The open epic groups, the theme, and the seen turns of human sessions follow a
@@ -1850,6 +1936,25 @@ as `h`, `j`, `k`, and `l` do. `Tab` reaches one card or epic group in each colum
 had the focus, else the first. A press on a count of 0 focuses the empty state of its column. After a
 Run, Resume, or Open agent press, the focus stays on the card of the issue in Running. A press in the details keeps the focus in the details: on the same button, or on
 Close when that button goes.
+
+**The details of an issue.** The details open from a card, from a History row, or from the URL. A
+card gives the details of its card. An issue with no card and a History entry gives the details of a
+closed issue: the head has the number, `Open the issue on <tracker>` when the entry has an HTTP(S)
+URL, and Close; under the title one line reads `Landed on <trunk> in <short sha>, <time>`; the tab
+Status holds only `This issue is closed. No run belongs to it.`. A card that lands while its details
+show keeps them open as these details, on the same tab. An issue with no card and no History entry,
+named by the URL, shows `Issue #<n>` until its view loads, then its title and its state, with no
+Landed line; its head has `Open the issue on <tracker>` when the view has an HTTP(S) URL, and its tab Status holds `This issue has no card on the board. No run belongs to it.` for an
+open issue and the line of a closed issue for a closed one; an answer of 404 or 400 closes the details. Any other issue with no card closes the
+details. Escape or Close puts the focus back on what opened the details: the card, the History row
+button, or else the selected tab of the right pane.
+
+**The URL.** While details of an issue show, the fragment of the page URL is
+`#issue=<key>&tab=<status|conversation>`; the page writes it with `history.replaceState`, so it adds
+no history entry. Details of a session with no issue, and no details, give no fragment. At the first
+good read, the page reads the fragment once, after it takes the key grammar of the tracker: a key
+that the grammar refuses clears the fragment; a known key opens its card, else its details as above.
+A missing or other `tab` gives Status for a card and Conversation for an issue with no card.
 
 After the first good read, the page writes the name of the tracker in its texts:
 `Open the issue on <tracker>` and `Read <tracker> again`. Before that read, and in the list of keys,

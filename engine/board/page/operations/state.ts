@@ -1,10 +1,10 @@
 import { useSyncExternalStore } from 'react';
 import { flushSync } from 'react-dom';
 import { grammar, useGrammar } from '../../../lib/tracker/grammar.ts';
-import { compareKeys, type IssueKey } from '../../../lib/tracker/key.ts';
+import { compareKeys, type IssueKey, parseKey } from '../../../lib/tracker/key.ts';
 import type { Action, Board, Card, CoordinatorView } from '../../types.ts';
 import { isYourTurn, keyOf, needsYou, parseOpenEpics, parseSeenTurn, pipeline, signature } from '../../view.ts';
-import type { Area, Pane, Shell, Tab } from '../shell.ts';
+import { type Area, type DetailsTab, fragmentOf, type Pane, readFragment, type Shell, type Tab } from '../shell.ts';
 import { phone, shellStore } from '../store.ts';
 import { announce, store } from '../ui.ts';
 import { type CardIndex, indexCards, type Launch, project, SLOW_START_TEXT, type View } from './cards.ts';
@@ -176,7 +176,10 @@ const accept = (next: Board) => {
     waitingOpen: state.waitingOpen && project(next, launches).columns.waiting.length > 0,
     seen: state.seen ?? new Map(),
   });
-  if (isFirst) markAllSeen();
+  if (isFirst) {
+    markAllSeen();
+    openFragment();
+  }
   const menuCard = state.menu && index().byKey.get(state.menu.key);
   if (state.menu !== null && (!menuCard || (menuCard.column === 'waiting' && view() === 'now' && !state.waitingOpen)))
     emitFor('quiet', { ...state, menu: null });
@@ -210,6 +213,12 @@ const fail = () => {
 
 const shell = (): Shell => shellStore.get().shell;
 
+// keyOf keeps each character of an issue key, so the part after its prefix is the key.
+export const numberOf = (key: string): IssueKey | null => {
+  const entry = index().byKey.get(key);
+  return entry ? entry.card.number : parseKey(key.slice(2));
+};
+
 const PANEL_FOCUS = '[data-slot="button"]';
 
 let hiddenFocus: Element | null = null;
@@ -236,7 +245,7 @@ export const setShell = (next: Shell, active: Element | null = document.activeEl
     active instanceof HTMLElement &&
     Boolean(document.getElementById('queue')?.contains(active));
   const activeId = active?.id;
-  shellStore.setShell(next);
+  shellStore.setShell(next.details === null ? { ...next, opener: null } : next);
   const now = document.activeElement;
   const isHidden = wasInPanel || (wasInBoard && document.getElementById('tp-board') === null);
   const isLost =
@@ -269,11 +278,18 @@ export const showChat = () =>
     tab: shell().tab === 'pipeline' ? 'agents' : shell().tab,
   });
 
-export const openDetails = (key: string) => {
+export const openDetails = (key: string, tab: DetailsTab = 'status') => {
   if (!screen.index().byKey.has(key)) return;
   revealCard(key);
   markSeen(key);
-  setShell({ ...shell(), area: 'operations', details: key, pane: 'chat' });
+  setShell({
+    ...shell(),
+    area: 'operations',
+    details: key,
+    detailsTab: shell().details === key ? shell().detailsTab : tab,
+    opener: 'card',
+    pane: 'chat',
+  });
   const selected = document.querySelector<HTMLElement>(`#tp-board [data-key="${CSS.escape(key)}"]`);
   if (shell().tab === 'pipeline') selected?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   const entry = screen.index().byKey.get(key);
@@ -303,20 +319,70 @@ const revealCard = (key: string) => {
   screen.setEpicOpen(entry.card.epic.number, true);
 };
 
-export function closeDetails(refocus: boolean) {
-  const key = shell().details;
-  const isBack = refocus && key !== null;
+export const openIssue = (number: IssueKey, tab: DetailsTab, opener: 'history' | 'link') => {
   setShell({
     ...shell(),
-    details: null,
-    ...(isBack && (shell().tab === 'queue' || shell().tab === 'history') ? { tab: 'agents' as const } : {}),
-    ...(isBack && phone.matches ? { pane: 'agents' as const } : {}),
+    area: 'operations',
+    details: keyOf({ number, sessionId: null }),
+    detailsTab: tab,
+    opener,
+    pane: 'chat',
   });
-  if (isBack) {
-    revealCard(key);
-    document.querySelector<HTMLElement>(`#tp-board [data-key="${CSS.escape(key)}"]`)?.focus({ preventScroll: true });
-  }
+  (document.getElementById('panel') as HTMLElement)
+    .querySelector<HTMLElement>(PANEL_FOCUS)
+    ?.focus({ preventScroll: true });
+};
+
+export function closeDetails(refocus: boolean) {
+  const { details: key, opener } = shell();
+  const number = key === null ? null : numberOf(key);
+  const isBack = refocus && key !== null;
+  const isCard = opener === 'card';
+  const active = document.activeElement;
+  setShell(
+    {
+      ...shell(),
+      details: null,
+      detailsTab: 'status',
+      ...(isBack && isCard && (shell().tab === 'queue' || shell().tab === 'history') ? { tab: 'agents' as const } : {}),
+      ...(isBack && phone.matches ? { pane: 'agents' as const } : {}),
+    },
+    active,
+  );
+  if (!isBack) return;
+  if (isCard) revealCard(key);
+  const target = isCard
+    ? document.querySelector<HTMLElement>(`#tp-board [data-key="${CSS.escape(key)}"]`)
+    : opener === 'history' && number !== null
+      ? document.querySelector<HTMLElement>(`[data-history-key="${CSS.escape(number)}"]`)
+      : null;
+  (target?.checkVisibility() ? target : areaStop()).focus({ preventScroll: true });
 }
+
+const openFragment = () => {
+  const asked = readFragment(location.hash);
+  if (asked === null) return;
+  const number = parseKey(asked.number);
+  if (number === null) return history.replaceState(history.state, '', location.pathname + location.search);
+  const key = keyOf({ number, sessionId: null });
+  if (index().byKey.has(key)) return openDetails(key, asked.tab ?? 'status');
+  const isLanded = state.read?.history?.entries.some((entry) => entry.number === number);
+  openIssue(number, asked.tab ?? 'conversation', isLanded ? 'history' : 'link');
+};
+
+let written = { details: shell().details, tab: shell().detailsTab };
+shellStore.subscribe(() => {
+  const { details, detailsTab } = shell();
+  if (details === written.details && detailsTab === written.tab) return;
+  written = { details, tab: detailsTab };
+  history.replaceState(
+    history.state,
+    '',
+    location.pathname + location.search + fragmentOf(details === null ? null : numberOf(details), detailsTab),
+  );
+});
+
+export const setDetailsTab = (detailsTab: DetailsTab) => setShell({ ...shell(), detailsTab });
 
 export const focusNeed = (): void => {
   const shown = board();

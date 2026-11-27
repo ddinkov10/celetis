@@ -16,9 +16,9 @@ export type Flow = {
 export type LandedIssue = {
   number: IssueKey;
   title: string;
-  url: string;
+  url: string | null;
   sha: string;
-  commitUrl: string;
+  commitUrl: string | null;
   committedAt: string;
 };
 export type History = {
@@ -35,6 +35,21 @@ export type Document = {
   issues: IssueRow[];
   agents: Record<Host, { available: boolean; cause: string | null }>;
   queue: QueueView | null;
+};
+export type IssueItem =
+  | { kind: 'comment'; id: string; at: string; author: string | null; body: string }
+  | { kind: 'label'; id: string; at: string; change: 'added' | 'removed'; name: string };
+export type IssueView = {
+  number: IssueKey;
+  title: string;
+  url: string;
+  state: 'open' | 'closed';
+  labels: string[];
+  body: string;
+  updatedAt: string;
+  closedAt: string | null;
+  items: IssueItem[];
+  images: Record<string, string>;
 };
 export type QuotaWait = { number: IssueKey; waitId: string; nextResetAt: number | null };
 export type QuotaState = { kind: 'waiting'; wait: QuotaWait } | { kind: 'orphaned' };
