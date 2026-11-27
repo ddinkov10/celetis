@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { z } from 'zod';
 import { HostError } from '../command/errors.ts';
 import type { Config, Host } from '../config/core.ts';
 import { exits, stepHeader } from '../contract/contract.ts';
 import { hostAdapter } from '../host/hosts.ts';
-import { isHost } from '../host/names.ts';
+import { hosts } from '../host/names.ts';
 import type { Claim } from '../host/types.ts';
 import { commonDir } from '../process/git.ts';
 import { recordEvent } from '../state/events.ts';
@@ -12,21 +13,37 @@ import { isSessionId } from '../state/fields.ts';
 import { issueLock, type LockOwner } from '../state/locks.ts';
 import { commitMigration, type LocalRecord, readLocalRecord } from '../state/migration.ts';
 import { requestStatePreparation } from '../state/preparation.ts';
+import { issueKey } from '../state/schemas.ts';
 import { ensureFolder, repositoryLayout, writeAtomic } from '../state/state.ts';
 import { readScreen } from '../terminal/terminal.ts';
-import { type IssueKey, isKey } from '../tracker/key.ts';
-import { isLevel, type Level, type StartPair } from '../workflow/effort.ts';
+import type { IssueKey } from '../tracker/key.ts';
+import { type Level, levels, type StartPair } from '../workflow/effort.ts';
 import { type Step, steps } from '../workflow/workflow.ts';
 
-export interface SessionRecord {
-  schema: 3;
-  host: Host;
-  issue: IssueKey;
-  step: Step;
-  checkout: string;
-  session_id: string | null;
-  effort: Level | null;
-}
+const sessionFields = {
+  host: z.enum(hosts),
+  step: z.enum(steps),
+  checkout: z.string(),
+  session_id: z.string().nullable(),
+};
+const effort = z.enum(levels).nullable();
+const savedId = (record: { host: Host; session_id: string | null }) =>
+  record.session_id === null || isSessionId(record.host, record.session_id);
+
+export const sessionRecord = z
+  .strictObject({ schema: z.literal(3), issue: issueKey, ...sessionFields, effort })
+  .refine(savedId);
+const sessionRecord1 = z.strictObject({ schema: z.literal(1), issue: z.int(), ...sessionFields }).refine(savedId);
+export const sessionRecord2 = z
+  .strictObject({ schema: z.literal(2), issue: z.int(), ...sessionFields, effort })
+  .refine(savedId);
+const versioned = z.looseObject({ schema: z.unknown().optional() });
+const versionOf = (value: unknown) => {
+  const parsed = versioned.safeParse(value);
+  return parsed.success ? { schema: parsed.data.schema } : null;
+};
+
+export type SessionRecord = z.output<typeof sessionRecord>;
 export type SavedSession = SessionRecord & { session_id: string };
 type StepFacts = {
   issue: IssueKey;
@@ -37,62 +54,43 @@ type StepFacts = {
   landing: Config['landing'];
   recovery?: boolean;
 };
-function object(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
+const holds =
+  <T extends z.ZodType>(schema: T) =>
+  (value: unknown): value is z.output<T> =>
+    schema.safeParse(value).success;
+const isCurrent = holds(sessionRecord);
+const isSession1 = holds(sessionRecord1);
+const isSession2 = holds(sessionRecord2);
 
-function sessionFields(value: Record<string, unknown>, main: string, issue: IssueKey): boolean {
-  return (
-    isKey(value.issue) &&
-    value.issue === issue &&
-    value.checkout === main &&
-    isHost(value.host) &&
-    typeof value.step === 'string' &&
-    steps.includes(value.step as Step) &&
-    (value.session_id === null || isSessionId(value.host, value.session_id))
-  );
-}
+const effortHolds = (record: { host: Host; effort: Level | null }) =>
+  hostAdapter(record.host).appliesEffort ? record.effort !== null : record.effort === null;
 
-const effortHolds = (value: Record<string, unknown>) =>
-  isHost(value.host) && (hostAdapter(value.host).appliesEffort ? isLevel(value.effort) : value.effort === null);
+export const matchesSession = (record: SessionRecord, main: string, issue: IssueKey) =>
+  record.issue === issue && record.checkout === main && effortHolds(record);
 
 export function validateSession(value: unknown, main: string, issue: IssueKey, file: string): SessionRecord {
-  if (
-    !object(value) ||
-    Object.keys(value).sort().join(',') !== 'checkout,effort,host,issue,schema,session_id,step' ||
-    value.schema !== 3 ||
-    !sessionFields(value, main, issue) ||
-    !effortHolds(value)
-  ) {
+  if (!isCurrent(value) || !matchesSession(value, main, issue)) {
     throw new HostError(
       `session: ${file}: invalid schema-3 fields; preserve the record and repair its data`,
       exits.usage,
     );
   }
-  return value as unknown as SessionRecord;
+  return value;
 }
 
 export function convertSession(value: unknown, main: string, issue: IssueKey, file: string): SessionRecord {
+  const version = versionOf(value)?.schema;
   const invalid = (schema: string) =>
     new HostError(
       `session: ${file}: schema ${schema} to 3: invalid historical fields; preserve and repair the record`,
       exits.usage,
     );
-  if (!object(value) || (value.schema !== 1 && value.schema !== 2)) throw invalid('unknown');
-  const fields =
-    value.schema === 1
-      ? 'checkout,host,issue,schema,session_id,step'
-      : 'checkout,effort,host,issue,schema,session_id,step';
-  if (
-    Object.keys(value).sort().join(',') !== fields ||
-    !Number.isSafeInteger(value.issue) ||
-    String(value.issue) !== issue ||
-    !sessionFields({ ...value, issue }, main, issue) ||
-    (value.schema === 2 && !effortHolds(value))
-  )
-    throw invalid(String(value.schema));
+  if (version !== 1 && version !== 2) throw invalid('unknown');
+  const old = version === 1 ? (isSession1(value) ? value : null) : isSession2(value) ? value : null;
+  if (old === null || String(old.issue) !== issue || old.checkout !== main || ('effort' in old && !effortHolds(old)))
+    throw invalid(String(version));
   return validateSession(
-    { ...value, schema: 3, issue, effort: value.schema === 1 ? 'high' : value.effort },
+    { ...old, schema: 3, issue, effort: 'effort' in old ? old.effort : 'high' },
     main,
     issue,
     file,
@@ -105,9 +103,14 @@ export function serializeSession(record: SessionRecord): string {
 
 const historical = (source: LocalRecord, main: string, issue: IssueKey) =>
   convertSession(source.value, main, issue, source.path);
-const schemaOf = (source: LocalRecord) => (object(source.value) ? String(source.value.schema) : 'unknown');
-const oldSchema = (source: LocalRecord) =>
-  object(source.value) && (source.value.schema === 1 || source.value.schema === 2);
+const schemaOf = (source: LocalRecord) => {
+  const version = versionOf(source.value);
+  return version ? String(version.schema) : 'unknown';
+};
+const oldSchema = (source: LocalRecord) => {
+  const schema = versionOf(source.value)?.schema;
+  return schema === 1 || schema === 2;
+};
 async function snapshot(common: string, issue: IssueKey): Promise<LocalRecord | null> {
   const layout = repositoryLayout(common);
   const file = layout.session(issue);
@@ -121,7 +124,7 @@ async function snapshot(common: string, issue: IssueKey): Promise<LocalRecord | 
   }
 }
 function currentRecord(source: LocalRecord, main: string, issue: IssueKey): SessionRecord {
-  if (!object(source.value) || source.value.schema !== 3)
+  if (versionOf(source.value)?.schema !== 3)
     throw new HostError(
       `session: ${source.path}: unsupported schema ${schemaOf(source)}; expected schema 3`,
       exits.usage,

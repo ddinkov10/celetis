@@ -1,17 +1,19 @@
 import { readFile, writeFile } from 'node:fs/promises';
+import { z } from 'zod';
 import { HostError } from '../command/errors.ts';
 import { type ExitCode, exits } from '../contract/contract.ts';
 import { daemonScript, type ProcessState, processScript, processStart, processState } from '../process/identity.ts';
 import { childEnv, run } from '../process/process.ts';
 import type { IssueKey } from '../tracker/key.ts';
+import { type identity, identityFields } from './schemas.ts';
 import { repositoryLayout } from './state.ts';
 
-export type Identity = Readonly<{ pid: number; start: string }>;
+export type Identity = Readonly<z.output<typeof identity>>;
 export type LockClaim =
   | Readonly<{ kind: 'taken' }>
   | Readonly<{ kind: 'held'; holder: string }>
   | Readonly<{ kind: 'unknown' }>;
-type OwnerRecord = Readonly<{ daemon: Identity | null; session: Identity | null }>;
+type OwnerRecord = Readonly<z.output<typeof ownerBlob>>;
 
 export interface LockOwner {
   owns(name: string): boolean;
@@ -32,9 +34,11 @@ function parsed(source: string): unknown {
     return null;
   }
 }
-function object(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
+
+const ownerBlob = z.looseObject({
+  daemon: z.object(identityFields).nullable().catch(null),
+  session: z.object(identityFields).nullable().catch(null),
+});
 
 export const issueLock = (key: IssueKey): string => `issue-${key}`;
 export const landLock = (key: IssueKey): string => `land-${key}`;
@@ -45,15 +49,9 @@ const git = (main: string, args: string[], input?: string) => run('git', args, {
 const refValue = async (main: string, name: string) =>
   (await git(main, ['rev-parse', '--verify', ref(name)])).stdout.trimEnd();
 
-function identity(row: unknown): Identity | null {
-  return object(row) && Number.isInteger(row.pid) && Number(row.pid) > 0 && typeof row.start === 'string' && row.start
-    ? { pid: Number(row.pid), start: row.start }
-    : null;
-}
-
 async function ownerRecord(main: string, owner: string): Promise<OwnerRecord | null> {
-  const data = parsed((await git(main, ['cat-file', 'blob', owner])).stdout);
-  return object(data) ? { daemon: identity(data.daemon), session: identity(data.session) } : null;
+  const found = ownerBlob.safeParse(parsed((await git(main, ['cat-file', 'blob', owner])).stdout));
+  return found.success ? found.data : null;
 }
 
 async function daemonState(daemon: Identity): Promise<ProcessState> {

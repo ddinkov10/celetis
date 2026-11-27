@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { isAlias, isMap, isScalar, isSeq, parseAllDocuments } from 'yaml';
+import { z } from 'zod';
 import { type ExitCode, exits } from '../contract/contract.ts';
+import { digestText, lowerUuid } from '../state/schemas.ts';
 
 export class LessonError extends Error {
   constructor(
@@ -11,76 +13,245 @@ export class LessonError extends Error {
     super(`${path}: ${message}`);
   }
 }
-export type Evidence = { kind: 'user-report' | 'tool-output'; excerpt: string; reference?: string };
-export type Diagnosis =
-  | 'not-retrieved'
-  | 'not-followed'
-  | 'wrong-or-incomplete-rule'
-  | 'failed-structural-constraint'
-  | 'unknown';
-export type Incident = {
-  id: string;
-  date: string;
-  action: string;
-  expected: string;
-  observed: string;
-  source: Evidence;
-  inference: string;
-  diagnosis: Diagnosis[];
-  revision?: string;
-  lesson?: { name: string; revision: string; digest: string };
-  brief?: string;
-};
-export type FollowUp = {
-  state: 'proposed' | 'verified' | 'not-needed';
-  detail: string;
-  owner?: string;
-  reference?: string;
-  evidence?: string;
-};
-export type Decision = 'approve' | 'edit' | 'merge' | 'supersede' | 'retire' | 'reject';
-export type Review = {
-  id: string;
-  requestDigest: string;
-  date: string;
-  decision: Decision;
-  source: string;
-  related: string[];
-  followUp: FollowUp;
-};
-type LessonFields = {
-  schema: 1;
-  name: string;
-  description: string;
-  tags: string[];
-  date: string;
-  source: string;
-  incidents: Incident[];
-  recurrences: number;
-  reviews: Review[];
-  body: string;
-};
-export type Lesson = LessonFields &
-  (
-    | { status: 'pending-review'; candidate: string; reason?: string; replacement?: never }
-    | { status: 'active'; candidate?: never; replacement?: never; reason?: never }
-    | { status: 'superseded'; candidate?: never; replacement?: string; reason: string }
+export const lessonsPath = '.celetis/lessons';
+export const pendingPath = `${lessonsPath}/_pending`;
+export const queuePath = `${pendingPath}/QUEUE.md`;
+export const journalPath = `${pendingPath}/.transaction.json`;
+export const ignorePath = `${pendingPath}/.gitignore`;
+export const pendingHeader = '# Pending lessons\n\n| Candidate | Lesson | Date | Summary |\n|---|---|---|---|\n';
+const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+function fail(path: string, message: string): never {
+  throw new LessonError(exits.usage, path, message);
+}
+export function hash(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
+}
+export function stable(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
+  if (value !== null && typeof value === 'object')
+    return `{${Object.entries(value)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stable(item)}`)
+      .join(',')}}`;
+  return JSON.stringify(value);
+}
+
+const at = (value: unknown, keys: readonly PropertyKey[]) =>
+  keys.reduce<unknown>((node, key) => (node as Record<PropertyKey, unknown> | null)?.[key], value);
+export function missingKey(issue: z.core.$ZodIssue, value: unknown): string | null {
+  const key = issue.path.at(-1);
+  if (issue.code === 'unrecognized_keys' || typeof key !== 'string') return null;
+  const parent = at(value, issue.path.slice(0, -1));
+  return parent !== null && typeof parent === 'object' && !Array.isArray(parent) && !Object.hasOwn(parent, key)
+    ? key
+    : null;
+}
+const pathOf = (root: string, keys: readonly PropertyKey[]) =>
+  keys.reduce<string>((path, key) => (typeof key === 'number' ? `${path}[${key}]` : `${path}.${String(key)}`), root);
+function failure(issue: z.core.$ZodIssue, value: unknown, root: string): LessonError {
+  const missing = missingKey(issue, value);
+  if (missing !== null)
+    return new LessonError(exits.usage, pathOf(root, issue.path.slice(0, -1)), `missing ${missing}`);
+  const path = pathOf(root, issue.path);
+  if (issue.code === 'unrecognized_keys') return new LessonError(exits.usage, path, `unknown field ${issue.keys[0]}`);
+  if (issue.code === 'invalid_type' && issue.expected === 'object')
+    return new LessonError(exits.usage, path, 'need an object');
+  return new LessonError(
+    exits.usage,
+    issue.code === 'invalid_value' && issue.path.at(-1) === 'schema' ? pathOf(root, issue.path.slice(0, -1)) : path,
+    issue.message,
   );
-export type CaptureRequest = Omit<LessonFields, 'recurrences' | 'reviews'> & {
-  candidate: string;
-  expected: string | null;
-};
-export type ReviewRequest = {
-  schema: 1;
-  id: string;
-  date: string;
-  source: string;
-  followUp: FollowUp;
-  decision: Decision;
-  candidates: string[];
-  lessons: { name: string; document: string }[];
-  reason: string;
-};
+}
+export function check<T extends z.ZodType>(schema: T, value: unknown, root: string): z.output<T> {
+  const parsed = schema.safeParse(value);
+  if (!parsed.success) throw failure(parsed.error.issues[0] as z.core.$ZodIssue, value, root);
+  return parsed.data;
+}
+
+const need = <T>(valid: (value: unknown) => boolean, message: string) =>
+  z.custom<T>(valid, { error: message, abort: true });
+const controls = /[^\t\n\r\x20-\x7e\xa0-\ud7ff\ue000-\ufffd\u{10000}-\u{10ffff}]/u;
+const prose = (max = 512, multiline = false) =>
+  need<string>(
+    (value) =>
+      typeof value === 'string' &&
+      value.trim() !== '' &&
+      value.length <= max &&
+      !controls.test(value) &&
+      (multiline || !/[\r\n\t]/.test(value)),
+    `need nonempty text of at most ${max} characters without control characters`,
+  );
+const calendar = (value: string) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+  Number.isFinite(Date.parse(value)) &&
+  new Date(value).toISOString().slice(0, 10) === value;
+const accepts = (schema: z.ZodType) => (value: unknown) => schema.safeParse(value).success;
+const slug = prose(128).pipe(
+  need<string>(accepts(z.string().regex(slugPattern)), 'need a safe kebab-case lesson name'),
+);
+export const uuid = prose(36).pipe(need<string>(accepts(lowerUuid), 'need a lowercase UUID'));
+export const digest = need<string>(accepts(digestText), 'need a SHA-256 digest');
+const date = prose(10).pipe(need<string>((value) => calendar(value as string), 'need a valid YYYY-MM-DD date'));
+const choice = <const T extends readonly [string, ...string[]]>(values: T) =>
+  z.enum(values, `need ${values.join(' | ')}`);
+const list = <T extends z.ZodType>(item: T) => z.array(item, 'need an array');
+const nonempty = <T extends z.ZodType>(item: T) =>
+  z.array(item, 'need a nonempty array').min(1, 'need a nonempty array');
+const distinct = <T extends z.ZodType>(items: z.ZodArray<T>, by: (item: z.output<T>) => unknown = (item) => item) =>
+  items.refine((all) => new Set(all.map(by)).size === all.length, 'duplicate identity');
+const pathMap = <T extends z.ZodType>(entry: T) =>
+  need<Record<string, z.output<T>>>(
+    (value) => value !== null && typeof value === 'object' && !Array.isArray(value),
+    'need a path map',
+  ).superRefine((map, ctx) => {
+    for (const [key, content] of Object.entries(map)) {
+      const found = storePath(key) ? entry.safeParse(content) : null;
+      if (found?.success) continue;
+      return void ctx.addIssue({
+        code: 'custom',
+        path: [key],
+        message: found ? (found.error.issues[0]?.message ?? '') : 'invalid lesson store path',
+      });
+    }
+  });
+
+const decision = choice(['approve', 'edit', 'merge', 'supersede', 'retire', 'reject']);
+const evidence = z.strictObject({
+  kind: choice(['user-report', 'tool-output']),
+  excerpt: prose(16_384, true),
+  reference: prose(2048).optional(),
+});
+const incident = z
+  .strictObject({
+    id: prose(),
+    date,
+    action: prose(16_384, true),
+    expected: prose(16_384, true),
+    observed: prose(16_384, true),
+    source: evidence,
+    inference: prose(16_384, true),
+    diagnosis: distinct(
+      nonempty(
+        choice([
+          'not-retrieved',
+          'not-followed',
+          'wrong-or-incomplete-rule',
+          'failed-structural-constraint',
+          'unknown',
+        ]),
+      ),
+    ),
+    revision: prose().optional(),
+    brief: prose(16_384, true).optional(),
+    lesson: z.strictObject({ name: slug, revision: prose(), digest }).optional(),
+  })
+  .refine(
+    (row) => !row.diagnosis.includes('unknown') || row.diagnosis.length === 1,
+    'unknown cannot coexist with a definitive diagnosis',
+  );
+const followUp = z
+  .strictObject({
+    state: choice(['proposed', 'verified', 'not-needed']),
+    detail: prose(16_384, true),
+    owner: prose(16_384, true).optional(),
+    reference: prose(16_384, true).optional(),
+    evidence: prose(16_384, true).optional(),
+  })
+  .refine((row) => row.state !== 'verified' || !!row.evidence, 'verified follow-up requires evidence');
+const review = z.strictObject({
+  id: prose(),
+  requestDigest: digest,
+  date,
+  decision,
+  source: prose(16_384, true),
+  related: distinct(list(slug)),
+  followUp,
+});
+const tags = distinct(nonempty(prose(128)));
+const incidents = distinct(nonempty(incident), (item) => item.id);
+const reviews = distinct(list(review), (item) => item.id);
+const lessonSchema = z
+  .strictObject({
+    schema: z.literal(1),
+    name: slug,
+    description: prose(1024),
+    tags,
+    date,
+    status: choice(['pending-review', 'active', 'superseded']),
+    source: prose(16_384, true),
+    incidents,
+    recurrences: need<number>((value) => value !== undefined, 'recurrences must equal distinct incident IDs minus one'),
+    reviews,
+    candidate: z.unknown().optional(),
+    replacement: z.unknown().optional(),
+    reason: z.unknown().optional(),
+  })
+  .refine(
+    (row) => row.recurrences === row.incidents.length - 1,
+    'recurrences must equal distinct incident IDs minus one',
+  );
+const absent = z.never().optional();
+const pendingStatus = z.strictObject({
+  status: z.literal('pending-review'),
+  candidate: uuid,
+  reason: prose(16_384, true).optional(),
+  replacement: absent,
+});
+const activeStatus = z.strictObject({
+  status: z.literal('active'),
+  candidate: absent,
+  replacement: absent,
+  reason: absent,
+});
+const supersededStatus = z.strictObject({
+  status: z.literal('superseded'),
+  candidate: absent,
+  replacement: slug.optional(),
+  reason: prose(16_384, true),
+});
+const captureSchema = z.strictObject({
+  schema: z.literal(1, 'need schema 1'),
+  candidate: uuid,
+  expected: digest.nullable(),
+  name: slug,
+  description: prose(1024),
+  tags,
+  date,
+  source: prose(16_384, true),
+  incidents,
+  body: prose(1_048_576, true),
+});
+const requestSchema = z.strictObject({
+  schema: z.literal(1, 'need schema 1'),
+  id: prose(),
+  date,
+  source: prose(16_384, true),
+  followUp,
+  decision,
+  candidates: distinct(list(uuid)),
+  lessons: distinct(list(z.strictObject({ name: slug, document: prose(1_048_576, true) })), (item) => item.name),
+  reason: prose(16_384, true),
+});
+const snapshotSchema = z.strictObject({
+  schema: z.literal(1, 'need schema 1'),
+  root: prose(4096),
+  request: requestSchema,
+  requestDigest: digest,
+  before: pathMap(prose(4_194_304, true).nullable()),
+  after: pathMap(prose(4_194_304, true).nullable()),
+  watched: pathMap(digest.nullable()),
+  digest,
+});
+
+export type Decision = z.output<typeof decision>;
+export type Review = z.output<typeof review>;
+type Row = z.output<typeof lessonSchema>;
+type LessonFields = Omit<Row, 'status' | 'candidate' | 'replacement' | 'reason'> & { body: string };
+export type Lesson = LessonFields &
+  (z.output<typeof pendingStatus> | z.output<typeof activeStatus> | z.output<typeof supersededStatus>);
+export type CaptureRequest = z.output<typeof captureSchema>;
+export type ReviewRequest = z.output<typeof requestSchema>;
+export type ReviewSnapshot = z.output<typeof snapshotSchema>;
 export type FileContent = { content: string; digest: string };
 export type LessonSnapshot = {
   schema: 1;
@@ -96,176 +267,6 @@ export type StoreResult = {
   root: string;
   paths: string[];
 };
-export type ReviewSnapshot = {
-  schema: 1;
-  root: string;
-  request: ReviewRequest;
-  requestDigest: string;
-  before: Record<string, string | null>;
-  after: Record<string, string | null>;
-  watched: Record<string, string | null>;
-  digest: string;
-};
-
-export const lessonsPath = '.celetis/lessons';
-export const pendingPath = `${lessonsPath}/_pending`;
-export const queuePath = `${pendingPath}/QUEUE.md`;
-export const journalPath = `${pendingPath}/.transaction.json`;
-export const ignorePath = `${pendingPath}/.gitignore`;
-export const pendingHeader = '# Pending lessons\n\n| Candidate | Lesson | Date | Summary |\n|---|---|---|---|\n';
-const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const digestPattern = /^[0-9a-f]{64}$/;
-const decisions: readonly Decision[] = ['approve', 'edit', 'merge', 'supersede', 'retire', 'reject'];
-const diagnoses: readonly Diagnosis[] = [
-  'not-retrieved',
-  'not-followed',
-  'wrong-or-incomplete-rule',
-  'failed-structural-constraint',
-  'unknown',
-];
-
-function fail(path: string, message: string): never {
-  throw new LessonError(exits.usage, path, message);
-}
-export function object(
-  value: unknown,
-  path: string,
-  required: string[],
-  optional: string[] = [],
-): Record<string, unknown> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) fail(path, 'need an object');
-  const result = value as Record<string, unknown>;
-  for (const key of required) if (!Object.hasOwn(result, key)) fail(path, `missing ${key}`);
-  for (const key of Object.keys(result))
-    if (![...required, ...optional].includes(key)) fail(path, `unknown field ${key}`);
-  return result;
-}
-export function string(value: unknown, path: string, max = 512, multiline = false): string {
-  if (
-    typeof value !== 'string' ||
-    !value.trim() ||
-    value.length > max ||
-    /[^\t\n\r\x20-\x7e\xa0-\ud7ff\ue000-\ufffd\u{10000}-\u{10ffff}]/u.test(value) ||
-    (!multiline && /[\r\n\t]/.test(value))
-  )
-    fail(path, `need nonempty text of at most ${max} characters without control characters`);
-  return value;
-}
-export function slug(value: unknown, path: string): string {
-  const result = string(value, path, 128);
-  if (!slugPattern.test(result)) fail(path, 'need a safe kebab-case lesson name');
-  return result;
-}
-export function uuid(value: unknown, path: string): string {
-  const result = string(value, path, 36);
-  if (!uuidPattern.test(result)) fail(path, 'need a lowercase UUID');
-  return result;
-}
-export function digest(value: unknown, path: string): string {
-  if (typeof value !== 'string' || !digestPattern.test(value)) fail(path, 'need a SHA-256 digest');
-  return value;
-}
-export function hash(value: string): string {
-  return createHash('sha256').update(value).digest('hex');
-}
-export function stable(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
-  if (value !== null && typeof value === 'object')
-    return `{${Object.entries(value)
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-      .map(([key, item]) => `${JSON.stringify(key)}:${stable(item)}`)
-      .join(',')}}`;
-  return JSON.stringify(value);
-}
-export function date(value: unknown, path: string): string {
-  const result = string(value, path, 10);
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(result) ||
-    !Number.isFinite(Date.parse(result)) ||
-    new Date(result).toISOString().slice(0, 10) !== result
-  )
-    fail(path, 'need a valid YYYY-MM-DD date');
-  return result;
-}
-function list<T>(value: unknown, path: string, parse: (value: unknown, path: string) => T, nonempty = false): T[] {
-  if (!Array.isArray(value) || (nonempty && value.length === 0))
-    fail(path, nonempty ? 'need a nonempty array' : 'need an array');
-  return value.map((item, i) => parse(item, `${path}[${i}]`));
-}
-function unique(values: string[], path: string): void {
-  if (new Set(values).size !== values.length) fail(path, 'duplicate identity');
-}
-function choice<T extends string>(value: unknown, path: string, values: readonly T[]): T {
-  if (typeof value !== 'string' || !values.includes(value as T)) fail(path, `need ${values.join(' | ')}`);
-  return value as T;
-}
-function evidence(value: unknown, path: string): Evidence {
-  const row = object(value, path, ['kind', 'excerpt'], ['reference']);
-  return {
-    kind: choice(row.kind, `${path}.kind`, ['user-report', 'tool-output']),
-    excerpt: string(row.excerpt, `${path}.excerpt`, 16_384, true),
-    ...(row.reference === undefined ? {} : { reference: string(row.reference, `${path}.reference`, 2048) }),
-  };
-}
-function incident(value: unknown, path: string): Incident {
-  const row = object(
-    value,
-    path,
-    ['id', 'date', 'action', 'expected', 'observed', 'source', 'inference', 'diagnosis'],
-    ['revision', 'lesson', 'brief'],
-  );
-  const diagnosis = list(row.diagnosis, `${path}.diagnosis`, (v, p) => choice(v, p, diagnoses), true);
-  unique(diagnosis, `${path}.diagnosis`);
-  if (diagnosis.includes('unknown') && diagnosis.length !== 1)
-    fail(path, 'unknown cannot coexist with a definitive diagnosis');
-  const result: Incident = {
-    id: string(row.id, `${path}.id`),
-    date: date(row.date, `${path}.date`),
-    action: string(row.action, `${path}.action`, 16_384, true),
-    expected: string(row.expected, `${path}.expected`, 16_384, true),
-    observed: string(row.observed, `${path}.observed`, 16_384, true),
-    source: evidence(row.source, `${path}.source`),
-    inference: string(row.inference, `${path}.inference`, 16_384, true),
-    diagnosis,
-  };
-  if (row.revision !== undefined) result.revision = string(row.revision, `${path}.revision`);
-  if (row.brief !== undefined) result.brief = string(row.brief, `${path}.brief`, 16_384, true);
-  if (row.lesson !== undefined) {
-    const lesson = object(row.lesson, `${path}.lesson`, ['name', 'revision', 'digest']);
-    result.lesson = {
-      name: slug(lesson.name, `${path}.lesson.name`),
-      revision: string(lesson.revision, `${path}.lesson.revision`),
-      digest: digest(lesson.digest, `${path}.lesson.digest`),
-    };
-  }
-  return result;
-}
-export function followUp(value: unknown, path: string): FollowUp {
-  const row = object(value, path, ['state', 'detail'], ['owner', 'reference', 'evidence']);
-  const result: FollowUp = {
-    state: choice(row.state, `${path}.state`, ['proposed', 'verified', 'not-needed']),
-    detail: string(row.detail, `${path}.detail`, 16_384, true),
-  };
-  for (const key of ['owner', 'reference', 'evidence'] as const)
-    if (row[key] !== undefined) result[key] = string(row[key], `${path}.${key}`, 16_384, true);
-  if (result.state === 'verified' && !result.evidence) fail(path, 'verified follow-up requires evidence');
-  return result;
-}
-function review(value: unknown, path: string): Review {
-  const row = object(value, path, ['id', 'requestDigest', 'date', 'decision', 'source', 'related', 'followUp']);
-  const related = list(row.related, `${path}.related`, slug);
-  unique(related, `${path}.related`);
-  return {
-    id: string(row.id, `${path}.id`),
-    requestDigest: digest(row.requestDigest, `${path}.requestDigest`),
-    date: date(row.date, `${path}.date`),
-    decision: choice(row.decision, `${path}.decision`, decisions),
-    source: string(row.source, `${path}.source`, 16_384, true),
-    related,
-    followUp: followUp(row.followUp, `${path}.followUp`),
-  };
-}
 function inspectYaml(node: unknown, path: string): void {
   if (isAlias(node)) fail(path, 'YAML aliases are not allowed');
   if (isMap(node) || isSeq(node) || isScalar(node)) {
@@ -285,7 +286,7 @@ function inspectYaml(node: unknown, path: string): void {
   }
 }
 export function parseLesson(text: string, path: string): Lesson {
-  string(text, path, 1_048_576, true);
+  check(prose(1_048_576, true), text, path);
   const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/.exec(text);
   if (!match) fail(path, 'need schema 1 frontmatter; review old-format records explicitly');
   const docs = parseAllDocuments(match[1] as string, { schema: 'core', merge: false, uniqueKeys: true });
@@ -295,38 +296,7 @@ export function parseLesson(text: string, path: string): Lesson {
   inspectYaml(doc.contents, path);
   return validateLesson(doc.toJS(), match[2] as string, path);
 }
-function validateLesson(value: unknown, body: string, path: string): Lesson {
-  if (!value || typeof value !== 'object' || !('schema' in value) || value.schema !== 1)
-    fail(path, 'need schema 1; review old-format records explicitly');
-  const required = [
-    'schema',
-    'name',
-    'description',
-    'tags',
-    'date',
-    'status',
-    'source',
-    'incidents',
-    'recurrences',
-    'reviews',
-  ];
-  const optional = ['candidate', 'replacement', 'reason'];
-  const row = object(value, path, required, optional);
-  const keys = [...required, ...optional].filter((key) => Object.hasOwn(row, key));
-  if (Object.keys(row).some((key, i) => key !== keys[i])) fail(path, 'frontmatter keys are out of order');
-  const tags = list(row.tags, `${path}.tags`, (v, p) => string(v, p, 128), true);
-  unique(tags, `${path}.tags`);
-  const incidents = list(row.incidents, `${path}.incidents`, incident, true);
-  unique(
-    incidents.map((item) => item.id),
-    `${path}.incidents`,
-  );
-  if (row.recurrences !== incidents.length - 1) fail(path, 'recurrences must equal distinct incident IDs minus one');
-  const reviews = list(row.reviews, `${path}.reviews`, review);
-  unique(
-    reviews.map((item) => item.id),
-    `${path}.reviews`,
-  );
+function checkBody(body: string, path: string): void {
   if (!/^(?:[ \t]*\r?\n)*# [^\r\n]+\r?\n/.test(body)) fail(path, 'need a lesson title');
   const sections: { heading: string; lines: string[] }[] = [];
   let fence: string | undefined;
@@ -372,154 +342,76 @@ function validateLesson(value: unknown, body: string, path: string): Lesson {
     )
       fail(path, `empty ${heading} section`);
   }
-  const fields: LessonFields = {
-    schema: 1,
-    name: slug(row.name, `${path}.name`),
-    description: string(row.description, `${path}.description`, 1024),
+}
+function validateLesson(value: unknown, body: string, path: string): Lesson {
+  if (!value || typeof value !== 'object' || !('schema' in value) || value.schema !== 1)
+    fail(path, 'need schema 1; review old-format records explicitly');
+  const row = check(lessonSchema, value, path);
+  const keys = Object.keys(lessonSchema.shape).filter((key) => Object.hasOwn(value, key));
+  if (Object.keys(value).some((key, i) => key !== keys[i])) fail(path, 'frontmatter keys are out of order');
+  checkBody(body, path);
+  const { schema, name, description, tags, date, source, incidents, reviews, status, candidate, replacement, reason } =
+    row;
+  const fields = {
+    schema,
+    name,
+    description,
     tags,
-    date: date(row.date, `${path}.date`),
-    source: string(row.source, `${path}.source`, 16_384, true),
+    date,
+    source,
     incidents,
     recurrences: incidents.length - 1,
     reviews,
     body,
   };
-  const status = choice(row.status, `${path}.status`, ['pending-review', 'active', 'superseded']);
   if (status === 'pending-review') {
-    if (row.replacement !== undefined) fail(path, 'pending records cannot have a replacement');
+    if (replacement !== undefined) fail(path, 'pending records cannot have a replacement');
     return {
       ...fields,
       status,
-      candidate: uuid(row.candidate, `${path}.candidate`),
-      ...(row.reason === undefined ? {} : { reason: string(row.reason, `${path}.reason`, 16_384, true) }),
+      candidate: check(pendingStatus.shape.candidate, candidate, `${path}.candidate`),
+      ...(reason === undefined ? {} : { reason: check(pendingStatus.shape.reason, reason, `${path}.reason`) }),
     };
   }
-  if (row.candidate !== undefined) fail(path, 'live and historical records cannot have a candidate');
+  if (candidate !== undefined) fail(path, 'live and historical records cannot have a candidate');
   if (status === 'active') {
-    if (row.replacement !== undefined || row.reason !== undefined)
+    if (replacement !== undefined || reason !== undefined)
       fail(path, 'active records cannot have replacement or reason');
     return { ...fields, status };
   }
-  const replacement = row.replacement === undefined ? undefined : slug(row.replacement, `${path}.replacement`);
-  if (replacement === fields.name) fail(path, 'a lesson cannot replace itself');
+  const target =
+    replacement === undefined
+      ? undefined
+      : check(supersededStatus.shape.replacement, replacement, `${path}.replacement`);
+  if (target === name) fail(path, 'a lesson cannot replace itself');
   return {
     ...fields,
     status,
-    reason: string(row.reason, `${path}.reason`, 16_384, true),
-    ...(replacement === undefined ? {} : { replacement }),
+    reason: check(supersededStatus.shape.reason, reason, `${path}.reason`),
+    ...(target === undefined ? {} : { replacement: target }),
   };
 }
-export function validateCapture(value: unknown, path: string): CaptureRequest {
-  const row = object(value, path, [
-    'schema',
-    'candidate',
-    'expected',
-    'name',
-    'description',
-    'tags',
-    'date',
-    'source',
-    'incidents',
-    'body',
-  ]);
-  if (row.schema !== 1) fail(path, 'need schema 1');
-  const candidate = uuid(row.candidate, `${path}.candidate`);
-  const expected = row.expected === null ? null : digest(row.expected, `${path}.expected`);
-  const { name, description, tags, date, source, incidents, body } = validateLesson(
-    {
-      schema: 1,
-      name: row.name,
-      description: row.description,
-      tags: row.tags,
-      date: row.date,
-      status: 'pending-review',
-      source: row.source,
-      incidents: row.incidents,
-      recurrences: Array.isArray(row.incidents) ? row.incidents.length - 1 : 0,
-      reviews: [],
-      candidate,
-    },
-    string(row.body, `${path}.body`, 1_048_576, true),
-    path,
-  );
-  return { schema: 1, candidate, expected, name, description, tags, date, source, incidents, body };
-}
-export function validateReviewRequest(value: unknown, path: string): ReviewRequest {
-  const row = object(value, path, [
-    'schema',
-    'id',
-    'date',
-    'source',
-    'followUp',
-    'decision',
-    'candidates',
-    'lessons',
-    'reason',
-  ]);
-  if (row.schema !== 1) fail(path, 'need schema 1');
-  const candidates = list(row.candidates, `${path}.candidates`, uuid);
-  unique(candidates, `${path}.candidates`);
-  const lessons = list(row.lessons, `${path}.lessons`, (value, path) => {
-    const item = object(value, path, ['name', 'document']);
-    const name = slug(item.name, `${path}.name`);
-    const document = string(item.document, `${path}.document`, 1_048_576, true);
+function checkDocuments(request: ReviewRequest, path: string): void {
+  for (const [i, { name, document }] of request.lessons.entries()) {
     const lesson = parseLesson(document, `${lessonsPath}/${name}.md`);
     if (lesson.name !== name || lesson.status === 'pending-review')
-      fail(path, 'need a matching live or historical document');
-    return { name, document };
-  });
-  unique(
-    lessons.map((lesson) => lesson.name),
-    `${path}.lessons`,
-  );
-  return {
-    schema: 1,
-    id: string(row.id, `${path}.id`),
-    date: date(row.date, `${path}.date`),
-    source: string(row.source, `${path}.source`, 16_384, true),
-    followUp: followUp(row.followUp, `${path}.followUp`),
-    decision: choice(row.decision, `${path}.decision`, decisions),
-    candidates,
-    lessons,
-    reason: string(row.reason, `${path}.reason`, 16_384, true),
-  };
-}
-function snapshotPaths(value: unknown, path: string, digests: boolean): Record<string, string | null> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) fail(path, 'need a path map');
-  const result: Record<string, string | null> = {};
-  for (const [key, content] of Object.entries(value)) {
-    if (!storePath(key)) fail(`${path}.${key}`, 'invalid lesson store path');
-    result[key] =
-      content === null
-        ? null
-        : digests
-          ? digest(content, `${path}.${key}`)
-          : string(content, `${path}.${key}`, 4_194_304, true);
+      fail(`${path}.lessons[${i}]`, 'need a matching live or historical document');
   }
-  return result;
+}
+export function validateCapture(value: unknown, path: string): CaptureRequest {
+  const request = check(captureSchema, value, path);
+  checkBody(request.body, path);
+  return request;
+}
+export function validateReviewRequest(value: unknown, path: string): ReviewRequest {
+  const request = check(requestSchema, value, path);
+  checkDocuments(request, path);
+  return request;
 }
 export function validateReviewSnapshot(value: unknown, path: string): ReviewSnapshot {
-  const row = object(value, path, [
-    'schema',
-    'root',
-    'request',
-    'requestDigest',
-    'before',
-    'after',
-    'watched',
-    'digest',
-  ]);
-  if (row.schema !== 1) fail(path, 'need schema 1');
-  return {
-    schema: 1,
-    root: string(row.root, `${path}.root`, 4096),
-    request: validateReviewRequest(row.request, `${path}.request`),
-    requestDigest: digest(row.requestDigest, `${path}.requestDigest`),
-    before: snapshotPaths(row.before, `${path}.before`, false),
-    after: snapshotPaths(row.after, `${path}.after`, false),
-    watched: snapshotPaths(row.watched, `${path}.watched`, true),
-    digest: digest(row.digest, `${path}.digest`),
-  };
+  const snapshot = check(snapshotSchema, value, path);
+  checkDocuments(snapshot.request, `${path}.request`);
+  return snapshot;
 }
 export function serializeLesson(lesson: Lesson): string {
   const {
@@ -739,7 +631,11 @@ export function lessonFile(path: string): 'live' | 'pending' | 'rejected' | null
     [pendingPath, 'pending'],
     [`${pendingPath}/_rejected`, 'rejected'],
   ] as const) {
-    if (path.startsWith(`${prefix}/`) && path.endsWith('.md') && uuidPattern.test(path.slice(prefix.length + 1, -3)))
+    if (
+      path.startsWith(`${prefix}/`) &&
+      path.endsWith('.md') &&
+      lowerUuid.safeParse(path.slice(prefix.length + 1, -3)).success
+    )
       return kind;
   }
   return null;
@@ -781,7 +677,7 @@ function validateQueue(files: ReadonlyMap<string, string>): void {
     if (expected.size) fail(queuePath, 'missing queue for existing records');
     return;
   }
-  string(content, queuePath, 4_194_304, true);
+  check(prose(4_194_304, true), content, queuePath);
   const lines = content.split(/\r?\n/);
   const heading = '| Candidate | Lesson | Date | Summary |';
   const start = lines.indexOf(heading);
@@ -801,7 +697,7 @@ function validateQueue(files: ReadonlyMap<string, string>): void {
     fail(queuePath, 'queue rows and pending files do not agree');
 }
 export function validateIgnore(text: string): void {
-  string(text, ignorePath, 1_048_576, true);
+  check(prose(1_048_576, true), text, ignorePath);
   const patterns = text
     .split(/\r?\n/)
     .map((line) => line.trimEnd())

@@ -1,24 +1,11 @@
+import { isDeepStrictEqual } from 'node:util';
 import { parseAllDocuments } from 'yaml';
+import { z } from 'zod';
 import { validateAgentOrder } from '../agent/order.ts';
 import { HostError } from '../command/errors.ts';
-import type { Host } from '../config/core.ts';
 import { exits } from '../contract/contract.ts';
 import { releaseParts } from '../release/release.ts';
 import { laneIgnore } from '../state/state.ts';
-import type { TrackerKind } from '../tracker/grammar.ts';
-
-export type SetupAnswers = { tracker?: TrackerKind; hosts?: readonly Host[] };
-export type SetupEntry =
-  | string
-  | { path: string[]; item?: string }
-  | { start: '<!-- CELETIS:START -->'; end: '<!-- CELETIS:END -->' };
-export type WiringRecord = {
-  schema: 1;
-  answers?: SetupAnswers;
-  release?: string;
-  files: string[];
-  entries: Record<string, SetupEntry[]>;
-};
 
 type Scope = {
   file?: true;
@@ -57,42 +44,115 @@ const scopes: Record<string, Scope> = {
   'CLAUDE.md': { marker: true, lines: ['@AGENTS.md'] },
   '.claude/CLAUDE.md': { marker: true, lines: ['@../AGENTS.md', '@AGENTS.md'] },
 };
-const object = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value);
+const shape = 'need schema: 1, files and entries, with optional answers';
 const safe = (value: string) => !value.includes('\\') && !/\p{Cc}/u.test(value);
-const keysAre = (value: Record<string, unknown>, keys: readonly string[]) =>
-  Object.keys(value).every((key) => keys.includes(key));
-const samePath = (one: readonly string[], two: readonly string[]) =>
-  one.length === two.length && one.every((key, i) => key === two[i]);
 
-function entry(value: unknown, scope: Scope): SetupEntry | null {
-  if (typeof value === 'string') return safe(value) && scope.lines?.includes(value) ? value : null;
-  if (!object(value)) return null;
-  if (
-    scope.marker &&
-    keysAre(value, ['start', 'end']) &&
-    value.start === '<!-- CELETIS:START -->' &&
-    value.end === '<!-- CELETIS:END -->'
-  )
-    return { start: value.start, end: value.end };
-  if (
-    !keysAre(value, ['path', 'item']) ||
-    !Array.isArray(value.path) ||
-    !value.path.every((key): key is string => typeof key === 'string' && safe(key))
-  )
-    return null;
-  const path = value.path;
-  if (!Object.hasOwn(value, 'item')) return scope.keys?.some((keys) => samePath(path, keys)) ? { path } : null;
-  const item = value.item;
-  if (typeof item !== 'string' || !safe(item)) return null;
-  return scope.items?.some(
-    (form) =>
-      samePath(path, form.path) &&
-      (form.values?.includes(item) ||
-        (form.entrypoint && /^(Bash|PowerShell)\((\.\/)?(scripts\/celetis|celetis)([ )])/.test(item))),
-  )
-    ? { path, item }
-    : null;
+const lineForm = z.string();
+const markerForm = z.strictObject({
+  start: z.literal('<!-- CELETIS:START -->'),
+  end: z.literal('<!-- CELETIS:END -->'),
+});
+const pathForm = z.strictObject({ path: z.array(z.string()), item: z.string().optional() });
+export type SetupEntry = z.output<typeof lineForm | typeof markerForm | typeof pathForm>;
+
+function formsOf(scope: Scope): z.ZodType<SetupEntry>[] {
+  const forms: z.ZodType<SetupEntry>[] = [];
+  const { lines, keys, items } = scope;
+  if (lines) forms.push(lineForm.refine((line) => safe(line) && lines.includes(line)));
+  if (scope.marker) forms.push(markerForm);
+  forms.push(
+    pathForm.refine(({ path, item }) =>
+      item === undefined
+        ? !!keys?.some((allowed) => isDeepStrictEqual(path, allowed))
+        : safe(item) &&
+          !!items?.some(
+            (form) =>
+              isDeepStrictEqual(path, form.path) &&
+              (form.values?.includes(item) ||
+                (form.entrypoint && /^(Bash|PowerShell)\((\.\/)?(scripts\/celetis|celetis)([ )])/.test(item))),
+          ),
+    ),
+  );
+  return forms;
+}
+
+const noRepeat =
+  <T>(describe: (item: T, key: string) => string) =>
+  (items: T[], ctx: z.core.$RefinementCtx<T[]>) => {
+    const seen = new Set<string>();
+    for (const item of items) {
+      const key = JSON.stringify(item);
+      if (seen.has(key)) return void ctx.addIssue({ code: 'custom', message: describe(item, key) });
+      seen.add(key);
+    }
+  };
+
+const wholeFiles = Object.keys(scopes).filter((destination) => scopes[destination]?.file);
+const fileClaim = z.custom<string>((value) => typeof value === 'string' && wholeFiles.includes(value));
+const entriesOf = z.strictObject(
+  Object.fromEntries(
+    Object.entries(scopes).map(([destination, scope]) => [
+      destination,
+      (scope.file
+        ? z.never()
+        : z
+            .array(z.union(formsOf(scope)))
+            .superRefine(noRepeat((_, key) => `${destination}: duplicate or overlapping entry ${key}`))
+      ).optional(),
+    ]),
+  ),
+) as z.ZodType<Record<string, SetupEntry[]>>;
+const hostOrder = z.unknown().transform((value, ctx) => {
+  try {
+    return validateAgentOrder(value);
+  } catch (error) {
+    ctx.addIssue({
+      code: 'custom',
+      message: `answers.hosts: ${error instanceof Error ? error.message : String(error)}`,
+    });
+    return z.NEVER;
+  }
+});
+const answers = z.strictObject({ tracker: z.enum(['github', 'local']).optional(), hosts: hostOrder.optional() });
+const release = z.custom<string>(
+  (value) =>
+    typeof value === 'string' && !!(releaseParts(`v${value}`) || /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(value)),
+);
+
+export const wiringRecord = z.strictObject({
+  schema: z.literal(1),
+  files: z.array(fileClaim).superRefine(noRepeat((file) => `duplicate whole-file claim ${file}`)),
+  entries: entriesOf,
+  answers: answers.optional(),
+  release: release.optional(),
+});
+export type WiringRecord = z.output<typeof wiringRecord>;
+
+const at = (value: unknown, path: readonly PropertyKey[]) =>
+  path.reduce<unknown>((node, key) => (node as Record<PropertyKey, unknown>)[key], value);
+
+function reasonOf(issue: z.core.$ZodIssue, value: unknown): string {
+  const [section, name, index] = issue.path;
+  if (section === 'answers') {
+    if (name === 'tracker') return 'answers.tracker: need github or local';
+    return name === 'hosts' ? issue.message : 'invalid answers';
+  }
+  if (section === 'release') return 'release: need a version X.Y.Z or a full revision';
+  if (section === 'files') {
+    if (name !== undefined) return `unsupported whole-file claim ${JSON.stringify(at(value, ['files', name]))}`;
+    return issue.code === 'custom' ? issue.message : shape;
+  }
+  if (section === 'entries') {
+    if (name === undefined)
+      return issue.code === 'unrecognized_keys' ? `unsupported entry destination ${issue.keys[0]}` : shape;
+    if (index !== undefined)
+      return `${String(name)}: unsupported entry ${JSON.stringify(at(value, ['entries', name, index]))}`;
+    if (issue.code === 'custom') return issue.message;
+    return scopes[String(name)]?.file
+      ? `overlapping or unsupported entries for ${String(name)}`
+      : `${String(name)}: entries must be an array`;
+  }
+  return shape;
 }
 
 export function parseSetupRecord(source: string, path: string): WiringRecord {
@@ -107,64 +167,9 @@ export function parseSetupRecord(source: string, path: string): WiringRecord {
   } catch {
     return invalid('need a JSON object');
   }
-  if (
-    !object(value) ||
-    !keysAre(value, ['schema', 'answers', 'release', 'files', 'entries']) ||
-    value.schema !== 1 ||
-    !Array.isArray(value.files) ||
-    !object(value.entries)
-  )
-    return invalid('need schema: 1, files and entries, with optional answers');
-  const result: WiringRecord = { schema: 1, files: [], entries: {} };
-  if (Object.hasOwn(value, 'answers')) {
-    const answers = value.answers;
-    if (!object(answers) || !keysAre(answers, ['tracker', 'hosts'])) return invalid('invalid answers');
-    result.answers = {};
-    if (Object.hasOwn(answers, 'tracker')) {
-      if (answers.tracker !== 'github' && answers.tracker !== 'local')
-        return invalid('answers.tracker: need github or local');
-      result.answers.tracker = answers.tracker;
-    }
-    if (Object.hasOwn(answers, 'hosts')) {
-      try {
-        result.answers.hosts = validateAgentOrder(answers.hosts);
-      } catch (error) {
-        return invalid(`answers.hosts: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
-  }
-  if (Object.hasOwn(value, 'release')) {
-    const release = value.release;
-    if (
-      typeof release !== 'string' ||
-      !(releaseParts(`v${release}`) || /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(release))
-    )
-      return invalid('release: need a version X.Y.Z or a full revision');
-    result.release = release;
-  }
-  for (const file of value.files) {
-    if (typeof file !== 'string' || !Object.hasOwn(scopes, file) || !scopes[file]?.file)
-      return invalid(`unsupported whole-file claim ${JSON.stringify(file)}`);
-    if (result.files.includes(file)) return invalid(`duplicate whole-file claim ${file}`);
-    result.files.push(file);
-  }
-  for (const [destination, items] of Object.entries(value.entries)) {
-    const scope = scopes[destination];
-    if (!Object.hasOwn(scopes, destination) || !scope) return invalid(`unsupported entry destination ${destination}`);
-    if (scope.file || result.files.includes(destination))
-      return invalid(`overlapping or unsupported entries for ${destination}`);
-    if (!Array.isArray(items)) return invalid(`${destination}: entries must be an array`);
-    const seen = new Set<string>();
-    const entries: SetupEntry[] = [];
-    for (const item of items) {
-      const parsed = entry(item, scope);
-      if (parsed === null) return invalid(`${destination}: unsupported entry ${JSON.stringify(item)}`);
-      const key = JSON.stringify(parsed);
-      if (seen.has(key)) return invalid(`${destination}: duplicate or overlapping entry ${key}`);
-      seen.add(key);
-      entries.push(parsed);
-    }
-    result.entries[destination] = entries;
-  }
-  return result;
+  const found = wiringRecord.safeParse(value);
+  if (!found.success) return invalid(found.error.issues[0] ? reasonOf(found.error.issues[0], value) : shape);
+  const order = Object.keys((value as { entries: object }).entries);
+  const entries = Object.entries(found.data.entries).sort(([one], [two]) => order.indexOf(one) - order.indexOf(two));
+  return { ...found.data, entries: Object.fromEntries(entries) };
 }

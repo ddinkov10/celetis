@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { constants } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
+import { z } from 'zod';
 import { readAgentOrder } from '../agent/order.ts';
 import { beginUsageAttempt, readUsage, recordUsage, type UsageTicket } from '../agent/usage.ts';
 import { attemptModel, recordAttemptEnd, recordAttemptStart } from '../attempt/attempt.ts';
@@ -38,6 +39,7 @@ import { clearAside, readSetAside, setAside } from '../queue/set-aside.ts';
 import type { QueueRecord } from '../queue/types.ts';
 import { markDefect, passOn, recordEvent } from '../state/events.ts';
 import { addRecord, type Identity, issueLock, type LockClaim, type LockOwner, lockHolder } from '../state/locks.ts';
+import { identityFields } from '../state/schemas.ts';
 import { startFiles } from '../state/state.ts';
 import {
   closeTerminal,
@@ -140,6 +142,8 @@ export type IssueHooks = {
   onWait?: (waitId: string, reason: string) => Promise<void>;
 };
 
+const barrierFile = z.looseObject(identityFields);
+
 function pidOf(source: string): Identity | null {
   let value: unknown;
   try {
@@ -147,11 +151,8 @@ function pidOf(source: string): Identity | null {
   } catch {
     return null;
   }
-  if (typeof value !== 'object' || value === null) return null;
-  const { pid, start } = value as Record<string, unknown>;
-  if (typeof pid !== 'number' || !Number.isSafeInteger(pid) || pid <= 0 || typeof start !== 'string' || !start)
-    return null;
-  return { pid, start };
+  const found = barrierFile.safeParse(value);
+  return found.success ? { pid: found.data.pid, start: found.data.start } : null;
 }
 
 export async function barrierOf(source: string): Promise<Identity | null | 'unknown'> {
@@ -950,7 +951,7 @@ export function createIo(place: Place, input: RunInput, options: Options, from: 
           state: 'waiting',
           waitId,
           wake: null,
-          blocked,
+          blocked: [...blocked],
           nextResetAt,
           attempted: [...attempted],
         }));

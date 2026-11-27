@@ -1,10 +1,12 @@
 import { type BigIntStats, closeSync, constants, fstatSync, lstatSync, openSync, readFileSync } from 'node:fs';
+import { z } from 'zod';
 import { HostError } from '../command/errors.ts';
 import type { AgentChoice, AgentDecision, Host, UsageBlock } from '../config/core.ts';
 import { type ExitCode, exits } from '../contract/contract.ts';
 import { hosts } from '../host/names.ts';
-import { type ObservedUsage, type UsageAttempt, usageAttempt, usageObject } from '../host/usage.ts';
+import { type ObservedUsage, type UsageAttempt, usageAttempt } from '../host/usage.ts';
 import { isSessionId } from '../state/fields.ts';
+import { code, count, filledWithin } from '../state/schemas.ts';
 import {
   checkFolder,
   ensureFolder,
@@ -18,21 +20,29 @@ import {
 } from '../state/state.ts';
 
 export type UsageTicket = { attempt: UsageAttempt; ordinal: number };
-type UsageRecord = Readonly<{
-  schema: 1;
-  nextOrdinal: number;
-  ordinal: number;
-  attemptId: string | null;
-  sequence: number;
-  block: UsageBlock | null;
-}>;
+const usageBlock = z.strictObject({ reason: filledWithin(4096), resetAt: count.nullable() });
+const usageRecord = z
+  .strictObject({
+    schema: z.literal(1),
+    nextOrdinal: count,
+    ordinal: code,
+    attemptId: filledWithin(128).nullable(),
+    sequence: code,
+    block: usageBlock.nullable(),
+  })
+  .refine(
+    (record) =>
+      record.ordinal < record.nextOrdinal &&
+      (record.ordinal === 0
+        ? record.attemptId === null && record.sequence === 0 && record.block === null
+        : record.attemptId !== null && record.sequence > 0),
+  );
+type UsageRecord = Readonly<z.output<typeof usageRecord>>;
 export type UsageState = Readonly<Record<Host, UsageRecord | null>>;
 const invalid = (path: string, reason: string, code: ExitCode = exits.blocked) =>
   new HostError(`usage: ${path}: ${reason}`, code);
 const sameFile = (a: BigIntStats, b: BigIntStats) => a.dev === b.dev && a.ino === b.ino;
 const privateStat = (stat: BigIntStats) => privateMode({ uid: Number(stat.uid), mode: Number(stat.mode) });
-const natural = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const empty = (): UsageRecord => ({ schema: 1, nextOrdinal: 1, ordinal: 0, attemptId: null, sequence: 0, block: null });
 
 function statAt(path: string): BigIntStats | null {
@@ -50,17 +60,6 @@ function regular(
   reason = 'need a private regular file owned by the current user (mode 0600)',
 ): void {
   if (!stat.isFile() || stat.nlink !== 1n || !privateStat(stat) || stat.size > 16384n) throw unsafe(path, reason);
-}
-
-function block(value: unknown): value is UsageBlock {
-  return (
-    usageObject(value) &&
-    Object.keys(value).sort().join(',') === 'reason,resetAt' &&
-    typeof value.reason === 'string' &&
-    value.reason.length > 0 &&
-    value.reason.length <= 4096 &&
-    (value.resetAt === null || (natural(value.resetAt) && value.resetAt > 0))
-  );
 }
 
 function readHost(layout: RepositoryLayout, host: Host): UsageRecord | null {
@@ -83,36 +82,13 @@ function readHost(layout: RepositoryLayout, host: Host): UsageRecord | null {
     } catch (error) {
       throw invalid(path, error instanceof Error ? error.message : String(error), exits.usage);
     }
-    if (
-      !usageObject(value) ||
-      Object.keys(value).sort().join(',') !== 'attemptId,block,nextOrdinal,ordinal,schema,sequence' ||
-      value.schema !== 1 ||
-      !natural(value.nextOrdinal) ||
-      value.nextOrdinal < 1 ||
-      !natural(value.ordinal) ||
-      value.ordinal >= value.nextOrdinal ||
-      !natural(value.sequence) ||
-      !(value.block === null || block(value.block)) ||
-      !(value.ordinal === 0
-        ? value.attemptId === null && value.sequence === 0 && value.block === null
-        : typeof value.attemptId === 'string' &&
-          value.attemptId.length > 0 &&
-          value.attemptId.length <= 128 &&
-          value.sequence > 0)
-    )
-      throw invalid(path, 'invalid record', exits.usage);
+    const record = usageRecord.safeParse(value);
+    if (!record.success) throw invalid(path, 'invalid record', exits.usage);
     const current = statAt(path);
     const after = checkFolder(layout.limits);
     if (!current || !after || !sameFile(opened, current) || !sameFile(directory, after))
       throw invalid(path, 'record changed during read', exits.prerequisite);
-    return {
-      schema: 1,
-      nextOrdinal: value.nextOrdinal,
-      ordinal: value.ordinal,
-      attemptId: value.attemptId as string | null,
-      sequence: value.sequence,
-      block: value.block,
-    };
+    return { ...record.data, block: (value as { block: UsageRecord['block'] }).block };
   } finally {
     closeSync(fd);
   }
@@ -198,15 +174,14 @@ export async function recordUsage(
   const { attempt, ordinal } = ticket;
   if (
     !usageAttempt(attempt) ||
-    !natural(ordinal) ||
-    ordinal < 1 ||
+    !count.safeParse(ordinal).success ||
     observed.attemptId !== attempt.id ||
-    !natural(observed.sequence) ||
+    !code.safeParse(observed.sequence).success ||
     !(
       observed.observation.kind === 'unknown' ||
       observed.observation.kind === 'available' ||
       (observed.observation.kind === 'blocked' &&
-        block({ reason: observed.observation.reason, resetAt: observed.observation.resetAt }))
+        usageBlock.safeParse({ reason: observed.observation.reason, resetAt: observed.observation.resetAt }).success)
     ) ||
     (observed.sessionId !== null &&
       (!isSessionId(attempt.host, observed.sessionId) || observed.sessionId !== attempt.sessionId)) ||

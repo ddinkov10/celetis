@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
+import { z } from 'zod';
 import { HostError, unsupported } from '../command/errors.ts';
 import { type CheckoutIdentity, createOperation } from '../command/operation.ts';
 import { requireContract } from '../contract/check.ts';
@@ -26,8 +27,9 @@ import { requireUpdatePolicy } from '../plugin/policy.ts';
 import { processState } from '../process/identity.ts';
 import { run } from '../process/process.ts';
 import { barrierOf, type Place, type RunInput, type RunView, requireSetup, unwatched } from '../run/engine.ts';
-import { isSessionId, uuid } from '../state/fields.ts';
+import { isSessionId } from '../state/fields.ts';
 import type { Identity } from '../state/locks.ts';
+import { count, filled, identity, uuidText } from '../state/schemas.ts';
 import { type RepositoryLayout, startFiles, writeAtomic } from '../state/state.ts';
 import {
   closeTerminal,
@@ -60,17 +62,7 @@ import {
   permittedActions,
 } from './types.ts';
 
-export type CoordinatorRecord = Readonly<{
-  schema: 2;
-  host: Host;
-  terminal: string;
-  barrier: Identity;
-  folder: string;
-  token: string;
-  session: string | null;
-  prompt: string;
-  startedAt: number;
-}>;
+export type CoordinatorRecord = Readonly<z.output<ReturnType<typeof coordinatorRecord>>>;
 export type RunFacts = Readonly<{
   id: string;
   kind: RunInput['kind'];
@@ -234,28 +226,29 @@ export function attentionOf(
   return null;
 }
 
-const recordNames = ['schema', 'host', 'terminal', 'barrier', 'folder', 'token', 'session', 'prompt', 'startedAt'];
+const coordinatorRecord = (layout: RepositoryLayout) =>
+  z
+    .strictObject({
+      schema: z.literal(2),
+      host: z.custom<Host>(isHost),
+      terminal: z.custom<string>(isSafeId),
+      barrier: identity,
+      // The daemon removes this folder, so it must be one start folder of the layout and nothing above it.
+      folder: z
+        .string()
+        .refine(
+          (folder) => folder.startsWith(layout.startPrefix) && /^[\w-]+$/.test(folder.slice(layout.startPrefix.length)),
+        ),
+      token: uuidText,
+      session: z.string().nullable(),
+      prompt: filled,
+      startedAt: count,
+    })
+    .refine(({ host, session }) => session === null || isSessionId(host, session));
 
 export function parseCoordinatorRecord(value: unknown, layout: RepositoryLayout): CoordinatorRecord | null {
-  if (!object(value) || !exact(value, recordNames)) return null;
-  const { schema, host, terminal, barrier, folder, token, session, prompt, startedAt } = value;
-  if (schema !== 2 || !isHost(host) || !isSafeId(terminal) || !object(barrier) || !exact(barrier, ['pid', 'start']))
-    return null;
-  const { pid, start } = barrier;
-  if (typeof pid !== 'number' || !Number.isSafeInteger(pid) || pid <= 0 || typeof start !== 'string' || !start)
-    return null;
-  // The daemon removes this folder, so it must be one start folder of the layout and nothing above it.
-  if (
-    typeof folder !== 'string' ||
-    !folder.startsWith(layout.startPrefix) ||
-    !/^[\w-]+$/.test(folder.slice(layout.startPrefix.length))
-  )
-    return null;
-  if (typeof token !== 'string' || !uuid.test(token)) return null;
-  if (session !== null && !isSessionId(host, session)) return null;
-  if (typeof prompt !== 'string' || !prompt) return null;
-  if (typeof startedAt !== 'number' || !Number.isSafeInteger(startedAt) || startedAt <= 0) return null;
-  return { schema: 2, host, terminal, barrier: { pid, start }, folder, token, session, prompt, startedAt };
+  const found = coordinatorRecord(layout).safeParse(value);
+  return found.success ? found.data : null;
 }
 
 export function createCoordinator(

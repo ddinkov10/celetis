@@ -1,73 +1,195 @@
+import { z } from 'zod';
 import type { Host } from '../config/core.ts';
 import type { DispatchStatus } from '../contract/contract.ts';
 import { isHost } from '../host/names.ts';
+import { code, count, issueKey, lowerUuid } from '../state/schemas.ts';
 import { type IssueKey, isKey, parseKey } from '../tracker/key.ts';
 import { isLevel, type Level } from '../workflow/effort.ts';
 import { type Pair, pairText, ScoreError, scoreLabel } from './capability.ts';
 
-export type Role = 'implementer' | 'reviewer';
-export type Action = 'spawn' | 'resume' | 'replace';
-export interface Score {
-  digits: number[];
-  bias: number;
-}
 export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
-export interface NativeCall {
-  tool: string;
-  arguments: { [key: string]: JsonValue };
-  result: JsonValue;
+type Schema = 1 | 2 | 3;
+const taskId = /^(?:[1-9]\d*|final|verify-[1-9]\d*|land-[1-9]\d*)$/;
+const isText = (value: unknown): value is string =>
+  typeof value === 'string' && value.length > 0 && !value.includes('\0');
+const isChildId = (value: unknown): value is string => isText(value) && value.trim().length > 0;
+const isTask = (value: unknown): value is string => isText(value) && taskId.test(value) && !value.endsWith('\n');
+const isPlain = (value: unknown): value is object =>
+  typeof value === 'object' &&
+  value !== null &&
+  !Array.isArray(value) &&
+  (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
+
+const plain = <T extends z.core.$ZodShape>(shape: T) => z.custom<object>(isPlain).pipe(z.strictObject(shape));
+const range = (min: number, max: number) => z.int().min(min).max(max);
+const text = z.custom<string>(isText);
+const nullableText = text.nullable();
+const effort = z.custom<Level>(isLevel);
+
+function forward(ctx: z.core.$RefinementCtx, schema: z.ZodType, value: unknown, path: PropertyKey[] = []): void {
+  const parsed = schema.safeParse(value);
+  if (!parsed.success)
+    for (const issue of parsed.error.issues) ctx.addIssue({ ...issue, path: [...path, ...issue.path] });
 }
-export interface ExecutionReport {
-  call: NativeCall | null;
-  outcome:
-    | { result: 'started'; child: string | null; model: string | null; effort: Level | null }
-    | { result: 'failed'; noWorkerStarted: true; error: string }
-    | { result: 'incomplete' | 'unsupported'; error: string };
-}
-export interface Execution {
-  provenance: 'agent-reported';
-  report: ExecutionReport;
-  result: 'started' | 'failed' | 'incomplete' | 'mismatch' | 'unsupported';
-  reason: string | null;
-  time: string;
-}
-export interface Dispatch {
-  id: string;
-  issue: IssueKey;
-  task: string;
-  role: Role;
-  action: Action;
-  child: string | null;
-  attempt: number;
-  round: number;
-  level: number;
-  pair: Pair;
-  line: string;
-  issued: string;
-  execution: Execution | null;
-  voided: boolean;
-}
-export type Entry =
-  | { kind: 'score'; digits: number[]; bias: number; time: string }
-  | { kind: 'dispatch'; id: string }
-  | { kind: 'gate'; result: 'pass' | 'fail'; name: string; report: string; time: string }
-  | { kind: 'review'; result: 'findings' | 'blocked'; time: string };
-export interface Task {
-  issue: IssueKey;
-  task: string;
-  attempt: number;
-  round: number;
-  escalated: boolean;
-  closed: boolean;
-  entries: Entry[];
-}
-export interface DispatchRecord {
-  schema: 3;
-  host: Host;
-  session: string;
-  tasks: Task[];
-  dispatches: Dispatch[];
-}
+
+const role = z.enum(['implementer', 'reviewer']);
+const action = z.enum(['spawn', 'resume', 'replace']);
+const digits = z.custom<unknown[]>((value) => Array.isArray(value) && value.length === 6).pipe(z.array(range(0, 2)));
+const scoreFields = { digits, bias: code };
+const score = plain(scoreFields);
+const scoreEntry = plain({ kind: z.literal('score'), ...scoreFields, time: text });
+const dispatchEntry = plain({ kind: z.literal('dispatch'), id: lowerUuid });
+const gateEntry = plain({
+  kind: z.literal('gate'),
+  result: z.enum(['pass', 'fail']),
+  name: text,
+  report: text,
+  time: text,
+});
+const reviewEntry = plain({ kind: z.literal('review'), result: z.enum(['findings', 'blocked']), time: text });
+const entry = z
+  .custom<
+    | z.output<typeof scoreEntry>
+    | z.output<typeof dispatchEntry>
+    | z.output<typeof gateEntry>
+    | z.output<typeof reviewEntry>
+  >()
+  .superRefine((value: unknown, ctx) => {
+    if (typeof value !== 'object' || value === null) return void ctx.addIssue({ code: 'custom' });
+    switch ((value as { kind?: unknown }).kind) {
+      case 'score':
+        return forward(ctx, scoreEntry, value);
+      case 'dispatch':
+        return forward(ctx, dispatchEntry, value);
+      case 'gate':
+        return forward(ctx, gateEntry, value);
+      case 'review':
+        return forward(ctx, reviewEntry, value);
+      default:
+        ctx.addIssue({ code: 'custom', path: ['kind'] });
+    }
+  });
+const pair = plain({
+  rank: range(0, 3),
+  model: nullableText,
+  effort,
+  runtime: nullableText,
+  reviewer: z.boolean(),
+});
+
+const nativeCall = plain({
+  tool: text,
+  arguments: z.custom<{ [key: string]: JsonValue }>(
+    (value) => value !== null && typeof value === 'object' && !Array.isArray(value),
+  ),
+  result: z.unknown(),
+});
+const startedOutcome = plain({
+  result: z.literal('started'),
+  child: z.string().nullable(),
+  model: nullableText,
+  effort: effort.nullable(),
+});
+const failedOutcome = plain({ result: z.literal('failed'), noWorkerStarted: z.literal(true), error: text });
+const stoppedOutcome = plain({ result: z.unknown(), error: text }).refine(
+  (outcome): outcome is { result: 'incomplete' | 'unsupported'; error: string } =>
+    outcome.result === 'incomplete' || outcome.result === 'unsupported',
+  { path: ['result'] },
+);
+const outcomeSchemaOf = (value: unknown) => {
+  const result = typeof value === 'object' && value !== null ? (value as { result?: unknown }).result : undefined;
+  return result === 'started' ? startedOutcome : result === 'failed' ? failedOutcome : stoppedOutcome;
+};
+const outcome = z
+  .custom<z.output<typeof startedOutcome> | z.output<typeof failedOutcome> | z.output<typeof stoppedOutcome>>()
+  .superRefine((value, ctx) => forward(ctx, outcomeSchemaOf(value), value));
+const callRule = (
+  report: { call: z.output<typeof nativeCall> | null; outcome: { result: string } | null | undefined },
+  ctx: z.core.$RefinementCtx,
+) => {
+  if (report.outcome?.result !== 'unsupported') return forward(ctx, nativeCall, report.call, ['call']);
+  if (report.call !== null) ctx.addIssue({ code: 'custom', path: ['call'] });
+};
+const call = z.custom<z.output<typeof nativeCall> | null>();
+export const executionReport = plain({ call, outcome }).superRefine(callRule);
+const historicalReport = plain({ host: z.custom<Host>(isHost), session: text, call, outcome }).superRefine(callRule);
+
+const executionSchema = <T extends z.ZodType>(report: T) =>
+  plain({
+    provenance: z.literal('agent-reported'),
+    report,
+    result: z.enum(['started', 'failed', 'incomplete', 'mismatch', 'unsupported']),
+    reason: nullableText,
+    time: text,
+  }).refine(
+    (execution) =>
+      execution.result === 'started' || execution.result === 'failed'
+        ? execution.reason === null
+        : execution.reason !== null,
+    { path: ['reason'] },
+  );
+const dispatchSchema = <I extends z.ZodType, T extends z.ZodType>(issue: I, report: T) =>
+  plain({
+    id: lowerUuid,
+    issue,
+    task: z.custom<string>(isTask),
+    role,
+    action,
+    child: nullableText,
+    attempt: range(1, 3),
+    round: range(0, 5),
+    level: range(1, 3),
+    pair,
+    line: text,
+    issued: text,
+    execution: executionSchema(report).nullable(),
+    voided: z.boolean(),
+  }).superRefine((dispatch, ctx) => {
+    const fail = (...path: string[]) => ctx.addIssue({ code: 'custom', path });
+    if (dispatch.action !== 'resume' && dispatch.child !== null) fail('child');
+    if (dispatch.pair.reviewer !== (dispatch.role === 'reviewer')) fail('pair', 'reviewer');
+    if (dispatchIdOf(dispatch.line) !== dispatch.id || dispatch.line.includes('\n')) fail('line');
+    if (dispatch.voided && dispatch.execution?.result !== 'failed') fail('voided');
+  });
+const taskSchema = <I extends z.ZodType>(issue: I) =>
+  plain({
+    issue,
+    task: z.custom<string>(isTask),
+    attempt: range(1, 4),
+    round: range(0, 5),
+    escalated: z.boolean(),
+    closed: z.boolean(),
+    entries: z.array(entry).refine((entries) => entries[0]?.kind === 'score', { path: [0] }),
+  });
+const recordSchema = <V extends Schema, I extends z.ZodType, T extends z.ZodType>(version: V, issue: I, report: T) =>
+  plain({
+    schema: z.literal(version),
+    host: z.custom<Host>(isHost),
+    session: text,
+    tasks: z.array(taskSchema(issue)).superRefine((tasks, ctx) => {
+      const keys = new Set<string>();
+      for (const [index, task] of (tasks as { issue: unknown; task: string }[]).entries()) {
+        const key = `${task.issue}:${task.task}`;
+        if (keys.has(key)) ctx.addIssue({ code: 'custom', path: [index] });
+        keys.add(key);
+      }
+    }),
+    dispatches: z.array(dispatchSchema(issue, report)),
+  });
+export const dispatchRecord = recordSchema(3, issueKey, executionReport);
+const historicalRecords = { 1: recordSchema(1, count, historicalReport), 2: recordSchema(2, count, executionReport) };
+
+export type Role = z.output<typeof role>;
+export type Action = z.output<typeof action>;
+export type Score = z.output<typeof score>;
+export type NativeCall = z.output<typeof nativeCall>;
+export type ExecutionReport = z.output<typeof executionReport>;
+export type DispatchRecord = z.output<typeof dispatchRecord>;
+export type Task = DispatchRecord['tasks'][number];
+export type Entry = Task['entries'][number];
+export type Dispatch = DispatchRecord['dispatches'][number];
+export type Execution = NonNullable<Dispatch['execution']>;
+
 type Refusal = Exclude<DispatchStatus, 'ready' | 'reported' | 'closed'>;
 export type Result =
   | { status: Extract<DispatchStatus, 'reported'>; dispatch: string; result: 'started' | 'failed' }
@@ -82,75 +204,35 @@ export interface Context {
 export class DispatchError extends Error {}
 
 type Key = { issue: IssueKey; task: string };
-type Schema = 1 | 2 | 3;
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const taskId = /^(?:[1-9]\d*|final|verify-[1-9]\d*|land-[1-9]\d*)$/;
-const isText = (value: unknown): value is string =>
-  typeof value === 'string' && value.length > 0 && !value.includes('\0');
-const isChildId = (value: unknown): value is string => isText(value) && value.trim().length > 0;
-const nullableText = (value: unknown): boolean => value === null || isText(value);
-const nullableString = (value: unknown): boolean => value === null || typeof value === 'string';
-const integer = (value: unknown, min: number, max = Number.MAX_SAFE_INTEGER): boolean =>
-  typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max;
-const issueValue = (value: unknown, schema: Schema): boolean => (schema === 3 ? isKey(value) : integer(value, 1));
 function need(condition: unknown, field: string): asserts condition {
   if (!condition) throw new DispatchError(`invalid ${field}`);
 }
-function shape(value: unknown, fields: string[], path: string): Record<string, unknown> {
-  need(value !== null && typeof value === 'object' && !Array.isArray(value), path);
-  const object = value as Record<string, unknown>;
-  need(Object.getPrototypeOf(object) === Object.prototype || Object.getPrototypeOf(object) === null, path);
-  for (const field of fields) need(Object.hasOwn(object, field), path ? `${path}.${field}` : field);
-  for (const field of Object.keys(object)) need(fields.includes(field), path ? `${path}.${field}` : field);
-  return object;
+function pathOf(issue: z.core.$ZodIssue, value: unknown, root: string): string {
+  const segments: PropertyKey[] = [...issue.path];
+  if (issue.code === 'unrecognized_keys') segments.push(issue.keys[0] as string);
+  let base = root;
+  if (root === '' && segments[0] === 'dispatches' && segments[2] === 'execution' && segments[3] === 'report') {
+    const dispatches = (value as { dispatches: { execution: object }[] }).dispatches;
+    if (segments.length > 4 || Object.hasOwn(dispatches[segments[1] as number]?.execution as object, 'report')) {
+      base = 'report';
+      segments.splice(0, 4);
+    }
+  }
+  return segments.reduce<string>(
+    (path, segment) =>
+      typeof segment === 'number' ? `${path}[${segment}]` : path ? `${path}.${String(segment)}` : String(segment),
+    base,
+  );
 }
-function list(value: unknown, path: string, validate: (value: unknown, path: string) => void): void {
-  need(Array.isArray(value), path);
-  for (let i = 0; i < value.length; i++) validate(value[i], `${path}[${i}]`);
-}
-function scoreValue(value: unknown, path: string, fields = ['digits', 'bias']): void {
-  const score = shape(value, fields, path);
-  need(Array.isArray(score.digits) && score.digits.length === 6, `${path}.digits`);
-  list(score.digits, `${path}.digits`, (digit, field) => need(integer(digit, 0, 2), field));
-  need(integer(score.bias, 0), `${path}.bias`);
+function check<T extends z.ZodType>(schema: T, value: unknown, root: string): z.output<T> {
+  const parsed = schema.safeParse(value);
+  if (!parsed.success)
+    throw new DispatchError(`invalid ${pathOf(parsed.error.issues[0] as z.core.$ZodIssue, value, root)}`);
+  return parsed.data;
 }
 function keyValue(value: Key): void {
   need(isKey(value.issue), 'issue');
-  need(isText(value.task) && taskId.test(value.task) && !value.task.endsWith('\n'), 'task');
-}
-function pairValue(value: unknown, path: string): void {
-  const pair = shape(value, ['rank', 'model', 'effort', 'runtime', 'reviewer'], path);
-  need(integer(pair.rank, 0, 3), `${path}.rank`);
-  need(nullableText(pair.model), `${path}.model`);
-  need(isLevel(pair.effort), `${path}.effort`);
-  need(nullableText(pair.runtime), `${path}.runtime`);
-  need(typeof pair.reviewer === 'boolean', `${path}.reviewer`);
-}
-function entryValue(value: unknown, path: string): void {
-  need(value !== null && typeof value === 'object', path);
-  const entry = value as Record<string, unknown>;
-  switch (entry.kind) {
-    case 'score':
-      scoreValue(entry, path, ['kind', 'digits', 'bias', 'time']);
-      break;
-    case 'dispatch':
-      shape(entry, ['kind', 'id'], path);
-      need(typeof entry.id === 'string' && uuid.test(entry.id), `${path}.id`);
-      return;
-    case 'gate':
-      shape(entry, ['kind', 'result', 'name', 'report', 'time'], path);
-      need(entry.result === 'pass' || entry.result === 'fail', `${path}.result`);
-      need(isText(entry.name), `${path}.name`);
-      need(isText(entry.report), `${path}.report`);
-      break;
-    case 'review':
-      shape(entry, ['kind', 'result', 'time'], path);
-      need(entry.result === 'findings' || entry.result === 'blocked', `${path}.result`);
-      break;
-    default:
-      need(false, `${path}.kind`);
-  }
-  need(isText(entry.time), `${path}.time`);
+  need(isTask(value.task), 'task');
 }
 function jsonValue(value: unknown, path: string, parents = new Set<unknown>()): void {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
@@ -175,103 +257,21 @@ function jsonValue(value: unknown, path: string, parents = new Set<unknown>()): 
   }
   parents.delete(value);
 }
-function executionReportValue(value: unknown, historical: boolean): ExecutionReport {
+
+export function validateExecutionReport(value: unknown): ExecutionReport {
   jsonValue(value, 'report');
-  const report = shape(value, historical ? ['host', 'session', 'call', 'outcome'] : ['call', 'outcome'], 'report');
-  if (historical) {
-    need(isHost(report.host), 'report.host');
-    need(isText(report.session), 'report.session');
-  }
-  const outcome = report.outcome as Record<string, unknown> | null;
-  need(outcome && typeof outcome === 'object', 'report.outcome');
-  if (outcome.result === 'started') {
-    shape(outcome, ['result', 'child', 'model', 'effort'], 'report.outcome');
-    need(nullableString(outcome.child), 'report.outcome.child');
-    need(nullableText(outcome.model), 'report.outcome.model');
-    need(outcome.effort === null || isLevel(outcome.effort), 'report.outcome.effort');
-  } else if (outcome.result === 'failed') {
-    shape(outcome, ['result', 'noWorkerStarted', 'error'], 'report.outcome');
-    need(outcome.noWorkerStarted === true, 'report.outcome.noWorkerStarted');
-    need(isText(outcome.error), 'report.outcome.error');
-  } else {
-    shape(outcome, ['result', 'error'], 'report.outcome');
-    need(outcome.result === 'incomplete' || outcome.result === 'unsupported', 'report.outcome.result');
-    need(isText(outcome.error), 'report.outcome.error');
-  }
-  if (outcome.result === 'unsupported') need(report.call === null, 'report.call');
-  else {
-    const call = shape(report.call, ['tool', 'arguments', 'result'], 'report.call');
-    need(isText(call.tool), 'report.call.tool');
-    need(
-      call.arguments !== null && typeof call.arguments === 'object' && !Array.isArray(call.arguments),
-      'report.call.arguments',
-    );
-  }
+  check(executionReport, value, 'report');
   return structuredClone(value as ExecutionReport);
 }
-export function validateExecutionReport(value: unknown): ExecutionReport {
-  return executionReportValue(value, false);
+function walkReports(value: unknown): void {
+  if (!isPlain(value) || !Array.isArray((value as { dispatches?: unknown }).dispatches)) return;
+  for (const dispatch of (value as { dispatches: unknown[] }).dispatches) {
+    if (!isPlain(dispatch) || !Object.hasOwn(dispatch, 'execution')) continue;
+    const execution = (dispatch as { execution: unknown }).execution;
+    if (isPlain(execution) && Object.hasOwn(execution, 'report'))
+      jsonValue((execution as { report: unknown }).report, 'report');
+  }
 }
-function executionValue(value: unknown, path: string, historical: boolean): void {
-  const execution = shape(value, ['provenance', 'report', 'result', 'reason', 'time'], path);
-  need(execution.provenance === 'agent-reported', `${path}.provenance`);
-  executionReportValue(execution.report, historical);
-  need(
-    ['started', 'failed', 'incomplete', 'mismatch', 'unsupported'].includes(execution.result as string),
-    `${path}.result`,
-  );
-  need(
-    execution.result === 'started' || execution.result === 'failed'
-      ? execution.reason === null
-      : isText(execution.reason),
-    `${path}.reason`,
-  );
-  need(isText(execution.time), `${path}.time`);
-}
-function dispatchValue(value: unknown, path: string, schema: Schema): void {
-  const historical = schema === 1;
-  const dispatch = shape(
-    value,
-    [
-      'id',
-      'issue',
-      'task',
-      'role',
-      'action',
-      'child',
-      'attempt',
-      'round',
-      'level',
-      'pair',
-      'line',
-      'issued',
-      'execution',
-      'voided',
-    ],
-    path,
-  );
-  need(typeof dispatch.id === 'string' && uuid.test(dispatch.id), `${path}.id`);
-  need(issueValue(dispatch.issue, schema), `${path}.issue`);
-  need(isText(dispatch.task) && taskId.test(dispatch.task) && !dispatch.task.endsWith('\n'), `${path}.task`);
-  need(dispatch.role === 'implementer' || dispatch.role === 'reviewer', `${path}.role`);
-  need(['spawn', 'resume', 'replace'].includes(dispatch.action as Action), `${path}.action`);
-  need(nullableText(dispatch.child), `${path}.child`);
-  need(dispatch.action === 'resume' || dispatch.child === null, `${path}.child`);
-  need(integer(dispatch.attempt, 1, 3), `${path}.attempt`);
-  need(integer(dispatch.round, 0, 5), `${path}.round`);
-  need(integer(dispatch.level, 1, 3), `${path}.level`);
-  pairValue(dispatch.pair, `${path}.pair`);
-  need((dispatch.pair as Pair).reviewer === (dispatch.role === 'reviewer'), `${path}.pair.reviewer`);
-  need(
-    isText(dispatch.line) && dispatchIdOf(dispatch.line) === dispatch.id && !dispatch.line.includes('\n'),
-    `${path}.line`,
-  );
-  need(isText(dispatch.issued), `${path}.issued`);
-  if (dispatch.execution !== null) executionValue(dispatch.execution, `${path}.execution`, historical);
-  need(typeof dispatch.voided === 'boolean', `${path}.voided`);
-  if (dispatch.voided) need((dispatch.execution as Execution | null)?.result === 'failed', `${path}.voided`);
-}
-
 export function emptyRecord(host: Host, session: string): DispatchRecord {
   need(isHost(host), 'host');
   need(isText(session), 'session');
@@ -279,27 +279,11 @@ export function emptyRecord(host: Host, session: string): DispatchRecord {
 }
 function recordValue(value: unknown, host: Host, session: string, schema: Schema): DispatchRecord {
   const historical = schema === 1;
-  const record = shape(value, ['schema', 'host', 'session', 'tasks', 'dispatches'], '');
-  need(record.schema === schema, 'schema');
-  need(isHost(record.host) && record.host === host, 'host');
-  need(isText(record.session) && record.session === session, 'session');
-  const keys = new Set<string>();
-  list(record.tasks, 'tasks', (value, path) => {
-    const task = shape(value, ['issue', 'task', 'attempt', 'round', 'escalated', 'closed', 'entries'], path);
-    need(issueValue(task.issue, schema), `${path}.issue`);
-    need(isText(task.task) && taskId.test(task.task) && !task.task.endsWith('\n'), `${path}.task`);
-    const key = `${task.issue}:${task.task}`;
-    need(!keys.has(key), path);
-    keys.add(key);
-    need(integer(task.attempt, 1, 4), `${path}.attempt`);
-    need(integer(task.round, 0, 5), `${path}.round`);
-    need(typeof task.escalated === 'boolean', `${path}.escalated`);
-    need(typeof task.closed === 'boolean', `${path}.closed`);
-    list(task.entries, `${path}.entries`, entryValue);
-    need((task.entries as Entry[])[0]?.kind === 'score', `${path}.entries[0]`);
-  });
-  list(record.dispatches, 'dispatches', (value, path) => dispatchValue(value, path, schema));
-  const typed = record as unknown as DispatchRecord;
+  walkReports(value);
+  const typed = check(schema === 3 ? dispatchRecord : historicalRecords[schema], value, '') as DispatchRecord;
+  need(typed.host === host, 'host');
+  need(typed.session === session, 'session');
+  const keys = new Set(typed.tasks.map((task) => `${task.issue}:${task.task}`));
   const dispatches = new Map<string, Dispatch>();
   for (const [index, dispatch] of typed.dispatches.entries()) {
     need(!dispatches.has(dispatch.id), `dispatches[${index}].id`);
@@ -381,7 +365,7 @@ function recordValue(value: unknown, host: Host, session: string, schema: Schema
   }
   for (const [index, dispatch] of typed.dispatches.entries())
     need(referenced.has(dispatch.id), `dispatches[${index}].id`);
-  return structuredClone(typed);
+  return structuredClone(value as DispatchRecord);
 }
 export function validateRecord(value: unknown, host: Host, session: string): DispatchRecord {
   return recordValue(value, host, session, 3);
@@ -435,7 +419,7 @@ function followupAddress(record: DispatchRecord, dispatch: Dispatch, to: JsonVal
   if (record.host !== 'claude' || !isText(to)) return false;
   const holders = record.dispatches.filter((prior) => spawnCall(prior)?.arguments.name === to);
   const bound = holders.some((prior) => {
-    const result = spawnCall(prior)?.result;
+    const result = spawnCall(prior)?.result as JsonValue | undefined;
     if (isText(result)) {
       const lines = result.split('\n');
       return lines.includes(`name: ${to}`) && lines.includes(`agent_id: ${workerOf(prior)}`);
@@ -608,7 +592,7 @@ function issueDispatch(
       );
   }
   const id = context.id();
-  need(uuid.test(id) && !record.dispatches.some((dispatch) => dispatch.id === id), 'dispatch.id');
+  need(lowerUuid.safeParse(id).success && !record.dispatches.some((dispatch) => dispatch.id === id), 'dispatch.id');
   const dispatch: Dispatch = {
     id,
     issue: task.issue,
@@ -640,7 +624,7 @@ export function requestNext(
   const blocked = guard(record, input);
   if (blocked) return { record, result: blocked };
   need(input.role === 'implementer' || input.role === 'reviewer', 'role');
-  scoreValue(input.score, 'score');
+  check(score, input.score, 'score');
   let task = taskOf(record, input);
   if (!task) {
     task = { issue: input.issue, task: input.task, attempt: 1, round: 0, escalated: false, closed: false, entries: [] };
@@ -844,7 +828,7 @@ function executionResult(
     if (args[claude ? 'effort' : 'reasoning_effort'] !== dispatch.pair.effort)
       return mismatch(`the spawn effort must be ${dispatch.pair.effort}`);
   }
-  const native = nativeFields(call.result);
+  const native = nativeFields(call.result as JsonValue);
   if (outcome.result === 'failed') {
     if (native.child.some(isChildId)) return mismatch('the result names a worker despite noWorkerStarted');
     return { result: 'failed', reason: null };

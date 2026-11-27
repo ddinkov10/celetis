@@ -6,6 +6,8 @@ import type { IssueKey } from '../tracker/key.ts';
 import type { Level } from '../workflow/effort.ts';
 import type { Gate } from '../workflow/workflow.ts';
 
+export type { CacheLine, Sample } from './trend-lines.ts';
+
 export type Flow = {
   lanes: Record<string, string[]>;
   stages: { name: string; steps: string[] }[];
@@ -54,10 +56,6 @@ export type IssueView = {
 export type QuotaWait = { number: IssueKey; waitId: string; nextResetAt: number | null };
 export type QuotaState = { kind: 'waiting'; wait: QuotaWait } | { kind: 'orphaned' };
 export type Diff = { files: number; added: number; removed: number };
-export type Sample = { at: string; needs: number | null; working: number | null };
-export type CacheLine =
-  | { sha: string; issue: IssueKey | null; at: string }
-  | { issue: IssueKey; createdAt: string | null };
 export type DeliveryWindow = { landed: number; medianDays: number | null };
 export type Trends = {
   live: { needs: (number | null)[]; working: (number | null)[]; readAt: string | null; error: string | null };

@@ -1,4 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { z } from 'zod';
+import { digestText } from '../state/schemas.ts';
 
 export class FormatError extends Error {
   constructor(
@@ -106,7 +108,21 @@ const rules = {
 
 const maxJump = 1_000_000;
 
-type Kind = 'string' | 'list' | 'status' | 'id' | 'metadata';
+const strings = z.custom<Record<string, string>>(
+  (value) =>
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.values(value).every((v) => typeof v === 'string'),
+);
+const kinds = {
+  string: z.string(),
+  list: z.array(z.string()).nullable(),
+  status: z.union([z.literal(1), z.literal(2)]),
+  id: digestText,
+  metadata: strings,
+};
+type Kind = keyof typeof kinds;
 const shapes: Readonly<Record<number, Readonly<Record<string, Kind>>>> = {
   [create]: { title: 'string', message: 'string', files: 'list' },
   [setTitle]: { title: 'string', was: 'string' },
@@ -116,6 +132,27 @@ const shapes: Readonly<Record<number, Readonly<Record<string, Kind>>>> = {
   [editComment]: { target: 'id', message: 'string', files: 'list' },
   [noOp]: {},
   [setMetadata]: { target: 'id', new_metadata: 'metadata' },
+};
+
+const shapeJson = Object.fromEntries(
+  Object.entries(shapes).map(([type, table]) => [
+    type,
+    z.looseObject(Object.fromEntries(Object.entries(table).map(([name, kind]) => [name, kinds[kind]]))),
+  ]),
+);
+const opJson = z.looseObject({ type: z.int(), timestamp: z.int(), nonce: z.string(), metadata: strings.nullish() });
+const packJson = z.looseObject({ author: z.looseObject({ id: digestText }), ops: z.array(z.unknown()) });
+const identityVersionJson = z.looseObject({
+  version: z.literal(identityVersion),
+  pub_keys: z.array(z.unknown()).max(0).nullish(),
+  name: z.string().optional(),
+  email: z.string().optional(),
+});
+const identityRules: Readonly<Record<string, string>> = {
+  version: rules.identityVersion,
+  pub_keys: rules.identityKey,
+  name: rules.identityField,
+  email: rules.identityField,
 };
 
 const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
@@ -236,28 +273,6 @@ export function rawElements(blob: string): readonly string[] {
   return found;
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-const isInteger = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value);
-const isStrings = (value: unknown): value is Record<string, string> =>
-  isRecord(value) && Object.values(value).every((v) => typeof v === 'string');
-const isId = (value: unknown) => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
-
-function fits(kind: Kind, value: unknown): boolean {
-  switch (kind) {
-    case 'string':
-      return typeof value === 'string';
-    case 'list':
-      return value === null || (Array.isArray(value) && value.every((v) => typeof v === 'string'));
-    case 'status':
-      return value === 1 || value === 2;
-    case 'id':
-      return isId(value);
-    case 'metadata':
-      return isStrings(value);
-  }
-}
-
 function entryNumbers(entries: readonly Entry[], prefix: string): number[] {
   return entries
     .filter((e) => e.name.startsWith(`${prefix}-`))
@@ -273,16 +288,18 @@ function only(numbers: readonly number[]): number | null {
 }
 
 function decodeOp(value: unknown, id: string, at: string): Op {
-  if (!isRecord(value) || !isInteger(value.type) || !isInteger(value.timestamp) || typeof value.nonce !== 'string')
-    throw new FormatError(rules.field, at);
-  const metadata = value.metadata ?? {};
-  if (!isStrings(metadata)) throw new FormatError(rules.field, at);
-  const fields: Record<string, unknown> = {};
-  for (const [name, kind] of Object.entries(shapes[value.type] ?? {})) {
-    if (!fits(kind, value[name])) throw new FormatError(rules.field, `${at} ${name}`);
-    fields[name] = value[name];
+  const head = opJson.safeParse(value);
+  if (!head.success) throw new FormatError(rules.field, at);
+  const input = value as Record<string, unknown>;
+  const { type, timestamp } = head.data;
+  const shape = shapeJson[type];
+  if (shape) {
+    const parsed = shape.safeParse(value);
+    if (!parsed.success) throw new FormatError(rules.field, `${at} ${String(parsed.error.issues[0]?.path[0])}`);
   }
-  return { id, type: value.type, timestamp: value.timestamp, metadata, fields };
+  const fields: Record<string, unknown> = {};
+  for (const name of Object.keys(shapes[type] ?? {})) fields[name] = input[name];
+  return { id, type, timestamp, metadata: (input.metadata ?? {}) as Record<string, string>, fields };
 }
 
 function decodePack(commit: RawCommit & { ops: Uint8Array }): Readonly<{ author: string; ops: readonly Op[] }> {
@@ -294,13 +311,13 @@ function decodePack(commit: RawCommit & { ops: Uint8Array }): Readonly<{ author:
   } catch {
     throw new FormatError(rules.utf8, commit.commit);
   }
-  if (!isRecord(json) || !isRecord(json.author) || !isId(json.author.id) || !Array.isArray(json.ops))
-    throw new FormatError(rules.pack, commit.commit);
-  const values: unknown[] = json.ops;
+  const pack = packJson.safeParse(json);
+  if (!pack.success) throw new FormatError(rules.pack, commit.commit);
+  const values = pack.data.ops;
   const raw = rawElements(text);
   if (raw.length !== values.length) throw new FormatError(rules.pack, commit.commit);
   return {
-    author: String(json.author.id),
+    author: pack.data.author.id,
     ops: values.map((value, i) => decodeOp(value, sha256(raw[i] ?? ''), commit.commit)),
   };
 }
@@ -405,15 +422,15 @@ export function checkIdentity(ref: string, chain: readonly IdentityCommit[]): Id
     } catch {
       throw new FormatError(rules.identityUtf8, c.commit);
     }
-    if (!isRecord(json)) throw new FormatError(rules.identityUtf8, c.commit);
-    if (json.version !== identityVersion) throw new FormatError(rules.identityVersion, c.commit);
-    const keys = json.pub_keys;
-    if (!(keys === undefined || keys === null || (Array.isArray(keys) && keys.length === 0)))
-      throw new FormatError(rules.identityKey, c.commit);
-    const { name, email } = json;
-    if ((name !== undefined && typeof name !== 'string') || (email !== undefined && typeof email !== 'string'))
-      throw new FormatError(rules.identityField, c.commit);
-    return { name: name ?? null, email: email ?? null };
+    const parsed = identityVersionJson.safeParse(json);
+    if (!parsed.success) {
+      const field = parsed.error.issues[0]?.path[0];
+      throw new FormatError(
+        typeof field === 'string' ? (identityRules[field] ?? rules.identityUtf8) : rules.identityUtf8,
+        c.commit,
+      );
+    }
+    return { name: parsed.data.name ?? null, email: parsed.data.email ?? null };
   });
   if (sha256(first.version ?? new Uint8Array()) !== ref) throw new FormatError(rules.identityRef, ref);
   const latest = versions.at(-1);

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { type BigIntStats, closeSync, constants, fstatSync, lstatSync, openSync, readFileSync } from 'node:fs';
+import { z } from 'zod';
 import { HostError } from '../command/errors.ts';
 import type { AgentOrder, Host } from '../config/core.ts';
 import { type ExitCode, exits } from '../contract/contract.ts';
@@ -47,15 +48,17 @@ function regular(
   if (!stat.isFile() || stat.nlink !== 1n || !privateStat(stat)) throw unsafe(path, reason);
 }
 
+export const agentOrder = z
+  .array(z.custom<Host>(isHost))
+  .min(1)
+  .refine((order) => new Set(order).size === order.length);
+const orderFile = z.strictObject({ schema: z.literal(1), order: z.unknown() });
+
 export function validateAgentOrder(value: unknown): readonly Host[] {
-  if (
-    !Array.isArray(value) ||
-    value.length === 0 ||
-    Array.from(value).some((host) => !isHost(host)) ||
-    new Set(value).size !== value.length
-  )
+  const found = agentOrder.safeParse(value);
+  if (!found.success)
     throw new HostError(`agents: order must be a nonempty, unique list of ${hostChoices}`, exits.usage);
-  return Object.freeze([...value]) as readonly Host[];
+  return Object.freeze(found.data);
 }
 
 export function effectiveOrder(order: readonly Host[], preferred: Host | undefined): readonly Host[] {
@@ -88,17 +91,9 @@ function readOrder(layout: RepositoryLayout): AgentOrder {
     if (!sameFile(before, opened)) throw invalid(path, 'the record changed during the read', exits.prerequisite);
     const source = new TextDecoder('utf-8', { fatal: true }).decode(readFileSync(fd));
     const value: unknown = JSON.parse(source);
-    if (
-      value === null ||
-      typeof value !== 'object' ||
-      Array.isArray(value) ||
-      Object.keys(value).sort().join(',') !== 'order,schema' ||
-      !('schema' in value) ||
-      value.schema !== 1 ||
-      !('order' in value)
-    )
-      throw new HostError('need exactly schema: 1 and order', exits.usage);
-    const result = versioned(validateAgentOrder(value.order));
+    const file = orderFile.safeParse(value);
+    if (!file.success) throw new HostError('need exactly schema: 1 and order', exits.usage);
+    const result = versioned(validateAgentOrder(file.data.order));
     const after = checkFolder(layout.root);
     const current = statAt(path);
     if (!after || !folder || !sameFile(folder, after) || !current || !sameFile(opened, current))

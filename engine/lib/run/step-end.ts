@@ -1,56 +1,37 @@
 import { open, readFile, rm } from 'node:fs/promises';
+import { z } from 'zod';
 import type { Host } from '../config/core.ts';
 import { isHost } from '../host/names.ts';
 import { commonDir } from '../process/git.ts';
 import { daemonScript, processRunsScript, processState } from '../process/identity.ts';
 import type { Next } from '../resolver/lines.ts';
 import { isSessionId } from '../state/fields.ts';
+import { code, filled, identity } from '../state/schemas.ts';
 import { checkFolder, ensureFolder, repositoryLayout, writeAtomic } from '../state/state.ts';
 import { isSafeId } from '../terminal/terminal.ts';
 import { type IssueKey, isKey } from '../tracker/key.ts';
 
-export type StepEndState = 'checking' | 'waiting' | 'exiting';
-export type TurnKey = { terminalId: string; sessionId: string; sequence: number };
-export type StepEndRecord = {
-  daemon: { pid: number; start: string };
-  terminal: string;
-  host: Host;
-  state: StepEndState;
-  turn: TurnKey | null;
-};
+const turnKey = z.strictObject({ terminalId: filled, sessionId: z.string(), sequence: code });
+const stepEndRecord = z
+  .strictObject({
+    daemon: identity,
+    terminal: z.custom<string>(isSafeId),
+    host: z.custom<Host>(isHost),
+    state: z.enum(['checking', 'waiting', 'exiting']),
+    turn: turnKey.nullable(),
+  })
+  .refine(({ host, state, turn }) => (turn === null ? state === 'checking' : isSessionId(host, turn.sessionId)));
+
+export type StepEndState = z.output<typeof stepEndRecord>['state'];
+export type TurnKey = z.output<typeof turnKey>;
+export type StepEndRecord = z.output<typeof stepEndRecord>;
 
 export function verdictOf(first: Next, changed: boolean): StepEndState {
   if (changed) return 'exiting';
   return first.kind === 'observed' && first.reason === 'landing' ? 'checking' : 'waiting';
 }
 
-const object = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value);
-const keys = (value: Record<string, unknown>, names: string) => Object.keys(value).sort().join(',') === names;
-const valid = (value: unknown): value is StepEndRecord => {
-  if (!object(value)) return false;
-  const { daemon, turn } = value;
-  return (
-    keys(value, 'daemon,host,state,terminal,turn') &&
-    object(daemon) &&
-    keys(daemon, 'pid,start') &&
-    Number.isSafeInteger(daemon.pid) &&
-    Number(daemon.pid) > 0 &&
-    typeof daemon.start === 'string' &&
-    daemon.start.length > 0 &&
-    isSafeId(value.terminal) &&
-    isHost(value.host) &&
-    (value.state === 'checking' || value.state === 'waiting' || value.state === 'exiting') &&
-    ((turn === null && value.state === 'checking') ||
-      (object(turn) &&
-        keys(turn, 'sequence,sessionId,terminalId') &&
-        typeof turn.terminalId === 'string' &&
-        turn.terminalId.length > 0 &&
-        isSessionId(value.host, turn.sessionId) &&
-        Number.isSafeInteger(turn.sequence) &&
-        Number(turn.sequence) >= 0))
-  );
-};
+const valid = (value: unknown): value is StepEndRecord => stepEndRecord.safeParse(value).success;
 
 async function layoutOf(main: string, issue: IssueKey) {
   if (!isKey(issue)) throw new Error('step-end: invalid issue number');

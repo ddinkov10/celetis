@@ -10,6 +10,7 @@ import {
   writeSync,
 } from 'node:fs';
 import { dirname } from 'node:path';
+import { z } from 'zod';
 import { HostError } from '../command/errors.ts';
 import { exits } from '../contract/contract.ts';
 import { ensureFolder, type Folder, type Lock, privateMode, unsafe, withLockSync } from './state.ts';
@@ -85,22 +86,23 @@ function readFile(path: string): string {
   }
 }
 
+const entry = z.looseObject({ id: z.string() });
+
 export function readLines({ rotated, current }: LineLog, prefix: string): { id: string; line: string }[] {
   const kept: { id: string; line: string }[] = [];
   for (const path of [rotated, current]) {
     const lines = readFile(path).split('\n');
     lines.pop();
     lines.forEach((text, index) => {
+      let value: unknown;
       try {
-        const value: unknown = JSON.parse(text);
-        if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new SyntaxError();
-        const id: unknown = Reflect.get(value, 'id');
-        if (typeof id !== 'string') throw new SyntaxError();
-        kept.push({ id, line: JSON.stringify(value) });
+        value = JSON.parse(text);
       } catch (error) {
         if (!(error instanceof SyntaxError)) throw error;
-        console.error(`${prefix}: ${path}:${index + 1}: not a valid entry; the read continues`);
       }
+      const found = entry.safeParse(value);
+      if (found.success) kept.push({ id: found.data.id, line: JSON.stringify(value) });
+      else console.error(`${prefix}: ${path}:${index + 1}: not a valid entry; the read continues`);
     });
   }
   return kept;

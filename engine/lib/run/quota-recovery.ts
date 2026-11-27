@@ -2,16 +2,18 @@ import { createHash } from 'node:crypto';
 import { constants } from 'node:fs';
 import { lstat, open, readdir, readFile, readlink, realpath, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
+import { z } from 'zod';
 import { HostError } from '../command/errors.ts';
-import type { AgentChoice, Host } from '../config/core.ts';
+import type { Host } from '../config/core.ts';
 import { exits } from '../contract/contract.ts';
-import { isHost } from '../host/names.ts';
+import { hosts } from '../host/names.ts';
 import { commonDir } from '../process/git.ts';
 import { daemonScript, processRunsScript, processState } from '../process/identity.ts';
 import { run } from '../process/process.ts';
-import { isSessionId, revision, uuid } from '../state/fields.ts';
+import { isSessionId, uuid } from '../state/fields.ts';
 import { issueLock, type LockOwner, lockHolder } from '../state/locks.ts';
 import { commitMigration, readLocalRecord } from '../state/migration.ts';
+import { count, digestText, filledWithin, issueKey, revisionText, uuidText } from '../state/schemas.ts';
 import {
   checkFolder,
   ensureFolder,
@@ -29,32 +31,67 @@ import { type IssueKey, isKey } from '../tracker/key.ts';
 import { folderPrefix, type Step, steps } from '../workflow/workflow.ts';
 import { readSession, serializeSession } from './session.ts';
 
-export type LaneBinding = Readonly<{ path: string; branch: string; tip: string; dirtySnapshotDigest: string }> | null;
-export type RecoveryAuthority = Readonly<{ step: Step; spec: string | null; plan: string | null }>;
-export type NativeIdentity = Readonly<{ attemptId: string; host: Host; sessionId: string | null }>;
-export type RecoveryAttempt = Readonly<{ id: string; host: Host; startedAt: number; sessionId: string | null }>;
-export type QuotaBlock = Readonly<{ host: Host; reason: string; resetAt: number | null }>;
-export type QuotaRecovery = Readonly<{
-  schema: 4;
-  id: string;
-  revision: number;
-  issue: IssueKey;
-  authority: RecoveryAuthority;
-  main: string;
-  common: string;
-  lane: LaneBinding;
-  choice: AgentChoice;
-  attempt: RecoveryAttempt | null;
-  prior: readonly NativeIdentity[];
-  daemon: Readonly<{ pid: number; start: string }>;
-  lock: string;
-  attempted: readonly Host[];
-  state: 'recovering' | 'waiting';
-  waitId: string | null;
-  wake: string | null;
-  blocked: readonly QuotaBlock[];
-  nextResetAt: number | null;
-}>;
+const host = z.enum(hosts);
+const savedId = (item: { host: Host; sessionId: string | null }) =>
+  item.sessionId === null || isSessionId(item.host, item.sessionId);
+const laneBinding = z.strictObject({
+  path: filledWithin(4096),
+  branch: filledWithin(255),
+  tip: revisionText,
+  dirtySnapshotDigest: digestText,
+});
+const recoveryAuthority = z.strictObject({
+  step: z.enum(steps),
+  spec: digestText.nullable(),
+  plan: filledWithin(4096).nullable(),
+});
+const nativeIdentity = z.strictObject({ attemptId: uuidText, host, sessionId: z.string().nullable() }).refine(savedId);
+const recoveryAttempt = z
+  .strictObject({ id: uuidText, host, startedAt: count, sessionId: z.string().nullable() })
+  .refine(savedId);
+const quotaBlock = z.strictObject({ host, reason: filledWithin(4096), resetAt: count.nullable() });
+const choice = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('default') }),
+  z.strictObject({ kind: z.literal('explicit'), host }),
+]);
+const recoveryShape = <S extends z.ZodType, I extends z.ZodType>(schema: S, issue: I) => ({
+  schema,
+  id: uuidText,
+  revision: count,
+  issue,
+  authority: recoveryAuthority,
+  main: filledWithin(4096),
+  common: filledWithin(4096),
+  lane: laneBinding.nullable(),
+  choice,
+  attempt: recoveryAttempt.nullable(),
+  prior: z.array(nativeIdentity).max(64),
+  daemon: z.strictObject({ pid: count, start: filledWithin(128) }),
+  lock: z.string(),
+  attempted: z.array(host).refine((list) => new Set(list).size === list.length),
+  state: z.enum(['recovering', 'waiting']),
+  waitId: uuidText.nullable(),
+  wake: uuidText.nullable(),
+  blocked: z.array(quotaBlock),
+  nextResetAt: count.nullable(),
+});
+const waits = (record: { state: string; waitId: string | null; wake: string | null }) =>
+  (record.state !== 'waiting' || record.waitId !== null) && (record.wake === null || record.wake === record.waitId);
+const quotaRecovery = z.strictObject(recoveryShape(z.literal(4), issueKey)).refine(waits);
+const quotaRecovery2 = z.strictObject(recoveryShape(z.literal(2), count)).refine(waits);
+const holds =
+  <T extends z.ZodType>(schema: T) =>
+  (value: unknown): value is z.output<T> =>
+    schema.safeParse(value).success;
+const isRecovery = holds(quotaRecovery);
+const isRecovery2 = holds(quotaRecovery2);
+
+export type LaneBinding = Readonly<z.output<typeof laneBinding>> | null;
+export type RecoveryAuthority = Readonly<z.output<typeof recoveryAuthority>>;
+export type NativeIdentity = Readonly<z.output<typeof nativeIdentity>>;
+export type RecoveryAttempt = Readonly<z.output<typeof recoveryAttempt>>;
+export type QuotaBlock = Readonly<z.output<typeof quotaBlock>>;
+export type QuotaRecovery = Readonly<z.output<typeof quotaRecovery>>;
 declare const permitBrand: unique symbol;
 export type RecoveryPermit = Readonly<{ issue: IssueKey; step: Step; lane: string; attemptId: string }> & {
   readonly [permitBrand]: true;
@@ -64,113 +101,9 @@ export class RecoveryError extends HostError {}
 class ChangedRecord extends RecoveryError {}
 
 const issued = new WeakSet<object>();
-const object = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value);
-const keys = (value: Record<string, unknown>, names: string) => Object.keys(value).sort().join(',') === names;
-const positive = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) > 0;
-const text = (value: unknown, limit = 4096): value is string =>
-  typeof value === 'string' && value.length > 0 && value.length <= limit;
 const refused = (path: string) =>
   new RecoveryError(`recovery: ${path}: invalid or obsolete recovery record; inspect it, then remove it`, exits.usage);
-const fields =
-  'attempt,attempted,authority,blocked,choice,common,daemon,id,issue,lane,lock,main,nextResetAt,prior,revision,schema,state,waitId,wake';
-
-function validChoice(value: unknown): value is AgentChoice {
-  return (
-    object(value) &&
-    ((value.kind === 'default' && keys(value, 'kind')) ||
-      (value.kind === 'explicit' && keys(value, 'host,kind') && isHost(value.host)))
-  );
-}
-
-function validLane(value: unknown): value is LaneBinding {
-  return (
-    value === null ||
-    (object(value) &&
-      keys(value, 'branch,dirtySnapshotDigest,path,tip') &&
-      text(value.path) &&
-      text(value.branch, 255) &&
-      typeof value.tip === 'string' &&
-      revision.test(value.tip) &&
-      typeof value.dirtySnapshotDigest === 'string' &&
-      /^[0-9a-f]{64}$/.test(value.dirtySnapshotDigest))
-  );
-}
-
-function validAttempt(value: unknown): value is RecoveryAttempt {
-  return (
-    object(value) &&
-    keys(value, 'host,id,sessionId,startedAt') &&
-    typeof value.id === 'string' &&
-    uuid.test(value.id) &&
-    isHost(value.host) &&
-    positive(value.startedAt) &&
-    (value.sessionId === null || isSessionId(value.host, value.sessionId))
-  );
-}
-
-function validRecord(value: unknown, issue: IssueKey, schema: 2 | 4 = 4): value is QuotaRecovery {
-  if (
-    !object(value) ||
-    !keys(value, fields) ||
-    value.schema !== schema ||
-    typeof value.id !== 'string' ||
-    !uuid.test(value.id) ||
-    !positive(value.revision) ||
-    !(schema === 4
-      ? isKey(value.issue) && value.issue === issue
-      : positive(value.issue) && String(value.issue) === issue) ||
-    !text(value.main) ||
-    !text(value.common) ||
-    value.lock !== issueLock(issue) ||
-    !validLane(value.lane) ||
-    !validChoice(value.choice) ||
-    !(value.attempt === null || validAttempt(value.attempt)) ||
-    !(value.state === 'recovering' || value.state === 'waiting') ||
-    !(value.nextResetAt === null || positive(value.nextResetAt))
-  )
-    return false;
-  const { authority, prior, attempted, blocked, waitId, wake } = value;
-  const owner = value.daemon;
-  return (
-    object(authority) &&
-    keys(authority, 'plan,spec,step') &&
-    typeof authority.step === 'string' &&
-    steps.includes(authority.step as Step) &&
-    (authority.spec === null || (typeof authority.spec === 'string' && /^[0-9a-f]{64}$/.test(authority.spec))) &&
-    (authority.plan === null || text(authority.plan)) &&
-    object(owner) &&
-    keys(owner, 'pid,start') &&
-    positive(owner.pid) &&
-    text(owner.start, 128) &&
-    Array.isArray(prior) &&
-    prior.length <= 64 &&
-    prior.every(
-      (item: unknown) =>
-        object(item) &&
-        keys(item, 'attemptId,host,sessionId') &&
-        typeof item.attemptId === 'string' &&
-        uuid.test(item.attemptId) &&
-        isHost(item.host) &&
-        (item.sessionId === null || isSessionId(item.host, item.sessionId)),
-    ) &&
-    Array.isArray(attempted) &&
-    attempted.every(isHost) &&
-    new Set(attempted).size === attempted.length &&
-    Array.isArray(blocked) &&
-    blocked.every(
-      (item: unknown) =>
-        object(item) &&
-        keys(item, 'host,reason,resetAt') &&
-        isHost(item.host) &&
-        text(item.reason) &&
-        (item.resetAt === null || positive(item.resetAt)),
-    ) &&
-    (value.state === 'waiting'
-      ? typeof waitId === 'string' && uuid.test(waitId) && (wake === null || wake === waitId)
-      : (waitId === null || (typeof waitId === 'string' && uuid.test(waitId))) && (wake === null || wake === waitId))
-  );
-}
+const matches = (record: QuotaRecovery, issue: IssueKey) => record.issue === issue && record.lock === issueLock(issue);
 
 async function recovering<T>(work: () => Promise<T>): Promise<T> {
   try {
@@ -218,10 +151,10 @@ function parse(path: string, source: string, issue: IssueKey): { record: QuotaRe
   try {
     value = JSON.parse(source);
   } catch {}
-  if (validRecord(value, issue)) return { record: value, old: false };
-  if (validRecord(value, issue, 2)) {
+  if (isRecovery(value) && matches(value, issue)) return { record: value, old: false };
+  if (isRecovery2(value) && String(value.issue) === issue && value.lock === issueLock(issue)) {
     const record = { ...value, schema: 4, issue };
-    if (validRecord(record, issue)) return { record, old: true };
+    if (isRecovery(record)) return { record, old: true };
   }
   throw refused(path);
 }
@@ -297,7 +230,7 @@ export async function updateRecovery(
         return null;
       }
       const record = { ...next, revision: (current?.revision ?? 0) + 1 };
-      if (!validRecord(record, issue))
+      if (!isRecovery(record) || !matches(record, issue))
         throw new RecoveryError(`recovery: ${path}: refused an invalid recovery record`, exits.internal);
       await writeAtomic(path, `${JSON.stringify(record)}\n`);
       return record;

@@ -19,7 +19,7 @@ const runStates: Record<RunState, true> = {
   built: true,
 };
 
-const run: z.ZodType<Run> = z.strictObject({
+export const run: z.ZodType<Run> = z.strictObject({
   kind: z.literal('run'),
   step,
   lane: laneNames.nullable(),

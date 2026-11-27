@@ -1,15 +1,18 @@
 import { constants } from 'node:fs';
 import { open, readdir } from 'node:fs/promises';
+import { z } from 'zod';
 import { HostError } from '../command/errors.ts';
 import { exits } from '../contract/contract.ts';
-import { type Host, isHost } from '../host/names.ts';
+import { type Host, hosts } from '../host/names.ts';
 import { recordEvent } from '../state/events.ts';
+import { issueKey, lowerUuid } from '../state/schemas.ts';
 import { checkFolder, ensureFolder, repositoryLayout, writeAtomic } from '../state/state.ts';
-import { type IssueKey, isKey } from '../tracker/key.ts';
-import { isLevel, type Level } from '../workflow/effort.ts';
+import type { IssueKey } from '../tracker/key.ts';
+import { type Level, levels } from '../workflow/effort.ts';
 import { type SessionWork, sessionWorks } from '../workflow/workflow.ts';
 
-export type AttemptOutcome = 'exited' | 'no-saved-turn' | 'usage-limit' | 'stopped' | 'unverified' | 'not-started';
+const outcomes = ['exited', 'no-saved-turn', 'usage-limit', 'stopped', 'unverified', 'not-started'] as const;
+export type AttemptOutcome = (typeof outcomes)[number];
 export type AttemptFinish = Readonly<{ outcome: AttemptOutcome; code: number | null; reason: string | null }>;
 export type AttemptOpen = Readonly<{
   id: string;
@@ -21,29 +24,8 @@ export type AttemptOpen = Readonly<{
   effort: Level | null;
   startedAt: number;
 }>;
-export type AttemptEntry = Readonly<{
-  schema: 1;
-  id: string;
-  issue: IssueKey;
-  work: SessionWork;
-  start: 'new' | 'resume';
-  host: Host;
-  model: string | null;
-  effort: Level | null;
-  startedAt: string;
-  end: Readonly<{ at: string; outcome: AttemptOutcome; code: number | null; reason: string | null }> | null;
-}>;
 
-const outcomes: readonly AttemptOutcome[] = [
-  'exited',
-  'no-saved-turn',
-  'usage-limit',
-  'stopped',
-  'unverified',
-  'not-started',
-];
 const forbidden = /[\p{Cc}\p{Bidi_C}\u{2028}\u{2029}]+/gu;
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const entryName = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.json$/;
 const textLimit = 512;
 
@@ -53,51 +35,35 @@ function clean(value: string | null): string | null {
   return text === '' ? null : text;
 }
 
-const sameKeys = (value: object, keys: readonly string[]) => {
-  const own = Object.keys(value).sort();
-  return own.length === keys.length && [...keys].sort().every((key, index) => key === own[index]);
-};
-
-const text = (value: unknown) => value === null || (typeof value === 'string' && clean(value) === value);
-const time = (value: unknown) => {
-  if (typeof value !== 'string') return false;
+const time = z.string().refine((value) => {
   const at = new Date(value);
   return !Number.isNaN(at.getTime()) && at.toISOString() === value;
-};
-const code = (value: unknown) => value === null || Number.isSafeInteger(value);
+});
+const text = z.string().refine((value) => clean(value) === value);
+const attemptEntry = z.strictObject({
+  schema: z.literal(1),
+  id: lowerUuid,
+  issue: issueKey,
+  work: z.enum(sessionWorks),
+  start: z.enum(['new', 'resume']),
+  host: z.enum(hosts),
+  model: text.nullable(),
+  effort: z.enum(levels).nullable(),
+  startedAt: time,
+  end: z
+    .strictObject({
+      at: time,
+      outcome: z.enum(outcomes),
+      code: z.int().nullable(),
+      reason: text.nullable(),
+    })
+    .nullable(),
+});
+const isAttempt = (value: unknown): value is z.output<typeof attemptEntry> => attemptEntry.safeParse(value).success;
+export type AttemptEntry = Readonly<z.output<typeof attemptEntry>>;
 
 export function attemptModel(host: Host, chosen: string, kept: string | null): string | null {
   return host === 'claude' ? chosen : kept;
-}
-
-export function validAttempt(value: unknown): value is AttemptEntry {
-  if (typeof value !== 'object' || value === null) return false;
-  const entry = value as Record<string, unknown>;
-  if (
-    !sameKeys(entry, ['schema', 'id', 'issue', 'work', 'start', 'host', 'model', 'effort', 'startedAt', 'end']) ||
-    entry.schema !== 1 ||
-    typeof entry.id !== 'string' ||
-    !uuid.test(entry.id) ||
-    !isKey(entry.issue) ||
-    !sessionWorks.includes(entry.work as SessionWork) ||
-    (entry.start !== 'new' && entry.start !== 'resume') ||
-    !isHost(entry.host) ||
-    !text(entry.model) ||
-    !(entry.effort === null || isLevel(entry.effort)) ||
-    !time(entry.startedAt)
-  )
-    return false;
-  const end = entry.end;
-  if (end === null) return true;
-  if (typeof end !== 'object') return false;
-  const finish = end as Record<string, unknown>;
-  return (
-    sameKeys(finish, ['at', 'outcome', 'code', 'reason']) &&
-    time(finish.at) &&
-    outcomes.includes(finish.outcome as AttemptOutcome) &&
-    code(finish.code) &&
-    text(finish.reason)
-  );
 }
 
 const unreadable = (path: string, reason: string) => new HostError(`attempts: ${path}: ${reason}`, exits.blocked);
@@ -107,7 +73,7 @@ async function readEntry(path: string): Promise<AttemptEntry> {
   try {
     if (!(await handle.stat()).isFile()) throw unreadable(path, 'need a regular file');
     const value: unknown = JSON.parse(await handle.readFile('utf8'));
-    if (!validAttempt(value)) throw unreadable(path, 'not a valid attempt record');
+    if (!isAttempt(value)) throw unreadable(path, 'not a valid attempt record');
     return value;
   } finally {
     await handle.close();

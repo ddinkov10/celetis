@@ -2,14 +2,16 @@ import { randomUUID } from 'node:crypto';
 import { constants, lstatSync } from 'node:fs';
 import { lstat, mkdir, open, readdir, rename, unlink } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
+import { z } from 'zod';
 import { type CheckoutIdentity, locateCheckouts } from '../command/operation.ts';
 import { exits } from '../contract/contract.ts';
 import { run } from '../process/process.ts';
-import { revision } from '../state/fields.ts';
+import { revisionText } from '../state/schemas.ts';
 import { acquireReason, ensureFolder, lessonLock, stateOutcome, withLock as withStateLock } from '../state/state.ts';
 import {
   type CaptureRequest,
   captureChanges,
+  check,
   completedReview,
   type Decision,
   digest,
@@ -20,7 +22,7 @@ import {
   type LessonSnapshot,
   lessonFile,
   lessonsPath,
-  object,
+  missingKey,
   parseLesson,
   pendingPath,
   type ReviewRequest,
@@ -38,17 +40,70 @@ import {
 
 export type LessonStore = { main: string; active: string; files: Map<string, string> };
 type View = Pick<LessonStore, 'main' | 'active'>;
-type Change = {
-  path: string;
-  before: string | null;
-  after: string | null;
-  beforeDigest: string | null;
-  afterDigest: string | null;
-  mode: number;
-};
-type Lane = { root: string; head: string };
 type LaneCommit = 'committed' | 'absent' | 'moved';
-type Transaction = { schema: 1; id: string; kind: 'capture' | 'review'; changes: Change[]; lane?: Lane };
+const journalSchema = () => {
+  const seen = new Set<string>();
+  return z
+    .strictObject({
+      schema: z.literal(1),
+      id: uuid,
+      kind: z.enum(['capture', 'review']),
+      changes: z
+        .array(
+          z
+            .strictObject({
+              // The predicate records each accepted path, so a repeat fails in the same pass and keeps the check order.
+              path: z.custom<string>(
+                (value) =>
+                  typeof value === 'string' &&
+                  storePath(value) &&
+                  value !== ignorePath &&
+                  !seen.has(value) &&
+                  !!seen.add(value),
+                { abort: true },
+              ),
+              before: z.string().nullable(),
+              after: z.string().nullable(),
+              beforeDigest: z.string().nullable(),
+              afterDigest: z.string().nullable(),
+              mode: z.int().min(0).max(0o777),
+            })
+            .refine(
+              (change) =>
+                change.before !== change.after &&
+                change.beforeDigest === (change.before === null ? null : hash(change.before)) &&
+                change.afterDigest === (change.after === null ? null : hash(change.after)),
+            ),
+        )
+        .min(1),
+      lane: z
+        .strictObject({
+          root: z.custom<string>(
+            (value) => typeof value === 'string' && isAbsolute(value) && resolve(value) === value,
+            {
+              abort: true,
+            },
+          ),
+          head: revisionText,
+        })
+        .optional(),
+    })
+    .superRefine((journal, ctx) => {
+      if (
+        journal.kind === 'capture' &&
+        journal.changes.some(
+          (change) =>
+            lessonFile(change.path) === 'live' || lessonFile(change.path) === 'rejected' || change.after === null,
+        )
+      )
+        ctx.addIssue({ code: 'custom', message: 'capture transaction can only write pending proposals' });
+      if (journal.lane && (journal.kind !== 'review' || !journal.changes.some((change) => !pending(change.path))))
+        ctx.addIssue({ code: 'custom', message: 'invalid transaction lane' });
+    });
+};
+type Transaction = z.output<ReturnType<typeof journalSchema>>;
+type Change = Transaction['changes'][number];
+type Lane = NonNullable<Transaction['lane']>;
 const temporary = /^\.celetis-lessons-[0-9a-f-]{36}\.tmp$/;
 
 function message(error: unknown): string {
@@ -343,61 +398,29 @@ async function replace(root: string, path: string, text: string, mode: number): 
     }
   }
 }
+function journalFailure(issue: z.core.$ZodIssue, value: unknown, path: string): LessonError {
+  const [section, index, field] = issue.path;
+  const where = section === 'lane' ? `${path}.lane` : path;
+  const missing = missingKey(issue, value);
+  if (missing !== null) return new LessonError(exits.usage, where, `missing ${missing}`);
+  if (issue.code === 'unrecognized_keys') return new LessonError(exits.usage, where, `unknown field ${issue.keys[0]}`);
+  if (issue.code === 'invalid_type' && issue.expected === 'object')
+    return new LessonError(exits.usage, where, 'need an object');
+  if (section === 'id') return new LessonError(exits.usage, `${path}.id`, issue.message);
+  const blocked = (reason: string) => new LessonError(exits.blocked, path, reason);
+  if (section === 'lane') return blocked('invalid transaction lane');
+  if (section === 'changes' && typeof index === 'number')
+    return blocked(
+      field === 'path'
+        ? 'invalid or duplicate transaction destination'
+        : `invalid bytes, digests, or mode for ${(value as { changes: { path: unknown }[] }).changes[index]?.path}`,
+    );
+  return blocked(issue.path.length === 0 ? issue.message : 'invalid transaction');
+}
 function transaction(value: unknown, path: string): Transaction {
-  const row = object(value, path, ['schema', 'id', 'kind', 'changes'], ['lane']);
-  if (
-    row.schema !== 1 ||
-    (row.kind !== 'capture' && row.kind !== 'review') ||
-    !Array.isArray(row.changes) ||
-    !row.changes.length
-  )
-    throw new LessonError(exits.blocked, path, 'invalid transaction');
-  const id = uuid(row.id, `${path}.id`);
-  const seen = new Set<string>();
-  const changes = row.changes.map((value: unknown): Change => {
-    const item = object(value, path, ['path', 'before', 'after', 'beforeDigest', 'afterDigest', 'mode']);
-    if (typeof item.path !== 'string' || !storePath(item.path) || item.path === ignorePath || seen.has(item.path))
-      throw new LessonError(exits.blocked, path, 'invalid or duplicate transaction destination');
-    seen.add(item.path);
-    if (
-      (item.before !== null && typeof item.before !== 'string') ||
-      (item.after !== null && typeof item.after !== 'string') ||
-      item.before === item.after ||
-      item.beforeDigest !== (item.before === null ? null : hash(item.before)) ||
-      item.afterDigest !== (item.after === null ? null : hash(item.after)) ||
-      typeof item.mode !== 'number' ||
-      !Number.isInteger(item.mode) ||
-      item.mode < 0 ||
-      item.mode > 0o777
-    )
-      throw new LessonError(exits.blocked, path, `invalid bytes, digests, or mode for ${item.path}`);
-    if (
-      row.kind === 'capture' &&
-      (lessonFile(item.path) === 'live' || lessonFile(item.path) === 'rejected' || item.after === null)
-    )
-      throw new LessonError(exits.blocked, path, 'capture transaction can only write pending proposals');
-    return {
-      path: item.path,
-      before: item.before,
-      after: item.after,
-      beforeDigest: item.beforeDigest as string | null,
-      afterDigest: item.afterDigest as string | null,
-      mode: item.mode,
-    };
-  });
-  if (row.lane === undefined) return { schema: 1, id, kind: row.kind, changes };
-  const lane = object(row.lane, `${path}.lane`, ['root', 'head']);
-  if (
-    row.kind !== 'review' ||
-    typeof lane.root !== 'string' ||
-    !isAbsolute(lane.root) ||
-    resolve(lane.root) !== lane.root ||
-    typeof lane.head !== 'string' ||
-    !revision.test(lane.head) ||
-    !changes.some((change) => !pending(change.path))
-  )
-    throw new LessonError(exits.blocked, path, 'invalid transaction lane');
-  return { schema: 1, id, kind: row.kind, changes, lane: { root: lane.root, head: lane.head } };
+  const parsed = journalSchema().safeParse(value);
+  if (!parsed.success) throw journalFailure(parsed.error.issues[0] as z.core.$ZodIssue, value, path);
+  return parsed.data;
 }
 async function requireUntrackedPending(root: string): Promise<void> {
   const result = await run('git', ['ls-files', '-z', '--', pendingPath], { cwd: root });
@@ -646,7 +669,7 @@ export async function applyLessonReview(
   approvedDigest: string,
 ): Promise<StoreResult> {
   snapshot = validateReviewSnapshot(snapshot, 'snapshot');
-  digest(approvedDigest, 'approved digest');
+  check(digest, approvedDigest, 'approved digest');
   const { digest: snapshotDigest, ...content } = snapshot;
   if (approvedDigest !== snapshotDigest || snapshotDigest !== hash(stable(content)))
     throw new LessonError(exits.prerequisite, 'snapshot', 'stale: displayed snapshot digest changed');

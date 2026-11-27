@@ -1,8 +1,7 @@
 import { constants } from 'node:fs';
 import { open, readFile } from 'node:fs/promises';
-import { commit } from '../state/fields.ts';
 import { type RepositoryLayout, repositoryLayout, withLock, writeAtomic } from '../state/state.ts';
-import { isKey } from '../tracker/key.ts';
+import { commitLine, issueLine, sample } from './trend-lines.ts';
 import type { CacheLine, DeliveryWindow, Sample } from './types.ts';
 
 const hour = 3_600_000;
@@ -13,10 +12,6 @@ const cacheKeep = 56 * day;
 
 type Parsed = Record<string, unknown>;
 type CommitLine = Extract<CacheLine, { sha: string }>;
-
-const validTime = (value: unknown): value is string => typeof value === 'string' && !Number.isNaN(Date.parse(value));
-const count = (value: unknown): value is number | null =>
-  value === null || (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0);
 
 async function readLines(path: string): Promise<Parsed[] | null> {
   let source: string;
@@ -36,22 +31,18 @@ async function readLines(path: string): Promise<Parsed[] | null> {
   return lines;
 }
 
-const sampleOf = (line: Parsed): Sample | null =>
-  validTime(line.at) && count(line.needs) && count(line.working)
-    ? { at: line.at, needs: line.needs, working: line.working }
-    : null;
+function sampleOf(line: Parsed): Sample | null {
+  const found = sample.safeParse(line);
+  return found.success ? { at: found.data.at, needs: found.data.needs, working: found.data.working } : null;
+}
 
 function cacheOf(line: Parsed): CacheLine | null {
-  if ('sha' in line)
-    return typeof line.sha === 'string' &&
-      commit.test(line.sha) &&
-      validTime(line.at) &&
-      (line.issue === null || isKey(line.issue))
-      ? { sha: line.sha, issue: line.issue, at: line.at }
-      : null;
-  return isKey(line.issue) && (line.createdAt === null || validTime(line.createdAt))
-    ? { issue: line.issue, createdAt: line.createdAt }
-    : null;
+  if ('sha' in line) {
+    const found = commitLine.safeParse(line);
+    return found.success ? { sha: found.data.sha, issue: found.data.issue, at: found.data.at } : null;
+  }
+  const found = issueLine.safeParse(line);
+  return found.success ? { issue: found.data.issue, createdAt: found.data.createdAt } : null;
 }
 
 const present = <T>(value: T | null): value is T => value !== null;
