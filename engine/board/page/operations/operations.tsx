@@ -7,6 +7,7 @@ import { Badge } from '../ui/badge.tsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs.tsx';
 import { History } from './history.tsx';
 import { Panel } from './panel.tsx';
+import { PrototypeBar, PrototypePanel } from './prototype-failed.tsx';
 import { setTab } from './state.ts';
 import { Board } from './views.tsx';
 
@@ -32,6 +33,7 @@ export function Operations() {
       >
         <CoordinatorPanel />
         <Panel />
+        <PrototypePanel />
       </div>
       <Tabs
         value={tab}
@@ -89,6 +91,7 @@ export function Operations() {
         </TabsContent>
         <History />
       </Tabs>
+      <PrototypeBar />
     </div>
   );
 }

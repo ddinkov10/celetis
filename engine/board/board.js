@@ -8647,7 +8647,7 @@ function addTrappedEventListener(targetContainer, domEventName, eventSystemFlags
       listenerWrapper = dispatchContinuousEvent;
       break;
     default:
-      listenerWrapper = dispatchEvent;
+      listenerWrapper = dispatchEvent2;
   }
   eventSystemFlags = listenerWrapper.bind(null, domEventName, eventSystemFlags, targetContainer);
   listenerWrapper = undefined;
@@ -10859,7 +10859,7 @@ function dispatchDiscreteEvent(domEventName, eventSystemFlags, container, native
   ReactSharedInternals3.T = null;
   var previousPriority = ReactDOMSharedInternals.p;
   try {
-    ReactDOMSharedInternals.p = 2, dispatchEvent(domEventName, eventSystemFlags, container, nativeEvent);
+    ReactDOMSharedInternals.p = 2, dispatchEvent2(domEventName, eventSystemFlags, container, nativeEvent);
   } finally {
     ReactDOMSharedInternals.p = previousPriority, ReactSharedInternals3.T = prevTransition;
   }
@@ -10869,12 +10869,12 @@ function dispatchContinuousEvent(domEventName, eventSystemFlags, container, nati
   ReactSharedInternals3.T = null;
   var previousPriority = ReactDOMSharedInternals.p;
   try {
-    ReactDOMSharedInternals.p = 8, dispatchEvent(domEventName, eventSystemFlags, container, nativeEvent);
+    ReactDOMSharedInternals.p = 8, dispatchEvent2(domEventName, eventSystemFlags, container, nativeEvent);
   } finally {
     ReactDOMSharedInternals.p = previousPriority, ReactSharedInternals3.T = prevTransition;
   }
 }
-function dispatchEvent(domEventName, eventSystemFlags, targetContainer, nativeEvent) {
+function dispatchEvent2(domEventName, eventSystemFlags, targetContainer, nativeEvent) {
   if (_enabled) {
     var blockedOn = findInstanceBlockingEvent(nativeEvent);
     if (blockedOn === null)
@@ -15093,7 +15093,7 @@ function useQuery(options, queryClient) {
   return useBaseQuery(options, QueryObserver, queryClient);
 }
 // engine/board/page/app/app.tsx
-var import_react37 = __toESM(require_react());
+var import_react38 = __toESM(require_react());
 
 // engine/board/page/operations/stop.tsx
 var import_react5 = __toESM(require_react());
@@ -52026,14 +52026,478 @@ function History() {
   });
 }
 
+// engine/board/page/operations/prototype-failed.tsx
+var import_react29 = __toESM(require_react());
+var jsx_runtime25 = __toESM(require_jsx_runtime());
+var PROTOTYPE = true;
+var EVENT = "prototype-state";
+var SOURCE = "generate on the failed card";
+var FIXTURES = {
+  rest: null,
+  "setup-fault": {
+    cause: "Setup fault",
+    detail: "Claude login expired (authentication_failed)",
+    fix: "Log in to Claude in a terminal (claude /login), then Resume.",
+    status: null,
+    actions: ["Resume"],
+    limit: "Resume continues the saved session of the build step only. It does not touch other steps."
+  },
+  "broken-session": {
+    cause: "Broken session",
+    detail: "The API refuses the saved conversation (invalid_request): Invalid signature in thinking block",
+    fix: "Resume would replay the same error. Start the step again in a new session.",
+    status: null,
+    actions: ["Start fresh"],
+    limit: "Start fresh runs the build step again in a new session. Other steps stay as they are."
+  },
+  "provider-retry": {
+    cause: "Provider fault",
+    detail: "Anthropic API overloaded (server_error, 529)",
+    fix: null,
+    status: { text: "Automatic retry 1 of 2 at", time: "14:05" },
+    actions: [],
+    limit: "The run retries by itself, at most 2 times. Stop ends it."
+  },
+  "provider-failed": {
+    cause: "Provider fault",
+    detail: "The provider failed 3 times (server_error)",
+    fix: "The automatic retries are spent. Try again later.",
+    status: null,
+    actions: ["Try again"],
+    limit: "Try again re-runs the build step only, one more time."
+  },
+  "unknown-fault": {
+    cause: "Unknown failure",
+    detail: "API Error: Connection closed mid-response · exit 1",
+    fix: "Read the error in the tab, then Resume or Try again.",
+    status: null,
+    actions: ["Resume", "Try again"],
+    limit: "Resume continues the saved session. Try again starts the build step again. Neither touches other steps."
+  }
+};
+FIXTURES["details-open"] = FIXTURES["setup-fault"] ?? null;
+var PROTOTYPE_STATES = [
+  "rest",
+  "setup-fault",
+  "broken-session",
+  "provider-retry",
+  "provider-failed",
+  "unknown-fault",
+  "details-open"
+];
+var ISSUE = { number: "#372", title: "Each failed run names its cause", step: "build", agent: "Claude" };
+var subscribe3 = (notify) => {
+  addEventListener(EVENT, notify);
+  addEventListener("popstate", notify);
+  return () => {
+    removeEventListener(EVENT, notify);
+    removeEventListener("popstate", notify);
+  };
+};
+function usePrototypeState() {
+  const search = import_react29.useSyncExternalStore(subscribe3, () => location.search);
+  const params = new URLSearchParams(search);
+  const key = PROTOTYPE ? params.get("state") : null;
+  if (key === null || !PROTOTYPE_STATES.includes(key))
+    return { key: null, fixture: null, isOpen: false };
+  const fixture = FIXTURES[key] ?? null;
+  return { key, fixture, isOpen: fixture !== null && (key === "details-open" || params.get("panel") === "1") };
+}
+var write2 = (change) => {
+  const url = new URL(location.href);
+  change(url.searchParams);
+  history.replaceState(history.state, "", url);
+  dispatchEvent(new Event(EVENT));
+};
+var setState = (key) => write2((params) => {
+  params.set("state", key);
+  params.delete("panel");
+});
+var setPanel = (isOpen, key) => write2((params) => {
+  params.set("state", key === "details-open" ? "setup-fault" : key);
+  if (isOpen)
+    params.set("panel", "1");
+  else
+    params.delete("panel");
+});
+function prototypeGroups(groups, state, stuck) {
+  if (state.fixture === null)
+    return groups;
+  const rest = groups.map((group, at) => at === 0 ? { ...group, cards: group.cards.slice(1) } : group);
+  const kept = rest.filter((group) => group.cards.length > 0 || group.key === "stuck");
+  if (kept.some((group) => group.key === "stuck"))
+    return kept;
+  const at = kept.findIndex((group) => group.key !== "answer");
+  kept.splice(at < 0 ? kept.length : at, 0, { ...stuck, cards: [] });
+  return kept;
+}
+var NOTE4 = "m-0 text-[0.75rem] leading-[1.45] [overflow-wrap:anywhere]";
+function Actions({ fixture, name }) {
+  const [busy, setBusy] = import_react29.useState(null);
+  const [failure, setFailure] = import_react29.useState(null);
+  import_react29.useEffect(() => {
+    if (busy === null)
+      return;
+    const timer = setTimeout(() => {
+      setFailure(`${busy} failed: the daemon is not running, so no run started. Start the daemon, then ${busy.toLowerCase()} again.`);
+      setBusy(null);
+    }, 1400);
+    return () => clearTimeout(timer);
+  }, [busy]);
+  if (fixture.actions.length === 0 && fixture.limit === null)
+    return null;
+  const busyText = (label) => label === "Resume" ? "Resuming…" : label === "Start fresh" ? "Starting…" : "Trying again…";
+  return /* @__PURE__ */ jsx_runtime25.jsxs("div", {
+    className: "flex flex-col gap-2",
+    "data-name": name,
+    children: [
+      fixture.actions.length > 0 && /* @__PURE__ */ jsx_runtime25.jsx("div", {
+        className: "flex flex-wrap items-center gap-2",
+        children: fixture.actions.map((label, at) => {
+          const isBusy = busy === label;
+          return /* @__PURE__ */ jsx_runtime25.jsxs(Button2, {
+            variant: at === 0 ? "primary" : "secondary",
+            size: "action",
+            "aria-disabled": busy !== null ? "true" : undefined,
+            "aria-busy": isBusy ? "true" : undefined,
+            className: "min-h-7 min-w-24",
+            onClick: () => {
+              if (busy !== null)
+                return;
+              setFailure(null);
+              setBusy(label);
+            },
+            children: [
+              /* @__PURE__ */ jsx_runtime25.jsx(Icon, {
+                name: isBusy ? "works" : label === "Start fresh" ? "run" : "refresh"
+              }),
+              /* @__PURE__ */ jsx_runtime25.jsx("span", {
+                className: "label",
+                children: isBusy ? busyText(label) : label
+              })
+            ]
+          }, label);
+        })
+      }),
+      fixture.limit && /* @__PURE__ */ jsx_runtime25.jsx("p", {
+        className: cn(NOTE4, "text-muted-foreground"),
+        children: fixture.limit
+      }),
+      /* @__PURE__ */ jsx_runtime25.jsx("p", {
+        className: cn(NOTE4, "text-destructive"),
+        role: "alert",
+        hidden: failure === null,
+        children: failure
+      })
+    ]
+  });
+}
+function PrototypeFailedCard({ state }) {
+  const id = import_react29.useId();
+  const fixture = state.fixture;
+  const key = state.key;
+  return /* @__PURE__ */ jsx_runtime25.jsxs("article", {
+    className: "card is-needs relative flex flex-none flex-col gap-1.5 rounded-xl border border-border bg-card px-3.5 py-3 [box-shadow:var(--raise)]",
+    "data-state": "failed",
+    "aria-labelledby": `${id}-1t`,
+    "aria-describedby": `${id}-1d`,
+    children: [
+      /* @__PURE__ */ jsx_runtime25.jsxs("div", {
+        className: "flex min-h-[18px] min-w-0 flex-wrap items-center gap-x-[7px] gap-y-1 font-mono text-[0.71875rem] leading-none text-muted-foreground",
+        children: [
+          /* @__PURE__ */ jsx_runtime25.jsxs("span", {
+            className: "inline-flex items-center gap-1.5 font-sans text-[0.75rem] font-semibold text-destructive [&_.icon]:size-[13px]",
+            children: [
+              /* @__PURE__ */ jsx_runtime25.jsx(Icon, {
+                name: "alert"
+              }),
+              "Failed"
+            ]
+          }),
+          /* @__PURE__ */ jsx_runtime25.jsx("span", {
+            className: "opacity-60",
+            children: "·"
+          }),
+          /* @__PURE__ */ jsx_runtime25.jsx("span", {
+            children: ISSUE.number
+          }),
+          /* @__PURE__ */ jsx_runtime25.jsx("span", {
+            className: "opacity-60",
+            children: "·"
+          }),
+          /* @__PURE__ */ jsx_runtime25.jsx("span", {
+            children: ISSUE.step
+          }),
+          /* @__PURE__ */ jsx_runtime25.jsx("span", {
+            className: "opacity-60",
+            children: "·"
+          }),
+          /* @__PURE__ */ jsx_runtime25.jsx("span", {
+            className: "font-sans",
+            children: ISSUE.agent
+          }),
+          /* @__PURE__ */ jsx_runtime25.jsx("button", {
+            type: "button",
+            className: "ml-auto inline-flex min-h-6 min-w-6 cursor-pointer items-center rounded-md border border-transparent bg-transparent px-2 font-sans text-[0.75rem] font-medium text-card-foreground underline-offset-3 hover:underline focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring",
+            "aria-expanded": state.isOpen,
+            onClick: () => setPanel(!state.isOpen, key),
+            children: state.isOpen ? "Hide details" : "Details"
+          })
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime25.jsx("h4", {
+        className: "m-0 min-w-0 font-sans text-[0.875rem] leading-[1.38] font-semibold tracking-[-0.012em] text-pretty text-foreground [overflow-wrap:anywhere]",
+        id: `${id}-1t`,
+        children: ISSUE.title
+      }),
+      /* @__PURE__ */ jsx_runtime25.jsxs("div", {
+        className: "flex flex-wrap items-center gap-x-3 gap-y-2",
+        role: "status",
+        id: `${id}-1d`,
+        children: [
+          /* @__PURE__ */ jsx_runtime25.jsxs("p", {
+            className: "m-0 min-w-0 flex-1 basis-[15rem] text-[0.78125rem] leading-[1.45] text-card-foreground [overflow-wrap:anywhere]",
+            children: [
+              /* @__PURE__ */ jsx_runtime25.jsx("span", {
+                className: "font-semibold text-destructive",
+                children: fixture.cause
+              }),
+              /* @__PURE__ */ jsx_runtime25.jsx("span", {
+                className: "text-muted-foreground",
+                children: " · "
+              }),
+              fixture.detail,
+              fixture.status && /* @__PURE__ */ jsx_runtime25.jsxs("span", {
+                className: "text-muted-foreground",
+                children: [
+                  " · ",
+                  fixture.status.text,
+                  " ",
+                  /* @__PURE__ */ jsx_runtime25.jsx("time", {
+                    dateTime: fixture.status.time,
+                    children: fixture.status.time
+                  })
+                ]
+              })
+            ]
+          }),
+          /* @__PURE__ */ jsx_runtime25.jsx(Actions, {
+            fixture: { ...fixture, limit: null },
+            name: `v1-${key}`
+          })
+        ]
+      })
+    ]
+  });
+}
+var LABEL2 = "flex items-center gap-[7px] text-[0.6875rem] leading-none font-semibold tracking-[0.07em] text-muted-foreground uppercase";
+function Section2({ title, children }) {
+  return /* @__PURE__ */ jsx_runtime25.jsxs("section", {
+    className: "flex flex-col gap-2",
+    children: [
+      /* @__PURE__ */ jsx_runtime25.jsx("h3", {
+        className: LABEL2,
+        children: title
+      }),
+      children
+    ]
+  });
+}
+function PrototypePanel() {
+  const state = usePrototypeState();
+  if (!state.isOpen || state.fixture === null)
+    return null;
+  const { fixture, key } = state;
+  return /* @__PURE__ */ jsx_runtime25.jsxs("section", {
+    className: "flex min-h-0 min-w-0 flex-1 animate-panel-in flex-col overflow-hidden rounded-3xl border border-border-strong bg-panel",
+    id: "prototype-panel",
+    "aria-labelledby": "prototype-panel-title",
+    "data-state": "failed",
+    children: [
+      /* @__PURE__ */ jsx_runtime25.jsxs("div", {
+        className: "relative flex min-h-12 flex-none items-center gap-1 border-b border-border pr-2.5 pl-4",
+        children: [
+          /* @__PURE__ */ jsx_runtime25.jsxs("div", {
+            className: "flex min-w-0 flex-1 items-center gap-[7px] font-mono text-[0.71875rem] text-muted-foreground",
+            children: [
+              /* @__PURE__ */ jsx_runtime25.jsx("span", {
+                children: ISSUE.number
+              }),
+              /* @__PURE__ */ jsx_runtime25.jsx("span", {
+                className: "opacity-60",
+                children: "·"
+              }),
+              /* @__PURE__ */ jsx_runtime25.jsx("span", {
+                children: ISSUE.step
+              }),
+              /* @__PURE__ */ jsx_runtime25.jsx("span", {
+                className: "opacity-60",
+                children: "·"
+              }),
+              /* @__PURE__ */ jsx_runtime25.jsx("span", {
+                className: "font-sans",
+                children: ISSUE.agent
+              })
+            ]
+          }),
+          /* @__PURE__ */ jsx_runtime25.jsx("button", {
+            type: "button",
+            className: "grid size-7 cursor-pointer place-items-center rounded-lg border-0 bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring",
+            "aria-label": "Close the details",
+            onClick: () => setPanel(false, key),
+            children: /* @__PURE__ */ jsx_runtime25.jsx(Icon, {
+              name: "close"
+            })
+          })
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime25.jsxs("div", {
+        className: "flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-4 pt-4 pb-[22px]",
+        children: [
+          /* @__PURE__ */ jsx_runtime25.jsx("h2", {
+            className: "m-0 text-[1.03125rem] leading-[1.4] font-semibold tracking-[-0.016em] text-pretty text-foreground [overflow-wrap:anywhere]",
+            id: "prototype-panel-title",
+            children: ISSUE.title
+          }),
+          /* @__PURE__ */ jsx_runtime25.jsxs("p", {
+            className: cn("m-0 inline-flex w-fit items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[0.8125rem] font-semibold bg-[color-mix(in_srgb,var(--danger)_13%,transparent)] text-[color-mix(in_srgb,var(--fg)_30%,var(--danger))] [&_.icon]:size-[14px]"),
+            children: [
+              /* @__PURE__ */ jsx_runtime25.jsx(Icon, {
+                name: "alert"
+              }),
+              "Failed: ",
+              fixture.cause
+            ]
+          }),
+          /* @__PURE__ */ jsx_runtime25.jsx(Section2, {
+            title: "Cause",
+            children: /* @__PURE__ */ jsx_runtime25.jsx("p", {
+              className: cn(NOTE4, "text-[0.8125rem] text-foreground"),
+              children: fixture.cause
+            })
+          }),
+          /* @__PURE__ */ jsx_runtime25.jsx(Section2, {
+            title: "What happened",
+            children: /* @__PURE__ */ jsx_runtime25.jsx("p", {
+              className: "m-0 rounded-lg border border-border bg-secondary px-2.5 py-2 font-mono text-[0.71875rem] leading-[1.5] text-card-foreground [overflow-wrap:anywhere]",
+              children: fixture.detail
+            })
+          }),
+          fixture.fix && /* @__PURE__ */ jsx_runtime25.jsx(Section2, {
+            title: "How to fix",
+            children: /* @__PURE__ */ jsx_runtime25.jsx("p", {
+              className: cn(NOTE4, "text-[0.8125rem] text-card-foreground"),
+              children: fixture.fix
+            })
+          }),
+          fixture.status && /* @__PURE__ */ jsx_runtime25.jsx(Section2, {
+            title: "Next retry",
+            children: /* @__PURE__ */ jsx_runtime25.jsxs("p", {
+              className: cn(NOTE4, "text-[0.8125rem] text-card-foreground"),
+              children: [
+                fixture.status.text,
+                " ",
+                /* @__PURE__ */ jsx_runtime25.jsx("time", {
+                  dateTime: fixture.status.time,
+                  children: fixture.status.time
+                })
+              ]
+            })
+          }),
+          /* @__PURE__ */ jsx_runtime25.jsx(Section2, {
+            title: "Action",
+            children: /* @__PURE__ */ jsx_runtime25.jsx(Actions, {
+              fixture,
+              name: `panel-${key}`
+            })
+          })
+        ]
+      })
+    ]
+  });
+}
+var isEditable = (target) => target instanceof Element && target.closest("input, select, textarea, [contenteditable]") !== null;
+function PrototypeBar() {
+  const state = usePrototypeState();
+  const [isOpen, setOpen] = import_react29.useState(false);
+  import_react29.useEffect(() => {
+    const cycle = (event) => {
+      if (event.key !== "[" && event.key !== "]" || event.ctrlKey || event.metaKey || event.altKey)
+        return;
+      if (isEditable(event.target))
+        return;
+      const at = PROTOTYPE_STATES.indexOf(state.key ?? "rest");
+      const step = event.key === "]" ? 1 : -1;
+      setState(PROTOTYPE_STATES[(at + step + PROTOTYPE_STATES.length) % PROTOTYPE_STATES.length]);
+    };
+    addEventListener("keydown", cycle);
+    return () => removeEventListener("keydown", cycle);
+  }, [state.key]);
+  if (state.key === null)
+    return null;
+  return /* @__PURE__ */ jsx_runtime25.jsxs("div", {
+    className: "fixed bottom-[calc(var(--dock,0px)+10px)] left-1/2 z-[100] flex max-w-[calc(100vw-16px)] -translate-x-1/2 flex-wrap items-center justify-center gap-x-2.5 gap-y-1 rounded-2xl border-2 border-white bg-black px-3 py-1.5 font-mono text-[0.75rem] text-white shadow-[0_4px_24px_rgba(0,0,0,0.6)]",
+    role: "region",
+    "aria-label": "Prototype bar, not part of the design",
+    "data-prototype-bar": "",
+    children: [
+      /* @__PURE__ */ jsx_runtime25.jsx("span", {
+        className: "rounded-sm bg-white px-1.5 py-0.5 font-bold text-black",
+        children: "A"
+      }),
+      /* @__PURE__ */ jsx_runtime25.jsx("span", {
+        className: "[overflow-wrap:anywhere]",
+        children: SOURCE
+      }),
+      /* @__PURE__ */ jsx_runtime25.jsxs("div", {
+        className: "relative",
+        children: [
+          /* @__PURE__ */ jsx_runtime25.jsxs("button", {
+            type: "button",
+            className: "min-h-6 cursor-pointer rounded-md border border-white bg-black px-2 font-mono text-white focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-yellow-300",
+            "aria-expanded": isOpen,
+            "aria-haspopup": "true",
+            onClick: () => setOpen(!isOpen),
+            onKeyDown: (event) => event.key === "Escape" && setOpen(false),
+            children: [
+              state.key,
+              " ▾"
+            ]
+          }),
+          isOpen && /* @__PURE__ */ jsx_runtime25.jsx("ul", {
+            className: "absolute bottom-full left-0 z-[101] m-0 mb-2 flex list-none flex-col rounded-lg border-2 border-white bg-black p-1",
+            "aria-label": "Prototype states",
+            children: PROTOTYPE_STATES.map((each) => /* @__PURE__ */ jsx_runtime25.jsx("li", {
+              children: /* @__PURE__ */ jsx_runtime25.jsx("button", {
+                type: "button",
+                className: cn("min-h-6 w-full cursor-pointer rounded-md border-0 bg-black px-2 py-1 text-left font-mono whitespace-nowrap text-white hover:bg-white hover:text-black focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-yellow-300", each === state.key && "font-bold underline"),
+                "aria-current": each === state.key ? "true" : undefined,
+                onClick: () => {
+                  setState(each);
+                  setOpen(false);
+                },
+                children: each
+              })
+            }, each))
+          })
+        ]
+      }),
+      /* @__PURE__ */ jsx_runtime25.jsx("span", {
+        className: "text-[0.6875rem] opacity-80 phone:hidden",
+        children: "[ ] cycle"
+      })
+    ]
+  });
+}
+
 // engine/board/page/operations/views.tsx
-var import_react32 = __toESM(require_react());
+var import_react33 = __toESM(require_react());
 
 // engine/board/page/operations/card.tsx
-var import_react31 = __toESM(require_react());
+var import_react32 = __toESM(require_react());
 
 // engine/board/page/ui/card.tsx
-var jsx_runtime25 = __toESM(require_jsx_runtime());
+var jsx_runtime26 = __toESM(require_jsx_runtime());
 var cardVariants = cva("group/card rounded-xl border border-border bg-card text-card-foreground", {
   variants: { inset: { default: "min-w-0 p-5 shadow-raise phone:p-4", none: "" } },
   defaultVariants: { inset: "default" }
@@ -52052,14 +52516,14 @@ function Card({
   });
 }
 function CardTitle({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime25.jsx("h3", {
+  return /* @__PURE__ */ jsx_runtime26.jsx("h3", {
     "data-slot": "card-title",
     className: cn("text-sm leading-[1.4] font-semibold text-foreground", className),
     ...props
   });
 }
 function CardDescription({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime25.jsx("p", {
+  return /* @__PURE__ */ jsx_runtime26.jsx("p", {
     "data-slot": "card-description",
     className: cn("mt-2 mb-0 text-[0.78125rem] leading-normal text-pretty text-muted-foreground", className),
     ...props
@@ -53883,15 +54347,15 @@ function useMenuParent() {
   return parent;
 }
 // engine/board/page/ui/dropdown-menu.tsx
-var jsx_runtime26 = __toESM(require_jsx_runtime());
+var jsx_runtime27 = __toESM(require_jsx_runtime());
 function DropdownMenu(props) {
-  return /* @__PURE__ */ jsx_runtime26.jsx(MenuRoot, {
+  return /* @__PURE__ */ jsx_runtime27.jsx(MenuRoot, {
     "data-slot": "dropdown-menu",
     ...props
   });
 }
 function DropdownMenuTrigger(props) {
-  return /* @__PURE__ */ jsx_runtime26.jsx(MenuTrigger, {
+  return /* @__PURE__ */ jsx_runtime27.jsx(MenuTrigger, {
     "data-slot": "dropdown-menu-trigger",
     ...props
   });
@@ -53905,15 +54369,15 @@ function DropdownMenuContent({
   className,
   ...props
 }) {
-  return /* @__PURE__ */ jsx_runtime26.jsx(MenuPortal, {
-    children: /* @__PURE__ */ jsx_runtime26.jsx(MenuPositioner, {
+  return /* @__PURE__ */ jsx_runtime27.jsx(MenuPortal, {
+    children: /* @__PURE__ */ jsx_runtime27.jsx(MenuPositioner, {
       className: cn("isolate z-50 outline-none", positionerClassName),
       anchor,
       align,
       side,
       sideOffset,
       collisionPadding: 12,
-      children: /* @__PURE__ */ jsx_runtime26.jsx(MenuPopup, {
+      children: /* @__PURE__ */ jsx_runtime27.jsx(MenuPopup, {
         "data-slot": "dropdown-menu-content",
         className: cn("max-h-(--available-height) w-max min-w-60 max-w-[min(340px,calc(100vw-16px))] overflow-auto rounded-xl bg-popover p-[5px] text-popover-foreground shadow-float outline-none phone:max-w-[calc(100vw-24px)]", className),
         ...props
@@ -53922,14 +54386,14 @@ function DropdownMenuContent({
   });
 }
 function DropdownMenuItem({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime26.jsx(MenuItem, {
+  return /* @__PURE__ */ jsx_runtime27.jsx(MenuItem, {
     "data-slot": "dropdown-menu-item",
     className: cn("grid min-h-8 w-full cursor-pointer grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[7px] px-[9px] py-1.5 text-left text-[0.8125rem] outline-none [&:hover]:bg-accent focus-visible:bg-accent focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-ring aria-disabled:cursor-not-allowed aria-disabled:opacity-45 phone:min-h-11 [&_.icon]:size-3.5 [&_.icon]:text-muted-foreground [&_kbd]:min-h-5 [&_kbd]:min-w-5 [&_kbd]:text-[0.6875rem] [&_kbd]:text-card-foreground pointer-coarse:[&_kbd]:hidden phone:[&_kbd]:hidden", className),
     ...props
   });
 }
 function DropdownMenuSeparator({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime26.jsx(Separator, {
+  return /* @__PURE__ */ jsx_runtime27.jsx(Separator, {
     "data-slot": "dropdown-menu-separator",
     className: cn("mx-1 my-[5px] h-px bg-border", className),
     ...props
@@ -53937,10 +54401,10 @@ function DropdownMenuSeparator({ className, ...props }) {
 }
 
 // engine/board/page/ui/menu-entries.tsx
-var import_react29 = __toESM(require_react());
-var jsx_runtime27 = __toESM(require_jsx_runtime());
+var import_react30 = __toESM(require_react());
+var jsx_runtime28 = __toESM(require_jsx_runtime());
 function Entries2({ list, close }) {
-  return list().map((entry, at) => entry === "rule" ? /* @__PURE__ */ jsx_runtime27.jsx(DropdownMenuSeparator, {}, `rule-${at}`) : /* @__PURE__ */ jsx_runtime27.jsxs(DropdownMenuItem, {
+  return list().map((entry, at) => entry === "rule" ? /* @__PURE__ */ jsx_runtime28.jsx(DropdownMenuSeparator, {}, `rule-${at}`) : /* @__PURE__ */ jsx_runtime28.jsxs(DropdownMenuItem, {
     title: entry.title,
     "aria-disabled": entry.isDisabled ? "true" : undefined,
     closeOnClick: false,
@@ -53949,69 +54413,69 @@ function Entries2({ list, close }) {
       queueMicrotask(entry.run);
     },
     children: [
-      entry.host ? /* @__PURE__ */ jsx_runtime27.jsx("span", {
+      entry.host ? /* @__PURE__ */ jsx_runtime28.jsx("span", {
         className: "grid size-4 place-items-center",
-        children: /* @__PURE__ */ jsx_runtime27.jsx("img", {
+        children: /* @__PURE__ */ jsx_runtime28.jsx("img", {
           className: "block size-4",
           src: AGENT_ICONS[entry.host],
           alt: ""
         })
-      }) : /* @__PURE__ */ jsx_runtime27.jsx(Icon, {
+      }) : /* @__PURE__ */ jsx_runtime28.jsx(Icon, {
         name: entry.icon
       }),
-      /* @__PURE__ */ jsx_runtime27.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime28.jsxs("div", {
         className: "flex min-w-0 items-center gap-2",
         children: [
-          /* @__PURE__ */ jsx_runtime27.jsx("span", {
+          /* @__PURE__ */ jsx_runtime28.jsx("span", {
             children: entry.label
           }),
-          entry.tag && /* @__PURE__ */ jsx_runtime27.jsx("em", {
+          entry.tag && /* @__PURE__ */ jsx_runtime28.jsx("em", {
             className: "flex-none rounded-full bg-accent px-[7px] py-px text-[0.6875rem] text-foreground not-italic",
             children: entry.tag
           })
         ]
       }),
-      entry.key ? /* @__PURE__ */ jsx_runtime27.jsx(Kbd, {
+      entry.key ? /* @__PURE__ */ jsx_runtime28.jsx(Kbd, {
         children: entry.key
-      }) : /* @__PURE__ */ jsx_runtime27.jsx("span", {})
+      }) : /* @__PURE__ */ jsx_runtime28.jsx("span", {})
     ]
   }, entry.label));
 }
 function FirstFocus() {
-  const ref = import_react29.useRef(null);
-  import_react29.useEffect(() => {
+  const ref = import_react30.useRef(null);
+  import_react30.useEffect(() => {
     ref.current?.parentElement?.querySelector('[role="menuitem"]')?.focus({ preventScroll: true });
   }, []);
-  return /* @__PURE__ */ jsx_runtime27.jsx("span", {
+  return /* @__PURE__ */ jsx_runtime28.jsx("span", {
     ref,
     hidden: true
   });
 }
 
 // engine/board/page/operations/held.tsx
-var import_react30 = __toESM(require_react());
-var jsx_runtime28 = __toESM(require_jsx_runtime());
+var import_react31 = __toESM(require_react());
+var jsx_runtime29 = __toESM(require_jsx_runtime());
 var short = (sha) => sha.slice(0, 7);
 function Moved({ card, held, id }) {
   if (held.state !== "held" || held.tip === held.head)
     return null;
   if (held.tip === null)
-    return /* @__PURE__ */ jsx_runtime28.jsx("p", {
+    return /* @__PURE__ */ jsx_runtime29.jsx("p", {
       id,
       className: WARNING,
       children: `The board cannot read the branch tip of #${card.number}, so Land is off. Check the lane branch.`
     });
-  return /* @__PURE__ */ jsx_runtime28.jsxs("p", {
+  return /* @__PURE__ */ jsx_runtime29.jsxs("p", {
     id,
     className: WARNING,
     children: [
       `The lane branch moved from head ${short(held.head)} to ${short(held.tip)}, so Land is off. Review it:`,
-      /* @__PURE__ */ jsx_runtime28.jsx("code", {
+      /* @__PURE__ */ jsx_runtime29.jsx("code", {
         className: "mt-1 mb-2 block font-mono [overflow-wrap:anywhere]",
         children: `git diff ${held.head}..${held.tip}`
       }),
       "Then land it by hand:",
-      /* @__PURE__ */ jsx_runtime28.jsx("code", {
+      /* @__PURE__ */ jsx_runtime29.jsx("code", {
         className: "mt-1 block font-mono [overflow-wrap:anywhere]",
         children: `celetis --agent <host> land ${card.number} '<subject>'`
       })
@@ -54020,23 +54484,23 @@ function Moved({ card, held, id }) {
 }
 function HeldPanel({ card }) {
   const { held } = card;
-  const noteId = import_react30.useId();
-  const [isOpen, setOpen] = import_react30.useState(false);
-  const [pressed, setPressed] = import_react30.useState(null);
-  const [refused, setRefused] = import_react30.useState(null);
-  const pressing = import_react30.useRef(false);
-  const cancel = import_react30.useRef(null);
+  const noteId = import_react31.useId();
+  const [isOpen, setOpen] = import_react31.useState(false);
+  const [pressed, setPressed] = import_react31.useState(null);
+  const [refused, setRefused] = import_react31.useState(null);
+  const pressing = import_react31.useRef(false);
+  const cancel = import_react31.useRef(null);
   const isLanding = pressed === "land" || Boolean(card.landing);
   const isDiscarding = pressed === "discard";
   const isBusy = isLanding || isDiscarding;
   const isOff = held !== null && held !== undefined && held.state === "held" && held.tip !== held.head;
-  import_react30.useEffect(() => {
+  import_react31.useEffect(() => {
     if (isLanding) {
       announce("Landing…");
       setOpen(false);
     }
   }, [isLanding]);
-  import_react30.useEffect(() => {
+  import_react31.useEffect(() => {
     if (isDiscarding)
       announce("Discarding…");
   }, [isDiscarding]);
@@ -54062,20 +54526,20 @@ function HeldPanel({ card }) {
         setRefused({ head: held.head, line });
     });
   };
-  return /* @__PURE__ */ jsx_runtime28.jsxs(jsx_runtime28.Fragment, {
+  return /* @__PURE__ */ jsx_runtime29.jsxs(jsx_runtime29.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime28.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime29.jsxs("div", {
         "data-held": "",
         className: "flex flex-wrap items-center justify-between gap-x-2.5 gap-y-1.5",
         children: [
-          held && /* @__PURE__ */ jsx_runtime28.jsxs("span", {
+          held && /* @__PURE__ */ jsx_runtime29.jsxs("span", {
             className: "inline-flex min-w-0 gap-[5px] font-mono text-[0.6875rem] leading-none whitespace-nowrap text-muted-foreground tabular-nums",
             children: [
-              /* @__PURE__ */ jsx_runtime28.jsxs("span", {
+              /* @__PURE__ */ jsx_runtime29.jsxs("span", {
                 title: "Head commit",
                 children: [
                   "head ",
-                  /* @__PURE__ */ jsx_runtime28.jsx("button", {
+                  /* @__PURE__ */ jsx_runtime29.jsx("button", {
                     type: "button",
                     "aria-label": `Copy the full head SHA ${short(held.head)}`,
                     title: "Copy the full head SHA",
@@ -54085,20 +54549,20 @@ function HeldPanel({ card }) {
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime28.jsx("span", {
+              /* @__PURE__ */ jsx_runtime29.jsx("span", {
                 "aria-hidden": "true",
                 children: "·"
               }),
-              /* @__PURE__ */ jsx_runtime28.jsx("span", {
+              /* @__PURE__ */ jsx_runtime29.jsx("span", {
                 title: "Patch ID",
                 children: `patch ${short(held.patch)}`
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime28.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime29.jsxs("div", {
             className: "ml-auto inline-flex flex-none items-center gap-1",
             children: [
-              held && /* @__PURE__ */ jsx_runtime28.jsx(Button2, {
+              held && /* @__PURE__ */ jsx_runtime29.jsx(Button2, {
                 variant: "primary",
                 size: "action",
                 "aria-disabled": isOff || isBusy ? "true" : undefined,
@@ -54107,7 +54571,7 @@ function HeldPanel({ card }) {
                 onClick: land,
                 children: isLanding ? "Landing…" : "Land"
               }),
-              /* @__PURE__ */ jsx_runtime28.jsx(Button2, {
+              /* @__PURE__ */ jsx_runtime29.jsx(Button2, {
                 variant: "quiet",
                 size: "action",
                 "aria-disabled": isBusy ? "true" : undefined,
@@ -54122,38 +54586,38 @@ function HeldPanel({ card }) {
           })
         ]
       }),
-      held && /* @__PURE__ */ jsx_runtime28.jsx(Moved, {
+      held && /* @__PURE__ */ jsx_runtime29.jsx(Moved, {
         card,
         held,
         id: noteId
       }),
-      held?.state === "released" && refused?.head === held.head && /* @__PURE__ */ jsx_runtime28.jsx("p", {
+      held?.state === "released" && refused?.head === held.head && /* @__PURE__ */ jsx_runtime29.jsx("p", {
         className: WARNING,
         children: refused.line
       }),
-      /* @__PURE__ */ jsx_runtime28.jsx(AlertDialog, {
+      /* @__PURE__ */ jsx_runtime29.jsx(AlertDialog, {
         open: isOpen,
         onOpenChange: setOpen,
-        children: /* @__PURE__ */ jsx_runtime28.jsxs(AlertDialogContent, {
+        children: /* @__PURE__ */ jsx_runtime29.jsxs(AlertDialogContent, {
           initialFocus: cancel,
           children: [
-            /* @__PURE__ */ jsx_runtime28.jsxs(AlertDialogTitle, {
+            /* @__PURE__ */ jsx_runtime29.jsxs(AlertDialogTitle, {
               children: [
                 "Discard #",
                 card.number,
                 "?"
               ]
             }),
-            /* @__PURE__ */ jsx_runtime28.jsx(AlertDialogDescription, {
+            /* @__PURE__ */ jsx_runtime29.jsx(AlertDialogDescription, {
               children: "The issue closes as wontfix and the worktree goes. The commits stay on the origin branch."
             }),
-            /* @__PURE__ */ jsx_runtime28.jsxs(AlertDialogFooter, {
+            /* @__PURE__ */ jsx_runtime29.jsxs(AlertDialogFooter, {
               children: [
-                /* @__PURE__ */ jsx_runtime28.jsx(AlertDialogCancel, {
+                /* @__PURE__ */ jsx_runtime29.jsx(AlertDialogCancel, {
                   ref: cancel,
                   children: "Cancel"
                 }),
-                /* @__PURE__ */ jsx_runtime28.jsx(AlertDialogAction, {
+                /* @__PURE__ */ jsx_runtime29.jsx(AlertDialogAction, {
                   onClick: () => {
                     setOpen(false);
                     press("discard", () => discardHeld(card));
@@ -54170,7 +54634,7 @@ function HeldPanel({ card }) {
 }
 
 // engine/board/page/operations/card.tsx
-var jsx_runtime29 = __toESM(require_jsx_runtime());
+var jsx_runtime30 = __toESM(require_jsx_runtime());
 var STATUS_ICONS = {
   works: "works",
   starts: "works",
@@ -54182,10 +54646,10 @@ var STATUS_ICONS = {
   "quota-wait": "clock"
 };
 function UnseenDot({ className }) {
-  return /* @__PURE__ */ jsx_runtime29.jsx("i", {
+  return /* @__PURE__ */ jsx_runtime30.jsx("i", {
     className: cn("size-[7px] flex-none rounded-[50%] bg-foreground shadow-[0_0_0_3px_color-mix(in_srgb,var(--fg)_14%,transparent)]", className),
     title: "Changed since you last looked",
-    children: /* @__PURE__ */ jsx_runtime29.jsx("span", {
+    children: /* @__PURE__ */ jsx_runtime30.jsx("span", {
       className: "sr-only",
       children: "Changed since you last looked"
     })
@@ -54205,20 +54669,20 @@ function Track({ card, flow, isMuted }) {
   if (!steps)
     return null;
   const at = steps.findIndex((step) => step.state === "now");
-  return /* @__PURE__ */ jsx_runtime29.jsx("span", {
+  return /* @__PURE__ */ jsx_runtime30.jsx("span", {
     className: "ml-auto inline-flex flex-none items-center gap-[3px] pl-2",
     "data-track": "",
     role: "img",
     "aria-label": `Step ${at + 1} of ${steps.length}: ${steps[at]?.name}`,
     title: steps.map((step) => step.state === "next" ? step.name : `${step.name} (${step.state === "now" ? "now" : "done"})`).join(" · "),
-    children: steps.map((step) => /* @__PURE__ */ jsx_runtime29.jsx("i", {
+    children: steps.map((step) => /* @__PURE__ */ jsx_runtime30.jsx("i", {
       className: `h-1.5 rounded-[3px] ${segOf(step.state, isMuted ? null : card.state)}`
     }, step.name))
   });
 }
 function StartLabel({ pair }) {
   const name = startName(pair);
-  return /* @__PURE__ */ jsx_runtime29.jsx("span", {
+  return /* @__PURE__ */ jsx_runtime30.jsx("span", {
     className: "inline-flex min-h-[18px] cursor-help items-stretch font-mono text-[0.6875rem] leading-none font-medium whitespace-nowrap text-card-foreground",
     title: name,
     role: "img",
@@ -54226,15 +54690,15 @@ function StartLabel({ pair }) {
     children: ["model", "level"].map((part) => {
       const isDefault = pair.source[part] === "default";
       const bothDefault = pair.source.model === "default" && pair.source.level === "default";
-      return /* @__PURE__ */ jsx_runtime29.jsxs("span", {
+      return /* @__PURE__ */ jsx_runtime30.jsxs("span", {
         className: cn("inline-flex items-center gap-[3px] px-[7px] text-foreground [&_svg.icon]:size-[9px]", part === "model" ? "rounded-l-[9px] bg-[color-mix(in_srgb,var(--fg)_17%,transparent)]" : "rounded-r-[9px] bg-accent text-card-foreground", part === "level" && pair.source.model !== "default" && !isDefault && "ml-px", isDefault && "border border-dashed border-current bg-transparent px-1.5 text-muted-foreground", isDefault && part === "level" && bothDefault && "border-l-0 pl-[7px]"),
         "data-part": part,
         "data-source": pair.source[part],
         children: [
-          pair.source[part] === "pinned" && /* @__PURE__ */ jsx_runtime29.jsx(Icon, {
+          pair.source[part] === "pinned" && /* @__PURE__ */ jsx_runtime30.jsx(Icon, {
             name: "pin"
           }),
-          /* @__PURE__ */ jsx_runtime29.jsx("span", {
+          /* @__PURE__ */ jsx_runtime30.jsx("span", {
             children: pair[part]
           })
         ]
@@ -54262,17 +54726,17 @@ function Status({
 }) {
   const quiet = isShort ? "text-muted-foreground" : "text-card-foreground";
   if (card.state === "set-aside")
-    return /* @__PURE__ */ jsx_runtime29.jsxs("span", {
+    return /* @__PURE__ */ jsx_runtime30.jsxs("span", {
       className: cn(STATUS, "min-w-0 gap-1 rounded-[999px] border border-dashed border-border-strong py-px pr-[7px] pl-[5px] text-card-foreground [&>:last-child]:flex-[0_1_auto] [&>:last-child]:overflow-hidden [&_.icon]:size-3", className),
       children: [
-        /* @__PURE__ */ jsx_runtime29.jsx(Icon, {
+        /* @__PURE__ */ jsx_runtime30.jsx(Icon, {
           name: "aside"
         }),
-        /* @__PURE__ */ jsx_runtime29.jsx("span", {
+        /* @__PURE__ */ jsx_runtime30.jsx("span", {
           className: "font-semibold text-foreground first-letter:uppercase",
           children: stateLabel(card)
         }),
-        card.step && /* @__PURE__ */ jsx_runtime29.jsx("span", {
+        card.step && /* @__PURE__ */ jsx_runtime30.jsx("span", {
           className: cn(DETAIL2, STEP, "cq-300:hidden"),
           children: card.step
         })
@@ -54280,21 +54744,21 @@ function Status({
     });
   if (card.state) {
     const agent = isShort ? null : agentOf(card, env.registry);
-    return /* @__PURE__ */ jsx_runtime29.jsxs("span", {
+    return /* @__PURE__ */ jsx_runtime30.jsxs("span", {
       className: cn(STATUS, "min-w-0 gap-[7px] [&>:last-child]:flex-[0_1_auto] [&>:last-child]:overflow-hidden", isMuted ? "text-card-foreground" : STATE_TEXT[card.state] ?? quiet, card.state === "starts" && "[&_.icon]:animate-turn [&_.icon]:text-working", className),
       children: [
-        hasGlyph && /* @__PURE__ */ jsx_runtime29.jsx(Icon, {
+        hasGlyph && /* @__PURE__ */ jsx_runtime30.jsx(Icon, {
           name: STATUS_ICONS[card.state] ?? "pending"
         }),
-        /* @__PURE__ */ jsx_runtime29.jsx("span", {
+        /* @__PURE__ */ jsx_runtime30.jsx("span", {
           className: "first-letter:uppercase",
           children: stateLabel(card)
         }),
-        agent && /* @__PURE__ */ jsx_runtime29.jsx("span", {
+        agent && /* @__PURE__ */ jsx_runtime30.jsx("span", {
           className: cn(DETAIL2, "cq-360:absolute cq-360:-m-px cq-360:size-px cq-360:overflow-hidden cq-360:[clip:rect(0_0_0_0)] cq-360:whitespace-nowrap"),
           children: agent.name
         }),
-        !isShort && card.step && card.step !== card.type && /* @__PURE__ */ jsx_runtime29.jsx("span", {
+        !isShort && card.step && card.step !== card.type && /* @__PURE__ */ jsx_runtime30.jsx("span", {
           className: cn(DETAIL2, STEP, "cq-300:hidden"),
           children: card.step
         })
@@ -54302,27 +54766,27 @@ function Status({
     });
   }
   if (!card.step)
-    return /* @__PURE__ */ jsx_runtime29.jsx("span", {
+    return /* @__PURE__ */ jsx_runtime30.jsx("span", {
       className: cn(STATUS, "min-w-0 gap-[7px] [&>:last-child]:overflow-hidden", quiet, className)
     });
-  return /* @__PURE__ */ jsx_runtime29.jsxs("span", {
+  return /* @__PURE__ */ jsx_runtime30.jsxs("span", {
     className: cn(STATUS, "min-w-[auto] gap-1 overflow-visible [&>:last-child]:flex-none [&>:last-child]:overflow-visible [&_.icon]:text-muted-foreground", isShort && "flex-wrap gap-y-1", quiet, className),
     children: [
-      hasGlyph && /* @__PURE__ */ jsx_runtime29.jsx(Icon, {
+      hasGlyph && /* @__PURE__ */ jsx_runtime30.jsx(Icon, {
         name: "pending"
       }),
-      /* @__PURE__ */ jsx_runtime29.jsx("span", {
+      /* @__PURE__ */ jsx_runtime30.jsx("span", {
         className: "font-normal text-muted-foreground",
         children: "next"
       }),
-      /* @__PURE__ */ jsx_runtime29.jsx("span", {
+      /* @__PURE__ */ jsx_runtime30.jsx("span", {
         className: cn(STEP, "font-normal text-foreground"),
         children: card.step
       }),
-      card.effort && /* @__PURE__ */ jsx_runtime29.jsx(StartLabel, {
+      card.effort && /* @__PURE__ */ jsx_runtime30.jsx(StartLabel, {
         pair: card.effort
       }),
-      card.gate === "auto" && /* @__PURE__ */ jsx_runtime29.jsx(GateLabel, {
+      card.gate === "auto" && /* @__PURE__ */ jsx_runtime30.jsx(GateLabel, {
         mode: env.auto
       })
     ]
@@ -54331,21 +54795,21 @@ function Status({
 function LiveLine({ card }) {
   if (!card.diff)
     return null;
-  return /* @__PURE__ */ jsx_runtime29.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime30.jsxs("div", {
     className: "flex min-h-[18px] min-w-0 items-center gap-2 font-mono text-[0.75rem] leading-none font-normal text-card-foreground [&_.icon]:size-[13px] [&_.icon]:text-working",
     title: "Changed since the branch left its base",
     children: [
-      /* @__PURE__ */ jsx_runtime29.jsx(Icon, {
+      /* @__PURE__ */ jsx_runtime30.jsx(Icon, {
         name: "diff"
       }),
-      /* @__PURE__ */ jsx_runtime29.jsx("span", {
+      /* @__PURE__ */ jsx_runtime30.jsx("span", {
         className: "min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap",
         children: `${card.diff.files} ${card.diff.files === 1 ? "file" : "files"} changed`
       }),
-      /* @__PURE__ */ jsx_runtime29.jsxs("span", {
+      /* @__PURE__ */ jsx_runtime30.jsxs("span", {
         className: "ml-auto flex-none text-muted-foreground tabular-nums",
         children: [
-          /* @__PURE__ */ jsx_runtime29.jsx("i", {
+          /* @__PURE__ */ jsx_runtime30.jsx("i", {
             className: "text-card-foreground not-italic",
             children: `+${card.diff.added}`
           }),
@@ -54360,21 +54824,21 @@ function ActLine({ card }) {
   const what = copyWhat(card);
   const act = card.act;
   if (!what)
-    return /* @__PURE__ */ jsx_runtime29.jsx("p", {
+    return /* @__PURE__ */ jsx_runtime30.jsx("p", {
       className: ACT,
       children: card.act
     });
-  return /* @__PURE__ */ jsx_runtime29.jsxs("p", {
+  return /* @__PURE__ */ jsx_runtime30.jsxs("p", {
     className: cn(ACT, "flex items-center gap-1.5 border-border bg-secondary py-[3px] pr-[3px] pl-2.5"),
     children: [
-      /* @__PURE__ */ jsx_runtime29.jsx("code", {
+      /* @__PURE__ */ jsx_runtime30.jsx("code", {
         className: "min-w-0 flex-1 font-mono text-[0.71875rem] leading-normal font-normal text-foreground [overflow-wrap:normal]",
         title: act,
-        children: shortPath(act).split("/").map((part, index) => /* @__PURE__ */ jsx_runtime29.jsx(import_react31.Fragment, {
-          children: index ? [/* @__PURE__ */ jsx_runtime29.jsx("wbr", {}, "w"), `/${part}`] : part
+        children: shortPath(act).split("/").map((part, index) => /* @__PURE__ */ jsx_runtime30.jsx(import_react32.Fragment, {
+          children: index ? [/* @__PURE__ */ jsx_runtime30.jsx("wbr", {}, "w"), `/${part}`] : part
         }, index))
       }),
-      /* @__PURE__ */ jsx_runtime29.jsx(IconButton, {
+      /* @__PURE__ */ jsx_runtime30.jsx(IconButton, {
         name: "copy",
         label: `Copy the ${what}`,
         title: `Copy the ${what} (c)`,
@@ -54384,16 +54848,16 @@ function ActLine({ card }) {
     ]
   });
 }
-var NOTE4 = "m-0 text-[0.75rem] leading-[1.45] [overflow-wrap:anywhere]";
+var NOTE5 = "m-0 text-[0.75rem] leading-[1.45] [overflow-wrap:anywhere]";
 function StartLine({ number, launch, isCompact }) {
   const now = useScreen((state) => state.now);
   const isSlow = launch.phase === "pending" && now - launch.at >= SLOW_START;
-  import_react31.useEffect(() => {
+  import_react32.useEffect(() => {
     if (isSlow)
       screen.announceStart(number);
   }, [isSlow, number]);
-  return /* @__PURE__ */ jsx_runtime29.jsx("p", {
-    className: cn(NOTE4, "text-card-foreground", isCompact && "col-[2/-1]"),
+  return /* @__PURE__ */ jsx_runtime30.jsx("p", {
+    className: cn(NOTE5, "text-card-foreground", isCompact && "col-[2/-1]"),
     "data-number": number,
     hidden: !isSlow,
     children: isSlow ? `${SLOW_START_TEXT} · ${age(new Date(launch.at).toISOString(), now, true)}` : null
@@ -54406,13 +54870,13 @@ function StartNote({
   isCompact
 }) {
   if (failure !== undefined)
-    return /* @__PURE__ */ jsx_runtime29.jsx("p", {
-      className: cn(NOTE4, "text-destructive", isCompact && "col-[2/-1]"),
+    return /* @__PURE__ */ jsx_runtime30.jsx("p", {
+      className: cn(NOTE5, "text-destructive", isCompact && "col-[2/-1]"),
       children: `Last start failed: ${failure}`
     });
   if (card.state !== "starts" || card.number === null || launch?.phase !== "pending")
     return null;
-  return /* @__PURE__ */ jsx_runtime29.jsx(StartLine, {
+  return /* @__PURE__ */ jsx_runtime30.jsx(StartLine, {
     number: card.number,
     launch,
     isCompact
@@ -54420,7 +54884,7 @@ function StartNote({
 }
 function AsideChip({ action }) {
   const isOpen = action.isBusy;
-  return /* @__PURE__ */ jsx_runtime29.jsxs("button", {
+  return /* @__PURE__ */ jsx_runtime30.jsxs("button", {
     type: "button",
     className: cn('group/chip ml-1 inline-flex [&_.icon]:size-[13px] h-[26px] min-w-[26px] shrink-0 cursor-pointer items-center gap-0 py-0 rounded-[7px] border border-transparent bg-transparent px-1.5 text-[0.75rem] font-medium text-muted-foreground transition-[background,border-color,color,gap] duration-150 ease-[ease] group-focus-within/card:text-card-foreground group-[:hover]/card:text-card-foreground focus-visible:gap-[5px] focus-visible:border-border focus-visible:bg-accent focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-1 focus-visible:outline-ring no-hover:gap-[5px] phone:relative phone:before:absolute phone:before:top-1/2 phone:before:left-1/2 phone:before:h-[max(100%,44px)] phone:before:w-[max(100%,44px)] phone:before:content-[""] phone:before:[transform:translate(-50%,-50%)]', !action.isDisabled && "[&:hover]:gap-[5px] [&:hover]:border-border [&:hover]:bg-accent [&:hover]:text-foreground", action.isDisabled && "cursor-not-allowed opacity-[0.42]", isOpen && "cursor-not-allowed gap-[5px] opacity-70"),
     title: action.title,
@@ -54429,10 +54893,10 @@ function AsideChip({ action }) {
     "aria-busy": action.isBusy ? "true" : undefined,
     onClick: () => void action.run?.(),
     children: [
-      /* @__PURE__ */ jsx_runtime29.jsx(Icon, {
+      /* @__PURE__ */ jsx_runtime30.jsx(Icon, {
         name: action.icon
       }),
-      /* @__PURE__ */ jsx_runtime29.jsx("span", {
+      /* @__PURE__ */ jsx_runtime30.jsx("span", {
         className: cn("max-w-0 overflow-hidden whitespace-nowrap transition-[max-width] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-focus-visible/chip:max-w-[80px] no-hover:max-w-[80px]", !action.isDisabled && "group-[:hover]/chip:max-w-[80px]", isOpen && "max-w-[100px] group-focus-visible/chip:max-w-[100px] group-[:hover]/chip:max-w-[100px] no-hover:max-w-[100px]"),
         children: action.label
       })
@@ -54460,19 +54924,19 @@ function CardMenu({
   children
 }) {
   const close = () => screen.closeMenu(cardKey, kind);
-  return /* @__PURE__ */ jsx_runtime29.jsxs(DropdownMenu, {
+  return /* @__PURE__ */ jsx_runtime30.jsxs(DropdownMenu, {
     open: menu === kind,
     modal: false,
     onOpenChange: (isOpen) => isOpen ? screen.openMenu(cardKey, kind, isCompact) : close(),
     children: [
       children,
-      /* @__PURE__ */ jsx_runtime29.jsxs(DropdownMenuContent, {
+      /* @__PURE__ */ jsx_runtime30.jsxs(DropdownMenuContent, {
         anchor,
         "aria-label": menuName(card, kind === "actions" ? "Actions of" : "Run options of"),
         finalFocus: finalFocus(trigger, cardKey, column),
         children: [
-          /* @__PURE__ */ jsx_runtime29.jsx(FirstFocus, {}),
-          /* @__PURE__ */ jsx_runtime29.jsx(Entries2, {
+          /* @__PURE__ */ jsx_runtime30.jsx(FirstFocus, {}),
+          /* @__PURE__ */ jsx_runtime30.jsx(Entries2, {
             list,
             close
           })
@@ -54503,7 +54967,7 @@ var OPEN = {
   stop: { idle: "open-288:hidden open-304:hidden", busy: "open-317:hidden open-333:hidden" },
   aside: { idle: "open-324:hidden open-340:hidden", busy: "open-353:hidden open-369:hidden" }
 };
-var Card2 = import_react31.memo(function Card2({
+var Card2 = import_react32.memo(function Card2({
   card,
   cardKey,
   column,
@@ -54521,11 +54985,11 @@ var Card2 = import_react31.memo(function Card2({
   failure,
   launch
 }) {
-  const node = import_react31.useRef(null);
-  const more = import_react31.useRef(null);
-  const runWith = import_react31.useRef(null);
-  const columnOf = import_react31.useRef(null);
-  import_react31.useEffect(() => {
+  const node = import_react32.useRef(null);
+  const more = import_react32.useRef(null);
+  const runWith = import_react32.useRef(null);
+  const columnOf = import_react32.useRef(null);
+  import_react32.useEffect(() => {
     const col = node.current?.closest(".col");
     columnOf.current = col ? columnId(col) : null;
   });
@@ -54535,17 +54999,17 @@ var Card2 = import_react31.memo(function Card2({
   const isWaiting = column === "waiting";
   const text = card.title || `Issue #${card.number}`;
   const Heading = level;
-  const title = /* @__PURE__ */ jsx_runtime29.jsx(Heading, {
+  const title = /* @__PURE__ */ jsx_runtime30.jsx(Heading, {
     className: cn("m-0 line-clamp-2 min-w-0 font-sans text-[0.875rem] leading-[1.38] font-semibold tracking-[-0.012em] text-pretty text-foreground [&_a:hover]:underline [&_a:hover]:decoration-border-strong [&_a:hover]:underline-offset-3", isCompact && "text-[0.8125rem] leading-[1.125rem] font-medium"),
     id: `t-${cardKey}`,
     title: text,
-    children: /* @__PURE__ */ jsx_runtime29.jsx(Link, {
+    children: /* @__PURE__ */ jsx_runtime30.jsx(Link, {
       className: "",
       url: card.url,
       children: text
     })
   });
-  const number = /* @__PURE__ */ jsx_runtime29.jsx(Num, {
+  const number = /* @__PURE__ */ jsx_runtime30.jsx(Num, {
     className: isCompact ? "flex-none" : undefined,
     url: card.url,
     children: `#${card.number}`
@@ -54553,11 +55017,11 @@ var Card2 = import_react31.memo(function Card2({
   const runs = runEntries(card);
   const hasTrigger = menu !== null && (menu.kind === "run" ? runs.length > 0 : menu.isCompact === isCompact);
   const open = hasTrigger ? menu.kind : null;
-  import_react31.useEffect(() => {
+  import_react32.useEffect(() => {
     if (menu !== null && !hasTrigger)
       screen.closeMenu(cardKey, menu.kind);
   });
-  const runMenu = runs.length === 0 ? null : /* @__PURE__ */ jsx_runtime29.jsx(CardMenu, {
+  const runMenu = runs.length === 0 ? null : /* @__PURE__ */ jsx_runtime30.jsx(CardMenu, {
     kind: "run",
     card,
     cardKey,
@@ -54567,7 +55031,7 @@ var Card2 = import_react31.memo(function Card2({
     trigger: runWith,
     column: columnOf,
     list: () => runEntries(card),
-    children: /* @__PURE__ */ jsx_runtime29.jsx(DropdownMenuTrigger, {
+    children: /* @__PURE__ */ jsx_runtime30.jsx(DropdownMenuTrigger, {
       ref: runWith,
       className: buttonVariants({
         variant: "icon",
@@ -54576,13 +55040,13 @@ var Card2 = import_react31.memo(function Card2({
       }),
       "aria-label": runs.includes("rule") ? "Run with another agent or at another level" : "Run with another agent",
       title: runs.includes("rule") ? "Run with another agent or at another level" : "Run with another agent",
-      children: /* @__PURE__ */ jsx_runtime29.jsx(Icon, {
+      children: /* @__PURE__ */ jsx_runtime30.jsx(Icon, {
         name: "chevron"
       })
     })
   });
   const isIconOnly = isPipeline && isCompact && main !== undefined && !main.isMain;
-  const mainButton = main ? /* @__PURE__ */ jsx_runtime29.jsx(ActionButton, {
+  const mainButton = main ? /* @__PURE__ */ jsx_runtime30.jsx(ActionButton, {
     card,
     action: main,
     isQuiet,
@@ -54596,35 +55060,35 @@ var Card2 = import_react31.memo(function Card2({
   const isNext = !card.state && Boolean(card.step);
   const className = cn("@container cursor-default", isCompact ? "compact flex-col grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-[5px] py-2.5 pr-2.5 pl-3" : "flex flex-col gap-2 px-3.5 py-3", "relative flex-none transition-[border-color,background-color] duration-150 ease-[ease]", lookOf(isSelected, isWaits, isPipeline && column === "needs", isWaiting), isHold && "w-[340px] phone:w-auto", isSelected && "is-selected", isUnseen && "is-unseen", column === "needs" && "is-needs");
   const warning = isCompact ? cn(WARNING, "col-[2/-1] mt-1.5 px-2 py-[5px]") : WARNING;
-  const body = isCompact ? /* @__PURE__ */ jsx_runtime29.jsxs(jsx_runtime29.Fragment, {
+  const body = isCompact ? /* @__PURE__ */ jsx_runtime30.jsxs(jsx_runtime30.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime29.jsx(Mark, {
+      /* @__PURE__ */ jsx_runtime30.jsx(Mark, {
         card,
         registry: env.registry
       }),
-      /* @__PURE__ */ jsx_runtime29.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime30.jsxs("div", {
         className: "contents",
         children: [
           title,
-          /* @__PURE__ */ jsx_runtime29.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime30.jsxs("div", {
             className: "col-[2/-1] flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 overflow-hidden font-mono text-[0.75rem] leading-[1.3] font-normal text-muted-foreground",
             children: [
               number,
-              card.type && card.type !== card.step && /* @__PURE__ */ jsx_runtime29.jsxs("span", {
+              card.type && card.type !== card.step && /* @__PURE__ */ jsx_runtime30.jsxs("span", {
                 className: "inline-flex flex-none gap-1.5 whitespace-nowrap cq-340:hidden",
                 children: [
-                  /* @__PURE__ */ jsx_runtime29.jsx("span", {
+                  /* @__PURE__ */ jsx_runtime30.jsx("span", {
                     className: "opacity-60",
                     children: "·"
                   }),
                   card.type
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime29.jsx("span", {
+              /* @__PURE__ */ jsx_runtime30.jsx("span", {
                 className: isNext ? "hidden flex-none whitespace-nowrap opacity-60" : "flex-none whitespace-nowrap opacity-60",
                 children: "·"
               }),
-              /* @__PURE__ */ jsx_runtime29.jsx(Status, {
+              /* @__PURE__ */ jsx_runtime30.jsx(Status, {
                 card,
                 env,
                 hasGlyph: card.state === "starts",
@@ -54634,72 +55098,72 @@ var Card2 = import_react31.memo(function Card2({
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime29.jsx(StartNote, {
+          /* @__PURE__ */ jsx_runtime30.jsx(StartNote, {
             card,
             failure,
             launch,
             isCompact: true
           }),
-          card.warning && /* @__PURE__ */ jsx_runtime29.jsx("p", {
+          card.warning && /* @__PURE__ */ jsx_runtime30.jsx("p", {
             className: warning,
             children: card.warning
           }),
-          aside && /* @__PURE__ */ jsx_runtime29.jsx("p", {
+          aside && /* @__PURE__ */ jsx_runtime30.jsx("p", {
             className: warning,
             children: aside
           }),
-          card.state === "held" && /* @__PURE__ */ jsx_runtime29.jsx("div", {
+          card.state === "held" && /* @__PURE__ */ jsx_runtime30.jsx("div", {
             className: "col-[2/-1] mt-1",
-            children: /* @__PURE__ */ jsx_runtime29.jsx(HeldPanel, {
+            children: /* @__PURE__ */ jsx_runtime30.jsx(HeldPanel, {
               card
             })
           })
         ]
       }),
-      mainButton && (runMenu ? /* @__PURE__ */ jsx_runtime29.jsxs("div", {
+      mainButton && (runMenu ? /* @__PURE__ */ jsx_runtime30.jsxs("div", {
         className: "inline-flex items-center gap-1.5 [grid-area:1/3] cq-259:justify-self-start cq-259:[grid-area:3/2]",
         children: [
           mainButton,
           runMenu
         ]
       }) : mainButton),
-      isUnseen && /* @__PURE__ */ jsx_runtime29.jsx(UnseenDot, {
+      isUnseen && /* @__PURE__ */ jsx_runtime30.jsx(UnseenDot, {
         className: "absolute top-[9px] left-[5px]"
       })
     ]
-  }) : /* @__PURE__ */ jsx_runtime29.jsxs(jsx_runtime29.Fragment, {
+  }) : /* @__PURE__ */ jsx_runtime30.jsxs(jsx_runtime30.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime29.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime30.jsxs("div", {
         className: "flex h-[18px] min-w-0 items-center gap-[7px] [&:not(:has(>[data-track]))>button:first-of-type]:ml-auto font-mono text-[0.71875rem] leading-none font-normal text-muted-foreground phone:min-h-8",
         children: [
-          isUnseen && /* @__PURE__ */ jsx_runtime29.jsx(UnseenDot, {}),
-          /* @__PURE__ */ jsx_runtime29.jsx(Mark, {
+          isUnseen && /* @__PURE__ */ jsx_runtime30.jsx(UnseenDot, {}),
+          /* @__PURE__ */ jsx_runtime30.jsx(Mark, {
             card,
             registry: env.registry,
             identifiedByText: Boolean(card.state)
           }),
           number,
-          card.type && /* @__PURE__ */ jsx_runtime29.jsxs(jsx_runtime29.Fragment, {
+          card.type && /* @__PURE__ */ jsx_runtime30.jsxs(jsx_runtime30.Fragment, {
             children: [
-              /* @__PURE__ */ jsx_runtime29.jsx("span", {
+              /* @__PURE__ */ jsx_runtime30.jsx("span", {
                 className: cn("opacity-60", hideOnOpen),
                 children: "·"
               }),
-              /* @__PURE__ */ jsx_runtime29.jsx("span", {
+              /* @__PURE__ */ jsx_runtime30.jsx("span", {
                 className: cn("min-w-0 overflow-hidden text-ellipsis whitespace-nowrap", hideOnOpen),
                 children: card.type
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime29.jsx(Track, {
+          /* @__PURE__ */ jsx_runtime30.jsx(Track, {
             card,
             flow: env.flow,
             isMuted: isWaiting
           }),
-          headAct && /* @__PURE__ */ jsx_runtime29.jsx(AsideChip, {
+          headAct && /* @__PURE__ */ jsx_runtime30.jsx(AsideChip, {
             action: headAct
           }),
-          /* @__PURE__ */ jsx_runtime29.jsx(DropdownMenuTrigger, {
+          /* @__PURE__ */ jsx_runtime30.jsx(DropdownMenuTrigger, {
             ref: more,
             className: buttonVariants({
               variant: "icon",
@@ -54708,51 +55172,51 @@ var Card2 = import_react31.memo(function Card2({
             }),
             "aria-label": "More actions (m)",
             title: "More actions (m)",
-            children: /* @__PURE__ */ jsx_runtime29.jsx(Icon, {
+            children: /* @__PURE__ */ jsx_runtime30.jsx(Icon, {
               name: "dots"
             })
           })
         ]
       }),
       title,
-      /* @__PURE__ */ jsx_runtime29.jsx(StartNote, {
+      /* @__PURE__ */ jsx_runtime30.jsx(StartNote, {
         card,
         failure,
         launch,
         isCompact: false
       }),
-      card.state === "works" && /* @__PURE__ */ jsx_runtime29.jsx(LiveLine, {
+      card.state === "works" && /* @__PURE__ */ jsx_runtime30.jsx(LiveLine, {
         card
       }),
-      /* @__PURE__ */ jsx_runtime29.jsx(PrChips, {
+      /* @__PURE__ */ jsx_runtime30.jsx(PrChips, {
         pr: card.pr
       }),
-      card.act && card.state !== "no-progress" && /* @__PURE__ */ jsx_runtime29.jsx(ActLine, {
+      card.act && card.state !== "no-progress" && /* @__PURE__ */ jsx_runtime30.jsx(ActLine, {
         card
       }),
-      card.warning && /* @__PURE__ */ jsx_runtime29.jsx("p", {
+      card.warning && /* @__PURE__ */ jsx_runtime30.jsx("p", {
         className: warning,
         children: card.warning
       }),
-      refusal && /* @__PURE__ */ jsx_runtime29.jsx("p", {
+      refusal && /* @__PURE__ */ jsx_runtime30.jsx("p", {
         className: warning,
         children: refusal
       }),
-      card.state === "held" && /* @__PURE__ */ jsx_runtime29.jsx(HeldPanel, {
+      card.state === "held" && /* @__PURE__ */ jsx_runtime30.jsx(HeldPanel, {
         card
       }),
-      /* @__PURE__ */ jsx_runtime29.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime30.jsxs("div", {
         className: "flex min-h-7 items-center justify-between gap-2.5 cq-360:flex-col cq-360:items-stretch",
         children: [
-          /* @__PURE__ */ jsx_runtime29.jsx(Status, {
+          /* @__PURE__ */ jsx_runtime30.jsx(Status, {
             card,
             env,
             isMuted: isWaiting
           }),
-          /* @__PURE__ */ jsx_runtime29.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime30.jsxs("div", {
             className: "flex flex-none items-center gap-2 cq-360:justify-end",
             children: [
-              card.state !== "starts" && /* @__PURE__ */ jsx_runtime29.jsx(Timed, {
+              card.state !== "starts" && /* @__PURE__ */ jsx_runtime30.jsx(Timed, {
                 iso: card.since,
                 isFine: Boolean(card.sessionId) && LIVE.has(card.state),
                 className: "mr-0.5 font-mono text-[0.71875rem] leading-none font-normal text-muted-foreground normal-nums cq-360:mr-auto"
@@ -54765,7 +55229,7 @@ var Card2 = import_react31.memo(function Card2({
       })
     ]
   });
-  return /* @__PURE__ */ jsx_runtime29.jsx(CardMenu, {
+  return /* @__PURE__ */ jsx_runtime30.jsx(CardMenu, {
     kind: "actions",
     card,
     cardKey,
@@ -54775,9 +55239,9 @@ var Card2 = import_react31.memo(function Card2({
     trigger: isCompact ? node : more,
     column: columnOf,
     list: () => menuOf(card, cardKey),
-    children: /* @__PURE__ */ jsx_runtime29.jsx(Card, {
+    children: /* @__PURE__ */ jsx_runtime30.jsx(Card, {
       inset: "none",
-      render: /* @__PURE__ */ jsx_runtime29.jsx("article", {}),
+      render: /* @__PURE__ */ jsx_runtime30.jsx("article", {}),
       ref: node,
       className: `card ${className}`,
       "data-state": card.state ?? "next",
@@ -54792,7 +55256,7 @@ var Card2 = import_react31.memo(function Card2({
 });
 
 // engine/board/page/operations/views.tsx
-var jsx_runtime30 = __toESM(require_jsx_runtime());
+var jsx_runtime31 = __toESM(require_jsx_runtime());
 var MENU = '[data-slot="dropdown-menu-content"]';
 document.documentElement.style.viewTransitionName = "root";
 var markOf = (active, menu) => {
@@ -54857,9 +55321,9 @@ var targetOf = (mark) => {
 };
 var handed = null;
 var useRescue = (menu) => {
-  const mark = import_react32.useRef(null);
+  const mark = import_react33.useRef(null);
   mark.current = markOf(document.activeElement, menu);
-  import_react32.useLayoutEffect(() => {
+  import_react33.useLayoutEffect(() => {
     const lost = mark.current ?? handed;
     handed = null;
     if (!lost || lost.node.isConnected && lost.node.checkVisibility() || screen.cause() === "quiet")
@@ -54871,7 +55335,7 @@ var useRescue = (menu) => {
       return;
     targetOf(lost)?.focus({ preventScroll: true });
   });
-  import_react32.useLayoutEffect(() => () => {
+  import_react33.useLayoutEffect(() => () => {
     handed = markOf(document.activeElement, null);
     queueMicrotask(() => {
       handed = null;
@@ -54904,22 +55368,22 @@ var measureOf = (columns, isPipeline) => {
 };
 var sameMeasure = (a, b) => a.isMeasured === b.isMeasured && a.text === b.text && a.fade === b.fade && a.below.size === b.below.size && [...a.below].every((key) => b.below.has(key));
 var useMeasure = (columns, isPipeline) => {
-  const [measure, setMeasure] = import_react32.useState(UNMEASURED);
+  const [measure, setMeasure] = import_react33.useState(UNMEASURED);
   const update = () => {
     if (!columns.current)
       return;
     const next = measureOf(columns.current, isPipeline);
     setMeasure((was) => sameMeasure(was, next) ? was : next);
   };
-  const latest = import_react32.useRef(update);
+  const latest = import_react33.useRef(update);
   latest.current = update;
-  const frame = import_react32.useRef(0);
-  const later = import_react32.useRef(() => {
+  const frame = import_react33.useRef(0);
+  const later = import_react33.useRef(() => {
     cancelAnimationFrame(frame.current);
     frame.current = requestAnimationFrame(() => latest.current());
   });
-  import_react32.useLayoutEffect(() => later.current());
-  import_react32.useEffect(() => {
+  import_react33.useLayoutEffect(() => later.current());
+  import_react33.useEffect(() => {
     const board = columns.current?.parentElement;
     const measureLater = later.current;
     board?.addEventListener("scroll", measureLater, true);
@@ -54948,30 +55412,30 @@ var BODY2 = {
 };
 var COL_NAME = "min-w-0 flex-1 font-sans text-[0.84375rem] leading-[1.125rem] font-semibold tracking-[-0.01em] text-foreground";
 var GHOSTS = ["h-[116px]", "h-[92px]", "h-[76px] opacity-60"];
-var glyph = (key, hasWaits = false) => /* @__PURE__ */ jsx_runtime30.jsx("span", {
+var glyph = (key, hasWaits = false) => /* @__PURE__ */ jsx_runtime31.jsx("span", {
   className: cn("grid size-[18px] flex-none place-items-center", GLYPH[key], hasWaits && "[&_.core]:origin-[8px_8px] [&_.core]:animate-breathe"),
-  children: /* @__PURE__ */ jsx_runtime30.jsx(Icon, {
+  children: /* @__PURE__ */ jsx_runtime31.jsx(Icon, {
     name: `col-${key}`
   })
 });
 function Skeleton({ isPipeline }) {
   const at = isPipeline ? "pipeline" : "now";
-  return COLUMNS.map(({ key, name }) => /* @__PURE__ */ jsx_runtime30.jsxs("section", {
+  return COLUMNS.map(({ key, name }) => /* @__PURE__ */ jsx_runtime31.jsxs("section", {
     className: `col col-${key} ${COL[at]}`,
     children: [
-      /* @__PURE__ */ jsx_runtime30.jsxs("header", {
+      /* @__PURE__ */ jsx_runtime31.jsxs("header", {
         className: HEAD2[at],
         children: [
           glyph(key),
-          /* @__PURE__ */ jsx_runtime30.jsx("h2", {
+          /* @__PURE__ */ jsx_runtime31.jsx("h2", {
             className: COL_NAME,
             children: name
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime30.jsx("div", {
+      /* @__PURE__ */ jsx_runtime31.jsx("div", {
         className: BODY2[at],
-        children: GHOSTS.map((size) => /* @__PURE__ */ jsx_runtime30.jsx("div", {
+        children: GHOSTS.map((size) => /* @__PURE__ */ jsx_runtime31.jsx("div", {
           className: `card @container relative flex flex-none animate-flow-fast cursor-default flex-col gap-2 rounded-xl border border-transparent px-3.5 py-3 transition-[border-color,background-color] duration-150 ease-[ease] [background:linear-gradient(100deg,var(--card)_40%,var(--card-hover)_50%,var(--card)_60%)_0_0/300%_100%] [box-shadow:none] ${size}`
         }, size))
       })
@@ -54988,42 +55452,42 @@ function HumanPill({
   const [go] = actionsOf(card);
   const isDialog = card.waitFor === "dialog";
   const isAlert = isTurn || isDialog;
-  return /* @__PURE__ */ jsx_runtime30.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime31.jsxs("div", {
     className: cn("human-pill inline-flex min-h-7 max-w-full min-w-0 items-center rounded-lg border shadow-raise phone:min-h-[46px]", isSelected ? "border-[color-mix(in_srgb,var(--focus)_70%,transparent)]" : isDialog ? "border-[color-mix(in_srgb,var(--needs-tint)_55%,transparent)]" : "border-border", isDialog ? "bg-[color-mix(in_srgb,var(--needs-tint)_8%,var(--card))]" : "bg-card [&:hover]:bg-card-hover"),
     "data-state": card.state ?? "",
     "data-wait": card.waitFor ?? "",
     "data-your-turn": isTurn ? "" : undefined,
     children: [
-      /* @__PURE__ */ jsx_runtime30.jsxs("button", {
+      /* @__PURE__ */ jsx_runtime31.jsxs("button", {
         type: "button",
         className: cn("inline-flex min-w-0 items-center gap-2 self-stretch rounded-l-lg border-0 bg-transparent py-0 pr-2 pl-[7px] font-sans text-[0.78125rem] leading-none font-medium whitespace-nowrap text-muted-foreground", isSelected && "is-selected"),
         "data-key": cardKey,
         title: "Show the details and the screen of this session",
         onClick: () => isSelected ? closeDetails(true) : openDetails(cardKey),
         children: [
-          /* @__PURE__ */ jsx_runtime30.jsx(Mark, {
+          /* @__PURE__ */ jsx_runtime31.jsx(Mark, {
             card,
             registry
           }),
-          /* @__PURE__ */ jsx_runtime30.jsx("span", {
+          /* @__PURE__ */ jsx_runtime31.jsx("span", {
             className: cn("max-w-[14em] shrink-0 overflow-hidden leading-[1.3] text-ellipsis text-foreground phone:min-w-0 phone:shrink", isTurn && "font-semibold"),
             children: card.title || "A session"
           }),
-          /* @__PURE__ */ jsx_runtime30.jsx("i", {
+          /* @__PURE__ */ jsx_runtime31.jsx("i", {
             className: cn("size-1.5 flex-none rounded-[50%]", isAlert ? "bg-needs" : card.state === "works" ? "bg-working" : "bg-muted-foreground")
           }),
-          /* @__PURE__ */ jsx_runtime30.jsx("span", {
+          /* @__PURE__ */ jsx_runtime31.jsx("span", {
             className: cn("min-w-0 flex-[0_100_auto] overflow-hidden text-ellipsis phone:flex-none", isAlert ? "text-needs" : card.state === "works" && "text-working"),
             children: isTurn ? "your turn" : stateLabel(card)
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime30.jsx(Timed, {
+      /* @__PURE__ */ jsx_runtime31.jsx(Timed, {
         iso: card.since,
         isFine: LIVE.has(card.state),
         className: "mr-1.5 flex-none font-mono text-[0.71875rem] leading-none font-normal text-muted-foreground normal-nums"
       }),
-      go && /* @__PURE__ */ jsx_runtime30.jsx(IconButton, {
+      go && /* @__PURE__ */ jsx_runtime31.jsx(IconButton, {
         name: "go",
         label: go.name,
         press: () => go.run?.(),
@@ -55035,25 +55499,25 @@ function HumanPill({
 var WAIT_PLACE = { column: "waiting", isCompact: true, level: "h4" };
 function WaitHead({ group }) {
   const [first, ...others] = group.blockers;
-  return /* @__PURE__ */ jsx_runtime30.jsxs("h3", {
+  return /* @__PURE__ */ jsx_runtime31.jsxs("h3", {
     className: "m-0 flex items-baseline gap-1.5 px-1 py-0.5 text-[0.78125rem] font-semibold text-foreground",
     children: [
-      first ? /* @__PURE__ */ jsx_runtime30.jsx("span", {
+      first ? /* @__PURE__ */ jsx_runtime31.jsx("span", {
         className: "flex-none font-mono font-medium text-muted-foreground",
         children: group.blockers.map((blocker) => blocker.ref).join(", ")
-      }) : /* @__PURE__ */ jsx_runtime30.jsx("span", {
+      }) : /* @__PURE__ */ jsx_runtime31.jsx("span", {
         className: "min-w-0 wrap-anywhere",
         children: "Deferred by you"
       }),
-      first && others.length === 0 && first.title && /* @__PURE__ */ jsx_runtime30.jsx("span", {
+      first && others.length === 0 && first.title && /* @__PURE__ */ jsx_runtime31.jsx("span", {
         className: "min-w-0 wrap-anywhere",
         children: first.title
       }),
-      /* @__PURE__ */ jsx_runtime30.jsxs("span", {
+      /* @__PURE__ */ jsx_runtime31.jsxs("span", {
         className: "ml-auto flex-none font-medium text-muted-foreground tabular-nums",
         children: [
           group.cards.length,
-          /* @__PURE__ */ jsx_runtime30.jsx("span", {
+          /* @__PURE__ */ jsx_runtime31.jsx("span", {
             className: "sr-only",
             children: group.cards.length === 1 ? " issue" : " issues"
           })
@@ -55068,45 +55532,45 @@ function WaitingRow({
   isOpen,
   render
 }) {
-  return /* @__PURE__ */ jsx_runtime30.jsxs("details", {
+  return /* @__PURE__ */ jsx_runtime31.jsxs("details", {
     className: "wait-fold mt-0.5 rounded-xl border border-border [&[open]>summary_.icon]:rotate-90",
     open: isOpen,
     onToggle: (event) => screen.setWaitingOpen(event.currentTarget.open),
     children: [
-      /* @__PURE__ */ jsx_runtime30.jsxs("summary", {
+      /* @__PURE__ */ jsx_runtime31.jsxs("summary", {
         className: "flex min-h-[38px] cursor-pointer list-none items-center gap-2 rounded-[11px] px-3 py-1.5 text-[0.78125rem] font-medium text-card-foreground hover:bg-[color-mix(in_srgb,var(--fg3)_10%,transparent)] hover:text-foreground phone:min-h-11 [&::-webkit-details-marker]:hidden [&_.icon]:size-[13px] [&_.icon]:flex-none [&_.icon]:transition-transform [&_.icon]:duration-150 [&_.icon]:ease-[ease]",
         children: [
-          /* @__PURE__ */ jsx_runtime30.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime31.jsx(Icon, {
             name: "chevron"
           }),
-          /* @__PURE__ */ jsx_runtime30.jsx("span", {
+          /* @__PURE__ */ jsx_runtime31.jsx("span", {
             children: "Waiting"
           }),
-          /* @__PURE__ */ jsx_runtime30.jsxs("span", {
+          /* @__PURE__ */ jsx_runtime31.jsxs("span", {
             className: "font-semibold tabular-nums",
             children: [
               count,
-              /* @__PURE__ */ jsx_runtime30.jsx("span", {
+              /* @__PURE__ */ jsx_runtime31.jsx("span", {
                 className: "sr-only",
                 children: count === 1 ? " issue" : " issues"
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime30.jsx("span", {
+          /* @__PURE__ */ jsx_runtime31.jsx("span", {
             className: "ml-auto font-normal text-muted-foreground",
             children: "No act from you now"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime30.jsx("div", {
+      /* @__PURE__ */ jsx_runtime31.jsx("div", {
         className: "flex flex-col gap-2.5 px-2 pt-1 pb-2.5",
-        children: groups.map((group) => /* @__PURE__ */ jsx_runtime30.jsxs("div", {
+        children: groups.map((group) => /* @__PURE__ */ jsx_runtime31.jsxs("div", {
           className: "flex flex-col gap-1.5",
           children: [
-            /* @__PURE__ */ jsx_runtime30.jsx(WaitHead, {
+            /* @__PURE__ */ jsx_runtime31.jsx(WaitHead, {
               group
             }),
-            /* @__PURE__ */ jsx_runtime30.jsx("div", {
+            /* @__PURE__ */ jsx_runtime31.jsx("div", {
               className: "ml-1.5 flex flex-col gap-2 border-l border-l-border-strong pl-3",
               children: group.cards.map(render)
             })
@@ -55117,7 +55581,7 @@ function WaitingRow({
   });
 }
 var cardAt = (target) => target instanceof Element ? target.closest(".card[data-key]") : null;
-var useColumnEvents = (columns) => import_react32.useEffect(() => {
+var useColumnEvents = (columns) => import_react33.useEffect(() => {
   const board = columns.current;
   if (!board)
     return;
@@ -55184,7 +55648,7 @@ var useEnv = (read) => {
   const next = read?.next ?? null;
   const starts = read?.starts ?? null;
   const tracker = read?.tracker ?? null;
-  return import_react32.useMemo(() => registry === undefined ? null : { registry, flow, auto, agents, noRun, record, next, starts, tracker }, [registry, flow, auto, agents, noRun, record, next, starts, tracker]);
+  return import_react33.useMemo(() => registry === undefined ? null : { registry, flow, auto, agents, noRun, record, next, starts, tracker }, [registry, flow, auto, agents, noRun, record, next, starts, tracker]);
 };
 function Board() {
   const shell = useShellStore((state) => state.shell);
@@ -55200,27 +55664,28 @@ function Board() {
   const menu = useScreen((state) => state.menu);
   const columnStops = useScreen((state) => state.columnStops);
   const waitingOpen = useScreen((state) => state.waitingOpen);
-  const columns = import_react32.useRef(null);
+  const columns = import_react33.useRef(null);
   const isPipeline = shell.tab === "pipeline";
   useRescue(menu);
   useColumnEvents(columns);
+  const prototype = usePrototypeState();
   const measure = useMeasure(columns, isPipeline);
   const env = useEnv(read);
   const live = read && screen.board();
-  const now = import_react32.useMemo(() => ({ read, board: live }), [read, live]);
-  const [shown, setShown] = import_react32.useState(now);
+  const now = import_react33.useMemo(() => ({ read, board: live }), [read, live]);
+  const [shown, setShown] = import_react33.useState(now);
   const isCalm = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const isHeld = shown.read !== read && shown.board !== null && live !== null && !document.hidden && !isCalm && (menu === null || screen.index().byKey.has(menu.key)) && layoutOf(shown.board, view()) !== layoutOf(live, view());
-  import_react32.useEffect(() => {
+  import_react33.useEffect(() => {
     if (shown === now)
       return;
     if (isHeld)
-      import_react32.startTransition(() => setShown(now));
+      import_react33.startTransition(() => setShown(now));
     else
       setShown(now);
   });
   const board = isHeld ? shown.board : live;
-  const heldIndex = import_react32.useMemo(() => isHeld && board ? indexCards(board, view()) : null, [isHeld, board]);
+  const heldIndex = import_react33.useMemo(() => isHeld && board ? indexCards(board, view()) : null, [isHeld, board]);
   useKeptScroll(() => {
     const root = columns.current?.parentElement;
     return root ? [root, ...root.querySelectorAll(".col-body")] : [];
@@ -55228,20 +55693,20 @@ function Board() {
   const boardCls = isPipeline ? "grid min-h-0 flex-1 grid-cols-[repeat(var(--stages),minmax(200px,1fr))] grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-x-auto px-2 [scroll-padding-inline:8px_56px] data-[fade]:[mask-image:linear-gradient(to_right,#000_calc(100%-56px),transparent)] phone:flex phone:gap-2.5" : "flex min-h-0 flex-none flex-col gap-1.5 overflow-visible";
   const humanCls = "flex flex-none flex-wrap items-center gap-1.5 rounded-xl border border-border bg-panel py-1.5 pr-2 pl-3 phone:p-2";
   if (!board || !env)
-    return /* @__PURE__ */ jsx_runtime30.jsxs(jsx_runtime30.Fragment, {
+    return /* @__PURE__ */ jsx_runtime31.jsxs(jsx_runtime31.Fragment, {
       children: [
-        /* @__PURE__ */ jsx_runtime30.jsx("section", {
+        /* @__PURE__ */ jsx_runtime31.jsx("section", {
           className: humanCls,
           id: "human",
           "aria-labelledby": "human-title",
           hidden: true
         }),
-        /* @__PURE__ */ jsx_runtime30.jsx("div", {
+        /* @__PURE__ */ jsx_runtime31.jsx("div", {
           ref: columns,
           className: boardCls,
           id: "columns",
           "aria-busy": "true",
-          children: /* @__PURE__ */ jsx_runtime30.jsx(Skeleton, {
+          children: /* @__PURE__ */ jsx_runtime31.jsx(Skeleton, {
             isPipeline
           })
         })
@@ -55258,10 +55723,10 @@ function Board() {
     const key = keyFor(card);
     const number = card.number;
     const has = (pressed) => pressed.has(number);
-    return /* @__PURE__ */ jsx_runtime30.jsx(import_react32.ViewTransition, {
+    return /* @__PURE__ */ jsx_runtime31.jsx(import_react33.ViewTransition, {
       name: key,
       default: isCalm ? "none" : "auto",
-      children: /* @__PURE__ */ jsx_runtime30.jsx(Card2, {
+      children: /* @__PURE__ */ jsx_runtime31.jsx(Card2, {
         card,
         cardKey: key,
         ...place,
@@ -55294,11 +55759,11 @@ function Board() {
     const isOpen = openEpics.has(epic.number);
     const hasHiddenUnseen = !isOpen && cards.some((card) => screen.isUnseen(keyFor(card)));
     const EPIC_MONO = "flex-none font-mono text-[0.75rem] leading-[1.125rem] font-normal text-muted-foreground";
-    return /* @__PURE__ */ jsx_runtime30.jsxs("div", {
+    return /* @__PURE__ */ jsx_runtime31.jsxs("div", {
       className: "epic-group flex flex-none flex-col gap-2",
       "data-epic": epic.number,
       children: [
-        /* @__PURE__ */ jsx_runtime30.jsxs("button", {
+        /* @__PURE__ */ jsx_runtime31.jsxs("button", {
           type: "button",
           className: cn("epic-row flex min-h-10 phone:min-h-11 w-full cursor-pointer items-start gap-2 rounded-xl border border-border bg-secondary px-3 py-2.5 text-left font-sans text-[0.8125rem] leading-[1.125rem] font-medium text-foreground transition-[border-color,background-color] duration-150 ease-[ease] [&:hover]:border-border-strong [&:hover]:bg-accent [&_.icon]:mt-px [&_.icon]:flex-none [&_.icon]:text-card-foreground [&_.icon]:[transition:transform_0.15s]", isOpen && "[&_.icon]:[transform:rotate(90deg)]"),
           tabIndex: group === stop ? 0 : -1,
@@ -55309,33 +55774,33 @@ function Board() {
           "aria-controls": id,
           onClick: () => screen.setEpicOpen(epic.number, !isOpen),
           children: [
-            /* @__PURE__ */ jsx_runtime30.jsx(Icon, {
+            /* @__PURE__ */ jsx_runtime31.jsx(Icon, {
               name: "chevron"
             }),
-            /* @__PURE__ */ jsx_runtime30.jsx("span", {
+            /* @__PURE__ */ jsx_runtime31.jsx("span", {
               className: EPIC_MONO,
               children: `#${epic.number}`
             }),
-            /* @__PURE__ */ jsx_runtime30.jsx("span", {
+            /* @__PURE__ */ jsx_runtime31.jsx("span", {
               className: "min-w-0 flex-1 [overflow-wrap:anywhere]",
               children: epic.title
             }),
-            /* @__PURE__ */ jsx_runtime30.jsxs("span", {
+            /* @__PURE__ */ jsx_runtime31.jsxs("span", {
               className: EPIC_MONO,
               children: [
                 cards.length,
-                /* @__PURE__ */ jsx_runtime30.jsx("span", {
+                /* @__PURE__ */ jsx_runtime31.jsx("span", {
                   className: "sr-only",
                   children: cards.length === 1 ? " issue" : " issues"
                 })
               ]
             }),
-            /* @__PURE__ */ jsx_runtime30.jsx(UnseenDot, {
+            /* @__PURE__ */ jsx_runtime31.jsx(UnseenDot, {
               className: hasHiddenUnseen ? "mt-[5px]" : "mt-[5px] hidden"
             })
           ]
         }),
-        /* @__PURE__ */ jsx_runtime30.jsx("div", {
+        /* @__PURE__ */ jsx_runtime31.jsx("div", {
           className: "epic-children ml-1.5 flex flex-col gap-2 border-l border-l-border-strong pl-3",
           id,
           hidden: !isOpen,
@@ -55351,6 +55816,7 @@ function Board() {
     const cards = board.columns[key];
     const id = `col-${key}`;
     const groups = key === "needs" ? groupNeeds(cards) : [];
+    const shownGroups = key === "needs" ? prototypeGroups(groups, prototype, { ...GROUPS.find((each) => each.key === "stuck"), cards: [] }) : groups;
     const items = key === "needs" ? groups.flatMap((each) => each.cards.map((card) => ({
       kind: "card",
       card,
@@ -55365,85 +55831,88 @@ function Board() {
     const held = key === "needs" ? waitGroups(waiting) : [];
     const heldItems = held.flatMap((group) => group.cards.map((card) => ({ kind: "card", card, place: WAIT_PLACE })));
     const stop = stopOf(id, waitingOpen ? [...items, ...heldItems] : items);
-    return /* @__PURE__ */ jsx_runtime30.jsxs("section", {
+    return /* @__PURE__ */ jsx_runtime31.jsxs("section", {
       className: `col col-${key} ${COL.now}`,
       id,
       "aria-labelledby": `h-${key}`,
       children: [
-        /* @__PURE__ */ jsx_runtime30.jsxs("header", {
+        /* @__PURE__ */ jsx_runtime31.jsxs("header", {
           className: HEAD2.now,
           title: note,
           children: [
             glyph(key, key === "needs" && cards.some((card) => card.state === "waits")),
-            /* @__PURE__ */ jsx_runtime30.jsx("h2", {
+            /* @__PURE__ */ jsx_runtime31.jsx("h2", {
               className: COL_NAME,
               id: `h-${key}`,
               children: name
             }),
-            /* @__PURE__ */ jsx_runtime30.jsx(Badge, {
+            /* @__PURE__ */ jsx_runtime31.jsx(Badge, {
               variant: "column",
               children: cards.length
             })
           ]
         }),
-        /* @__PURE__ */ jsx_runtime30.jsx("div", {
+        /* @__PURE__ */ jsx_runtime31.jsx("div", {
           className: `col-body ${BODY2.now}`,
-          children: cards.length === 0 && held.length === 0 ? /* @__PURE__ */ jsx_runtime30.jsxs("div", {
+          children: cards.length === 0 && held.length === 0 && prototype.fixture === null ? /* @__PURE__ */ jsx_runtime31.jsxs("div", {
             className: cn("empty mt-1 flex flex-col items-center gap-1 rounded-xl border px-5 py-8 text-center", key === "needs" ? "border-solid border-[color-mix(in_srgb,var(--ready)_25%,transparent)] bg-[color-mix(in_srgb,var(--ready)_5%,transparent)] [&_.icon]:text-ready" : "border-dashed border-border-strong [&_.icon]:text-muted-foreground", "[&_.icon]:mb-1.5 [&_.icon]:size-[22px]"),
             tabIndex: -1,
             children: [
-              /* @__PURE__ */ jsx_runtime30.jsx(Icon, {
+              /* @__PURE__ */ jsx_runtime31.jsx(Icon, {
                 name: key === "needs" ? "clear" : `col-${key}`
               }),
-              /* @__PURE__ */ jsx_runtime30.jsx("p", {
+              /* @__PURE__ */ jsx_runtime31.jsx("p", {
                 className: "m-0 font-sans text-[0.8125rem] leading-[1.4] font-semibold text-foreground",
                 children: emptyTitle
               }),
-              /* @__PURE__ */ jsx_runtime30.jsx("p", {
+              /* @__PURE__ */ jsx_runtime31.jsx("p", {
                 className: "m-0 max-w-[32ch] text-[0.75rem] leading-normal text-balance text-muted-foreground",
                 children: emptyText
               })
             ]
-          }) : key === "needs" ? /* @__PURE__ */ jsx_runtime30.jsxs(jsx_runtime30.Fragment, {
+          }) : key === "needs" ? /* @__PURE__ */ jsx_runtime31.jsxs(jsx_runtime31.Fragment, {
             children: [
-              cards.length === 0 && /* @__PURE__ */ jsx_runtime30.jsx("p", {
+              cards.length === 0 && prototype.fixture === null && /* @__PURE__ */ jsx_runtime31.jsx("p", {
                 className: "empty m-0 mt-1 rounded-xl border border-solid border-[color-mix(in_srgb,var(--ready)_25%,transparent)] bg-[color-mix(in_srgb,var(--ready)_5%,transparent)] px-3 py-2.5 text-[0.8125rem] font-semibold text-foreground",
                 tabIndex: -1,
                 children: emptyTitle
               }),
-              groups.map((each, at) => /* @__PURE__ */ jsx_runtime30.jsxs("div", {
+              shownGroups.map((each, at) => /* @__PURE__ */ jsx_runtime31.jsxs("div", {
                 className: cn("group flex flex-col gap-2", at > 0 && "mt-0.5"),
                 "data-group": each.key,
                 "data-short": each.short,
                 role: "group",
                 "aria-labelledby": `g-${each.key}`,
                 children: [
-                  /* @__PURE__ */ jsx_runtime30.jsxs("h3", {
+                  /* @__PURE__ */ jsx_runtime31.jsxs("h3", {
                     className: cn("sticky top-[30px] z-3 -mx-3 flex items-center gap-[7px] bg-panel px-4 pt-2.5 pb-2 text-[0.6875rem] leading-none font-semibold tracking-[0.07em] uppercase", each.key === "answer" ? "text-needs" : "text-muted-foreground"),
                     id: `g-${each.key}`,
                     children: [
-                      /* @__PURE__ */ jsx_runtime30.jsx("span", {
+                      /* @__PURE__ */ jsx_runtime31.jsx("span", {
                         children: each.label
                       }),
-                      /* @__PURE__ */ jsx_runtime30.jsx("span", {
+                      /* @__PURE__ */ jsx_runtime31.jsx("span", {
                         className: "font-medium tracking-[0] tabular-nums",
-                        children: each.cards.length
+                        children: each.cards.length + (each.key === "stuck" && prototype.fixture !== null ? 1 : 0)
                       })
                     ]
+                  }),
+                  each.key === "stuck" && prototype.fixture !== null && /* @__PURE__ */ jsx_runtime31.jsx(PrototypeFailedCard, {
+                    state: prototype
                   }),
                   each.cards.map((card) => cardOf(card, { column: "needs", isCompact: each.isCompact, level: "h4" }, stop))
                 ]
               }, each.key)),
-              held.length > 0 && /* @__PURE__ */ jsx_runtime30.jsx(WaitingRow, {
+              held.length > 0 && /* @__PURE__ */ jsx_runtime31.jsx(WaitingRow, {
                 groups: held,
                 count: waiting.length,
                 isOpen: waitingOpen,
                 render: (card) => cardOf(card, WAIT_PLACE, waitingOpen ? stop : undefined)
               }),
-              /* @__PURE__ */ jsx_runtime30.jsx("div", {
+              /* @__PURE__ */ jsx_runtime31.jsx("div", {
                 className: "tail-wrap sticky bottom-0 z-3 -mx-3 bg-[linear-gradient(to_bottom,transparent,var(--panel)_35%)] px-3 pt-2.5 pb-3",
                 hidden: measure.text === "",
-                children: /* @__PURE__ */ jsx_runtime30.jsxs("button", {
+                children: /* @__PURE__ */ jsx_runtime31.jsxs("button", {
                   type: "button",
                   className: "tail flex min-h-[34px] w-full items-center justify-center gap-2 rounded-lg border border-border-strong bg-card font-sans text-[0.78125rem] leading-none font-medium text-card-foreground shadow-raise [&:hover]:border-[color-mix(in_srgb,var(--fg3)_60%,transparent)] [&:hover]:text-foreground [&_.icon]:size-[13px] [&_.icon]:[transform:rotate(90deg)]",
                   onClick: () => {
@@ -55455,10 +55924,10 @@ function Board() {
                     first?.focus({ preventScroll: true });
                   },
                   children: [
-                    /* @__PURE__ */ jsx_runtime30.jsx(Icon, {
+                    /* @__PURE__ */ jsx_runtime31.jsx(Icon, {
                       name: "chevron"
                     }),
-                    /* @__PURE__ */ jsx_runtime30.jsx("span", {
+                    /* @__PURE__ */ jsx_runtime31.jsx("span", {
                       children: measure.text
                     })
                   ]
@@ -55486,16 +55955,16 @@ function Board() {
     }));
     const holdStop = stopOf("hold-title", holdItems);
     return [
-      hold.length > 0 && /* @__PURE__ */ jsx_runtime30.jsxs("section", {
+      hold.length > 0 && /* @__PURE__ */ jsx_runtime31.jsxs("section", {
         className: "col col-span-full flex min-h-0 min-w-0 flex-row items-center gap-3 rounded-3xl border border-border bg-panel py-2 pr-2.5 pl-4 phone:w-[min(300px,80vw)] phone:flex-none phone:flex-col phone:items-stretch",
         "aria-labelledby": "hold-title",
         children: [
-          /* @__PURE__ */ jsx_runtime30.jsx("h2", {
+          /* @__PURE__ */ jsx_runtime31.jsx("h2", {
             className: HOLD_LABEL,
             id: "hold-title",
             children: "Not in a step"
           }),
-          /* @__PURE__ */ jsx_runtime30.jsx("div", {
+          /* @__PURE__ */ jsx_runtime31.jsx("div", {
             className: "flex min-w-0 gap-2 overflow-x-auto p-0.5 phone:flex-col phone:overflow-x-hidden phone:overflow-y-auto",
             children: holdItems.map((item) => itemOf(item, holdStop))
           })
@@ -55510,28 +55979,28 @@ function Board() {
           place: placeOf(item.cards[0])
         } : { kind: "card", card: item.card, place: placeOf(item.card) });
         const stop = stopOf(`s-${stage.key}`, items);
-        return /* @__PURE__ */ jsx_runtime30.jsxs("section", {
+        return /* @__PURE__ */ jsx_runtime31.jsxs("section", {
           className: `col ${COL.pipeline}`,
           "aria-labelledby": `s-${stage.key}`,
           children: [
-            /* @__PURE__ */ jsx_runtime30.jsxs("header", {
+            /* @__PURE__ */ jsx_runtime31.jsxs("header", {
               className: HEAD2.pipeline,
               title: stage.steps.join(", "),
               children: [
-                /* @__PURE__ */ jsx_runtime30.jsx("h2", {
+                /* @__PURE__ */ jsx_runtime31.jsx("h2", {
                   className: COL_NAME,
                   id: `s-${stage.key}`,
                   children: stage.name
                 }),
-                /* @__PURE__ */ jsx_runtime30.jsx(Badge, {
+                /* @__PURE__ */ jsx_runtime31.jsx(Badge, {
                   variant: "column",
                   children: stage.cards.length
                 })
               ]
             }),
-            /* @__PURE__ */ jsx_runtime30.jsx("div", {
+            /* @__PURE__ */ jsx_runtime31.jsx("div", {
               className: `col-body ${BODY2.pipeline}`,
-              children: stage.cards.length ? items.map((item) => itemOf(item, stop)) : /* @__PURE__ */ jsx_runtime30.jsx("p", {
+              children: stage.cards.length ? items.map((item) => itemOf(item, stop)) : /* @__PURE__ */ jsx_runtime31.jsx("p", {
                 className: "mx-0.5 my-1 rounded-xl border border-dashed border-border-strong p-3.5 text-center text-[0.75rem] text-muted-foreground",
                 children: "No issue at this step"
               })
@@ -55541,22 +56010,22 @@ function Board() {
       })
     ];
   };
-  return /* @__PURE__ */ jsx_runtime30.jsxs(jsx_runtime30.Fragment, {
+  return /* @__PURE__ */ jsx_runtime31.jsxs(jsx_runtime31.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime30.jsxs("section", {
+      /* @__PURE__ */ jsx_runtime31.jsxs("section", {
         className: humanCls,
         id: "human",
         "aria-labelledby": "human-title",
         hidden: human.length === 0,
         children: [
-          human.length > 0 && /* @__PURE__ */ jsx_runtime30.jsx("h2", {
+          human.length > 0 && /* @__PURE__ */ jsx_runtime31.jsx("h2", {
             className: `${HOLD_LABEL} mr-1.5 phone:my-0.5 phone:mr-0 phone:ml-1.5 phone:basis-full`,
             id: "human-title",
             children: "Human sessions"
           }),
           human.map((card) => {
             const key = keyFor(card);
-            return /* @__PURE__ */ jsx_runtime30.jsx(HumanPill, {
+            return /* @__PURE__ */ jsx_runtime31.jsx(HumanPill, {
               card,
               cardKey: key,
               isSelected: key === shell.details,
@@ -55565,7 +56034,7 @@ function Board() {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime30.jsx("div", {
+      /* @__PURE__ */ jsx_runtime31.jsx("div", {
         ref: columns,
         className: boardCls,
         id: "columns",
@@ -55580,7 +56049,7 @@ function Board() {
 }
 
 // engine/board/page/operations/operations.tsx
-var jsx_runtime31 = __toESM(require_jsx_runtime());
+var jsx_runtime32 = __toESM(require_jsx_runtime());
 var NAMES = { agents: "Agents", pipeline: "Pipeline", queue: "Queue", history: "History" };
 var CONTROLS = { agents: "tp-board", pipeline: "tp-board", history: "history-pane" };
 function Operations() {
@@ -55588,48 +56057,49 @@ function Operations() {
   const isPhone = useShellStore((state) => state.isPhone);
   const agents = useShellStore((state) => state.inputs.badges.agents);
   const queueCount = useShellStore((state) => state.inputs.queueCount);
-  return /* @__PURE__ */ jsx_runtime31.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime32.jsxs("div", {
     className: "group/ops grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_clamp(360px,30vw,452px)] grid-rows-[minmax(0,1fr)] gap-3.5 phone:grid-cols-[minmax(0,1fr)] min-[720px]:data-[tab=pipeline]:grid-cols-[minmax(0,1fr)] min-[720px]:data-[tab=pipeline]:data-[details]:grid-cols-[minmax(0,1fr)_clamp(360px,30vw,452px)]",
     id: "area-operations",
     "data-tab": tab,
     "data-pane": pane,
     "data-details": details === null ? undefined : "",
     children: [
-      /* @__PURE__ */ jsx_runtime31.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime32.jsxs("div", {
         className: "flex min-h-0 min-w-0 flex-col phone:group-data-[pane=agents]/ops:hidden min-[720px]:group-data-[tab=pipeline]/ops:contents min-[720px]:group-data-[tab=pipeline]/ops:[&>.coordinator]:hidden [&>.coordinator]:flex-1",
         id: "center",
         children: [
-          /* @__PURE__ */ jsx_runtime31.jsx(CoordinatorPanel, {}),
-          /* @__PURE__ */ jsx_runtime31.jsx(Panel, {})
+          /* @__PURE__ */ jsx_runtime32.jsx(CoordinatorPanel, {}),
+          /* @__PURE__ */ jsx_runtime32.jsx(Panel, {}),
+          /* @__PURE__ */ jsx_runtime32.jsx(PrototypePanel, {})
         ]
       }),
-      /* @__PURE__ */ jsx_runtime31.jsxs(Tabs, {
+      /* @__PURE__ */ jsx_runtime32.jsxs(Tabs, {
         value: tab,
         onValueChange: (value) => {
           const next = TABS.find((each) => each === value);
           if (next)
             setTab(next);
         },
-        render: /* @__PURE__ */ jsx_runtime31.jsx("section", {}),
+        render: /* @__PURE__ */ jsx_runtime32.jsx("section", {}),
         className: "min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-border bg-panel phone:group-data-[pane=chat]/ops:hidden min-[720px]:group-data-[tab=pipeline]/ops:[grid-area:1/1]",
         id: "pane",
         "aria-label": "Work views",
         tabIndex: -1,
         children: [
-          /* @__PURE__ */ jsx_runtime31.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime32.jsxs("div", {
             className: "flex min-h-12 flex-none items-center gap-2 border-b border-border px-2.5 py-2 phone:p-1.5",
             children: [
-              /* @__PURE__ */ jsx_runtime31.jsx("div", {
+              /* @__PURE__ */ jsx_runtime32.jsx("div", {
                 className: "contents",
                 hidden: tab !== "pipeline" || isPhone,
-                children: /* @__PURE__ */ jsx_runtime31.jsx(ChatButton, {})
+                children: /* @__PURE__ */ jsx_runtime32.jsx(ChatButton, {})
               }),
-              /* @__PURE__ */ jsx_runtime31.jsx(TabsList2, {
+              /* @__PURE__ */ jsx_runtime32.jsx(TabsList2, {
                 activateOnFocus: true,
                 loopFocus: true,
                 id: "tabs",
                 "aria-label": "Work views",
-                children: TABS.map((each) => /* @__PURE__ */ jsx_runtime31.jsxs(TabsTrigger, {
+                children: TABS.map((each) => /* @__PURE__ */ jsx_runtime32.jsxs(TabsTrigger, {
                   value: each,
                   id: `tab-${each}`,
                   "data-tab": each,
@@ -55637,11 +56107,11 @@ function Operations() {
                   ...CONTROLS[each] ? { "aria-controls": CONTROLS[each] } : {},
                   "aria-label": each === "agents" ? agents === 0 ? "Agents" : `Agents, ${agents} need you` : undefined,
                   children: [
-                    /* @__PURE__ */ jsx_runtime31.jsx("span", {
+                    /* @__PURE__ */ jsx_runtime32.jsx("span", {
                       className: "label",
                       children: each === "queue" && queueCount > 0 ? `Queue ${queueCount}` : NAMES[each]
                     }),
-                    each === "agents" && /* @__PURE__ */ jsx_runtime31.jsx(Badge, {
+                    each === "agents" && /* @__PURE__ */ jsx_runtime32.jsx(Badge, {
                       variant: "tab",
                       id: "agents-badge",
                       hidden: agents === 0,
@@ -55652,58 +56122,59 @@ function Operations() {
               })
             ]
           }),
-          (tab === "agents" || tab === "pipeline") && /* @__PURE__ */ jsx_runtime31.jsx("div", {
+          (tab === "agents" || tab === "pipeline") && /* @__PURE__ */ jsx_runtime32.jsx("div", {
             className: `flex min-h-0 flex-1 flex-col gap-2.5 px-2.5 pt-2.5 phone:scroll-pb-[calc(var(--dock)+8px)] ${tab === "pipeline" ? "overflow-hidden pb-2.5" : "overflow-y-auto pb-0"}`,
             id: "tp-board",
             role: "tabpanel",
             "aria-labelledby": `tab-${tab}`,
-            children: /* @__PURE__ */ jsx_runtime31.jsx(Board, {})
+            children: /* @__PURE__ */ jsx_runtime32.jsx(Board, {})
           }, tab),
-          /* @__PURE__ */ jsx_runtime31.jsx(TabsContent, {
+          /* @__PURE__ */ jsx_runtime32.jsx(TabsContent, {
             value: "queue",
             tabIndex: undefined,
             className: "flex min-h-0 flex-1 flex-col",
-            children: /* @__PURE__ */ jsx_runtime31.jsx(Queue, {})
+            children: /* @__PURE__ */ jsx_runtime32.jsx(Queue, {})
           }),
-          /* @__PURE__ */ jsx_runtime31.jsx(History, {})
+          /* @__PURE__ */ jsx_runtime32.jsx(History, {})
         ]
-      })
+      }),
+      /* @__PURE__ */ jsx_runtime32.jsx(PrototypeBar, {})
     ]
   });
 }
 
 // engine/board/page/ui/sidebar.tsx
-var jsx_runtime32 = __toESM(require_jsx_runtime());
+var jsx_runtime33 = __toESM(require_jsx_runtime());
 function Sidebar({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime32.jsx("nav", {
+  return /* @__PURE__ */ jsx_runtime33.jsx("nav", {
     "data-slot": "sidebar",
     className: cn("col-start-1 row-start-1 flex min-h-0 flex-col gap-1.5 overflow-y-auto border-r border-border bg-background px-2.5 pt-3 pb-2.5", "rail:px-2 rail:pt-2.5 rail:pb-2", "phone:min-h-14 phone:flex-row phone:items-center phone:gap-2 phone:overflow-visible phone:border-r-0 phone:border-b phone:px-4 phone:py-1.5", className),
     ...props
   });
 }
 function SidebarHeader({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime32.jsx("div", {
+  return /* @__PURE__ */ jsx_runtime33.jsx("div", {
     "data-slot": "sidebar-header",
     className: cn("mb-1.5 flex min-h-9 min-w-0 items-center gap-2.5 px-1.5", "rail:min-h-0 rail:flex-col rail:gap-1.5 rail:px-0 rail:pt-0.5 rail:pb-1", "phone:m-0 phone:min-h-0 phone:flex-1 phone:p-0", className),
     ...props
   });
 }
 function SidebarFooter({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime32.jsx("div", {
+  return /* @__PURE__ */ jsx_runtime33.jsx("div", {
     "data-slot": "sidebar-footer",
     className: cn("mt-auto flex flex-col items-stretch gap-0.5 border-t border-border px-0.5 pt-2.5 text-xs text-muted-foreground rail:hidden phone:hidden", className),
     ...props
   });
 }
 function SidebarMenu({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime32.jsx("ul", {
+  return /* @__PURE__ */ jsx_runtime33.jsx("ul", {
     "data-slot": "sidebar-menu",
     className: cn("m-0 mt-2 flex min-h-[calc(11px+2*34px+2px)] list-none flex-col gap-0.5 overflow-y-auto border-t border-border p-0 pt-2.5", "rail:min-h-[calc(11px+2*50px+2px)] phone:hidden", className),
     ...props
   });
 }
 function SidebarMenuItem({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime32.jsx("li", {
+  return /* @__PURE__ */ jsx_runtime33.jsx("li", {
     "data-slot": "sidebar-menu-item",
     className: cn("relative", className),
     ...props
@@ -55724,25 +56195,25 @@ function SidebarMenuButton({ className, render, ...props }) {
 var AREA_SCREEN = "min-h-0 flex-1 grid rounded-3xl border border-border bg-panel";
 
 // engine/board/page/app/control.tsx
-var import_react35 = __toESM(require_react());
+var import_react36 = __toESM(require_react());
 
 // engine/board/page/agents/agents.tsx
-var import_react34 = __toESM(require_react());
+var import_react35 = __toESM(require_react());
 var import_react_dom6 = __toESM(require_react_dom());
 
 // engine/board/page/agents/drag.ts
-var import_react33 = __toESM(require_react());
+var import_react34 = __toESM(require_react());
 var THRESHOLD = 4;
 function useHandleDrag({
   list,
   marker,
   preview
 }) {
-  const [dragging, setDragging] = import_react33.useState(null);
-  const press = import_react33.useRef(null);
-  const top = import_react33.useRef(0);
-  const suppressClick = import_react33.useRef(false);
-  const clear = import_react33.useCallback(() => {
+  const [dragging, setDragging] = import_react34.useState(null);
+  const press = import_react34.useRef(null);
+  const top = import_react34.useRef(0);
+  const suppressClick = import_react34.useRef(false);
+  const clear = import_react34.useCallback(() => {
     const current = press.current;
     if (!current)
       return;
@@ -55753,11 +56224,11 @@ function useHandleDrag({
       current.handle.releasePointerCapture(current.pointer);
     setDragging(null);
   }, [marker]);
-  import_react33.useEffect(() => () => {
+  import_react34.useEffect(() => () => {
     agentStore.setDrag(null);
     clear();
   }, [clear]);
-  import_react33.useEffect(() => {
+  import_react34.useEffect(() => {
     const onPress = ({ target }) => {
       if (target instanceof Node && list.current?.contains(target))
         suppressClick.current = false;
@@ -55765,7 +56236,7 @@ function useHandleDrag({
     addEventListener("pointerdown", onPress, true);
     return () => removeEventListener("pointerdown", onPress, true);
   }, [list]);
-  import_react33.useLayoutEffect(() => {
+  import_react34.useLayoutEffect(() => {
     const current = press.current;
     const node = preview.current;
     if (dragging === null || !current || !node)
@@ -55872,7 +56343,7 @@ function useHandleDrag({
 }
 
 // engine/board/page/agents/agents.tsx
-var jsx_runtime33 = __toESM(require_jsx_runtime());
+var jsx_runtime34 = __toESM(require_jsx_runtime());
 var ROOT2 = "group/order relative font-sans text-[0.8125rem] leading-[1.4] font-normal whitespace-normal text-foreground data-[dragging]:cursor-grabbing";
 var HANDLE = "grid h-7 w-6 flex-none cursor-grab touch-none place-items-center rounded-sm border-0 bg-transparent text-muted-foreground group-data-[dragging]/order:cursor-grabbing aria-disabled:cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ring phone:min-h-11 phone:min-w-11 [&:hover]:bg-accent [&:hover]:text-foreground";
 var ROW3 = "flex min-h-10 items-center gap-2.5 rounded-lg py-1 pr-2 pl-1 select-none phone:min-h-12";
@@ -55885,11 +56356,11 @@ var keyOf2 = (node) => {
   return node.dataset.wait ? `wait:${node.dataset.wait}` : null;
 };
 var handleOf = (root, host) => host ? root?.querySelector(`[data-host="${host}"] [data-handle]`) ?? null : null;
-var Grip = () => /* @__PURE__ */ jsx_runtime33.jsx("svg", {
+var Grip = () => /* @__PURE__ */ jsx_runtime34.jsx("svg", {
   className: "h-3.5 w-2.5",
   viewBox: "0 0 10 14",
   "aria-hidden": "true",
-  children: GRIP.map(({ cx, cy }) => /* @__PURE__ */ jsx_runtime33.jsx("circle", {
+  children: GRIP.map(({ cx, cy }) => /* @__PURE__ */ jsx_runtime34.jsx("circle", {
     cx,
     cy,
     r: "1.3",
@@ -55897,32 +56368,32 @@ var Grip = () => /* @__PURE__ */ jsx_runtime33.jsx("svg", {
   }, `${cx}-${cy}`))
 });
 function RowBody({ host, rank, name, detail }) {
-  return /* @__PURE__ */ jsx_runtime33.jsxs(jsx_runtime33.Fragment, {
+  return /* @__PURE__ */ jsx_runtime34.jsxs(jsx_runtime34.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime33.jsx("span", {
+      /* @__PURE__ */ jsx_runtime34.jsx("span", {
         className: "w-3.5 text-right text-[0.75rem] text-muted-foreground tabular-nums",
         children: rank === null ? "–" : rank
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx("span", {
+      /* @__PURE__ */ jsx_runtime34.jsx("span", {
         className: "relative grid size-[18px] flex-none place-items-center rounded-[50%] bg-panel [box-shadow:0_0_0_2px_transparent] group-data-[excluded]/row:grayscale",
-        children: /* @__PURE__ */ jsx_runtime33.jsx("img", {
+        children: /* @__PURE__ */ jsx_runtime34.jsx("img", {
           className: "block size-3",
           src: AGENT_ICONS[host],
           alt: ""
         })
       }),
-      /* @__PURE__ */ jsx_runtime33.jsxs("span", {
+      /* @__PURE__ */ jsx_runtime34.jsxs("span", {
         className: "min-w-0 flex-1 group-data-[excluded]/row:text-card-foreground",
         children: [
           name,
-          /* @__PURE__ */ jsx_runtime33.jsx("small", {
+          /* @__PURE__ */ jsx_runtime34.jsx("small", {
             className: "line-clamp-2 text-[0.75rem] leading-[1.25] wrap-anywhere text-muted-foreground",
             title: detail,
             children: detail
           })
         ]
       }),
-      rank === 1 && /* @__PURE__ */ jsx_runtime33.jsx("span", {
+      rank === 1 && /* @__PURE__ */ jsx_runtime34.jsx("span", {
         className: "flex-none rounded-[999px] bg-accent px-[7px] py-px text-[0.6875rem] text-card-foreground",
         children: "First"
       })
@@ -55930,14 +56401,14 @@ function RowBody({ host, rank, name, detail }) {
   });
 }
 function WaitLine({ wait, isBusy }) {
-  return /* @__PURE__ */ jsx_runtime33.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime34.jsxs("div", {
     className: "mx-2.5 my-1.5",
     children: [
-      /* @__PURE__ */ jsx_runtime33.jsx("p", {
+      /* @__PURE__ */ jsx_runtime34.jsx("p", {
         className: "mx-0 mt-0 mb-1.5 text-[0.75rem] text-card-foreground",
         children: `#${wait.number} is paused: every included agent reached a usage limit. ${wait.nextResetAt === null ? "No reset time is known." : `It tries again at ${agentStore.resetText(wait.nextResetAt).replace("resets ", "")}.`}`
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx(Button2, {
+      /* @__PURE__ */ jsx_runtime34.jsx(Button2, {
         variant: "secondary",
         size: "action",
         className: "phone:min-h-11 active:scale-none active:[transform:scale(0.97)]",
@@ -55951,24 +56422,24 @@ function WaitLine({ wait, isBusy }) {
   });
 }
 function AgentOrderBody() {
-  const root = import_react34.useRef(null);
-  const list = import_react34.useRef(null);
-  const marker = import_react34.useRef(null);
-  const preview = import_react34.useRef(null);
+  const root = import_react35.useRef(null);
+  const list = import_react35.useRef(null);
+  const marker = import_react35.useRef(null);
+  const preview = import_react35.useRef(null);
   const drag = useHandleDrag({ list, marker, preview });
   const focused = useFocusedKey(root, keyOf2);
-  const pressedWith = import_react34.useRef(null);
-  const lastHost = import_react34.useRef(null);
-  const wasOutsidePress = import_react34.useRef(false);
-  const knownNames = import_react34.useRef(new Map);
-  const drawnToggle = import_react34.useRef({ host: null, isIncluded: false });
+  const pressedWith = import_react35.useRef(null);
+  const lastHost = import_react35.useRef(null);
+  const wasOutsidePress = import_react35.useRef(false);
+  const knownNames = import_react35.useRef(new Map);
+  const drawnToggle = import_react35.useRef({ host: null, isIncluded: false });
   const shown = useAgents((state) => state.shown);
   const live = useAgents((state) => state.live);
   const menuFor = useAgents((state) => state.menuFor);
   if (menuFor)
     lastHost.current = menuFor;
   const anchorHost = menuFor ?? lastHost.current;
-  const rows = import_react34.useMemo(() => shown ? [
+  const rows = import_react35.useMemo(() => shown ? [
     ...shown.order.map((host, at) => ({ host, rank: at + 1 })),
     ...shown.excluded.map((host) => ({ host, rank: null }))
   ].map((row) => {
@@ -55976,7 +56447,7 @@ function AgentOrderBody() {
     knownNames.current.set(row.host, name);
     return { ...row, name, detail: agentStore.detail(row.host) };
   }) : [], [shown]);
-  import_react34.useEffect(() => {
+  import_react35.useEffect(() => {
     const onPress = ({ target }) => {
       const handle = target instanceof Element ? target.closest("[data-handle]") : null;
       pressedWith.current = handle && root.current?.contains(handle) ? agentStore.get().menuFor : null;
@@ -55984,7 +56455,7 @@ function AgentOrderBody() {
     addEventListener("pointerdown", onPress, true);
     return () => removeEventListener("pointerdown", onPress, true);
   }, []);
-  import_react34.useLayoutEffect(() => {
+  import_react35.useLayoutEffect(() => {
     const section = root.current;
     const key = focused.current;
     if (!section || key === null)
@@ -55998,7 +56469,7 @@ function AgentOrderBody() {
     (control ?? section.querySelector("[data-handle]"))?.focus({ preventScroll: true });
   });
   const isIncluded = Boolean(menuFor && shown?.order.includes(menuFor));
-  import_react34.useEffect(() => {
+  import_react35.useEffect(() => {
     const was = drawnToggle.current;
     drawnToggle.current = { host: menuFor, isIncluded };
     if (!menuFor || was.host !== menuFor || was.isIncluded === isIncluded)
@@ -56009,7 +56480,7 @@ function AgentOrderBody() {
       items[0]?.focus({ preventScroll: true });
   }, [menuFor, isIncluded]);
   const ghost = drag.dragging ? rows.find((row) => row.host === drag.dragging) : undefined;
-  const anchor = import_react34.useCallback(() => handleOf(root.current, anchorHost), [anchorHost]);
+  const anchor = import_react35.useCallback(() => handleOf(root.current, anchorHost), [anchorHost]);
   const finalFocus = () => {
     const wasOutside = wasOutsidePress.current;
     wasOutsidePress.current = false;
@@ -56068,29 +56539,29 @@ function AgentOrderBody() {
     import_react_dom6.flushSync(() => agentStore.closeMenu());
     handle?.focus();
   };
-  return /* @__PURE__ */ jsx_runtime33.jsxs(jsx_runtime33.Fragment, {
+  return /* @__PURE__ */ jsx_runtime34.jsxs(jsx_runtime34.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime33.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime34.jsxs("div", {
         ref: root,
         className: ROOT2,
         "data-dragging": drag.dragging ? "" : undefined,
         id: "agent-picker",
         onKeyDown: onRootKey,
         children: [
-          shown ? /* @__PURE__ */ jsx_runtime33.jsxs(jsx_runtime33.Fragment, {
+          shown ? /* @__PURE__ */ jsx_runtime34.jsxs(jsx_runtime34.Fragment, {
             children: [
-              /* @__PURE__ */ jsx_runtime33.jsx("ol", {
+              /* @__PURE__ */ jsx_runtime34.jsx("ol", {
                 ref: list,
                 className: "relative m-0 list-none px-0 py-0.5",
                 "aria-label": "Agents in priority order",
                 "aria-busy": shown.isSaving,
-                children: rows.map(({ host, rank, name, detail }, index) => /* @__PURE__ */ jsx_runtime33.jsxs("li", {
+                children: rows.map(({ host, rank, name, detail }, index) => /* @__PURE__ */ jsx_runtime34.jsxs("li", {
                   className: `${index > 0 ? "mt-0.5" : ""} group/row relative ${ROW3} [&:hover]:bg-secondary data-[dragging]:opacity-40`,
                   "data-host": host,
                   "data-excluded": rank === null ? "" : undefined,
                   "data-dragging": drag.dragging === host ? "" : undefined,
                   children: [
-                    /* @__PURE__ */ jsx_runtime33.jsx("button", {
+                    /* @__PURE__ */ jsx_runtime34.jsx("button", {
                       type: "button",
                       className: HANDLE,
                       "data-handle": "",
@@ -56101,9 +56572,9 @@ function AgentOrderBody() {
                       onClick: (event) => onClick(event, host),
                       onKeyDown: (event) => onHandleKey(event, host),
                       ...rank === null ? {} : drag.handlers(host),
-                      children: /* @__PURE__ */ jsx_runtime33.jsx(Grip, {})
+                      children: /* @__PURE__ */ jsx_runtime34.jsx(Grip, {})
                     }),
-                    /* @__PURE__ */ jsx_runtime33.jsx(RowBody, {
+                    /* @__PURE__ */ jsx_runtime34.jsx(RowBody, {
                       host,
                       rank,
                       name,
@@ -56112,49 +56583,49 @@ function AgentOrderBody() {
                   ]
                 }, host))
               }),
-              /* @__PURE__ */ jsx_runtime33.jsx("div", {
+              /* @__PURE__ */ jsx_runtime34.jsx("div", {
                 ref: marker,
                 className: "pointer-events-none absolute right-3.5 left-3.5 h-0.5 rounded-[1px] bg-ring before:absolute before:-top-[3px] before:-left-2 before:box-border before:h-2 before:w-2 before:rounded-[50%] before:border-2 before:border-solid before:border-ring before:content-['']",
                 hidden: true
               }),
-              /* @__PURE__ */ jsx_runtime33.jsx("p", {
+              /* @__PURE__ */ jsx_runtime34.jsx("p", {
                 className: NOTICE,
                 hidden: !shown.status,
                 children: shown.status
               }),
-              /* @__PURE__ */ jsx_runtime33.jsx("div", {
-                children: shown.view.waits.map((wait) => /* @__PURE__ */ jsx_runtime33.jsx(WaitLine, {
+              /* @__PURE__ */ jsx_runtime34.jsx("div", {
+                children: shown.view.waits.map((wait) => /* @__PURE__ */ jsx_runtime34.jsx(WaitLine, {
                   wait,
                   isBusy: shown.retrying.has(wait.waitId)
                 }, wait.waitId))
               })
             ]
-          }) : /* @__PURE__ */ jsx_runtime33.jsx("p", {
+          }) : /* @__PURE__ */ jsx_runtime34.jsx("p", {
             className: NOTICE,
             children: "The agent order is not read yet."
           }),
-          /* @__PURE__ */ jsx_runtime33.jsx("p", {
+          /* @__PURE__ */ jsx_runtime34.jsx("p", {
             className: "sr-only",
             "aria-live": "polite",
             children: live
           }),
-          ghost && /* @__PURE__ */ jsx_runtime33.jsxs("div", {
+          ghost && /* @__PURE__ */ jsx_runtime34.jsxs("div", {
             ref: preview,
             className: `fixed z-50 ${ROW3} bg-card opacity-95 pointer-events-none [box-shadow:var(--float)]`,
             "aria-hidden": "true",
             children: [
-              /* @__PURE__ */ jsx_runtime33.jsx("span", {
+              /* @__PURE__ */ jsx_runtime34.jsx("span", {
                 className: `${HANDLE} px-1.5 py-px text-center`,
-                children: /* @__PURE__ */ jsx_runtime33.jsx(Grip, {})
+                children: /* @__PURE__ */ jsx_runtime34.jsx(Grip, {})
               }),
-              /* @__PURE__ */ jsx_runtime33.jsx(RowBody, {
+              /* @__PURE__ */ jsx_runtime34.jsx(RowBody, {
                 ...ghost
               })
             ]
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime33.jsx(DropdownMenu, {
+      /* @__PURE__ */ jsx_runtime34.jsx(DropdownMenu, {
         modal: false,
         open: menuFor !== null,
         onOpenChange: (isOpen, details) => {
@@ -56163,7 +56634,7 @@ function AgentOrderBody() {
           wasOutsidePress.current = details.reason === "outside-press";
           agentStore.closeMenu();
         },
-        children: /* @__PURE__ */ jsx_runtime33.jsxs(DropdownMenuContent, {
+        children: /* @__PURE__ */ jsx_runtime34.jsxs(DropdownMenuContent, {
           anchor,
           align: "start",
           "aria-label": menuFor ? `${shown?.registry[menuFor]?.name ?? menuFor} actions` : undefined,
@@ -56171,8 +56642,8 @@ function AgentOrderBody() {
           finalFocus,
           onKeyDown: onPopupKey,
           children: [
-            menuFor && /* @__PURE__ */ jsx_runtime33.jsx(FirstFocus, {}, menuFor),
-            menuFor && /* @__PURE__ */ jsx_runtime33.jsx(Entries2, {
+            menuFor && /* @__PURE__ */ jsx_runtime34.jsx(FirstFocus, {}, menuFor),
+            menuFor && /* @__PURE__ */ jsx_runtime34.jsx(Entries2, {
               list: () => agentStore.entries(menuFor),
               close: agentStore.closeMenu
             })
@@ -56184,14 +56655,14 @@ function AgentOrderBody() {
 }
 function AgentOrder() {
   const shown = useAgents((state) => state.shown);
-  return /* @__PURE__ */ jsx_runtime33.jsx(ViewBoundary, {
+  return /* @__PURE__ */ jsx_runtime34.jsx(ViewBoundary, {
     snapshot: shown,
-    fallback: /* @__PURE__ */ jsx_runtime33.jsx("div", {
+    fallback: /* @__PURE__ */ jsx_runtime34.jsx("div", {
       className: ROOT2,
       id: "agent-picker"
     }),
     onFail: agentStore.closeMenu,
-    children: /* @__PURE__ */ jsx_runtime33.jsx(AgentOrderBody, {})
+    children: /* @__PURE__ */ jsx_runtime34.jsx(AgentOrderBody, {})
   });
 }
 
@@ -56294,7 +56765,7 @@ var Toggle = /* @__PURE__ */ React141.forwardRef(function Toggle(componentProps,
 if (false)
   ;
 // engine/board/page/ui/toggle.tsx
-var jsx_runtime34 = __toESM(require_jsx_runtime());
+var jsx_runtime35 = __toESM(require_jsx_runtime());
 var toggleVariants = cva("group/toggle inline-flex shrink-0 select-none items-center justify-center py-0 text-[0.78125rem] leading-none font-medium whitespace-nowrap transition-[background-color,border-color,box-shadow,opacity,transform] duration-150 outline-none focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ring active:scale-[0.97] aria-busy:cursor-progress aria-busy:opacity-70 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0", {
   variants: {
     variant: {
@@ -56317,7 +56788,7 @@ function Toggle2({
   size = "default",
   ...props
 }) {
-  return /* @__PURE__ */ jsx_runtime34.jsx(Toggle, {
+  return /* @__PURE__ */ jsx_runtime35.jsx(Toggle, {
     "data-slot": "toggle",
     className: cn(toggleVariants({ variant, size, className })),
     ...props
@@ -56325,7 +56796,7 @@ function Toggle2({
 }
 
 // engine/board/page/app/control.tsx
-var jsx_runtime35 = __toESM(require_jsx_runtime());
+var jsx_runtime36 = __toESM(require_jsx_runtime());
 var AUTO = {
   on: { tone: "ok", title: "Auto mode starts each auto step.", words: "Auto mode is on." },
   off: { tone: "off", title: "Auto mode is off: auto steps wait.", words: "Auto mode is off." },
@@ -56333,27 +56804,27 @@ var AUTO = {
 };
 var SMALL = "h-6 gap-[7px] rounded-sm border-0 px-2 transition-all duration-0 text-xs font-normal phone:min-h-11 phone:min-w-11";
 function Code({ children }) {
-  return /* @__PURE__ */ jsx_runtime35.jsx("code", {
+  return /* @__PURE__ */ jsx_runtime36.jsx("code", {
     className: "font-mono text-xs leading-none",
     children
   });
 }
 function Row2({ isFirst = false, children }) {
-  return /* @__PURE__ */ jsx_runtime35.jsx("div", {
+  return /* @__PURE__ */ jsx_runtime36.jsx("div", {
     className: cn("mt-3.5 flex flex-wrap items-center justify-end gap-x-4 gap-y-2.5 phone:justify-start", !isFirst && "border-t border-border pt-3.5"),
     children
   });
 }
 function RowText({ id, label, help }) {
-  return /* @__PURE__ */ jsx_runtime35.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime36.jsxs("div", {
     className: "min-w-0 flex-[1_1_280px] phone:basis-full",
     children: [
-      /* @__PURE__ */ jsx_runtime35.jsx("span", {
+      /* @__PURE__ */ jsx_runtime36.jsx("span", {
         className: "text-[0.8125rem] font-medium text-foreground",
         id: `${id}-label`,
         children: label
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx("p", {
+      /* @__PURE__ */ jsx_runtime36.jsx("p", {
         className: "mt-0.5 mb-0 text-xs leading-[1.45] text-pretty text-muted-foreground",
         id: `${id}-help`,
         children: help
@@ -56363,37 +56834,37 @@ function RowText({ id, label, help }) {
 }
 function Automation({ daemon, isDown }) {
   const auto = isDown ? null : daemon?.auto ?? null;
-  return /* @__PURE__ */ jsx_runtime35.jsxs(Card, {
+  return /* @__PURE__ */ jsx_runtime36.jsxs(Card, {
     id: "ctl-auto",
     "aria-labelledby": "ctl-auto-title",
     children: [
-      /* @__PURE__ */ jsx_runtime35.jsx(CardTitle, {
+      /* @__PURE__ */ jsx_runtime36.jsx(CardTitle, {
         id: "ctl-auto-title",
         children: "Automation"
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx(CardDescription, {
+      /* @__PURE__ */ jsx_runtime36.jsx(CardDescription, {
         children: "Auto mode of the daemon starts each auto step by itself. The board shows its state only."
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx("p", {
+      /* @__PURE__ */ jsx_runtime36.jsx("p", {
         className: "mt-3 mb-0 text-[0.8125rem] text-card-foreground",
         id: "ctl-auto-state",
-        children: isDown ? /* @__PURE__ */ jsx_runtime35.jsxs(jsx_runtime35.Fragment, {
+        children: isDown ? /* @__PURE__ */ jsx_runtime36.jsxs(jsx_runtime36.Fragment, {
           children: [
             "No daemon answers. Start it in a terminal: ",
-            /* @__PURE__ */ jsx_runtime35.jsx(Code, {
+            /* @__PURE__ */ jsx_runtime36.jsx(Code, {
               children: "celetis daemon start"
             })
           ]
         }) : auto ? AUTO[auto].words : "The daemon state is not read yet."
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx("p", {
+      /* @__PURE__ */ jsx_runtime36.jsx("p", {
         className: "mt-3 mb-0 text-[0.8125rem] text-card-foreground",
         id: "ctl-auto-command",
         hidden: auto === null,
-        children: auto && /* @__PURE__ */ jsx_runtime35.jsxs(jsx_runtime35.Fragment, {
+        children: auto && /* @__PURE__ */ jsx_runtime36.jsxs(jsx_runtime36.Fragment, {
           children: [
             "Change it in a terminal: ",
-            /* @__PURE__ */ jsx_runtime35.jsx(Code, {
+            /* @__PURE__ */ jsx_runtime36.jsx(Code, {
               children: `celetis daemon auto ${auto === "on" ? "off" : "on"}`
             })
           ]
@@ -56415,20 +56886,20 @@ function StatusRow({
   name,
   children
 }) {
-  return /* @__PURE__ */ jsx_runtime35.jsxs("span", {
+  return /* @__PURE__ */ jsx_runtime36.jsxs("span", {
     className: "mt-3 flex min-h-7 min-w-0 items-center gap-[7px] text-[0.8125rem] tabular-nums",
     id,
     "data-tone": tone,
     title: title || undefined,
     children: [
-      /* @__PURE__ */ jsx_runtime35.jsx("i", {
+      /* @__PURE__ */ jsx_runtime36.jsx("i", {
         className: cn("size-1.5 flex-none rounded-full", DOT[tone])
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx("span", {
+      /* @__PURE__ */ jsx_runtime36.jsx("span", {
         className: "text-muted-foreground",
         children: name
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx("span", {
+      /* @__PURE__ */ jsx_runtime36.jsx("span", {
         className: cn("min-w-0 font-medium wrap-anywhere", tone === "fail" ? "text-caution" : "text-card-foreground"),
         children
       })
@@ -56436,8 +56907,8 @@ function StatusRow({
   });
 }
 var useNow = () => {
-  const [now, setNow] = import_react35.useState(Date.now);
-  import_react35.useEffect(() => {
+  const [now, setNow] = import_react36.useState(Date.now);
+  import_react36.useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
@@ -56459,27 +56930,27 @@ function Status2({ data, isDown }) {
     tone: AUTO[daemon.auto].tone,
     title: `The daemon PID ${daemon.pid} runs. ${AUTO[daemon.auto].title}`
   } : { text: "checking", tone: "wait", title: "" };
-  return /* @__PURE__ */ jsx_runtime35.jsxs(Card, {
+  return /* @__PURE__ */ jsx_runtime36.jsxs(Card, {
     id: "ctl-status",
     "aria-labelledby": "ctl-status-title",
     children: [
-      /* @__PURE__ */ jsx_runtime35.jsx(CardTitle, {
+      /* @__PURE__ */ jsx_runtime36.jsx(CardTitle, {
         id: "ctl-status-title",
         children: "Board status"
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx(CardDescription, {
+      /* @__PURE__ */ jsx_runtime36.jsx(CardDescription, {
         children: "What the board reads, and the parts that Run and Go use."
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx(StatusRow, {
+      /* @__PURE__ */ jsx_runtime36.jsx(StatusRow, {
         id: "fresh",
         tone: freshTone,
         title: freshTitle,
         name,
-        children: isDown ? SERVER_DOWN : source.error ? `cannot read: ${source.error}` : source.readAt ? /* @__PURE__ */ jsx_runtime35.jsxs(jsx_runtime35.Fragment, {
+        children: isDown ? SERVER_DOWN : source.error ? `cannot read: ${source.error}` : source.readAt ? /* @__PURE__ */ jsx_runtime36.jsxs(jsx_runtime36.Fragment, {
           children: [
             "read",
             " ",
-            /* @__PURE__ */ jsx_runtime35.jsxs("time", {
+            /* @__PURE__ */ jsx_runtime36.jsxs("time", {
               className: "time tabular-nums",
               dateTime: source.readAt,
               title: clock(source.readAt, true),
@@ -56491,21 +56962,21 @@ function Status2({ data, isDown }) {
           ]
         }) : "no data yet"
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx(StatusRow, {
+      /* @__PURE__ */ jsx_runtime36.jsx(StatusRow, {
         id: "terminal",
         tone: terminalTone,
         title: terminal?.error ? `herdr: ${terminal.error}` : "Run and Go use herdr",
         name: "herdr",
         children: terminal?.ok === true ? "up" : terminal?.ok === false ? "down" : "checking"
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx(StatusRow, {
+      /* @__PURE__ */ jsx_runtime36.jsx(StatusRow, {
         id: "daemon",
         tone: daemonItem.tone,
         title: daemonItem.title,
         name: "Daemon",
         children: daemonItem.text
       }),
-      /* @__PURE__ */ jsx_runtime35.jsxs(Button2, {
+      /* @__PURE__ */ jsx_runtime36.jsxs(Button2, {
         variant: "outline",
         id: "refresh",
         className: "mt-3 phone:min-h-11 phone:min-w-11 data-done:[&_.icon]:text-ready",
@@ -56514,10 +56985,10 @@ function Status2({ data, isDown }) {
         title: control.refresh === "done" ? `${readAgain}: done` : `${readAgain} (r)`,
         onClick: () => void shellStore.refresh(),
         children: [
-          /* @__PURE__ */ jsx_runtime35.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime36.jsx(Icon, {
             name: "refresh"
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx("span", {
+          /* @__PURE__ */ jsx_runtime36.jsx("span", {
             className: "label",
             children: "Refresh"
           })
@@ -56532,26 +57003,26 @@ function Preferences() {
   const isBlocked = "Notification" in window && Notification.permission === "denied";
   const isOn = notify && !isBlocked;
   const themeLabel = `Theme: ${THEME_WORDS[theme]}. Press to change`;
-  return /* @__PURE__ */ jsx_runtime35.jsxs(Card, {
+  return /* @__PURE__ */ jsx_runtime36.jsxs(Card, {
     id: "ctl-prefs",
     "aria-labelledby": "ctl-prefs-title",
     children: [
-      /* @__PURE__ */ jsx_runtime35.jsx(CardTitle, {
+      /* @__PURE__ */ jsx_runtime36.jsx(CardTitle, {
         id: "ctl-prefs-title",
         children: "Notifications, keys, and theme"
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx(CardDescription, {
+      /* @__PURE__ */ jsx_runtime36.jsx(CardDescription, {
         children: "Settings of this browser. A change takes effect at once."
       }),
-      /* @__PURE__ */ jsx_runtime35.jsxs(Row2, {
+      /* @__PURE__ */ jsx_runtime36.jsxs(Row2, {
         isFirst: true,
         children: [
-          /* @__PURE__ */ jsx_runtime35.jsx(RowText, {
+          /* @__PURE__ */ jsx_runtime36.jsx(RowText, {
             id: "notify",
             label: "Notify",
             help: "A system notification shows when a card needs you and the board is not in front."
           }),
-          /* @__PURE__ */ jsx_runtime35.jsxs(Toggle2, {
+          /* @__PURE__ */ jsx_runtime36.jsxs(Toggle2, {
             variant: "default",
             size: "sm",
             id: "notify",
@@ -56561,14 +57032,14 @@ function Preferences() {
             title: isBlocked ? "The browser blocks notifications for this page" : isOn ? "A system notification shows when a card needs you" : "Show a system notification when a card needs you",
             onPressedChange: () => void shellStore.toggleNotify(),
             children: [
-              /* @__PURE__ */ jsx_runtime35.jsx(Icon, {
+              /* @__PURE__ */ jsx_runtime36.jsx(Icon, {
                 name: isOn ? "bell" : "bell-off"
               }),
-              /* @__PURE__ */ jsx_runtime35.jsx("span", {
+              /* @__PURE__ */ jsx_runtime36.jsx("span", {
                 className: "text-muted-foreground",
                 children: "Notify"
               }),
-              /* @__PURE__ */ jsx_runtime35.jsx("b", {
+              /* @__PURE__ */ jsx_runtime36.jsx("b", {
                 className: "font-medium text-card-foreground",
                 children: isBlocked ? "blocked" : isOn ? "on" : "off"
               })
@@ -56576,14 +57047,14 @@ function Preferences() {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime35.jsxs(Row2, {
+      /* @__PURE__ */ jsx_runtime36.jsxs(Row2, {
         children: [
-          /* @__PURE__ */ jsx_runtime35.jsx(RowText, {
+          /* @__PURE__ */ jsx_runtime36.jsx(RowText, {
             id: "keys",
             label: "Single-key shortcuts",
             help: "j k h l v d r / ?. The keys of a focused card always work."
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx(Toggle2, {
+          /* @__PURE__ */ jsx_runtime36.jsx(Toggle2, {
             id: "keys-switch",
             className: "phone:min-h-11 phone:min-w-11",
             pressed: keys,
@@ -56592,43 +57063,43 @@ function Preferences() {
             onPressedChange: (next) => shellStore.setKeys(next),
             children: keys ? "On" : "Off"
           }),
-          /* @__PURE__ */ jsx_runtime35.jsxs(Button2, {
+          /* @__PURE__ */ jsx_runtime36.jsxs(Button2, {
             variant: "ghost",
             id: "keys-open",
             className: SMALL,
             title: "Keyboard shortcuts (?)",
             onClick: openShortcuts,
             children: [
-              /* @__PURE__ */ jsx_runtime35.jsx(Icon, {
+              /* @__PURE__ */ jsx_runtime36.jsx(Icon, {
                 name: "keyboard"
               }),
-              /* @__PURE__ */ jsx_runtime35.jsx("span", {
+              /* @__PURE__ */ jsx_runtime36.jsx("span", {
                 children: "Keys"
               })
             ]
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime35.jsxs(Row2, {
+      /* @__PURE__ */ jsx_runtime36.jsxs(Row2, {
         children: [
-          /* @__PURE__ */ jsx_runtime35.jsx(RowText, {
+          /* @__PURE__ */ jsx_runtime36.jsx(RowText, {
             id: "theme",
             label: "Theme",
             help: "System follows the setting of the device."
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx("span", {
+          /* @__PURE__ */ jsx_runtime36.jsx("span", {
             className: "text-[0.78125rem] text-card-foreground",
             id: "theme-words",
             children: THEME_WORDS[theme]
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx(Button2, {
+          /* @__PURE__ */ jsx_runtime36.jsx(Button2, {
             variant: "ghost",
             id: "theme",
             className: "size-6 gap-0 rounded-sm p-0 transition-all duration-0 phone:size-11 [&_.icon]:size-3.5",
             "aria-label": themeLabel,
             title: themeLabel,
             onClick: () => shellStore.cycleTheme(),
-            children: /* @__PURE__ */ jsx_runtime35.jsx(Icon, {
+            children: /* @__PURE__ */ jsx_runtime36.jsx(Icon, {
               name: `theme-${theme}`
             })
           })
@@ -56639,57 +57110,57 @@ function Preferences() {
 }
 function Control() {
   const { data, isError } = useQuery(viewOptions);
-  return /* @__PURE__ */ jsx_runtime35.jsxs("section", {
+  return /* @__PURE__ */ jsx_runtime36.jsxs("section", {
     className: cn(AREA_SCREEN, "content-start items-start justify-center justify-items-stretch gap-3.5 overflow-auto grid-cols-[minmax(0,min(100%,720px))] p-5 phone:scroll-pb-[calc(var(--dock)+8px)] phone:p-3"),
     id: "area-control",
     "aria-labelledby": "area-control-title",
     children: [
-      /* @__PURE__ */ jsx_runtime35.jsx("h2", {
+      /* @__PURE__ */ jsx_runtime36.jsx("h2", {
         className: "text-sm leading-[1.38] font-semibold tracking-[-0.012em] text-foreground",
         id: "area-control-title",
         children: "Control"
       }),
-      /* @__PURE__ */ jsx_runtime35.jsxs(Card, {
+      /* @__PURE__ */ jsx_runtime36.jsxs(Card, {
         id: "ctl-agents",
         tabIndex: -1,
         "aria-labelledby": "ctl-agents-title",
         children: [
-          /* @__PURE__ */ jsx_runtime35.jsx(CardTitle, {
+          /* @__PURE__ */ jsx_runtime36.jsx(CardTitle, {
             id: "ctl-agents-title",
             children: "Agents"
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx(CardDescription, {
+          /* @__PURE__ */ jsx_runtime36.jsx(CardDescription, {
             children: "New default work uses the first available agent. Drag a handle, or press it for the move actions."
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx("div", {
+          /* @__PURE__ */ jsx_runtime36.jsx("div", {
             className: "mt-3",
-            children: /* @__PURE__ */ jsx_runtime35.jsx(AgentOrder, {})
+            children: /* @__PURE__ */ jsx_runtime36.jsx(AgentOrder, {})
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx(Automation, {
+      /* @__PURE__ */ jsx_runtime36.jsx(Automation, {
         daemon: data?.daemon ?? null,
         isDown: isError
       }),
-      /* @__PURE__ */ jsx_runtime35.jsxs(Card, {
+      /* @__PURE__ */ jsx_runtime36.jsxs(Card, {
         id: "ctl-updates",
         "aria-labelledby": "ctl-updates-title",
         children: [
-          /* @__PURE__ */ jsx_runtime35.jsx(CardTitle, {
+          /* @__PURE__ */ jsx_runtime36.jsx(CardTitle, {
             id: "ctl-updates-title",
             children: "Updates"
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx(CardDescription, {
+          /* @__PURE__ */ jsx_runtime36.jsx(CardDescription, {
             children: "The installed engine and plugins of Celetis. Update and restart needs your click, and the daemon restarts after it."
           }),
-          /* @__PURE__ */ jsx_runtime35.jsx("div", {
+          /* @__PURE__ */ jsx_runtime36.jsx("div", {
             className: "mt-3",
-            children: /* @__PURE__ */ jsx_runtime35.jsx(UpdateControl, {})
+            children: /* @__PURE__ */ jsx_runtime36.jsx(UpdateControl, {})
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime35.jsx(Preferences, {}),
-      /* @__PURE__ */ jsx_runtime35.jsx(Status2, {
+      /* @__PURE__ */ jsx_runtime36.jsx(Preferences, {}),
+      /* @__PURE__ */ jsx_runtime36.jsx(Status2, {
         data,
         isDown: isError
       })
@@ -56698,7 +57169,7 @@ function Control() {
 }
 
 // engine/board/page/app/home.tsx
-var import_react36 = __toESM(require_react());
+var import_react37 = __toESM(require_react());
 
 // engine/board/page/home.ts
 var queueText = (board) => {
@@ -56805,7 +57276,7 @@ var tileOf = (kind, board) => {
 };
 
 // engine/board/page/app/home.tsx
-var jsx_runtime36 = __toESM(require_jsx_runtime());
+var jsx_runtime37 = __toESM(require_jsx_runtime());
 var KINDS = ["needs", "working", "landed", "median"];
 var PAD = "p-[12px_14px] [box-shadow:var(--raise)] phone:p-[12px_14px]";
 var LIST2 = "mt-2 mb-0 list-none p-0 [&>li+li]:border-t [&>li+li]:border-t-border";
@@ -56820,36 +57291,36 @@ var rowOf = (event) => {
 };
 function TileCard({ tile }) {
   const spark = tile.state.kind === "line" ? sparkPath(tile.state.points) : null;
-  return /* @__PURE__ */ jsx_runtime36.jsxs(Card, {
+  return /* @__PURE__ */ jsx_runtime37.jsxs(Card, {
     className: PAD,
     role: "group",
     "aria-label": tile.name,
     children: [
-      /* @__PURE__ */ jsx_runtime36.jsx(CardTitle, {
+      /* @__PURE__ */ jsx_runtime37.jsx(CardTitle, {
         children: tile.label
       }),
-      /* @__PURE__ */ jsx_runtime36.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime37.jsxs("div", {
         className: "mt-2 flex flex-wrap items-center gap-x-3 gap-y-1",
         children: [
-          /* @__PURE__ */ jsx_runtime36.jsx("p", {
+          /* @__PURE__ */ jsx_runtime37.jsx("p", {
             className: "my-0 mr-auto ml-0 font-mono text-[1.5rem] leading-8 font-semibold text-foreground",
             children: tile.value
           }),
-          tile.state.kind !== "line" && /* @__PURE__ */ jsx_runtime36.jsx("p", {
+          tile.state.kind !== "line" && /* @__PURE__ */ jsx_runtime37.jsx("p", {
             className: "m-0 text-[0.8125rem] leading-[1.4] text-muted-foreground",
             children: tile.state.text
           }),
-          spark && /* @__PURE__ */ jsx_runtime36.jsxs(jsx_runtime36.Fragment, {
+          spark && /* @__PURE__ */ jsx_runtime37.jsxs(jsx_runtime37.Fragment, {
             children: [
-              /* @__PURE__ */ jsx_runtime36.jsxs("svg", {
+              /* @__PURE__ */ jsx_runtime37.jsxs("svg", {
                 className: "h-8 w-24 flex-none fill-none stroke-card-foreground stroke-[1.5] [stroke-linecap:round] [stroke-linejoin:round]",
                 viewBox: "0 0 96 32",
                 "aria-hidden": "true",
                 children: [
-                  /* @__PURE__ */ jsx_runtime36.jsx("path", {
+                  /* @__PURE__ */ jsx_runtime37.jsx("path", {
                     d: spark.d
                   }),
-                  /* @__PURE__ */ jsx_runtime36.jsx("circle", {
+                  /* @__PURE__ */ jsx_runtime37.jsx("circle", {
                     className: "fill-foreground stroke-none",
                     cx: String(spark.dot.x),
                     cy: String(spark.dot.y),
@@ -56857,7 +57328,7 @@ function TileCard({ tile }) {
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime36.jsx("span", {
+              /* @__PURE__ */ jsx_runtime37.jsx("span", {
                 className: "font-mono text-[0.6875rem] leading-none font-normal text-card-foreground",
                 "aria-hidden": "true",
                 children: spark.last % 1 ? spark.last.toFixed(1) : String(spark.last)
@@ -56866,22 +57337,22 @@ function TileCard({ tile }) {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime36.jsx("p", {
+      /* @__PURE__ */ jsx_runtime37.jsx("p", {
         className: "mt-1 mb-0 text-[0.75rem] leading-normal text-card-foreground",
         children: tile.unit
       }),
-      tile.change && /* @__PURE__ */ jsx_runtime36.jsxs("p", {
+      tile.change && /* @__PURE__ */ jsx_runtime37.jsxs("p", {
         className: `${SMALL2} flex items-center gap-1 text-card-foreground`,
         children: [
-          tile.change.dir && /* @__PURE__ */ jsx_runtime36.jsx(Icon, {
+          tile.change.dir && /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
             name: tile.change.dir === "up" ? "trend-up" : "trend-down"
           }),
-          /* @__PURE__ */ jsx_runtime36.jsx("span", {
+          /* @__PURE__ */ jsx_runtime37.jsx("span", {
             children: tile.change.text
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime36.jsx("p", {
+      /* @__PURE__ */ jsx_runtime37.jsx("p", {
         className: `${SMALL2} text-muted-foreground`,
         children: tile.window
       })
@@ -56890,24 +57361,24 @@ function TileCard({ tile }) {
 }
 function NeedsRow({ card }) {
   const meta = stateLabel(card) ?? card.reason ?? "";
-  return /* @__PURE__ */ jsx_runtime36.jsxs("li", {
+  return /* @__PURE__ */ jsx_runtime37.jsxs("li", {
     className: "flex min-h-11 items-center gap-3 py-2",
     "data-key": keyOf(card),
     children: [
-      /* @__PURE__ */ jsx_runtime36.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime37.jsxs("div", {
         className: "min-w-0 flex-1",
         children: [
-          /* @__PURE__ */ jsx_runtime36.jsx("p", {
+          /* @__PURE__ */ jsx_runtime37.jsx("p", {
             className: TITLE2,
             children: card.title
           }),
-          /* @__PURE__ */ jsx_runtime36.jsx("p", {
+          /* @__PURE__ */ jsx_runtime37.jsx("p", {
             className: `${META} text-needs`,
             children: card.number === null ? meta : `#${card.number} · ${meta}`
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime36.jsx(Button2, {
+      /* @__PURE__ */ jsx_runtime37.jsx(Button2, {
         className: "min-h-7 hover:opacity-[0.88] [&:hover]:opacity-[0.88] phone:h-11 phone:min-h-11 phone:min-w-11",
         "aria-label": `Open #${card.number} ${card.title}`,
         onClick: () => open5(card),
@@ -56918,18 +57389,18 @@ function NeedsRow({ card }) {
 }
 function AgentRow({ card, board }) {
   const meta = [card.step, agentOf(card, board.registry)?.name, stateLabel(card)].filter(Boolean).join(" · ");
-  return /* @__PURE__ */ jsx_runtime36.jsx("li", {
+  return /* @__PURE__ */ jsx_runtime37.jsx("li", {
     "data-key": keyOf(card),
-    children: /* @__PURE__ */ jsx_runtime36.jsxs("button", {
+    children: /* @__PURE__ */ jsx_runtime37.jsxs("button", {
       type: "button",
       className: "flex min-h-11 w-full flex-col items-start justify-center gap-0.5 [border:0] bg-transparent px-0 py-2 text-start",
       onClick: () => open5(card),
       children: [
-        /* @__PURE__ */ jsx_runtime36.jsx("span", {
+        /* @__PURE__ */ jsx_runtime37.jsx("span", {
           className: `${TITLE2} [button:hover>&]:underline`,
           children: `#${card.number} ${card.title}`
         }),
-        /* @__PURE__ */ jsx_runtime36.jsx("span", {
+        /* @__PURE__ */ jsx_runtime37.jsx("span", {
           className: `${META} text-working`,
           children: meta
         })
@@ -56942,8 +57413,8 @@ function Home() {
   const needs = board?.columns.needs ?? [];
   const waiting = board?.columns.waiting.length ?? 0;
   const running = board?.columns.running ?? [];
-  const spot = import_react36.useRef(null);
-  const lists = { "home-needs": import_react36.useRef(null), "home-agents": import_react36.useRef(null) };
+  const spot = import_react37.useRef(null);
+  const lists = { "home-needs": import_react37.useRef(null), "home-agents": import_react37.useRef(null) };
   const rows = (list) => [...lists[list].current?.children ?? []];
   const focusIn = (list) => (event) => {
     const node = rowOf(event);
@@ -56957,7 +57428,7 @@ function Home() {
         spot.current = null;
     });
   };
-  import_react36.useLayoutEffect(() => {
+  import_react37.useLayoutEffect(() => {
     const was = spot.current;
     if (!was)
       return;
@@ -56972,84 +57443,84 @@ function Home() {
     const row = mine.find((each) => each.dataset.key === was.key) ?? mine[Math.min(was.index, mine.length - 1)] ?? rows(was.list === "home-needs" ? "home-agents" : "home-needs")[0];
     (row?.querySelector("button") ?? document.getElementById("work"))?.focus({ preventScroll: true });
   }, [board]);
-  return /* @__PURE__ */ jsx_runtime36.jsxs("section", {
+  return /* @__PURE__ */ jsx_runtime37.jsxs("section", {
     className: cn(AREA_SCREEN, "flex flex-col place-items-stretch gap-3 overflow-auto p-5 phone:scroll-pb-[calc(var(--dock)+8px)] phone:p-3"),
     id: "area-home",
     "aria-labelledby": "area-home-title",
     children: [
-      /* @__PURE__ */ jsx_runtime36.jsx("h2", {
+      /* @__PURE__ */ jsx_runtime37.jsx("h2", {
         className: "text-sm leading-[1.38] font-semibold tracking-[-0.012em] text-foreground",
         id: "area-home-title",
         children: "Home"
       }),
-      /* @__PURE__ */ jsx_runtime36.jsx("div", {
+      /* @__PURE__ */ jsx_runtime37.jsx("div", {
         className: "grid grid-cols-[minmax(0,1fr)] gap-3 empty:hidden min-[720px]:grid-cols-2 min-[1200px]:grid-cols-4 phone:order-2",
         id: "home-tiles",
-        children: board && KINDS.map((kind) => /* @__PURE__ */ jsx_runtime36.jsx(TileCard, {
+        children: board && KINDS.map((kind) => /* @__PURE__ */ jsx_runtime37.jsx(TileCard, {
           tile: tileOf(kind, board)
         }, kind))
       }),
-      /* @__PURE__ */ jsx_runtime36.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime37.jsxs("div", {
         className: "grid grid-cols-[minmax(0,1fr)] gap-3 [align-items:start] wide:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] phone:contents",
         children: [
-          /* @__PURE__ */ jsx_runtime36.jsxs(Card, {
+          /* @__PURE__ */ jsx_runtime37.jsxs(Card, {
             className: `${PAD} phone:order-1`,
             id: "home-needs",
             "aria-labelledby": "home-needs-title",
             children: [
-              /* @__PURE__ */ jsx_runtime36.jsx(CardTitle, {
+              /* @__PURE__ */ jsx_runtime37.jsx(CardTitle, {
                 id: "home-needs-title",
                 children: "Needs you"
               }),
-              /* @__PURE__ */ jsx_runtime36.jsx("ul", {
+              /* @__PURE__ */ jsx_runtime37.jsx("ul", {
                 className: LIST2,
                 id: "home-needs-list",
                 hidden: board !== null && needs.length === 0,
                 ref: lists["home-needs"],
                 onFocus: focusIn("home-needs"),
                 onBlur: focusOut,
-                children: needs.map((card) => /* @__PURE__ */ jsx_runtime36.jsx(NeedsRow, {
+                children: needs.map((card) => /* @__PURE__ */ jsx_runtime37.jsx(NeedsRow, {
                   card
                 }, keyOf(card)))
               }),
-              /* @__PURE__ */ jsx_runtime36.jsx("p", {
+              /* @__PURE__ */ jsx_runtime37.jsx("p", {
                 className: EMPTY5,
                 id: "home-needs-empty",
                 hidden: board === null || needs.length > 0,
                 children: "No issue needs you."
               }),
-              waiting > 0 && /* @__PURE__ */ jsx_runtime36.jsx("p", {
+              waiting > 0 && /* @__PURE__ */ jsx_runtime37.jsx("p", {
                 className: EMPTY5,
                 id: "home-waiting",
                 children: `${waiting} ${waiting === 1 ? "issue waits" : "issues wait"}. No act from you now.`
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime36.jsxs("div", {
+          /* @__PURE__ */ jsx_runtime37.jsxs("div", {
             className: "grid min-w-0 gap-3 phone:order-3",
             children: [
-              /* @__PURE__ */ jsx_runtime36.jsxs(Card, {
+              /* @__PURE__ */ jsx_runtime37.jsxs(Card, {
                 className: PAD,
                 id: "home-agents",
                 "aria-labelledby": "home-agents-title",
                 children: [
-                  /* @__PURE__ */ jsx_runtime36.jsx(CardTitle, {
+                  /* @__PURE__ */ jsx_runtime37.jsx(CardTitle, {
                     id: "home-agents-title",
                     children: "Agents now"
                   }),
-                  /* @__PURE__ */ jsx_runtime36.jsx("ul", {
+                  /* @__PURE__ */ jsx_runtime37.jsx("ul", {
                     className: LIST2,
                     id: "home-agents-list",
                     hidden: board !== null && running.length === 0,
                     ref: lists["home-agents"],
                     onFocus: focusIn("home-agents"),
                     onBlur: focusOut,
-                    children: board && running.map((card) => /* @__PURE__ */ jsx_runtime36.jsx(AgentRow, {
+                    children: board && running.map((card) => /* @__PURE__ */ jsx_runtime37.jsx(AgentRow, {
                       card,
                       board
                     }, keyOf(card)))
                   }),
-                  /* @__PURE__ */ jsx_runtime36.jsx("p", {
+                  /* @__PURE__ */ jsx_runtime37.jsx("p", {
                     className: EMPTY5,
                     id: "home-agents-empty",
                     hidden: board === null || running.length > 0,
@@ -57057,26 +57528,26 @@ function Home() {
                   })
                 ]
               }),
-              /* @__PURE__ */ jsx_runtime36.jsxs(Card, {
+              /* @__PURE__ */ jsx_runtime37.jsxs(Card, {
                 className: PAD,
                 id: "home-system",
                 "aria-labelledby": "home-system-title",
                 children: [
-                  /* @__PURE__ */ jsx_runtime36.jsx(CardTitle, {
+                  /* @__PURE__ */ jsx_runtime37.jsx(CardTitle, {
                     id: "home-system-title",
                     children: "System"
                   }),
-                  /* @__PURE__ */ jsx_runtime36.jsx("dl", {
+                  /* @__PURE__ */ jsx_runtime37.jsx("dl", {
                     className: "mt-2 mb-0",
                     id: "home-system-facts",
-                    children: board && facts(board).map(([name, value]) => /* @__PURE__ */ jsx_runtime36.jsxs("div", {
+                    children: board && facts(board).map(([name, value]) => /* @__PURE__ */ jsx_runtime37.jsxs("div", {
                       className: "flex min-h-7 items-center justify-between gap-3 text-[0.8125rem]",
                       children: [
-                        /* @__PURE__ */ jsx_runtime36.jsx("dt", {
+                        /* @__PURE__ */ jsx_runtime37.jsx("dt", {
                           className: "text-muted-foreground",
                           children: name
                         }),
-                        /* @__PURE__ */ jsx_runtime36.jsx("dd", {
+                        /* @__PURE__ */ jsx_runtime37.jsx("dd", {
                           className: "m-0 text-end text-foreground wrap-anywhere",
                           children: value
                         })
@@ -57094,7 +57565,7 @@ function Home() {
 }
 
 // engine/board/page/app/shell.tsx
-var jsx_runtime37 = __toESM(require_jsx_runtime());
+var jsx_runtime38 = __toESM(require_jsx_runtime());
 var SKIP2 = "absolute -top-[60px] left-2 z-[200] inline-flex min-h-8 items-center rounded-lg border border-border-strong bg-card px-3 text-[0.78125rem] leading-none font-medium text-foreground focus:top-2 focus:shadow-float phone:min-h-11";
 var BANNER = "banner m-0 flex items-center gap-2.5 rounded-xl border border-border-strong bg-secondary px-3.5 py-[9px] text-[0.78125rem] text-foreground [overflow-wrap:anywhere] before:size-[7px] before:flex-none before:rounded-full before:bg-muted-foreground before:content-['']";
 var WARN = "border-[color-mix(in_srgb,var(--amber)_30%,transparent)] bg-[color-mix(in_srgb,var(--amber)_9%,transparent)] before:bg-caution";
@@ -57122,10 +57593,10 @@ var useControlMark = () => {
 };
 function Intake({ inBar }) {
   const { reason, pending } = useShellStore((state) => state.inputs.intake);
-  return /* @__PURE__ */ jsx_runtime37.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime38.jsxs("div", {
     className: cn("flex flex-none gap-1.5", inBar ? "relative items-center justify-center" : "flex-col items-stretch"),
     children: [
-      /* @__PURE__ */ jsx_runtime37.jsxs(Button2, {
+      /* @__PURE__ */ jsx_runtime38.jsxs(Button2, {
         variant: "outline",
         id: "intake",
         "aria-describedby": "intake-reason",
@@ -57135,16 +57606,16 @@ function Intake({ inBar }) {
         onClick: () => shellStore.handlers().intake(),
         className: inBar ? "h-12 w-[calc(100%-8px)] flex-col rounded-xl gap-1 border-border-strong bg-accent p-0 text-[0.6875rem] leading-none text-foreground aria-disabled:border-border aria-disabled:bg-transparent aria-disabled:text-muted-foreground [&_.icon]:box-content [&_.icon]:size-[18px] [&_.icon]:rounded-[14px] [&_.icon]:px-[15px] [&_.icon]:py-[3px]" : "h-8 justify-start gap-2.5 px-2.5 rail:h-[50px] rail:flex-col rail:justify-center rail:gap-[5px] rail:px-0.5 rail:py-1.5 rail:text-center rail:text-[0.6875rem] rail:leading-[1.1]",
         children: [
-          /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime38.jsx(Icon, {
             name: "spark"
           }),
-          /* @__PURE__ */ jsx_runtime37.jsx("span", {
+          /* @__PURE__ */ jsx_runtime38.jsx("span", {
             className: "label",
             children: pending ? "Opening…" : "New intake"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime37.jsx("span", {
+      /* @__PURE__ */ jsx_runtime38.jsx("span", {
         id: "intake-reason",
         className: cn("text-xs text-card-foreground [overflow-wrap:anywhere]", inBar ? "pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 w-max max-w-[calc(100vw-32px)] -translate-x-1/2 rounded-sm border border-border bg-card px-2 py-1" : "px-2.5 rail:p-0 rail:text-center rail:text-[0.6875rem]"),
         hidden: pending || reason === null,
@@ -57158,23 +57629,23 @@ function SkipLinks() {
   const isPhone = useShellStore((state) => state.isPhone);
   const isOps = shell.area === "operations";
   const isDetails = isOps && shell.details !== null && (!isPhone || shell.pane === "chat");
-  return /* @__PURE__ */ jsx_runtime37.jsxs("div", {
+  return /* @__PURE__ */ jsx_runtime38.jsxs("div", {
     className: "contents",
     id: "skips",
     children: [
-      /* @__PURE__ */ jsx_runtime37.jsx("a", {
+      /* @__PURE__ */ jsx_runtime38.jsx("a", {
         className: SKIP2,
         href: "#side",
         children: "Skip to the sidebar"
       }),
-      /* @__PURE__ */ jsx_runtime37.jsx("a", {
+      /* @__PURE__ */ jsx_runtime38.jsx("a", {
         className: SKIP2,
         id: "skip-center",
         href: !isOps ? `#area-${shell.area}` : isDetails ? "#panel" : "#coordinator",
         hidden: isOps && !isChatShown(shell, isPhone) && !isDetails,
         children: !isOps ? "Skip to the work area" : isDetails ? "Skip to the details" : "Skip to the chat"
       }),
-      /* @__PURE__ */ jsx_runtime37.jsx("a", {
+      /* @__PURE__ */ jsx_runtime38.jsx("a", {
         className: SKIP2,
         id: "skip-pane",
         href: "#pane",
@@ -57189,21 +57660,21 @@ function Destination({ area, mark }) {
   const badges = useShellStore((state) => state.inputs.badges);
   const badge = BADGES[area];
   const count = badge ? badges[badge.count] : 0;
-  return /* @__PURE__ */ jsx_runtime37.jsxs(SidebarMenuButton, {
+  return /* @__PURE__ */ jsx_runtime38.jsxs(SidebarMenuButton, {
     "data-area": area,
     "aria-current": current3(isCurrent),
     ...mark ?? { "aria-label": badge ? needLabel(AREA_NAMES[area], count) : undefined },
     className: cn(area === "control" && 'data-mark:after:absolute data-mark:after:top-1/2 data-mark:after:right-2.5 data-mark:after:-mt-1 data-mark:after:size-2 data-mark:after:rounded-full data-mark:after:bg-needs data-mark:after:content-[""] data-[mark=fail]:after:bg-caution rail:data-mark:after:top-1 rail:data-mark:after:right-auto rail:data-mark:after:left-[calc(50%+6px)] rail:data-mark:after:mt-0'),
     onClick: () => shellStore.handlers().go(area),
     children: [
-      /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
+      /* @__PURE__ */ jsx_runtime38.jsx(Icon, {
         name: AREA_ICONS[area]
       }),
-      /* @__PURE__ */ jsx_runtime37.jsx("span", {
+      /* @__PURE__ */ jsx_runtime38.jsx("span", {
         className: "label min-w-0 flex-1 rail:flex-none",
         children: AREA_NAMES[area]
       }),
-      badge && /* @__PURE__ */ jsx_runtime37.jsx(Badge, {
+      badge && /* @__PURE__ */ jsx_runtime38.jsx(Badge, {
         variant: "count",
         id: badge.id,
         className: "rail:absolute rail:top-[3px] rail:left-[calc(50%+4px)]",
@@ -57214,7 +57685,7 @@ function Destination({ area, mark }) {
   });
 }
 function ControlDestination() {
-  return /* @__PURE__ */ jsx_runtime37.jsx(Destination, {
+  return /* @__PURE__ */ jsx_runtime38.jsx(Destination, {
     area: "control",
     mark: useControlMark()
   });
@@ -57223,24 +57694,24 @@ function Sidebar2() {
   const { data } = useQuery(viewOptions);
   const isPhone = useShellStore((state) => state.isPhone);
   const hints = useShellStore((state) => state.inputs.hints);
-  return /* @__PURE__ */ jsx_runtime37.jsxs(Sidebar, {
+  return /* @__PURE__ */ jsx_runtime38.jsxs(Sidebar, {
     id: "side",
     "aria-label": "Board",
     children: [
-      /* @__PURE__ */ jsx_runtime37.jsxs(SidebarHeader, {
+      /* @__PURE__ */ jsx_runtime38.jsxs(SidebarHeader, {
         children: [
-          /* @__PURE__ */ jsx_runtime37.jsx("span", {
+          /* @__PURE__ */ jsx_runtime38.jsx("span", {
             className: "grid size-[26px] flex-none place-items-center rounded-lg bg-foreground text-background [&_.icon]:size-3.5",
             id: "logo",
-            children: /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
+            children: /* @__PURE__ */ jsx_runtime38.jsx(Icon, {
               name: "logo"
             })
           }),
-          /* @__PURE__ */ jsx_runtime37.jsx("h1", {
+          /* @__PURE__ */ jsx_runtime38.jsx("h1", {
             className: "sr-only",
             children: "Agent board"
           }),
-          /* @__PURE__ */ jsx_runtime37.jsx("span", {
+          /* @__PURE__ */ jsx_runtime38.jsx("span", {
             className: "min-w-0 truncate text-sm leading-none font-semibold tracking-[-0.012em] text-foreground rail:max-w-full rail:text-[0.6875rem] rail:font-medium rail:text-card-foreground",
             id: "repo",
             title: data?.repo,
@@ -57248,10 +57719,10 @@ function Sidebar2() {
           })
         ]
       }),
-      !isPhone && /* @__PURE__ */ jsx_runtime37.jsx(Intake, {
+      !isPhone && /* @__PURE__ */ jsx_runtime38.jsx(Intake, {
         inBar: false
       }),
-      /* @__PURE__ */ jsx_runtime37.jsxs(Button2, {
+      /* @__PURE__ */ jsx_runtime38.jsxs(Button2, {
         variant: "outline",
         id: "find",
         onClick: openPalette,
@@ -57259,37 +57730,37 @@ function Sidebar2() {
         "aria-keyshortcuts": "Control+K Meta+K /",
         className: "h-8 w-full justify-start gap-2.5 py-0 pr-1.5 pl-2.5 text-left leading-normal font-normal text-muted-foreground hover:bg-secondary hover:text-card-foreground rail:h-[50px] rail:flex-col rail:justify-center rail:gap-[5px] rail:px-0.5 rail:py-1.5 rail:text-center rail:text-[0.6875rem] rail:leading-[1.1] rail:font-medium phone:size-11 phone:flex-none phone:justify-center phone:p-0 [&_.icon]:size-3.5",
         children: [
-          /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime38.jsx(Icon, {
             name: "search"
           }),
-          /* @__PURE__ */ jsx_runtime37.jsx("span", {
+          /* @__PURE__ */ jsx_runtime38.jsx("span", {
             className: "min-w-0 flex-1 truncate rail:flex-none rail:text-card-foreground phone:hidden",
             children: "Search"
           }),
-          /* @__PURE__ */ jsx_runtime37.jsx(Kbd, {
+          /* @__PURE__ */ jsx_runtime38.jsx(Kbd, {
             className: "rail:hidden phone:hidden",
             children: FIND_KEY
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime37.jsx(SidebarMenu, {
+      /* @__PURE__ */ jsx_runtime38.jsx(SidebarMenu, {
         id: "dests",
-        children: AREAS.map((area) => /* @__PURE__ */ jsx_runtime37.jsx(SidebarMenuItem, {
-          children: area === "control" ? /* @__PURE__ */ jsx_runtime37.jsx(ControlDestination, {}) : /* @__PURE__ */ jsx_runtime37.jsx(Destination, {
+        children: AREAS.map((area) => /* @__PURE__ */ jsx_runtime38.jsx(SidebarMenuItem, {
+          children: area === "control" ? /* @__PURE__ */ jsx_runtime38.jsx(ControlDestination, {}) : /* @__PURE__ */ jsx_runtime38.jsx(Destination, {
             area
           })
         }, area))
       }),
-      /* @__PURE__ */ jsx_runtime37.jsx(SidebarFooter, {
+      /* @__PURE__ */ jsx_runtime38.jsx(SidebarFooter, {
         id: "side-foot",
-        children: /* @__PURE__ */ jsx_runtime37.jsx("span", {
+        children: /* @__PURE__ */ jsx_runtime38.jsx("span", {
           className: "mb-1.5 flex flex-wrap gap-x-2.5 gap-y-1.5 border-b border-border px-2 pb-2",
           id: "hints",
           "aria-hidden": "true",
-          children: hints.map((pair) => /* @__PURE__ */ jsx_runtime37.jsxs("span", {
+          children: hints.map((pair) => /* @__PURE__ */ jsx_runtime38.jsxs("span", {
             className: "inline-flex items-center gap-1.5",
             children: [
-              pair.slice(0, -1).map((key) => /* @__PURE__ */ jsx_runtime37.jsx(Kbd, {
+              pair.slice(0, -1).map((key) => /* @__PURE__ */ jsx_runtime38.jsx(Kbd, {
                 className: "min-h-[18px] min-w-[18px] px-1",
                 children: key
               }, key)),
@@ -57303,26 +57774,26 @@ function Sidebar2() {
 }
 function AreaBox({ area, children }) {
   const isShown = useShellStore((state) => state.shell.area === area);
-  return /* @__PURE__ */ jsx_runtime37.jsx("div", {
+  return /* @__PURE__ */ jsx_runtime38.jsx("div", {
     className: isShown ? "contents" : undefined,
     hidden: !isShown,
     children
   });
 }
 function Throughput() {
-  return /* @__PURE__ */ jsx_runtime37.jsx("section", {
+  return /* @__PURE__ */ jsx_runtime38.jsx("section", {
     className: `${AREA_SCREEN} place-items-center`,
     id: "area-throughput",
     "aria-labelledby": "area-throughput-title",
-    children: /* @__PURE__ */ jsx_runtime37.jsxs("div", {
+    children: /* @__PURE__ */ jsx_runtime38.jsxs("div", {
       className: "max-w-[46ch] p-6 text-center",
       children: [
-        /* @__PURE__ */ jsx_runtime37.jsx("h2", {
+        /* @__PURE__ */ jsx_runtime38.jsx("h2", {
           className: "text-sm leading-[1.38] font-semibold tracking-[-0.012em] text-foreground",
           id: "area-throughput-title",
           children: "Throughput is not built yet."
         }),
-        /* @__PURE__ */ jsx_runtime37.jsx("p", {
+        /* @__PURE__ */ jsx_runtime38.jsx("p", {
           className: "mt-1.5 mb-0 text-[0.78125rem] text-muted-foreground text-pretty",
           children: "Throughput will show how fast the issues move from intent to the trunk."
         })
@@ -57333,24 +57804,24 @@ function Throughput() {
 function Work() {
   const { data, isError } = useQuery(viewOptions);
   const area = useShellStore((state) => state.shell.area);
-  return /* @__PURE__ */ jsx_runtime37.jsxs("main", {
+  return /* @__PURE__ */ jsx_runtime38.jsxs("main", {
     className: "col-start-2 row-start-1 flex min-h-0 min-w-0 flex-col gap-3 px-4 pt-3 pb-3.5 focus:[outline:none] phone:col-start-1 phone:row-start-2 phone:px-3 phone:pb-[calc(12px+var(--dock))]",
     id: "work",
     tabIndex: -1,
     "aria-label": "Work area",
     "data-area": area,
     children: [
-      /* @__PURE__ */ jsx_runtime37.jsxs("div", {
+      /* @__PURE__ */ jsx_runtime38.jsxs("div", {
         className: "flex-none not-has-[.banner:not([hidden])]:hidden",
         children: [
-          /* @__PURE__ */ jsx_runtime37.jsx("p", {
+          /* @__PURE__ */ jsx_runtime38.jsx("p", {
             className: cn(BANNER, WARN),
             id: "dirty",
             role: "alert",
             hidden: !data?.noRun,
             children: data?.noRun
           }),
-          /* @__PURE__ */ jsx_runtime37.jsx("p", {
+          /* @__PURE__ */ jsx_runtime38.jsx("p", {
             className: BANNER,
             id: "stale",
             role: "alert",
@@ -57359,27 +57830,27 @@ function Work() {
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime37.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime38.jsx(AreaBox, {
         area: "home",
-        children: /* @__PURE__ */ jsx_runtime37.jsx(Home, {})
+        children: /* @__PURE__ */ jsx_runtime38.jsx(Home, {})
       }),
-      /* @__PURE__ */ jsx_runtime37.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime38.jsx(AreaBox, {
         area: "control",
-        children: /* @__PURE__ */ jsx_runtime37.jsx(Control, {})
+        children: /* @__PURE__ */ jsx_runtime38.jsx(Control, {})
       }),
-      /* @__PURE__ */ jsx_runtime37.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime38.jsx(AreaBox, {
         area: "throughput",
-        children: /* @__PURE__ */ jsx_runtime37.jsx(Throughput, {})
+        children: /* @__PURE__ */ jsx_runtime38.jsx(Throughput, {})
       }),
-      /* @__PURE__ */ jsx_runtime37.jsx(AreaBox, {
+      /* @__PURE__ */ jsx_runtime38.jsx(AreaBox, {
         area: "operations",
-        children: /* @__PURE__ */ jsx_runtime37.jsx(Operations, {})
+        children: /* @__PURE__ */ jsx_runtime38.jsx(Operations, {})
       })
     ]
   });
 }
 function DockItem({ className, ...props }) {
-  return /* @__PURE__ */ jsx_runtime37.jsx(Button2, {
+  return /* @__PURE__ */ jsx_runtime38.jsx(Button2, {
     variant: "ghost",
     className: cn("relative h-14 flex-col gap-1 rounded-xl border-0 p-0 transition-all duration-0 hover:bg-transparent text-[0.6875rem] leading-none text-muted-foreground aria-[current=page]:text-foreground aria-expanded:text-foreground [&_.icon]:box-content [&_.icon]:size-[18px] [&_.icon]:rounded-[14px] [&_.icon]:px-[15px] [&_.icon]:py-[5px] aria-[current=page]:[&_.icon]:bg-accent aria-expanded:[&_.icon]:bg-accent", className),
     ...props
@@ -57400,26 +57871,26 @@ function BottomBar() {
   const moreOpen = useShellStore((state) => state.inputs.moreOpen);
   const mark = useControlMark();
   const isOps = shell.area === "operations";
-  return /* @__PURE__ */ jsx_runtime37.jsxs("nav", {
+  return /* @__PURE__ */ jsx_runtime38.jsxs("nav", {
     id: "bar",
     "aria-label": "Panes",
     className: "fixed inset-x-0 bottom-0 z-[7] hidden h-[var(--dock)] grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.25fr)_repeat(2,minmax(0,1fr))] items-center border-t border-border bg-background px-2 py-1.5 [anchor-name:--bar] phone:grid",
     children: [
-      /* @__PURE__ */ jsx_runtime37.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime38.jsxs(DockItem, {
         id: "pb-home",
         "aria-current": current3(isPhone && shell.area === "home"),
         onClick: () => shellStore.handlers().go("home"),
         children: [
-          /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime38.jsx(Icon, {
             name: "home"
           }),
-          /* @__PURE__ */ jsx_runtime37.jsx("span", {
+          /* @__PURE__ */ jsx_runtime38.jsx("span", {
             className: "label",
             children: "Home"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime37.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime38.jsxs(DockItem, {
         className: "min-h-11",
         id: "pb-chat",
         "data-state": chat.state,
@@ -57430,34 +57901,34 @@ function BottomBar() {
         "aria-current": current3(isPhone && isOps && shell.pane === "chat"),
         onClick: () => shellStore.handlers().showChat(),
         children: [
-          /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime38.jsx(Icon, {
             name: "message"
           }),
-          /* @__PURE__ */ jsx_runtime37.jsx("span", {
+          /* @__PURE__ */ jsx_runtime38.jsx("span", {
             className: "label",
             children: "Chat"
           }),
-          /* @__PURE__ */ jsx_runtime37.jsx(ChatMark, {
+          /* @__PURE__ */ jsx_runtime38.jsx(ChatMark, {
             state: chat.state,
             stale: chat.stale,
             className: "absolute top-1.5 left-[calc(50%+9px)]"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime37.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime38.jsxs(DockItem, {
         id: "pb-agents",
         "aria-label": needLabel("Agents", agents),
         "aria-current": current3(isPhone && isOps && shell.pane === "agents"),
         onClick: () => shellStore.handlers().agents(),
         children: [
-          /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime38.jsx(Icon, {
             name: "board"
           }),
-          /* @__PURE__ */ jsx_runtime37.jsx("span", {
+          /* @__PURE__ */ jsx_runtime38.jsx("span", {
             className: "label",
             children: "Agents"
           }),
-          /* @__PURE__ */ jsx_runtime37.jsx(Badge, {
+          /* @__PURE__ */ jsx_runtime38.jsx(Badge, {
             variant: "count",
             className: "absolute top-0.5 left-[calc(50%+6px)]",
             id: "now-badge",
@@ -57466,48 +57937,48 @@ function BottomBar() {
           })
         ]
       }),
-      isPhone && /* @__PURE__ */ jsx_runtime37.jsx(Intake, {
+      isPhone && /* @__PURE__ */ jsx_runtime38.jsx(Intake, {
         inBar: true
       }),
-      /* @__PURE__ */ jsx_runtime37.jsxs(DockItem, {
+      /* @__PURE__ */ jsx_runtime38.jsxs(DockItem, {
         id: "pb-control",
         className: "data-mark:after:absolute data-mark:after:top-1.5 data-mark:after:left-[calc(50%+8px)] data-mark:after:size-2 data-mark:after:rounded-full data-mark:after:bg-needs data-mark:after:content-[''] data-[mark=fail]:after:bg-caution",
         "aria-current": current3(isPhone && shell.area === "control"),
         ...mark,
         onClick: () => shellStore.handlers().go("control"),
         children: [
-          /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
+          /* @__PURE__ */ jsx_runtime38.jsx(Icon, {
             name: "sliders"
           }),
-          /* @__PURE__ */ jsx_runtime37.jsx("span", {
+          /* @__PURE__ */ jsx_runtime38.jsx("span", {
             className: "label",
             children: "Control"
           })
         ]
       }),
-      /* @__PURE__ */ jsx_runtime37.jsxs(DropdownMenu, {
+      /* @__PURE__ */ jsx_runtime38.jsxs(DropdownMenu, {
         modal: false,
         open: moreOpen,
         onOpenChange: (isOpen) => shellStore.setInputs({ moreOpen: isOpen }),
         children: [
-          /* @__PURE__ */ jsx_runtime37.jsxs(DropdownMenuTrigger, {
-            render: /* @__PURE__ */ jsx_runtime37.jsx(DockItem, {
+          /* @__PURE__ */ jsx_runtime38.jsxs(DropdownMenuTrigger, {
+            render: /* @__PURE__ */ jsx_runtime38.jsx(DockItem, {
               id: "board-more",
               "aria-label": "More board actions",
               "aria-current": current3(isPhone && shell.area === "throughput"),
               title: "More board actions"
             }),
             children: [
-              /* @__PURE__ */ jsx_runtime37.jsx(Icon, {
+              /* @__PURE__ */ jsx_runtime38.jsx(Icon, {
                 name: "dots"
               }),
-              /* @__PURE__ */ jsx_runtime37.jsx("span", {
+              /* @__PURE__ */ jsx_runtime38.jsx("span", {
                 className: "label",
                 children: "More"
               })
             ]
           }),
-          /* @__PURE__ */ jsx_runtime37.jsxs(DropdownMenuContent, {
+          /* @__PURE__ */ jsx_runtime38.jsxs(DropdownMenuContent, {
             "aria-label": "Board actions",
             "data-more-menu": "",
             side: "top",
@@ -57517,12 +57988,12 @@ function BottomBar() {
                 event.preventBaseUIHandler();
             },
             children: [
-              /* @__PURE__ */ jsx_runtime37.jsx(FirstFocus, {}),
-              /* @__PURE__ */ jsx_runtime37.jsx(ViewBoundary, {
+              /* @__PURE__ */ jsx_runtime38.jsx(FirstFocus, {}),
+              /* @__PURE__ */ jsx_runtime38.jsx(ViewBoundary, {
                 snapshot: shell,
                 fallback: null,
                 onFail: closeMore,
-                children: /* @__PURE__ */ jsx_runtime37.jsx(Entries2, {
+                children: /* @__PURE__ */ jsx_runtime38.jsx(Entries2, {
                   list: phoneMenu,
                   close: closeMore
                 })
@@ -57535,21 +58006,21 @@ function BottomBar() {
   });
 }
 function Shell() {
-  return /* @__PURE__ */ jsx_runtime37.jsxs(jsx_runtime37.Fragment, {
+  return /* @__PURE__ */ jsx_runtime38.jsxs(jsx_runtime38.Fragment, {
     children: [
-      /* @__PURE__ */ jsx_runtime37.jsx(SkipLinks, {}),
-      /* @__PURE__ */ jsx_runtime37.jsx(Sidebar2, {}),
-      /* @__PURE__ */ jsx_runtime37.jsx(Work, {}),
-      /* @__PURE__ */ jsx_runtime37.jsx(BottomBar, {})
+      /* @__PURE__ */ jsx_runtime38.jsx(SkipLinks, {}),
+      /* @__PURE__ */ jsx_runtime38.jsx(Sidebar2, {}),
+      /* @__PURE__ */ jsx_runtime38.jsx(Work, {}),
+      /* @__PURE__ */ jsx_runtime38.jsx(BottomBar, {})
     ]
   });
 }
 
 // engine/board/page/app/app.tsx
-var jsx_runtime38 = __toESM(require_jsx_runtime());
-var Announcer = import_react37.memo(() => {
-  const text = import_react37.useSyncExternalStore(announcement.subscribe, announcement.get);
-  return /* @__PURE__ */ jsx_runtime38.jsx("p", {
+var jsx_runtime39 = __toESM(require_jsx_runtime());
+var Announcer = import_react38.memo(() => {
+  const text = import_react38.useSyncExternalStore(announcement.subscribe, announcement.get);
+  return /* @__PURE__ */ jsx_runtime39.jsx("p", {
     className: "sr-only",
     id: "announce",
     "aria-live": "polite",
@@ -57558,25 +58029,25 @@ var Announcer = import_react37.memo(() => {
 });
 function App() {
   useGlobalKeys();
-  import_react37.useEffect(() => queueMicrotask(startRead), []);
-  return /* @__PURE__ */ jsx_runtime38.jsx(CSPProvider, {
+  import_react38.useEffect(() => queueMicrotask(startRead), []);
+  return /* @__PURE__ */ jsx_runtime39.jsx(CSPProvider, {
     disableStyleElements: true,
-    children: /* @__PURE__ */ jsx_runtime38.jsxs(QueryClientProvider, {
+    children: /* @__PURE__ */ jsx_runtime39.jsxs(QueryClientProvider, {
       client: queryClient,
       children: [
-        /* @__PURE__ */ jsx_runtime38.jsx(Shell, {}),
-        /* @__PURE__ */ jsx_runtime38.jsx(Announcer, {}),
-        /* @__PURE__ */ jsx_runtime38.jsx(UpdateDialog, {}),
-        /* @__PURE__ */ jsx_runtime38.jsx(StopDialog, {}),
-        /* @__PURE__ */ jsx_runtime38.jsx(Palette, {}),
-        /* @__PURE__ */ jsx_runtime38.jsx(Shortcuts, {}),
-        /* @__PURE__ */ jsx_runtime38.jsx(Toaster, {})
+        /* @__PURE__ */ jsx_runtime39.jsx(Shell, {}),
+        /* @__PURE__ */ jsx_runtime39.jsx(Announcer, {}),
+        /* @__PURE__ */ jsx_runtime39.jsx(UpdateDialog, {}),
+        /* @__PURE__ */ jsx_runtime39.jsx(StopDialog, {}),
+        /* @__PURE__ */ jsx_runtime39.jsx(Palette, {}),
+        /* @__PURE__ */ jsx_runtime39.jsx(Shortcuts, {}),
+        /* @__PURE__ */ jsx_runtime39.jsx(Toaster, {})
       ]
     })
   });
 }
 
 // engine/board/page/main.tsx
-var jsx_runtime39 = __toESM(require_jsx_runtime());
+var jsx_runtime40 = __toESM(require_jsx_runtime());
 var root5 = import_client.createRoot(document.body);
-import_react_dom7.flushSync(() => root5.render(/* @__PURE__ */ jsx_runtime39.jsx(App, {})));
+import_react_dom7.flushSync(() => root5.render(/* @__PURE__ */ jsx_runtime40.jsx(App, {})));

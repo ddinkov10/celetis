@@ -33,6 +33,8 @@ import { Card, type CardProps, type Env, UnseenDot } from './card.tsx';
 import { indexCards, layoutOf } from './cards.ts';
 import { columnId, columnStop, FOLD, isStop, reachable, STOPS, showHints, stopKey } from './keys.ts';
 import { IconButton, Mark, Timed, useKeptScroll } from './parts.tsx';
+import { PrototypeFailedCard, prototypeGroups, usePrototypeState } from './prototype-failed.tsx';
+import { GROUPS } from '../../view.ts';
 import { closeDetails, openDetails, type ScreenState, screen, useScreen, view } from './state.ts';
 
 type Held = {
@@ -489,6 +491,7 @@ export function Board() {
   const isPipeline = shell.tab === 'pipeline';
   useRescue(menu);
   useColumnEvents(columns);
+  const prototype = usePrototypeState();
   const measure = useMeasure(columns, isPipeline);
   const env = useEnv(read);
   const live = read && screen.board();
@@ -630,6 +633,10 @@ export function Board() {
       const cards = board.columns[key];
       const id = `col-${key}`;
       const groups = key === 'needs' ? groupNeeds(cards) : [];
+      const shownGroups =
+        key === 'needs'
+          ? prototypeGroups(groups, prototype, { ...(GROUPS.find((each) => each.key === 'stuck') as (typeof groups)[number]), cards: [] })
+          : groups;
       const items: Item[] =
         key === 'needs'
           ? groups.flatMap((each) =>
@@ -670,7 +677,7 @@ export function Board() {
             <Badge variant="column">{cards.length}</Badge>
           </header>
           <div className={`col-body ${BODY.now}`}>
-            {cards.length === 0 && held.length === 0 ? (
+            {cards.length === 0 && held.length === 0 && prototype.fixture === null ? (
               <div
                 className={cn(
                   'empty mt-1 flex flex-col items-center gap-1 rounded-xl border px-5 py-8 text-center',
@@ -691,7 +698,7 @@ export function Board() {
               </div>
             ) : key === 'needs' ? (
               <>
-                {cards.length === 0 && (
+                {cards.length === 0 && prototype.fixture === null && (
                   <p
                     className="empty m-0 mt-1 rounded-xl border border-solid border-[color-mix(in_srgb,var(--ready)_25%,transparent)] bg-[color-mix(in_srgb,var(--ready)_5%,transparent)] px-3 py-2.5 text-[0.8125rem] font-semibold text-foreground"
                     tabIndex={-1}
@@ -699,7 +706,7 @@ export function Board() {
                     {emptyTitle}
                   </p>
                 )}
-                {groups.map((each, at) => (
+                {shownGroups.map((each, at) => (
                   // biome-ignore lint/a11y/useSemanticElements: a fieldset would change the DOM that the old readers and the styles find
                   <div
                     key={each.key}
@@ -717,8 +724,9 @@ export function Board() {
                       id={`g-${each.key}`}
                     >
                       <span>{each.label}</span>
-                      <span className="font-medium tracking-[0] tabular-nums">{each.cards.length}</span>
+                      <span className="font-medium tracking-[0] tabular-nums">{each.cards.length + (each.key === 'stuck' && prototype.fixture !== null ? 1 : 0)}</span>
                     </h3>
+                    {each.key === 'stuck' && prototype.fixture !== null && <PrototypeFailedCard state={prototype} />}
                     {each.cards.map((card) =>
                       cardOf(card, { column: 'needs', isCompact: each.isCompact, level: 'h4' }, stop),
                     )}
