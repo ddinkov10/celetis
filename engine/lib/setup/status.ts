@@ -8,16 +8,19 @@ import { type ExitCode, exits, labels, setupStatusClosing } from '../contract/co
 import { loggedIn } from '../github/github.ts';
 import { run } from '../process/process.ts';
 import { type Choice, services } from '../services/services.ts';
+import { fits } from '../state/schemas.ts';
 import { parseSetupRecord, type WiringRecord } from './record.ts';
 import {
   ambiguousJSON,
   attribute,
+  badAllow,
   claudeImport,
   codexRestriction,
   codexRules,
   configFile,
   destinationProblem,
   hasLine,
+  holdsEntry,
   ignores,
   instructionFiles,
   lines,
@@ -25,10 +28,11 @@ import {
   markerPair,
   markerRepair,
   normal,
-  object,
   projectFile,
+  ruleList,
   settings,
   settingsForm,
+  settingsObject,
   trackingProblem,
   wiring,
 } from './wiring.ts';
@@ -232,12 +236,11 @@ class Status {
     if (source === undefined) return;
     const doc = this.json(settings, source);
     if (doc === undefined) return;
-    if (!object(doc)) {
+    if (!fits(settingsObject, doc)) {
       this.add('invalid', settings, 'is no JSON object; repair it by hand');
       return;
     }
-    if (object(doc.permissions) && Object.hasOwn(doc.permissions, 'allow') && !Array.isArray(doc.permissions.allow))
-      this.add('invalid', settings, 'permissions.allow is no array; repair it by hand');
+    if (badAllow(doc.permissions)) this.add('invalid', settings, 'permissions.allow is no array; repair it by hand');
     const invalid = new Set<string>();
     for (const form of settingsForm()) {
       const parentKey = form.path[0] as string;
@@ -252,7 +255,7 @@ class Status {
         continue;
       }
       const parent = doc[parentKey];
-      if (!object(parent)) {
+      if (!fits(settingsObject, parent)) {
         if (!invalid.has(parentKey)) this.add('invalid', settings, `${parentKey} is no object; repair it by hand`);
         invalid.add(parentKey);
         continue;
@@ -260,10 +263,10 @@ class Status {
       const present = Object.hasOwn(parent, key);
       const value = parent[key];
       if (form.item !== undefined) {
-        if (present && !Array.isArray(value)) {
+        if (present && !fits(ruleList, value)) {
           if (!invalid.has(name)) this.add('invalid', settings, `${name} is no array; repair it by hand`);
           invalid.add(name);
-        } else if (!present || !(value as unknown[]).includes(form.item))
+        } else if (!fits(ruleList, value) || !value.includes(form.item))
           this.add('missing', settings, `${name} lacks ${form.item}; setup adds it`);
       } else if (!present) this.add('missing', settings, `${name} is missing; setup adds it`);
       else if (!isDeepStrictEqual(value, form.value))
@@ -275,7 +278,7 @@ class Status {
             : `${name} differs from the required form; setup preserves it; repair it by hand`,
         );
     }
-    if (object(doc.extraKnownMarketplaces) && Object.hasOwn(doc.extraKnownMarketplaces, 'celetis'))
+    if (holdsEntry(doc, 'extraKnownMarketplaces', 'celetis'))
       this.add(
         'different',
         settings,
@@ -296,7 +299,7 @@ class Status {
     } catch {
       return;
     }
-    if (object(doc) && object(doc.extraKnownMarketplaces) && Object.hasOwn(doc.extraKnownMarketplaces, 'celetis'))
+    if (holdsEntry(doc, 'extraKnownMarketplaces', 'celetis'))
       this.add(
         'different',
         localSettings,

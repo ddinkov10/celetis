@@ -1,6 +1,6 @@
 import { realpath } from 'node:fs/promises';
 import { AgentOrderConflict, validateAgentOrder } from '../lib/agent/order.ts';
-import type { AgentChoice, AgentOrder, Host } from '../lib/config/core.ts';
+import { type AgentChoice, type AgentOrder, agentOrderRecord, type Host } from '../lib/config/core.ts';
 import { exits } from '../lib/contract/contract.ts';
 import { unknownOutcome } from '../lib/coordinator/coordinator.ts';
 import type { CoordinatorAct, CoordinatorFacts } from '../lib/coordinator/types.ts';
@@ -74,20 +74,12 @@ const selectionOf = (choice: AgentChoice): Selection => {
 };
 
 const parseOrder = (value: unknown): AgentOrder => {
-  if (
-    value === null ||
-    typeof value !== 'object' ||
-    Array.isArray(value) ||
-    Object.keys(value).sort().join(',') !== 'order,schema,version' ||
-    !('schema' in value) ||
-    value.schema !== 1 ||
-    !('version' in value) ||
-    typeof value.version !== 'string' ||
-    !orderVersion.test(value.version) ||
-    !('order' in value)
-  )
-    throw new Error('agents: the order outcome is uncertain; refresh before another change');
-  return Object.freeze({ schema: 1, order: validateAgentOrder(value.order), version: value.version });
+  const found = agentOrderRecord.safeParse(value);
+  if (found.success)
+    return Object.freeze({ schema: 1, order: Object.freeze(found.data.order), version: found.data.version });
+  if (found.error.issues.every(({ path }) => path[0] === 'order') && Object.hasOwn(value as object, 'order'))
+    validateAgentOrder((value as { order: unknown }).order);
+  throw new Error('agents: the order outcome is uncertain; refresh before another change');
 };
 
 export async function celetisAdapter(

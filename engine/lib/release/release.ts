@@ -5,6 +5,7 @@ import { HostError } from '../command/errors.ts';
 import { exits } from '../contract/contract.ts';
 import { run } from '../process/process.ts';
 import { revision } from '../state/fields.ts';
+import { fits } from '../state/schemas.ts';
 
 export type Ref = Readonly<{ kind: 'branch' | 'release'; name: string }>;
 
@@ -47,7 +48,7 @@ export async function manifestVersion(root: string): Promise<string | null> {
     throw new HostError(`celetis: cannot read the plugin manifest ${file}`, exits.prerequisite, { cause: error });
   }
   if (!('version' in manifest)) return null;
-  if (typeof manifest.version !== 'string' || releaseParts(`v${manifest.version}`) === null)
+  if (!fits(releaseVersion, manifest.version))
     throw new HostError(`celetis: the plugin manifest ${file} has a version that is not X.Y.Z`, exits.prerequisite);
   return manifest.version;
 }
@@ -56,8 +57,6 @@ export const releaseSource = 'https://github.com/ddinkov10/celetis.git';
 
 export const manifests = ['plugins/celetis/.claude-plugin/plugin.json', 'plugins/celetis/.codex-plugin/plugin.json'];
 
-export type ReleaseStamp = Readonly<{ version: string; revision: string; source: typeof releaseSource }>;
-
 export const releaseVersion = z.string().refine((value) => releaseParts(`v${value}`) !== null);
 
 const stampShape = z.strictObject({
@@ -65,6 +64,8 @@ const stampShape = z.strictObject({
   revision: z.string().regex(revision),
   source: z.literal(releaseSource),
 });
+
+export type ReleaseStamp = Readonly<z.output<typeof stampShape>>;
 
 export function parseStamp(text: string): ReleaseStamp {
   let value: unknown;

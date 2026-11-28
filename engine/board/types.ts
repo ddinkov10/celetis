@@ -10,10 +10,10 @@ import type {
   QuotaWait,
   Trends,
 } from '../lib/board-read/types.ts';
-import type { AgentChoice, AgentDecision, AgentOrder, Host, UsageBlock } from '../lib/config/core.ts';
+import type { AgentDecision, AgentOrder, Host, UsageBlock } from '../lib/config/core.ts';
 import type { CoordinatorAction, CoordinatorKey, CoordinatorState } from '../lib/coordinator/types.ts';
 import type { PluginHost, Registry } from '../lib/host/names.ts';
-import type { QueueAction, QueueView } from '../lib/queue/types.ts';
+import type { QueueView } from '../lib/queue/types.ts';
 import type { HeldView, HoldBlocker, IssueRow, ParentEpic, Pull, RowHold } from '../lib/resolver/types.ts';
 import type { DialogKind, TerminalStatus } from '../lib/terminal/types.ts';
 import type { TrackerKind } from '../lib/tracker/grammar.ts';
@@ -87,25 +87,6 @@ export type AgentPickerView = {
 export type AgentReplaceRequest = { order: readonly Host[]; expectedVersion: string };
 export type AgentReplaceConflict = { error: string; latest: AgentOrder };
 export type RunRequest = { number: IssueKey; agent?: Host; effort?: Level } | { number: IssueKey; waitId: string };
-export type BoardRequest =
-  | { path: '/api/intake' }
-  | { path: '/api/assist' | '/api/visual' | '/api/resume' | '/api/shell'; number: IssueKey }
-  | { path: '/api/run'; number: IssueKey; agent?: Host; effort?: Level }
-  | { path: '/api/run'; number: IssueKey; waitId: string }
-  | { path: '/api/queue'; action: QueueAction; choice: AgentChoice }
-  | { path: '/api/go'; sessionId: string }
-  | { path: '/api/aside'; number: IssueKey }
-  | { path: '/api/stop'; number: IssueKey; sessionId: string }
-  | { path: '/api/held/land'; number: IssueKey; head: string; patch: string }
-  | { path: '/api/held/discard' | '/api/hold'; number: IssueKey }
-  | { path: '/api/agent'; order: Host[]; expectedVersion: string }
-  | { path: '/api/refresh' }
-  | { path: '/api/update/check' }
-  | { path: '/api/update/start'; offerId: string }
-  | { path: '/api/update/restart' }
-  | { path: '/api/coordinator/open' | '/api/coordinator/interrupt' | '/api/coordinator/end' }
-  | { path: '/api/coordinator/say'; text: string }
-  | { path: '/api/coordinator/key'; key: CoordinatorKey };
 export type CoordinatorView = {
   state: CoordinatorState;
   kind: DialogKind | null;

@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { noteMarker } from '../../lib/coordinator/coordinator.ts';
 import type { ChatBlock, ChatCall, ChatEntry, ChatInline, ChatText } from '../types.ts';
 
@@ -9,6 +10,15 @@ export type RecordRead = { events: ChatEvent[]; unknown: number };
 
 export const INPUT_LIMIT = 2000;
 export const RESULT_LIMIT = 4000;
+
+export const lax = <T extends z.ZodType>(schema: T) => schema.optional().catch(undefined);
+
+export const anything = z.unknown().optional();
+
+const textPart = z.looseObject({ type: z.literal('text'), text: z.string() });
+export const textList = z
+  .array(textPart.nullable().catch(null))
+  .transform((parts) => parts.flatMap((part) => (part ? [part.text] : [])));
 
 export function object(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);

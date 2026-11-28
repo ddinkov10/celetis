@@ -1,89 +1,133 @@
+import { z } from 'zod';
 import type { CodexClient } from '../../lib/host/codex/app-server.ts';
 import { isSessionId } from '../../lib/state/fields.ts';
-import { type ChatEvent, callSummary, inputText, type Launch, object, type RecordRead, userEvents } from './chat.ts';
+import { anyNumber } from '../../lib/state/schemas.ts';
+import {
+  anything,
+  type ChatEvent,
+  callSummary,
+  inputText,
+  type Launch,
+  lax,
+  type RecordRead,
+  textList,
+  userEvents,
+} from './chat.ts';
 
 const quiet = new Set(['reasoning', 'plan', 'contextCompaction', 'hookPrompt', 'sleep']);
 
-function iso(ms: unknown): string | null {
-  if (typeof ms !== 'number') return null;
+const stamp = anyNumber.nullish().catch(Number.NaN);
+
+const entryShape = z.looseObject({
+  startedAtMs: stamp,
+  completedAtMs: stamp,
+  item: z.looseObject({
+    type: lax(z.string()),
+    id: lax(z.string()),
+    startedAtMs: stamp,
+    completedAtMs: stamp,
+    status: anything,
+    content: lax(textList),
+    text: lax(z.string()),
+    command: lax(z.string()),
+    aggregatedOutput: lax(z.string()),
+    exitCode: lax(anyNumber),
+    changes: lax(
+      z.array(
+        z
+          .looseObject({ path: lax(z.string()), diff: lax(z.string()) })
+          .nullable()
+          .catch(null),
+      ),
+    ),
+    error: lax(z.looseObject({ message: lax(z.string()) })),
+    result: lax(z.looseObject({ content: anything })),
+    server: lax(z.string()),
+    tool: lax(z.string()),
+    arguments: anything,
+    contentItems: anything,
+    success: anything,
+  }),
+});
+
+const itemList = z.looseObject({ data: z.array(z.unknown()), nextCursor: lax(z.string()) });
+const textItem = z.looseObject({ text: z.string() });
+
+function iso(ms: number | null | undefined): string | null {
+  if (ms == null) return null;
   const date = new Date(ms);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 function contentText(items: unknown): string {
-  if (!Array.isArray(items)) return '';
-  return items.map((item) => (object(item) && typeof item.text === 'string' ? item.text : inputText(item))).join('\n');
+  const list = z.array(z.unknown()).safeParse(items);
+  if (!list.success) return '';
+  return list.data
+    .map((item) => {
+      const parsed = textItem.safeParse(item);
+      return parsed.success ? parsed.data.text : inputText(item);
+    })
+    .join('\n');
 }
 
-function strings(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
-}
+const present = (value: string | undefined): value is string => value !== undefined;
 
 export function codexEvents(entry: unknown, launch: Launch): ChatEvent[] | 'unknown' {
-  if (!object(entry) || !object(entry.item)) return 'unknown';
-  const item = entry.item;
-  if (typeof item.type !== 'string') return 'unknown';
+  const parsed = entryShape.safeParse(entry);
+  if (!parsed.success) return 'unknown';
+  const item = parsed.data.item;
+  if (item.type === undefined) return 'unknown';
   if (quiet.has(item.type)) return [];
-  if (typeof item.id !== 'string') return 'unknown';
+  if (item.id === undefined) return 'unknown';
   const id = item.id;
-  const at = iso(item.startedAtMs ?? entry.startedAtMs);
+  const at = iso(item.startedAtMs ?? parsed.data.startedAtMs);
   const call = (tool: string, summary: string, input: string, text: string, failed: boolean): ChatEvent[] => {
     const events: ChatEvent[] = [{ kind: 'call', id, at, tool, summary, input }];
     if (item.status !== 'inProgress')
       events.push({
         kind: 'result',
         id,
-        at: iso(item.completedAtMs ?? entry.completedAtMs),
+        at: iso(item.completedAtMs ?? parsed.data.completedAtMs),
         text,
         failed: failed || item.status === 'failed' || item.status === 'declined',
       });
     return events;
   };
   switch (item.type) {
-    case 'userMessage': {
-      if (!Array.isArray(item.content)) return 'unknown';
-      const texts = item.content.flatMap((part) =>
-        object(part) && part.type === 'text' && typeof part.text === 'string' ? [part.text] : [],
-      );
-      return userEvents(id, at, texts.join('\n'), launch);
-    }
+    case 'userMessage':
+      return item.content ? userEvents(id, at, item.content.join('\n'), launch) : 'unknown';
     case 'agentMessage':
-      return typeof item.text === 'string' && item.text.trim() !== ''
-        ? [{ kind: 'agent', id, at, text: item.text }]
-        : [];
+      return item.text !== undefined && item.text.trim() !== '' ? [{ kind: 'agent', id, at, text: item.text }] : [];
     case 'commandExecution': {
-      const command = typeof item.command === 'string' ? item.command : '';
-      const text = typeof item.aggregatedOutput === 'string' ? item.aggregatedOutput : '';
+      const command = item.command ?? '';
       return call(
         'Shell',
         callSummary({ command }),
         command,
-        text,
-        typeof item.exitCode === 'number' && item.exitCode !== 0,
+        item.aggregatedOutput ?? '',
+        item.exitCode !== undefined && item.exitCode !== 0,
       );
     }
     case 'fileChange': {
-      const changes = Array.isArray(item.changes) ? item.changes.filter(object) : [];
-      const paths = strings(changes.map((change) => change.path));
-      const input = changes.map((change) => strings([change.path, change.diff]).join('\n')).join('\n\n');
+      const changes = (item.changes ?? []).flatMap((change) => (change ? [change] : []));
+      const paths = changes.map((change) => change.path).filter(present);
+      const input = changes.map((change) => [change.path, change.diff].filter(present).join('\n')).join('\n\n');
       return call('Edit', callSummary({ path: paths.join(', ') }), input, '', false);
     }
     case 'mcpToolCall': {
-      const error = object(item.error) && typeof item.error.message === 'string' ? item.error.message : null;
-      const result = object(item.result) ? contentText(item.result.content) : '';
-      const tool = strings([item.server, item.tool]).join('.');
+      const error = item.error?.message ?? null;
+      const result = item.result ? contentText(item.result.content) : '';
+      const tool = [item.server, item.tool].filter(present).join('.');
       return call(tool, callSummary(item.arguments), inputText(item.arguments), error ?? result, error !== null);
     }
-    case 'dynamicToolCall': {
-      const tool = typeof item.tool === 'string' ? item.tool : '';
+    case 'dynamicToolCall':
       return call(
-        tool,
+        item.tool ?? '',
         callSummary(item.arguments),
         inputText(item.arguments),
         contentText(item.contentItems),
         item.success === false,
       );
-    }
     default:
       return 'unknown';
   }
@@ -105,19 +149,20 @@ export function createCodexRecord(
       let page = cursor;
       for (;;) {
         const { result } = await client.request('thread/items/list', { threadId, cursor: page, limit: 100 });
-        if (!object(result) || !Array.isArray(result.data)) throw new Error('the Codex item list has no data');
-        for (const entry of result.data) {
+        const list = itemList.safeParse(result);
+        if (!list.success) throw new Error('the Codex item list has no data');
+        for (const entry of list.data.data) {
           const found = codexEvents(entry, launch);
           if (found !== 'unknown') {
             events.push(...found);
             continue;
           }
-          const key = object(entry) && object(entry.item) && typeof entry.item.id === 'string' ? entry.item.id : null;
+          const key = entryShape.safeParse(entry).data?.item.id ?? null;
           if (key === null || !counted.has(key)) unknown++;
           if (key !== null) counted.add(key);
         }
-        const next = result.nextCursor;
-        if (typeof next !== 'string' || next === '' || next === page) break;
+        const next = list.data.nextCursor;
+        if (next === undefined || next === '' || next === page) break;
         page = next;
       }
       cursor = page;

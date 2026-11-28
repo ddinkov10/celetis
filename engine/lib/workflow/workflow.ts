@@ -1,3 +1,4 @@
+import type { Gates } from '../config/core.ts';
 import { deferredMarker, headings, type Kind, type Label, marker } from '../contract/contract.ts';
 import type { AcceptedEpicResult, EpicAcceptance, EpicChild, EpicSubmission, EpicTarget } from '../epic/schemas.ts';
 import { type IssueKey, keySource, parseKey } from '../tracker/key.ts';
@@ -36,11 +37,6 @@ export const stages: readonly { name: 'Triage' | (typeof laneStageNames)[number]
 ];
 
 export type Gate = 'manual' | 'auto';
-export type Gates = Readonly<
-  { triage?: Gate } & {
-    [L in Lane]?: Gate | Readonly<Partial<Record<(typeof lanes)[L]['steps'][number], Gate>>>;
-  }
->;
 
 export const defaultGate: Gate = 'manual';
 

@@ -29,26 +29,32 @@ import { labelStyles } from './lib/setup/labels.ts';
 import { parseSetupRecord, type SetupEntry, type WiringRecord } from './lib/setup/record.ts';
 import { freshChoice, setupStatus } from './lib/setup/status.ts';
 import {
+  allowRules,
   ambiguousJSON,
   attribute,
+  badAllow,
   claudeImport,
   codexRestriction,
   codexRules,
   configFile,
   destinationProblem,
   hasLine,
+  holdsEntry,
   ignores,
   instructionFiles,
   lines,
   managedInstructions,
   normal,
   object,
+  ruleList,
   settings,
   settingsForm,
+  settingsObject,
   trackingProblem,
   wiring,
 } from './lib/setup/wiring.ts';
 import { installRecorder, markDefect, passOn } from './lib/state/events.ts';
+import { fits } from './lib/state/schemas.ts';
 import { laneFolder, laneFolderName } from './lib/state/state.ts';
 import type { TrackerKind } from './lib/tracker/grammar.ts';
 import { TrackerError } from './lib/tracker/tracker.ts';
@@ -562,9 +568,8 @@ class Setup {
       }
       checkJSONKeys(settings, source);
     }
-    if (!object(doc)) fail(`${settings} is no JSON object; fix it first`);
-    if (object(doc.permissions) && Object.hasOwn(doc.permissions, 'allow') && !Array.isArray(doc.permissions.allow))
-      fail(`${settings}: permissions.allow is no array; fix it first`);
+    if (!fits(settingsObject, doc)) fail(`${settings} is no JSON object; fix it first`);
+    if (badAllow(doc.permissions)) fail(`${settings}: permissions.allow is no array; fix it first`);
     let changed = false;
     const wanted = selected ? settingsForm() : [];
     for (const entry of this.previous.entries[settings] ?? []) {
@@ -577,7 +582,7 @@ class Setup {
       )
         continue;
       const group = doc[entry.path[0] as string];
-      if (!object(group)) continue;
+      if (!fits(settingsObject, group)) continue;
       const key = entry.path[1] as string;
       if (entry.item === undefined) {
         if (Object.hasOwn(group, key)) {
@@ -585,8 +590,9 @@ class Setup {
           if (!Object.keys(group).length) delete doc[entry.path[0] as string];
           changed = true;
         }
-      } else if (Array.isArray(group[key])) {
-        const value = group[key] as unknown[];
+      } else {
+        const value = group[key];
+        if (!fits(ruleList, value)) continue;
         const remaining = value.filter((item) => item !== entry.item);
         if (remaining.length !== value.length) {
           group[key] = remaining;
@@ -597,23 +603,18 @@ class Setup {
     for (const form of wanted) {
       const parentKey = form.path[0] as string;
       const key = form.path[1] as string;
-      let parent = doc[parentKey];
-      if (Object.hasOwn(doc, parentKey) && !object(parent))
-        fail(`${settings}: ${parentKey} is no object; fix it first`);
-      if (!Object.hasOwn(doc, parentKey)) {
-        parent = {};
-        doc[parentKey] = parent;
-      }
-      const group = parent as Record<string, unknown>;
+      if (!Object.hasOwn(doc, parentKey)) doc[parentKey] = {};
+      const group = doc[parentKey];
+      if (!fits(settingsObject, group)) fail(`${settings}: ${parentKey} is no object; fix it first`);
       const present = Object.hasOwn(group, key);
       const value = group[key];
       if (form.item !== undefined) {
-        if (present && !Array.isArray(value)) fail(`${settings}: ${form.path.join('.')} is no array; fix it first`);
         if (!present) {
           group[key] = [form.item];
           changed = true;
-        } else if (!(value as unknown[]).includes(form.item)) {
-          (value as unknown[]).push(form.item);
+        } else if (!fits(ruleList, value)) fail(`${settings}: ${form.path.join('.')} is no array; fix it first`);
+        else if (!value.includes(form.item)) {
+          value.push(form.item);
           changed = true;
         }
         this.own(settings, { path: form.path, item: form.item });
@@ -633,8 +634,8 @@ class Setup {
     if (!selected)
       for (const form of settingsForm()) {
         const group = doc[form.path[0] as string];
-        const value = object(group) ? group[form.path[1] as string] : undefined;
-        if (form.item === undefined ? value !== undefined : Array.isArray(value) && value.includes(form.item))
+        const value = fits(settingsObject, group) ? group[form.path[1] as string] : undefined;
+        if (form.item === undefined ? value !== undefined : fits(ruleList, value) && value.includes(form.item))
           this.review(
             settings,
             `${form.path.join('.')}${form.item === undefined ? '' : `: ${form.item}`}; integration for the unselected Claude host`,
@@ -791,16 +792,13 @@ class Setup {
         fail(`${settings} is no JSON object; fix it first`);
       }
       checkJSONKeys(settings, source);
-      if (!object(doc)) fail(`${settings} is no JSON object; fix it first`);
+      if (!fits(settingsObject, doc)) fail(`${settings} is no JSON object; fix it first`);
     }
-    const allow = object(doc) && object(doc.permissions) ? doc.permissions.allow : undefined;
-    for (const item of new Set(Array.isArray(allow) ? allow : []))
+    for (const item of new Set(allowRules(doc)))
       if (typeof item === 'string' && /^(Bash|PowerShell)\((\.\/)?(scripts\/celetis|celetis)([ )])/.test(item))
         this.review(settings, `permissions.allow: ${item}`);
-    if (object(doc) && object(doc.enabledPlugins) && Object.hasOwn(doc.enabledPlugins, 'celetis@celetis'))
-      this.review(settings, 'enabledPlugins.celetis@celetis');
-    if (object(doc) && object(doc.extraKnownMarketplaces) && Object.hasOwn(doc.extraKnownMarketplaces, 'celetis'))
-      this.review(settings, 'extraKnownMarketplaces.celetis');
+    if (holdsEntry(doc, 'enabledPlugins', 'celetis@celetis')) this.review(settings, 'enabledPlugins.celetis@celetis');
+    if (holdsEntry(doc, 'extraKnownMarketplaces', 'celetis')) this.review(settings, 'extraKnownMarketplaces.celetis');
   }
   async plan(opts: Options, scratch: string): Promise<void> {
     if (opts.baseline) {

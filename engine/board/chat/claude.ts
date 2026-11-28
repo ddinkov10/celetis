@@ -1,15 +1,18 @@
 import { lstat, open, readdir, realpath } from 'node:fs/promises';
 import { dirname, join, sep } from 'node:path';
+import { z } from 'zod';
 import { configHome } from '../../lib/host/homes.ts';
 import { isSessionId } from '../../lib/state/fields.ts';
 import {
+  anything,
   type ChatEvent,
   callSummary,
   inputText,
   type Launch,
   launchNote,
-  object,
+  lax,
   type RecordRead,
+  textList,
   userEvents,
 } from './chat.ts';
 
@@ -35,67 +38,93 @@ const internal = new Set([
   'tools-used',
 ]);
 
+const rowShape = z.looseObject({
+  type: z.string(),
+  uuid: lax(z.string()),
+  timestamp: lax(z.string()),
+  isSidechain: lax(z.literal(true)),
+  isCompactSummary: lax(z.literal(true)),
+  isMeta: lax(z.literal(true)),
+  message: lax(z.looseObject({ content: anything })),
+  origin: anything,
+  attachment: lax(z.looseObject({ type: z.literal('queued_command'), prompt: lax(z.string()), origin: anything })),
+});
+
+const assistantPart = z.union([
+  z.looseObject({ type: z.literal('text'), text: z.string() }),
+  z.looseObject({ type: z.literal('tool_use'), id: z.string(), name: z.string(), input: anything }),
+]);
+
+const resultPart = z.looseObject({
+  type: z.literal('tool_result'),
+  tool_use_id: lax(z.string()),
+  content: anything,
+  is_error: lax(z.literal(true)),
+});
+
+const messageText = z.union([z.string(), textList.transform((texts) => texts.join('\n'))]);
+const originShape = z.looseObject({ kind: anything });
+
 function textOf(content: unknown): string | null {
-  if (typeof content === 'string') return content;
-  if (!Array.isArray(content)) return null;
-  return content
-    .flatMap((part) => (object(part) && part.type === 'text' && typeof part.text === 'string' ? [part.text] : []))
-    .join('\n');
+  const parsed = messageText.safeParse(content);
+  return parsed.success ? parsed.data : null;
 }
 
 export function claudeEvents(row: unknown, launch: Launch): ChatEvent[] | 'unknown' {
-  if (!object(row) || typeof row.type !== 'string') return 'unknown';
-  if (row.isSidechain === true) return [];
-  if (row.type === 'attachment' && object(row.attachment) && row.attachment.type === 'queued_command') {
-    const { prompt, origin } = row.attachment;
-    if (typeof row.uuid !== 'string' || typeof prompt !== 'string') return 'unknown';
-    return textEvents(row.uuid, typeof row.timestamp === 'string' ? row.timestamp : null, prompt, origin, launch);
+  const parsed = rowShape.safeParse(row);
+  if (!parsed.success) return 'unknown';
+  const { type, uuid, message, attachment } = parsed.data;
+  if (parsed.data.isSidechain) return [];
+  const at = parsed.data.timestamp ?? null;
+  if (type === 'attachment' && attachment) {
+    if (uuid === undefined || attachment.prompt === undefined) return 'unknown';
+    return textEvents(uuid, at, attachment.prompt, attachment.origin, launch);
   }
-  if (internal.has(row.type)) return [];
-  if (row.type !== 'user' && row.type !== 'assistant') return 'unknown';
-  if (typeof row.uuid !== 'string' || !object(row.message)) return 'unknown';
-  const id = row.uuid;
-  const at = typeof row.timestamp === 'string' ? row.timestamp : null;
-  const content = row.message.content;
-  if (row.type === 'assistant') {
+  if (internal.has(type)) return [];
+  if (type !== 'user' && type !== 'assistant') return 'unknown';
+  if (uuid === undefined || !message) return 'unknown';
+  const content = message.content;
+  if (type === 'assistant') {
     if (!Array.isArray(content)) return 'unknown';
-    return content.flatMap((part, index): ChatEvent[] => {
-      if (!object(part)) return [];
-      if (part.type === 'text' && typeof part.text === 'string' && part.text.trim() !== '')
-        return [{ kind: 'agent', id: `${id}:${index}`, at, text: part.text }];
-      if (part.type === 'tool_use' && typeof part.id === 'string' && typeof part.name === 'string')
-        return [
-          {
-            kind: 'call',
-            id: part.id,
-            at,
-            tool: part.name,
-            summary: callSummary(part.input),
-            input: inputText(part.input),
-          },
-        ];
-      return [];
+    return content.flatMap((item, index): ChatEvent[] => {
+      const part = assistantPart.safeParse(item);
+      if (!part.success) return [];
+      if (part.data.type === 'text')
+        return part.data.text.trim() === ''
+          ? []
+          : [{ kind: 'agent', id: `${uuid}:${index}`, at, text: part.data.text }];
+      return [
+        {
+          kind: 'call',
+          id: part.data.id,
+          at,
+          tool: part.data.name,
+          summary: callSummary(part.data.input),
+          input: inputText(part.data.input),
+        },
+      ];
     });
   }
-  if (row.isCompactSummary === true) return [{ kind: 'note', id, at, text: 'The conversation was compacted' }];
-  if (row.isMeta === true) return [];
-  if (Array.isArray(content) && content.some((part) => object(part) && part.type === 'tool_result'))
-    return content.flatMap((part): ChatEvent[] =>
-      object(part) && part.type === 'tool_result' && typeof part.tool_use_id === 'string'
+  if (parsed.data.isCompactSummary) return [{ kind: 'note', id: uuid, at, text: 'The conversation was compacted' }];
+  if (parsed.data.isMeta) return [];
+  const results = Array.isArray(content) ? content.map((item) => resultPart.safeParse(item)) : [];
+  if (results.some((result) => result.success))
+    return results.flatMap((result): ChatEvent[] =>
+      result.success && result.data.tool_use_id !== undefined
         ? [
             {
               kind: 'result',
-              id: part.tool_use_id,
+              id: result.data.tool_use_id,
               at,
-              text: textOf(part.content) ?? '',
-              failed: part.is_error === true,
+              text: textOf(result.data.content) ?? '',
+              failed: result.data.is_error === true,
             },
           ]
         : [],
     );
   const text = textOf(content);
   if (text === null) return 'unknown';
-  return textEvents(id, at, text, row.origin, launch);
+  return textEvents(uuid, at, text, parsed.data.origin, launch);
 }
 
 function tag(text: string, name: string): string | null {
@@ -114,7 +143,8 @@ function textEvents(id: string, at: string | null, text: string, origin: unknown
     const name = tag(text, 'command-name');
     return name ? [launchNote(launch, id, at, name) ?? { kind: 'note', id, at, text: name }] : [];
   }
-  if (object(origin) && origin.kind !== 'human') return [];
+  const source = originShape.safeParse(origin);
+  if (source.success && source.data.kind !== 'human') return [];
   return userEvents(id, at, text, launch);
 }
 

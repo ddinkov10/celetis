@@ -1,9 +1,23 @@
-import type { Host } from '../config/core.ts';
+import { z } from 'zod';
+import { type Host, modelId } from '../config/core.ts';
 import { capPrefix } from '../contract/contract.ts';
 import { type Level, levels } from '../workflow/effort.ts';
 
 type Score = { rank: number; effort: number };
-export type Runtime = { schema: number; runtime: string; models: { id: string; efforts: string[] }[] };
+export const printable = z
+  .string()
+  .min(1)
+  .refine((value) => [...value].every((character) => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127));
+const unique = (values: readonly unknown[]) => new Set(values).size === values.length;
+export const runtimeAllowlist = z.looseObject({
+  schema: z.literal(1),
+  runtime: printable,
+  models: z
+    .array(z.looseObject({ id: modelId, efforts: z.array(printable).min(1).refine(unique) }))
+    .min(1)
+    .refine((models) => unique(models.map((model) => model.id))),
+});
+export type Runtime = z.output<typeof runtimeAllowlist>;
 export class ScoreError extends Error {}
 
 export interface Binding {

@@ -1,8 +1,10 @@
 import { type Document, isAlias, isMap, isScalar, isSeq, parseAllDocuments } from 'yaml';
-import { type Host, hosts } from '../host/names.ts';
+import { z } from 'zod';
+import { type Host, hosts, isHost } from '../host/names.ts';
+import { orderVersion } from '../state/fields.ts';
 import type { TrackerKind } from '../tracker/grammar.ts';
-import { levels, models, type Pin, type ReviewerLevel, reviewerLevels } from '../workflow/effort.ts';
-import { type AutoLane, autoLaneNames, type Gates, lanes, type Step, steps } from '../workflow/workflow.ts';
+import { levels, models, reviewerLevels } from '../workflow/effort.ts';
+import { autoLaneNames, lanes, type Step, steps } from '../workflow/workflow.ts';
 
 export const bunFloor = '1.4.4';
 export const configSchema = 1;
@@ -42,9 +44,21 @@ const yaml11Float = /^[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?$
 
 export const skillName = /^[a-z][a-z0-9-]*$/;
 
+type Frozen<T> = T extends object ? { readonly [Key in keyof T]: Frozen<T[Key]> } : T;
+
+export const agentOrderList = z
+  .array(z.custom<Host>(isHost))
+  .min(1)
+  .refine((order) => new Set(order).size === order.length);
+export const agentOrderRecord = z.strictObject({
+  schema: z.literal(1),
+  order: agentOrderList,
+  version: z.string().regex(orderVersion),
+});
+
 export type { Host };
 export type AgentChoice = Readonly<{ kind: 'default' } | { kind: 'explicit'; host: Host }>;
-export type AgentOrder = Readonly<{ schema: 1; order: readonly Host[]; version: string }>;
+export type AgentOrder = Frozen<z.output<typeof agentOrderRecord>>;
 export type UsageBlock = Readonly<{ reason: string; resetAt: number | null }>;
 export type AgentDecision =
   | { kind: 'start'; host: Host }
@@ -57,31 +71,6 @@ export type ConfigSource = Readonly<{
 }>;
 
 export type ConfigReader = Readonly<{ part: string; act: string }>;
-
-export type Config = Readonly<{
-  schema: number;
-  gates?: Gates;
-  agents?: Readonly<Partial<Record<Step, Host>>>;
-  sessions?: Readonly<Partial<Record<Step, Pin>>>;
-  autoLanes?: readonly AutoLane[];
-  board?: Readonly<{ port?: number }>;
-  worktreeSetup?: string;
-  holdLanding?: boolean;
-  custom?: Readonly<Record<string, string>>;
-  codexProfiles?: Readonly<
-    Record<
-      string,
-      Readonly<{
-        slots: readonly [string, string, string, string];
-        reviewer: Readonly<{ rank: 0 | 1 | 2 | 3; effort: ReviewerLevel }>;
-      }>
-    >
-  >;
-}> &
-  (
-    | Readonly<{ tracker: 'github'; landing: 'pr' }>
-    | Readonly<{ tracker: TrackerKind; landing: 'merge'; suite: string }>
-  );
 
 function field(path: Path): string {
   return path.join('.') || '<document>';
@@ -247,158 +236,166 @@ function checkRules(nodes: NodeRecord[], rules: [string, (node: NodeRecord) => P
   }
 }
 
-function object(value: unknown, path: Path): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new ConfigError(path, 'need an object');
+const isMapping = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const pathLine = 'need a relative path of a .ts file in the checkout';
+const skillLine = 'need a skill name: a lowercase letter, then lowercase letters, digits, or -';
+const laneGateLine = 'need manual, auto, or a mapping from a step of the lane to manual or auto';
+const autoLanesLine = `need a sequence with one or more of ${autoLaneNames.join(', ')}`;
+
+const nulFree = z.string().refine((value) => !value.includes('\0'));
+const worktreeSetup = z
+  .string()
+  .refine(
+    (value) =>
+      value === '' ||
+      (value.endsWith('.ts') &&
+        !/[\\:]/.test(value) &&
+        ![...value].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) &&
+        !value.split('/').some((part) => ['', '.', '..', '.git'].includes(part))),
+  );
+
+export const modelId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._/-]*$/);
+export const modelSlots = z.tuple([modelId, modelId, modelId, modelId]);
+export const reviewerShape = {
+  rank: z.int().min(0).max(3) as z.ZodType<0 | 1 | 2 | 3>,
+  effort: z.enum(reviewerLevels),
+};
+export const codexProfile = z.strictObject({ slots: modelSlots, reviewer: z.strictObject(reviewerShape) });
+
+const gate = z.enum(['manual', 'auto']);
+const laneGate = <S extends readonly string[]>(names: S) =>
+  z
+    .union([
+      gate,
+      z.strictObject(
+        Object.fromEntries(names.map((name) => [name, gate.optional()])) as Record<
+          S[number],
+          z.ZodOptional<typeof gate>
+        >,
+      ),
+    ])
+    .optional();
+const gates = z.strictObject({
+  triage: gate.optional(),
+  feature: laneGate(lanes.feature.steps),
+  bug: laneGate(lanes.bug.steps),
+  chore: laneGate(lanes.chore.steps),
+  hotfix: laneGate(lanes.hotfix.steps),
+});
+const stepMap = <T extends z.ZodType>(entry: T) =>
+  z.strictObject(Object.fromEntries(steps.map((step) => [step, entry.optional()])) as Record<Step, z.ZodOptional<T>>);
+const pin = z.strictObject({ model: z.enum(models).optional(), effort: z.enum(levels).optional() });
+
+// z.record skips an own __proto__ key; these maps check every own key.
+function entries<T extends z.ZodType>(key: z.ZodType<string>, entry: T) {
+  return z.custom<Record<string, z.output<T>>>(isMapping).superRefine((value, ctx) => {
+    for (const name of Object.keys(value))
+      if (!key.safeParse(name).success)
+        ctx.addIssue({ code: 'invalid_key', origin: 'record', issues: [], path: [name], input: name });
+    for (const [name, each] of Object.entries(value))
+      for (const issue of entry.safeParse(each).error?.issues ?? [])
+        ctx.addIssue({ ...issue, path: [name, ...issue.path] });
+  });
+}
+
+const configShape = z.strictObject({
+  schema: z.number(),
+  tracker: z.enum(['github', 'local']),
+  landing: z.enum(['pr', 'merge']),
+  gates: gates.optional(),
+  agents: stepMap(z.enum(hosts)).optional(),
+  sessions: stepMap(pin).optional(),
+  autoLanes: z.array(z.enum(autoLaneNames)).min(1).optional(),
+  board: z.strictObject({ port: z.int().min(1024).max(65535).optional() }).optional(),
+  worktreeSetup: worktreeSetup.optional(),
+  holdLanding: z.boolean().optional(),
+  suite: nulFree.optional(),
+  custom: entries(z.string().regex(skillName), nulFree).optional(),
+  codexProfiles: entries(z.string().min(1), codexProfile).optional(),
+});
+
+export type Gates = Frozen<z.output<typeof gates>>;
+export type Config = Frozen<Omit<z.output<typeof configShape>, 'tracker' | 'landing' | 'suite'>> &
+  (
+    | Readonly<{ tracker: 'github'; landing: 'pr' }>
+    | Readonly<{ tracker: TrackerKind; landing: 'merge'; suite: string }>
+  );
+
+function child(value: unknown, path: Path): unknown {
+  let node = value;
+  for (const key of path)
+    node = isMapping(node) || Array.isArray(node) ? Object.getOwnPropertyDescriptor(node, key)?.value : undefined;
+  return node;
+}
+
+const integerLine = (value: unknown) => (typeof value === 'number' ? 'integer is out of range' : 'need an integer');
+const textLine = (value: unknown) => (typeof value === 'string' ? 'NUL is not allowed' : 'need a string');
+const leaves: [pattern: string, line: (value: unknown) => string][] = [
+  ['tracker', () => 'invalid value'],
+  ['landing', () => 'invalid value'],
+  ['gates.triage', () => 'need manual or auto'],
+  ['gates.*.*', () => 'need manual or auto'],
+  ['agents.*', () => 'invalid value'],
+  ['sessions.*.model', () => 'invalid value'],
+  ['sessions.*.effort', () => 'invalid value'],
+  ['board.port', integerLine],
+  ['worktreeSetup', (value) => (typeof value === 'string' ? pathLine : 'need a string')],
+  ['holdLanding', () => 'need a boolean'],
+  ['suite', textLine],
+  ['custom.*', textLine],
+  ['codexProfiles.*.reviewer.rank', integerLine],
+  ['codexProfiles.*.reviewer.effort', () => 'invalid value'],
+];
+
+function configError(issue: z.core.$ZodIssue, value: unknown, prefix: Path = []): ConfigError {
+  const path: Path = [...prefix, ...issue.path.map(String)];
+  if (issue.code === 'invalid_union' && at(path, 'gates.*')) {
+    const [mapping] = issue.errors[1] ?? [];
+    return isMapping(child(value, path)) && mapping
+      ? configError(mapping, value, path)
+      : new ConfigError(path, laneGateLine);
   }
-  return value as Record<string, unknown>;
-}
-
-function keysOnly(value: Record<string, unknown>, allowed: readonly string[], path: Path): void {
-  const unknown = Object.keys(value).find((key) => !allowed.includes(key));
-  if (unknown !== undefined) throw new ConfigError([...path, unknown], 'unknown field');
-}
-
-function required(value: Record<string, unknown>, key: string, path: Path): void {
-  if (!Object.hasOwn(value, key)) throw new ConfigError([...path, key], 'required field');
-}
-
-function oneOf(value: unknown, values: readonly string[], path: Path): void {
-  if (typeof value !== 'string' || !values.includes(value)) throw new ConfigError(path, 'invalid value');
-}
-
-function text(value: unknown, path: Path): void {
-  if (typeof value !== 'string') throw new ConfigError(path, 'need a string');
-  if (value.includes('\0')) throw new ConfigError(path, 'NUL is not allowed');
+  if (issue.code === 'unrecognized_keys') {
+    const keyPath = [...path, issue.keys[0] ?? ''];
+    if (at(path, 'gates')) return new ConfigError(keyPath, `need one of ${autoLaneNames.join(', ')}`);
+    const lane = Object.entries(lanes).find(([name]) => at(path, `gates.${name}`));
+    if (lane) return new ConfigError(keyPath, `need one of ${lane[1].steps.join(', ')}`);
+    return new ConfigError(keyPath, 'unknown field');
+  }
+  if (issue.code === 'invalid_key' && at(path, 'custom.*')) return new ConfigError(path, skillLine);
+  if (issue.code === 'invalid_key' && at(path, 'codexProfiles.*'))
+    return new ConfigError(['codexProfiles'], 'runtime keys must be nonempty');
+  const parent = child(value, path.slice(0, -1));
+  const key = path.at(-1);
+  if (key !== undefined && isMapping(parent) && !Object.hasOwn(parent, key))
+    return new ConfigError(path, 'required field');
+  if (path[0] === 'autoLanes') return new ConfigError(['autoLanes'], autoLanesLine);
+  if (at(path.slice(0, 3), 'codexProfiles.*.slots'))
+    return new ConfigError(path.slice(0, 3), 'need four nonempty model IDs');
+  const leaf = leaves.find(([pattern]) => at(path, pattern));
+  if (leaf) return new ConfigError(path, leaf[1](child(value, path)));
+  return new ConfigError(path, 'need an object');
 }
 
 export function validateWorktreeSetup(value: unknown): string {
-  if (typeof value !== 'string') throw new ConfigError(['worktreeSetup'], 'need a string');
-  if (
-    value !== '' &&
-    (!value.endsWith('.ts') ||
-      /[\\:]/.test(value) ||
-      [...value].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) ||
-      value.split('/').some((part) => ['', '.', '..', '.git'].includes(part)))
-  ) {
-    throw new ConfigError(['worktreeSetup'], 'need a relative path of a .ts file in the checkout');
-  }
-  return value;
-}
-
-function integer(value: unknown, min: number, max: number, path: Path): void {
-  if (typeof value !== 'number') throw new ConfigError(path, 'need an integer');
-  if (!Number.isInteger(value) || value < min || value > max) throw new ConfigError(path, 'integer is out of range');
-}
-
-function profile(value: unknown, path: Path): void {
-  const fields = object(value, path);
-  keysOnly(fields, ['slots', 'reviewer'], path);
-  required(fields, 'slots', path);
-  required(fields, 'reviewer', path);
-  const slots = fields.slots;
-  if (
-    !Array.isArray(slots) ||
-    slots.length !== 4 ||
-    !slots.every((slot) => typeof slot === 'string' && /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(slot))
-  ) {
-    throw new ConfigError([...path, 'slots'], 'need four nonempty model IDs');
-  }
-  const reviewerPath = [...path, 'reviewer'];
-  const reviewer = object(fields.reviewer, reviewerPath);
-  keysOnly(reviewer, ['rank', 'effort'], reviewerPath);
-  required(reviewer, 'rank', reviewerPath);
-  required(reviewer, 'effort', reviewerPath);
-  integer(reviewer.rank, 0, 3, [...reviewerPath, 'rank']);
-  oneOf(reviewer.effort, reviewerLevels, [...reviewerPath, 'effort']);
-}
-
-function gate(value: unknown, path: Path): void {
-  if (value !== 'manual' && value !== 'auto') throw new ConfigError(path, 'need manual or auto');
-}
-
-function checkGates(value: unknown): void {
-  const gates = object(value, ['gates']);
-  for (const [key, entry] of Object.entries(gates)) {
-    const path = ['gates', key];
-    const name = autoLaneNames.find((each) => each === key);
-    if (name === undefined) throw new ConfigError(path, `need one of ${autoLaneNames.join(', ')}`);
-    if (name === 'triage') gate(entry, path);
-    else if (typeof entry === 'object' && entry !== null && !Array.isArray(entry)) {
-      const allowed = lanes[name].steps;
-      for (const [step, each] of Object.entries(entry)) {
-        if (!allowed.some((known) => known === step))
-          throw new ConfigError([...path, step], `need one of ${allowed.join(', ')}`);
-        gate(each, [...path, step]);
-      }
-    } else if (entry !== 'manual' && entry !== 'auto')
-      throw new ConfigError(path, 'need manual, auto, or a mapping from a step of the lane to manual or auto');
-  }
+  const found = worktreeSetup.safeParse(value);
+  if (!found.success) throw new ConfigError(['worktreeSetup'], typeof value === 'string' ? pathLine : 'need a string');
+  return found.data;
 }
 
 function checkSchema(value: unknown): asserts value is Config {
-  const config = object(value, []);
-  keysOnly(
-    config,
-    [
-      'schema',
-      'tracker',
-      'landing',
-      'gates',
-      'agents',
-      'sessions',
-      'autoLanes',
-      'board',
-      'worktreeSetup',
-      'holdLanding',
-      'suite',
-      'custom',
-      'codexProfiles',
-    ],
-    [],
-  );
-  required(config, 'tracker', []);
-  oneOf(config.tracker, ['github', 'local'], ['tracker']);
-  required(config, 'landing', []);
-  oneOf(config.landing, ['pr', 'merge'], ['landing']);
+  const found = configShape.safeParse(value);
+  if (!found.success) throw configError(found.error.issues[0] as z.core.$ZodIssue, value);
+  const config = found.data;
   if (config.tracker === 'local' && config.landing === 'pr')
     throw new ConfigError(['tracker'], 'the tracker local needs the landing merge');
-  if (Object.hasOwn(config, 'gates')) checkGates(config.gates);
-  if (Object.hasOwn(config, 'agents')) {
-    const agents = object(config.agents, ['agents']);
-    keysOnly(agents, steps, ['agents']);
-    for (const [step, host] of Object.entries(agents)) oneOf(host, hosts, ['agents', step]);
-  }
-  if (Object.hasOwn(config, 'sessions')) {
-    const sessions = object(config.sessions, ['sessions']);
-    keysOnly(sessions, steps, ['sessions']);
-    for (const [step, entry] of Object.entries(sessions)) {
-      const pin = object(entry, ['sessions', step]);
-      keysOnly(pin, ['model', 'effort'], ['sessions', step]);
-      if (Object.hasOwn(pin, 'model')) oneOf(pin.model, models, ['sessions', step, 'model']);
-      if (Object.hasOwn(pin, 'effort')) oneOf(pin.effort, levels, ['sessions', step, 'effort']);
-    }
-  }
-  if (Object.hasOwn(config, 'autoLanes')) {
-    const { autoLanes } = config;
-    if (!Array.isArray(autoLanes) || autoLanes.length === 0 || !autoLanes.every((name) => autoLaneNames.includes(name)))
-      throw new ConfigError(['autoLanes'], `need a sequence with one or more of ${autoLaneNames.join(', ')}`);
-  }
-  if (Object.hasOwn(config, 'board')) {
-    const board = object(config.board, ['board']);
-    keysOnly(board, ['port'], ['board']);
-    if (Object.hasOwn(board, 'port')) integer(board.port, 1024, 65535, ['board', 'port']);
-  }
-  if (Object.hasOwn(config, 'worktreeSetup')) validateWorktreeSetup(config.worktreeSetup);
-  if (Object.hasOwn(config, 'holdLanding')) {
-    if (typeof config.holdLanding !== 'boolean') throw new ConfigError(['holdLanding'], 'need a boolean');
-    if (config.holdLanding && config.landing === 'pr')
-      throw new ConfigError(['holdLanding'], 'the landing pr has no hold');
-  }
-  if (config.landing === 'merge') required(config, 'suite', []);
-  if (Object.hasOwn(config, 'suite')) {
-    text(config.suite, ['suite']);
-    const suite = config.suite as string;
+  if (config.holdLanding && config.landing === 'pr')
+    throw new ConfigError(['holdLanding'], 'the landing pr has no hold');
+  if (config.landing === 'merge' && config.suite === undefined) throw new ConfigError(['suite'], 'required field');
+  if (config.suite !== undefined) {
+    const { suite } = config;
     if (config.landing === 'pr') throw new ConfigError(['suite'], 'the landing pr runs no suite');
     if (
       suite.startsWith('/') ||
@@ -407,24 +404,7 @@ function checkSchema(value: unknown): asserts value is Config {
       suite.split('/').includes('..') ||
       !suite.endsWith('.ts')
     ) {
-      throw new ConfigError(['suite'], 'need a relative path of a .ts file in the checkout');
-    }
-  }
-  if (Object.hasOwn(config, 'custom')) {
-    const custom = object(config.custom, ['custom']);
-    const key = Object.keys(custom).find((name) => !skillName.test(name));
-    if (key !== undefined) {
-      throw new ConfigError(
-        ['custom', key],
-        'need a skill name: a lowercase letter, then lowercase letters, digits, or -',
-      );
-    }
-    for (const [skill, instruction] of Object.entries(custom)) text(instruction, ['custom', skill]);
-  }
-  if (Object.hasOwn(config, 'codexProfiles')) {
-    for (const [runtime, entry] of Object.entries(object(config.codexProfiles, ['codexProfiles']))) {
-      if (runtime === '') throw new ConfigError(['codexProfiles'], 'runtime keys must be nonempty');
-      profile(entry, ['codexProfiles', runtime]);
+      throw new ConfigError(['suite'], pathLine);
     }
   }
 }
@@ -438,9 +418,12 @@ export function parseConfigText(text: string): ConfigSource {
   return Object.freeze({ [sourceData]: { value: doc.toJS(), nodes } });
 }
 
+const host = z.enum(hosts);
+
 export function validateHost(value: unknown): Host {
-  oneOf(value, hosts, ['host']);
-  return value as Host;
+  const found = host.safeParse(value);
+  if (!found.success) throw new ConfigError(['host'], 'invalid value');
+  return found.data;
 }
 
 function freeze(value: unknown): void {
@@ -449,15 +432,18 @@ function freeze(value: unknown): void {
   Object.freeze(value);
 }
 
+const schemaNumber = z.int().min(1);
+
 function fileSchema(value: unknown, nodes: NodeRecord[]): number {
-  const config = object(value, []);
-  if (!Object.hasOwn(config, 'schema'))
+  if (!isMapping(value)) throw new ConfigError([], 'need an object');
+  if (!Object.hasOwn(value, 'schema'))
     throw new ConfigError(['schema'], `required field; add "schema: ${configSchema}" as a root field`);
   const node = nodes.find((each) => !each.key && at(each.path, 'schema'));
-  if (typeof config.schema !== 'number' || !/^(?:0|-?[1-9][0-9]*)$/.test(node?.plain ?? ''))
+  if (typeof value.schema !== 'number' || !/^(?:0|-?[1-9][0-9]*)$/.test(node?.plain ?? ''))
     throw new ConfigError(['schema'], 'need an integer');
-  integer(config.schema, 1, Number.MAX_SAFE_INTEGER, ['schema']);
-  return config.schema;
+  const found = schemaNumber.safeParse(value.schema);
+  if (!found.success) throw new ConfigError(['schema'], 'integer is out of range');
+  return found.data;
 }
 
 export function validateConfig(source: ConfigSource): Config {

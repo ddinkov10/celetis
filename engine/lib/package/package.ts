@@ -20,13 +20,15 @@ import { download, integrityForm, latestTarget, type PackageTarget, versionTarge
 
 export { recordFile };
 
-export type PackageRecord = Readonly<{ version: string; revision: string; integrity: string }>;
+const manifestShape = z.looseObject({ version: z.unknown().optional() });
 
 const recordShape = z.strictObject({
   version: releaseVersion,
   revision: z.string().regex(revision),
   integrity: z.string().regex(integrityForm),
 });
+
+export type PackageRecord = Readonly<z.output<typeof recordShape>>;
 
 export async function readRecord(root: string): Promise<PackageRecord> {
   const file = join(root, recordFile);
@@ -58,7 +60,8 @@ export async function checkReleaseTag(stamp: ReleaseStamp, cwd: string): Promise
 function manifestIn(files: PackageFile[], path: string): unknown {
   const file = files.find((entry) => entry.path === path);
   try {
-    return file && JSON.parse(new TextDecoder().decode(file.data)).version;
+    const manifest = file && manifestShape.safeParse(JSON.parse(new TextDecoder().decode(file.data)));
+    return manifest?.success ? manifest.data.version : undefined;
   } catch {
     return undefined;
   }

@@ -2,6 +2,11 @@ import { z } from 'zod';
 import { type IssueKey, isKey } from '../tracker/key.ts';
 import { commit, revision, uuid } from './fields.ts';
 
+// The callers go on with the original value: a loose output drops an own __proto__ key and reorders keys.
+export function fits<S extends z.ZodType>(schema: S, value: unknown): value is z.output<S> {
+  return schema.safeParse(value).success;
+}
+
 export const count = z.int().positive();
 // z.number() refuses Infinity, which a host JSON number such as 1e999 gives.
 export const anyNumber = z.custom<number>((value) => typeof value === 'number');
@@ -17,5 +22,7 @@ export const lowerUuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-
 export const digestText = z.string().regex(/^[0-9a-f]{64}$/);
 export const revisionText = z.string().regex(revision);
 export const commitText = z.string().regex(commit);
+export const named = (name: string) => z.looseObject({ name: z.literal(name) });
+export const celetisName = named('celetis');
 export const members = <T extends string>(table: Readonly<Record<T, true>>) =>
   z.enum(Object.keys(table) as [T, ...T[]]);

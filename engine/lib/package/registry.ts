@@ -5,9 +5,6 @@ import { exits } from '../contract/contract.ts';
 import { releaseVersion } from '../release/release.ts';
 import { tarballLimit } from './archive.ts';
 
-export type PackageTarget = Readonly<{ version: string; integrity: string; tarball: string }>;
-export type PackageDocument = Readonly<{ latest: string; versions: ReadonlyMap<string, PackageTarget> }>;
-
 export const integrityForm = /^sha512-[A-Za-z0-9+/]{85}[AQgw]==$/;
 const packageName = 'celetis';
 const defaultRegistry = 'https://registry.npmjs.org';
@@ -29,6 +26,15 @@ const documentShape = z.looseObject({
     (value) => typeof value === 'object' && value !== null && !Array.isArray(value),
   ),
 });
+
+type VersionEntry = z.output<typeof versionShape>;
+export type PackageTarget = Readonly<
+  Pick<VersionEntry, 'version'> & Pick<VersionEntry['dist'], 'integrity' | 'tarball'>
+>;
+export type PackageDocument = Readonly<{
+  latest: z.output<typeof documentShape>['dist-tags']['latest'];
+  versions: ReadonlyMap<string, PackageTarget>;
+}>;
 
 const refuse = (detail: string, cause?: unknown) =>
   new HostError(`celetis: the registry answer is not valid: ${detail}`, exits.prerequisite, { cause });

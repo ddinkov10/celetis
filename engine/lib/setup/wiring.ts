@@ -2,9 +2,11 @@ import { constants, type Stats } from 'node:fs';
 import { access, lstat, realpath, stat } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
 import { parseAllDocuments } from 'yaml';
+import { z } from 'zod';
 import { HostError } from '../command/errors.ts';
 import { exits } from '../contract/contract.ts';
 import { run } from '../process/process.ts';
+import { fits } from '../state/schemas.ts';
 import { laneIgnore } from '../state/state.ts';
 
 export const wiring = '.claude/celetis/wiring.json';
@@ -32,6 +34,26 @@ type Markers = Readonly<
 
 export const object = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
+
+export const settingsObject = z.looseObject({});
+const permissionsGroup = z.looseObject({ allow: z.array(z.unknown()).optional() });
+export const ruleList = z.array(z.unknown());
+
+export const badAllow = (permissions: unknown) =>
+  fits(settingsObject, permissions) && !fits(permissionsGroup, permissions);
+
+export function allowRules(doc: unknown): unknown[] {
+  if (!fits(settingsObject, doc)) return [];
+  const { permissions } = doc;
+  return fits(permissionsGroup, permissions) ? (permissions.allow ?? []) : [];
+}
+
+export function holdsEntry(doc: unknown, group: string, key: string): boolean {
+  if (!fits(settingsObject, doc)) return false;
+  const entries = doc[group];
+  return fits(settingsObject, entries) && Object.hasOwn(entries, key);
+}
+
 export const normal = (text: string) => text.replace(/\r$/, '').replace(/^[ \t]+|[ \t]+$/g, '');
 export const lines = (text: string) => (text === '' ? [] : text.replace(/\n$/, '').split('\n'));
 export const hasLine = (text: string, line: string) => lines(text).some((item) => normal(item) === line);

@@ -1,11 +1,18 @@
 import { constants } from 'node:fs';
 import { access, readFile, stat } from 'node:fs/promises';
-import type { Config, Host } from '../config/core.ts';
+import { z } from 'zod';
+import { type Config, type Host, modelSlots, reviewerShape } from '../config/core.ts';
 import { hostAdapter } from '../host/hosts.ts';
-import { levels, models, type ReviewerLevel, reviewerLevels } from '../workflow/effort.ts';
-import { type Binding, type Runtime, ScoreError } from './capability.ts';
+import { levels, models } from '../workflow/effort.ts';
+import { type Binding, printable, type Runtime, runtimeAllowlist, ScoreError } from './capability.ts';
 
-type Profile = { schema: number; runtime: string; slots: string[]; reviewer: { rank: number; effort: ReviewerLevel } };
+const profileRecord = z.looseObject({
+  schema: z.literal(1),
+  runtime: printable,
+  slots: modelSlots,
+  reviewer: z.looseObject(reviewerShape),
+});
+type Profile = z.output<typeof profileRecord>;
 
 async function readable(file: string): Promise<boolean> {
   try {
@@ -16,14 +23,6 @@ async function readable(file: string): Promise<boolean> {
     return false;
   }
 }
-function object(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-const text = (value: unknown): value is string =>
-  typeof value === 'string' &&
-  value.length > 0 &&
-  [...value].every((character) => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127);
-const modelId = (value: unknown): value is string => text(value) && /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(value);
 async function jsonFile(file: string, name: string): Promise<unknown> {
   try {
     return JSON.parse(await readFile(file, 'utf8'));
@@ -32,50 +31,18 @@ async function jsonFile(file: string, name: string): Promise<unknown> {
   }
 }
 function runtimeValue(value: unknown): Runtime {
-  if (
-    !object(value) ||
-    value.schema !== 1 ||
-    !text(value.runtime) ||
-    !Array.isArray(value.models) ||
-    value.models.length === 0 ||
-    !value.models.every(
-      (model) =>
-        object(model) &&
-        modelId(model.id) &&
-        Array.isArray(model.efforts) &&
-        model.efforts.length > 0 &&
-        model.efforts.every(text) &&
-        new Set(model.efforts).size === model.efforts.length,
-    ) ||
-    new Set(value.models.map((model) => model.id)).size !== value.models.length
-  )
+  if (!runtimeAllowlist.safeParse(value).success)
     throw new ScoreError('invalid runtime allowlist: schema 1 needs unique model IDs and supported efforts');
   return value as Runtime;
 }
 function profileValue(value: unknown): Profile {
-  if (
-    !object(value) ||
-    value.schema !== 1 ||
-    !text(value.runtime) ||
-    !Array.isArray(value.slots) ||
-    value.slots.length !== 4 ||
-    !value.slots.every(modelId)
-  )
+  const found = profileRecord.safeParse(value);
+  if (found.success) return found.data;
+  if (found.error.issues.some((issue) => issue.path[0] !== 'reviewer'))
     throw new ScoreError('invalid Codex profile: schema 1 needs runtime and four ordered model slots');
-  const reviewer = value.reviewer;
-  if (
-    !object(reviewer) ||
-    typeof reviewer.rank !== 'number' ||
-    !Number.isInteger(reviewer.rank) ||
-    reviewer.rank < 0 ||
-    reviewer.rank > 3 ||
-    typeof reviewer.effort !== 'string' ||
-    !reviewerLevels.some((level) => level === reviewer.effort)
-  )
-    throw new ScoreError(
-      'invalid Codex profile: reviewer needs rank 0-3 and effort low, medium, high or xhigh (max is reserved for sum 12)',
-    );
-  return value as Profile;
+  throw new ScoreError(
+    'invalid Codex profile: reviewer needs rank 0-3 and effort low, medium, high or xhigh (max is reserved for sum 12)',
+  );
 }
 async function binding(
   profileFile: string | undefined,

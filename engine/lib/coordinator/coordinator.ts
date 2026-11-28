@@ -55,8 +55,8 @@ import type { SessionWork } from '../workflow/workflow.ts';
 import {
   type CoordinatorAct,
   type CoordinatorFacts,
-  type CoordinatorKey,
   type CoordinatorState,
+  coordinatorAct,
   coordinatorKeys,
   coordinatorStateOf,
   permittedActions,
@@ -122,8 +122,6 @@ const stateWords: Record<Exclude<CoordinatorState, 'none'>, (kind: DialogKind | 
 };
 const notIn = (state: Exclude<CoordinatorState, 'none'>, kind: DialogKind | null, act: CoordinatorAct['kind']) =>
   `coordinator: the coordinator session ${stateWords[state](kind)}; ${actNoun[act]} is not possible in this state`;
-const isCoordinatorKey = (value: unknown): value is CoordinatorKey =>
-  (coordinatorKeys as readonly unknown[]).includes(value);
 const promptFor: Record<Host, (skill: string) => string> = {
   claude: () => '/celetis:coordinate',
   codex: (skill) =>
@@ -132,10 +130,6 @@ const promptFor: Record<Host, (skill: string) => string> = {
   opencode: () => unsupported('opencode', 'coordinator session'),
 };
 
-const object = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value);
-const exact = (value: Record<string, unknown>, names: readonly string[]) =>
-  Object.keys(value).length === names.length && names.every((name) => Object.hasOwn(value, name));
 const described = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const refused = (line: string, code: ExitCode): { status: number; answer: Refusal } => ({
   status: 409,
@@ -195,17 +189,15 @@ export function textProblem(text: string): string | null {
 }
 
 function actProblem(request: unknown): string | null {
-  if (!object(request)) return actUsage;
-  if (request.kind === 'say') {
-    if (!exact(request, ['kind', 'text']) || typeof request.text !== 'string') return actUsage;
-    const problem = textProblem(request.text);
-    return problem === null ? null : `coordinator: ${problem}`;
-  }
-  if (request.kind === 'key') {
-    if (!exact(request, ['kind', 'key'])) return actUsage;
-    return isCoordinatorKey(request.key) ? null : keyUsage;
-  }
-  return (request.kind === 'interrupt' || request.kind === 'end') && exact(request, ['kind']) ? null : actUsage;
+  const found = coordinatorAct.safeParse(request);
+  if (!found.success)
+    return found.error.issues.every(({ path }) => path.length === 1 && path[0] === 'key') &&
+      Object.hasOwn(request as object, 'key')
+      ? keyUsage
+      : actUsage;
+  if (found.data.kind !== 'say') return null;
+  const problem = textProblem(found.data.text);
+  return problem === null ? null : `coordinator: ${problem}`;
 }
 
 export function attentionOf(

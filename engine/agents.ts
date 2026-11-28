@@ -1,8 +1,11 @@
+import { z } from 'zod';
 import { AgentOrderConflict, readAgentOrder, replaceAgentOrder } from './lib/agent/order.ts';
 import { HostError } from './lib/command/errors.ts';
 import { commandInput, locateCheckouts } from './lib/command/operation.ts';
 import { type ExitCode, exits, usage } from './lib/contract/contract.ts';
 import { installRecorder } from './lib/state/events.ts';
+
+const replacementShape = z.strictObject({ order: z.unknown(), expectedVersion: z.string() });
 
 export async function main(argv: string[]): Promise<ExitCode> {
   try {
@@ -10,7 +13,7 @@ export async function main(argv: string[]): Promise<ExitCode> {
     const [command, source] = args;
     if (!((command === 'read' && args.length === 1) || (command === 'replace' && args.length === 2)))
       throw new HostError(usage('agents'), exits.usage);
-    let replacement: { order: unknown; expectedVersion: string } | undefined;
+    let replacement: z.output<typeof replacementShape> | undefined;
     if (command === 'replace') {
       let value: unknown;
       try {
@@ -18,17 +21,10 @@ export async function main(argv: string[]): Promise<ExitCode> {
       } catch (error) {
         throw new HostError((error as Error).message, exits.usage);
       }
-      if (
-        value === null ||
-        typeof value !== 'object' ||
-        Array.isArray(value) ||
-        Object.keys(value).sort().join(',') !== 'expectedVersion,order' ||
-        !('order' in value) ||
-        !('expectedVersion' in value) ||
-        typeof value.expectedVersion !== 'string'
-      )
+      const found = replacementShape.safeParse(value);
+      if (!found.success)
         throw new HostError('agents: replacement needs exactly order and expectedVersion', exits.usage);
-      replacement = { order: value.order, expectedVersion: value.expectedVersion };
+      replacement = found.data;
     }
     const { common } = await locateCheckouts(process.cwd());
     if (common === null) throw new HostError('agents: need a Git checkout', exits.usage);

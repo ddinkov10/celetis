@@ -1,157 +1,32 @@
-import { isDeepStrictEqual } from 'node:util';
+import { z } from 'zod';
 import { exits } from '../../lib/contract/contract.ts';
-import { isPluginHost } from '../../lib/host/names.ts';
-import { integrityForm } from '../../lib/package/registry.ts';
-import { releaseParts, releaseSource } from '../../lib/release/release.ts';
 import { installRecorder, markDefect } from '../../lib/state/events.ts';
-import { revision } from '../../lib/state/fields.ts';
-import type { PreparedUpdate, UpdateCheck, UpdateResult, UpdateStage } from '../../lib/update/updater.ts';
+import { fits } from '../../lib/state/schemas.ts';
+import {
+  type PreparedUpdate,
+  preparedUpdate,
+  type UpdateCheck,
+  type UpdateResult,
+  updateCheck,
+  updateResult,
+} from '../../lib/update/offer.ts';
+import { type UpdateStage, updateStage } from '../../lib/update/types.ts';
 
 export const UPDATE_PIPE_LIMIT = 1024 * 1024;
-export type WorkerRecord =
-  | { type: 'stage'; value: UpdateStage }
-  | { type: 'owned'; pid: number; active: boolean }
-  | { type: 'result'; value: UpdateCheck | UpdateResult };
+const workerRecord = z.union([
+  z.strictObject({ type: z.literal('stage'), value: updateStage }),
+  z.strictObject({ type: z.literal('owned'), pid: z.int().gt(1), active: z.boolean() }),
+  z.strictObject({ type: z.literal('result'), value: z.union([updateCheck, updateResult]) }),
+]);
+export type WorkerRecord = z.output<typeof workerRecord>;
+const checkRequest = z.strictObject({});
+const applyRequest = z.strictObject({ offer: preparedUpdate });
 
-const part = (value: unknown) => value === 'engine' || isPluginHost(value);
-const text = (value: unknown): value is string => typeof value === 'string' && !value.includes('\0');
-const sha = (value: unknown): value is string => text(value) && revision.test(value);
-const object = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value);
-const keys = (value: Record<string, unknown>, names: string[]) =>
-  Object.keys(value).length === names.length && names.every((name) => Object.hasOwn(value, name));
-const strings = (value: unknown): value is string[] => Array.isArray(value) && value.every(text);
-const parts = (value: unknown) => Array.isArray(value) && value.every(part) && new Set(value).size === value.length;
-const ref = (value: unknown) =>
-  object(value) &&
-  keys(value, ['kind', 'name']) &&
-  text(value.name) &&
-  (value.kind === 'branch' || (value.kind === 'release' && releaseParts(value.name) !== null));
-const engineSource = (value: unknown): value is Record<string, unknown> => {
-  if (!object(value)) return false;
-  if (value.kind === 'git')
-    return (
-      keys(value, ['kind', 'source', 'ref', 'revision']) &&
-      text(value.source) &&
-      ref(value.ref) &&
-      (value.ref as Record<string, unknown>).kind === 'branch' &&
-      sha(value.revision)
-    );
-  return (
-    value.kind === 'package' &&
-    keys(value, ['kind', 'source', 'version', 'revision', 'integrity']) &&
-    value.source === releaseSource &&
-    text(value.version) &&
-    releaseParts(`v${value.version}`) !== null &&
-    sha(value.revision) &&
-    text(value.integrity) &&
-    integrityForm.test(value.integrity)
-  );
-};
-
-export function isPreparedUpdate(value: unknown): value is PreparedUpdate {
-  if (!object(value) || value.request !== null || !sha(value.target) || !isParts(value.parts) || !object(value.engine))
-    return false;
-  const target = (value.parts as Record<string, unknown>[]).find((entry) => entry.part === 'engine')?.target;
-  if (target !== value.target) return false;
-  const { installed, source, to } = value.engine;
-  if (
-    !object(installed) ||
-    !['root', 'entry', 'command'].every((key) => text(installed[key])) ||
-    !sha(installed.revision) ||
-    !engineSource(source) ||
-    !engineSource(to) ||
-    to.revision !== value.target ||
-    !Array.isArray(value.plugins) ||
-    value.plugins.length > 2
-  )
-    return false;
-  return (
-    value.plugins.every(
-      (plugin) =>
-        object(plugin) &&
-        isPluginHost(plugin.host) &&
-        ['home', 'root', 'source', 'ref', 'resolvedRef', 'to'].every((key) => text(plugin[key])) &&
-        ref(plugin.toRef) &&
-        (plugin.user === null || (object(plugin.user) && text(plugin.user.path) && object(plugin.user.source))) &&
-        plugin.layer === null &&
-        sha(plugin.installed) &&
-        sha(plugin.target) &&
-        (plugin.clone === undefined || (plugin.host === 'claude' && sha(plugin.clone))) &&
-        (plugin.scope === undefined || text(plugin.scope)) &&
-        strings(plugin.siblings),
-    ) && new Set(value.plugins.map((plugin) => plugin.host)).size === value.plugins.length
-  );
-}
-
-function isParts(value: unknown): boolean {
-  return (
-    Array.isArray(value) &&
-    value.length <= 3 &&
-    value.every(
-      (entry) =>
-        object(entry) &&
-        part(entry.part) &&
-        (entry.clone === undefined || (entry.part === 'claude' && sha(entry.clone))) &&
-        (text(entry.error) ||
-          text(entry.skipped) ||
-          (['root', 'source', 'ref'].every((key) => text(entry[key])) &&
-            sha(entry.installed) &&
-            sha(entry.target) &&
-            text(entry.to) &&
-            (entry.part === 'engine' || text(entry.home)))),
-    ) &&
-    new Set(value.map((entry) => entry.part)).size === value.length
-  );
-}
-
-export function isUpdateCheck(value: unknown): value is UpdateCheck {
-  return (
-    object(value) &&
-    keys(value, ['parts', 'offer', 'error']) &&
-    isParts(value.parts) &&
-    (value.error === null || text(value.error)) &&
-    (value.offer === null ||
-      (value.error === null && isPreparedUpdate(value.offer) && isDeepStrictEqual(value.offer.parts, value.parts)))
-  );
-}
-
-export function isUpdateResult(value: unknown): value is UpdateResult {
-  return (
-    object(value) &&
-    keys(value, ['ok', 'target', 'completed', 'incomplete', 'error']) &&
-    typeof value.ok === 'boolean' &&
-    sha(value.target) &&
-    parts(value.completed) &&
-    parts(value.incomplete) &&
-    (value.error === null || text(value.error)) &&
-    (!value.ok || (value.error === null && (value.incomplete as unknown[]).length === 0)) &&
-    !(value.completed as unknown[]).some((entry) => (value.incomplete as unknown[]).includes(entry))
-  );
-}
-
-export function isUpdateStage(value: unknown): value is UpdateStage {
-  return (
-    object(value) &&
-    keys(value, ['part', 'state']) &&
-    part(value.part) &&
-    (value.state === 'started' || value.state === 'completed')
-  );
-}
-
-export function isWorkerRecord(value: unknown): value is WorkerRecord {
-  if (!object(value)) return false;
-  if (value.type === 'owned')
-    return (
-      keys(value, ['type', 'pid', 'active']) &&
-      Number.isSafeInteger(value.pid) &&
-      (value.pid as number) > 1 &&
-      typeof value.active === 'boolean'
-    );
-  if (!keys(value, ['type', 'value'])) return false;
-  if (value.type === 'stage') return isUpdateStage(value.value);
-  return value.type === 'result' && (isUpdateCheck(value.value) || isUpdateResult(value.value));
-}
+export const isPreparedUpdate = (value: unknown): value is PreparedUpdate => preparedUpdate.safeParse(value).success;
+export const isUpdateCheck = (value: unknown): value is UpdateCheck => updateCheck.safeParse(value).success;
+export const isUpdateResult = (value: unknown): value is UpdateResult => updateResult.safeParse(value).success;
+export const isUpdateStage = (value: unknown): value is UpdateStage => updateStage.safeParse(value).success;
+export const isWorkerRecord = (value: unknown): value is WorkerRecord => workerRecord.safeParse(value).success;
 
 async function main(): Promise<void> {
   const parent = process.ppid;
@@ -164,10 +39,8 @@ async function main(): Promise<void> {
     if (Buffer.byteLength(input) > UPDATE_PIPE_LIMIT) throw new Error('update worker: request is too large');
   }
   const request: unknown = JSON.parse(input);
-  if (
-    !object(request) ||
-    (mode === 'check' ? !keys(request, []) : !keys(request, ['offer']) || !isPreparedUpdate(request.offer))
-  )
+  const offer = mode === 'apply' && fits(applyRequest, request) ? request.offer : undefined;
+  if (mode === 'check' ? !fits(checkRequest, request) : offer === undefined)
     throw new Error('update worker: invalid request');
   const { inspectUpdate, executeUpdate } = await import('../../lib/update/updater.ts');
   const { observeUpdateChildren } = await import('../../lib/update/lock.ts');
@@ -211,9 +84,9 @@ async function main(): Promise<void> {
   try {
     lostParent();
     const value =
-      mode === 'check'
+      offer === undefined
         ? await inspectUpdate(process.cwd())
-        : await executeUpdate(request.offer as PreparedUpdate, (value) => send({ type: 'stage', value }), parent);
+        : await executeUpdate(offer, (value) => send({ type: 'stage', value }), parent);
     if (!stopping) send({ type: 'result', value });
   } finally {
     clearInterval(watch);

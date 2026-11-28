@@ -1,3 +1,5 @@
+import { z } from 'zod';
+import { count, digestText } from '../state/schemas.ts';
 import type { IssueKey } from '../tracker/key.ts';
 
 export { default as contractVersions } from './versions.json' with { type: 'json' };
@@ -1043,15 +1045,13 @@ export const usage = (command: CommandName, ...detail: string[]): string => `usa
 export const pluginContractFile = 'contract.json';
 export const servedContractsFile = 'engine/lib/contract/versions.json';
 
-const positiveInteger = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) > 0;
-
-function exactObject(value: unknown, keys: readonly string[]): Record<string, unknown> | null {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
-  const own = Object.keys(value);
-  return own.length === keys.length && keys.every((key) => own.includes(key))
-    ? (value as Record<string, unknown>)
-    : null;
-}
+const pluginRecord = z.strictObject({ contract: count });
+const servedRecord = z.strictObject({
+  serves: z
+    .array(z.strictObject({ contract: count, digest: digestText }))
+    .min(1)
+    .refine((entries) => new Set(entries.map(({ contract }) => contract)).size === entries.length),
+});
 
 function parsed(text: string): unknown {
   try {
@@ -1062,22 +1062,13 @@ function parsed(text: string): unknown {
 }
 
 export function pluginContract(text: string): number | null {
-  const record = exactObject(parsed(text), ['contract']);
-  return record && positiveInteger(record.contract) ? record.contract : null;
+  const record = pluginRecord.safeParse(parsed(text));
+  return record.success ? record.data.contract : null;
 }
 
 export function servedContracts(text: string): ReadonlyMap<number, string> | null {
-  const record = exactObject(parsed(text), ['serves']);
-  const entries = record?.serves;
-  if (!Array.isArray(entries) || entries.length === 0) return null;
-  const served = new Map<number, string>();
-  for (const entry of entries) {
-    const each = exactObject(entry, ['contract', 'digest']);
-    if (!each || !positiveInteger(each.contract) || typeof each.digest !== 'string') return null;
-    if (!/^[0-9a-f]{64}$/.test(each.digest) || served.has(each.contract)) return null;
-    served.set(each.contract, each.digest);
-  }
-  return served;
+  const record = servedRecord.safeParse(parsed(text));
+  return record.success ? new Map(record.data.serves.map(({ contract, digest }) => [contract, digest])) : null;
 }
 
 export type StepHeader = Readonly<{

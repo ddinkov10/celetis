@@ -2,9 +2,9 @@ import { createHash } from 'node:crypto';
 import { type BigIntStats, closeSync, constants, fstatSync, lstatSync, openSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { HostError } from '../command/errors.ts';
-import type { AgentOrder, Host } from '../config/core.ts';
+import { type AgentOrder, agentOrderList, type Host } from '../config/core.ts';
 import { type ExitCode, exits } from '../contract/contract.ts';
-import { hostChoices, isHost } from '../host/names.ts';
+import { hostChoices } from '../host/names.ts';
 import { orderVersion } from '../state/fields.ts';
 import {
   checkFolder,
@@ -48,14 +48,10 @@ function regular(
   if (!stat.isFile() || stat.nlink !== 1n || !privateStat(stat)) throw unsafe(path, reason);
 }
 
-export const agentOrder = z
-  .array(z.custom<Host>(isHost))
-  .min(1)
-  .refine((order) => new Set(order).size === order.length);
 const orderFile = z.strictObject({ schema: z.literal(1), order: z.unknown() });
 
 export function validateAgentOrder(value: unknown): readonly Host[] {
-  const found = agentOrder.safeParse(value);
+  const found = agentOrderList.safeParse(value);
   if (!found.success)
     throw new HostError(`agents: order must be a nonempty, unique list of ${hostChoices}`, exits.usage);
   return Object.freeze(found.data);

@@ -1,5 +1,5 @@
 import type { PluginHost } from '../host/names.ts';
-import type { Part, PreparedUpdate } from './updater.ts';
+import type { Part, PreparedUpdate } from './offer.ts';
 
 export const partDiffers = (part: Extract<Part, { installed: string }>): boolean =>
   part.installed !== part.target || part.ref !== part.to || ('clone' in part && part.clone !== part.target);

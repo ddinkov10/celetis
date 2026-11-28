@@ -1,7 +1,8 @@
 import { lstat, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { basename, dirname, isAbsolute, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+import { z } from 'zod';
 import { HostError, NotInstalled } from '../command/errors.ts';
 import { commandInput } from '../command/operation.ts';
 import {
@@ -18,8 +19,6 @@ import { configHome } from '../host/homes.ts';
 import { hostAvailability, requireBun } from '../host/host.ts';
 import { isHost, isPluginHost, type PluginHost, pluginHosts } from '../host/names.ts';
 import {
-  type Engine,
-  type EngineSource,
   engineIdentity,
   enginePaths,
   engineRefName,
@@ -30,31 +29,44 @@ import {
 } from '../install/installation.ts';
 import { engineTarget } from '../package/package.ts';
 import {
+  absolute,
   bindUpdateHome,
   claudeInstallation,
+  codexMarkets,
   codexPlugin,
   codexRevision,
+  hasControl,
   installedRevision,
   installedRoot,
   jsonFile,
+  marketplaceCatalog,
   nativeJson,
-  object,
+  nativePath,
 } from '../plugin/metadata.ts';
 import { checkClaudePolicy, claudePolicy, type PolicyRecord, requireUpdatePolicy } from '../plugin/policy.ts';
 import { git } from '../process/git.ts';
 import { bunArgs, childEnv, run } from '../process/process.ts';
-import { type Ref, releaseParts } from '../release/release.ts';
+import { releaseParts } from '../release/release.ts';
 import { editJSON, jsonStyle } from '../setup/json-layout.ts';
 import { ambiguousJSON } from '../setup/wiring.ts';
 import { installRecorder, markDefect } from '../state/events.ts';
 import { revision } from '../state/fields.ts';
+import { celetisName, fits, revisionText } from '../state/schemas.ts';
 import { writeAtomic } from '../state/state.ts';
 import { UpdateLock, withPluginRead } from './lock.ts';
+import {
+  type Part,
+  type PluginUpdate,
+  type PreparedUpdate,
+  pluginInspection,
+  type UpdateCheck,
+  type UpdateResult,
+} from './offer.ts';
 import { partDiffers, pendingParts } from './pending.ts';
 import { followTarget, newestTarget, requestTarget, resolveRef } from './target.ts';
 import type { UpdateStage } from './types.ts';
 
-export type { UpdateStage };
+export type { UpdateCheck };
 
 export type UpdateTarget = { home: string; root: string; source: string; installed: string; target: string };
 export type Installation = {
@@ -71,72 +83,81 @@ export type Installation = {
   layer: string | null;
   siblings: string[];
 };
-type Offer = Omit<UpdateTarget, 'home'> & { ref: string };
-export type Part =
-  | { part: 'engine' | PluginHost; skipped: string }
-  | { part: 'engine' | PluginHost; error: string }
-  | ({ part: 'engine' } & Offer & { to: string })
-  | ({ part: PluginHost } & UpdateTarget & { ref: string; to: string; clone?: string });
-export type PreparedUpdate = {
-  parts: Part[];
-  engine: { installed: Engine; source: EngineSource; to: EngineSource };
-  plugins: (Installation & { target: string; resolvedRef: string; to: string; toRef: Ref })[];
-  target: string;
-  request: string | null;
-};
-export type UpdateCheck = { parts: Part[]; offer: PreparedUpdate | null; error: string | null };
-export type UpdateResult = {
-  ok: boolean;
-  target: string;
-  completed: ('engine' | PluginHost)[];
-  incomplete: ('engine' | PluginHost)[];
-  error: string | null;
-};
-type PluginUpdate = PreparedUpdate['plugins'][number];
+
+const nativeObject = z.looseObject({});
+const sourced = z.looseObject({ source: nativeObject });
+const declared = z.looseObject({ source: z.unknown() });
+const located = z.looseObject({ installLocation: z.string() });
+const gitUrl = z
+  .string()
+  .refine(
+    (url) =>
+      url.length > 0 &&
+      !hasControl(url) &&
+      (/^(https?|ssh|git|file):\/\//.test(url) || url.startsWith('/') || /^[\w.-]+@[\w.-]+:/.test(url)),
+  );
+const gitRef = z.string().refine((ref) => ref.length > 0 && !ref.startsWith('-') && !hasControl(ref, true));
+const gitRecord = z.looseObject({ source: z.literal('git') });
+const githubRecord = z.looseObject({ source: z.literal('github'), repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/) });
+const inlineRecord = z.looseObject({
+  source: z.literal('settings'),
+  name: z.literal('celetis'),
+  plugins: z.array(z.unknown()),
+});
+const inlinePlugin = z.looseObject({
+  source: z.looseObject({ source: z.literal('git-subdir'), path: z.literal('plugins/celetis') }),
+});
+const githubArg = z.looseObject({ source: z.literal('github'), repo: z.string() });
+const gitArg = z.looseObject({ source: z.literal('git'), url: z.string() });
+const cloneSource = z.looseObject({ source: z.looseObject({ source: z.enum(['git', 'github']) }) });
+const marketsOf = z.looseObject({ extraKnownMarketplaces: nativeObject });
+const layerMarket = z.looseObject({ extraKnownMarketplaces: z.looseObject({ celetis: declared }) });
+const userMarket = z.looseObject({ extraKnownMarketplaces: z.looseObject({ celetis: sourced }) });
+const userEntry = z.looseObject({ extraKnownMarketplaces: z.looseObject({ celetis: nativeObject }) });
+const registration = z.looseObject({ installPath: nativePath });
+const registrations = z.array(z.unknown());
+const registryV2 = z.looseObject({
+  version: z.literal(2),
+  plugins: z.looseObject({ 'celetis@celetis': registrations }),
+});
+const pluginsOf = z.looseObject({ plugins: nativeObject });
+const scoped = z.looseObject({ scope: z.string() });
+const versioned = z.looseObject({ version: z.string() });
+const committed = z.looseObject({ gitCommitSha: z.string() });
+const knownCommit = z.looseObject({ gitCommitSha: revisionText });
+const configReply = z.looseObject({ result: z.looseObject({ config: nativeObject }) });
+const effectiveMarket = z.looseObject({
+  marketplaces: z.looseObject({ celetis: z.looseObject({ source_type: z.literal('git') }) }),
+});
+const pluginConfig = z.looseObject({ plugins: nativeObject.optional() });
+const skipped = z.looseObject({ skipped: z.string() });
 
 function gitSource(value: unknown): { source: string; ref: string } {
-  if (!object(value))
+  if (!fits(nativeObject, value))
     throw new HostError('update: no configured Git source; inspect the native marketplace record', exits.prerequisite);
   let source: unknown;
-  if (value.source === 'git') source = value.url;
-  else if (value.source === 'settings' && value.name === 'celetis' && Array.isArray(value.plugins)) {
-    const plugins = value.plugins.filter((plugin) => object(plugin) && plugin.name === 'celetis');
+  if (fits(gitRecord, value)) source = value.url;
+  else if (fits(inlineRecord, value)) {
+    const plugins = value.plugins.filter((plugin) => fits(celetisName, plugin));
     const plugin = plugins[0];
-    if (
-      plugins.length !== 1 ||
-      !object(plugin) ||
-      !object(plugin.source) ||
-      plugin.source.source !== 'git-subdir' ||
-      plugin.source.path !== 'plugins/celetis'
-    )
+    if (plugins.length !== 1 || !fits(inlinePlugin, plugin))
       throw new HostError('update: invalid native inline marketplace source', exits.prerequisite);
     return gitSource({ source: 'git', url: plugin.source.url, ref: plugin.source.ref });
-  } else if (value.source === 'github' && typeof value.repo === 'string' && /^[\w.-]+\/[\w.-]+$/.test(value.repo))
-    source = `https://github.com/${value.repo}.git`;
-  if (
-    typeof source !== 'string' ||
-    !source ||
-    [...source].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) ||
-    !(/^(https?|ssh|git|file):\/\//.test(source) || source.startsWith('/') || /^[\w.-]+@[\w.-]+:/.test(source))
-  )
+  } else if (fits(githubRecord, value)) source = `https://github.com/${value.repo}.git`;
+  if (!fits(gitUrl, source))
     throw new HostError(
       'update: unsupported configured Git source; use a native Git or GitHub marketplace source',
       exits.prerequisite,
     );
   const ref = value.ref ?? 'HEAD';
-  if (
-    typeof ref !== 'string' ||
-    !ref ||
-    ref.startsWith('-') ||
-    [...ref].some((character) => character.charCodeAt(0) <= 32 || character.charCodeAt(0) === 127)
-  )
+  if (!fits(gitRef, ref))
     throw new HostError('update: invalid configured Git ref; repair the native marketplace source', exits.prerequisite);
   return { source, ref };
 }
 
 function claudeArg(source: Record<string, unknown>): string {
-  if (source.source === 'github' && typeof source.repo === 'string') return source.repo;
-  if (source.source === 'git' && typeof source.url === 'string') return source.url;
+  if (fits(githubArg, source)) return source.repo;
+  if (fits(gitArg, source)) return source.url;
   throw new HostError(
     'update: the Claude user entry of celetis needs a github or git source; repair the user settings',
     exits.prerequisite,
@@ -177,24 +198,20 @@ async function conflictingLayer(
       !['settings.json', 'settings.local.json'].includes(basename(path))
     )
       continue;
-    const markets = value.extraKnownMarketplaces;
-    const market = object(markets) ? markets.celetis : undefined;
-    if (object(market) && Object.hasOwn(market, 'source') && !(await sameSource(market.source, pin, cwd))) return path;
+    if (fits(layerMarket, value) && !(await sameSource(value.extraKnownMarketplaces.celetis.source, pin, cwd)))
+      return path;
   }
   return null;
 }
 
 async function claudeRegistrations(records: unknown, scope: unknown, version: unknown, root: string) {
   const matches: Record<string, unknown>[] = [];
-  if (Array.isArray(records))
+  if (fits(registrations, records))
     for (const record of records)
       if (
-        object(record) &&
+        fits(registration, record) &&
         record.scope === scope &&
         record.version === version &&
-        typeof record.installPath === 'string' &&
-        isAbsolute(record.installPath) &&
-        ![...record.installPath].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127) &&
         (await realpath(record.installPath).catch(() => null)) === root
       )
         matches.push(record);
@@ -227,13 +244,8 @@ async function cloneRevision(location: string): Promise<string> {
 }
 
 // An inline `settings` record, which a stopped update can leave behind, has no clone.
-const nativeClone = async (record: unknown): Promise<string | undefined> =>
-  object(record) &&
-  typeof record.installLocation === 'string' &&
-  object(record.source) &&
-  (record.source.source === 'git' || record.source.source === 'github')
-    ? cloneRevision(record.installLocation)
-    : undefined;
+const nativeClone = async (value: unknown): Promise<string | undefined> =>
+  fits(located, value) && fits(cloneSource, value) ? cloneRevision(value.installLocation) : undefined;
 
 async function installation(host: PluginHost, cwd: string): Promise<[Installation, PolicyRecord[]]> {
   const home = await bindUpdateHome(host);
@@ -258,9 +270,9 @@ async function installation(host: PluginHost, cwd: string): Promise<[Installatio
         exits.prerequisite,
       );
     root = installation.root;
-    scope = typeof record.scope === 'string' ? record.scope : undefined;
+    scope = fits(scoped, record) ? record.scope : undefined;
     const manifest = await jsonFile(join(root, '.claude-plugin/plugin.json'));
-    if (manifest.name !== 'celetis')
+    if (!fits(celetisName, manifest))
       throw new HostError(`update: wrong installed plugin identity in ${root}`, exits.prerequisite);
     policies = await claudePolicy(cwd);
     checkClaudePolicy(policies);
@@ -268,10 +280,10 @@ async function installation(host: PluginHost, cwd: string): Promise<[Installatio
     const nativeMarket = policies.find((record) => record.path === knownPath)?.value.celetis;
     registeredSource = nativeMarket;
     const settingsPath = join(configHome(host), 'settings.json');
-    const userMarkets = policies.find((record) => record.path === settingsPath)?.value.extraKnownMarketplaces;
-    const userMarket = object(userMarkets) ? userMarkets.celetis : undefined;
-    if (object(userMarket) && object(userMarket.source)) user = { path: settingsPath, source: userMarket.source };
-    if (user && object(nativeMarket) && object(nativeMarket.source)) {
+    const settings = policies.find((record) => record.path === settingsPath)?.value;
+    if (fits(userMarket, settings))
+      user = { path: settingsPath, source: settings.extraKnownMarketplaces.celetis.source };
+    if (user && fits(sourced, nativeMarket)) {
       const follows = nativeMarket.source.ref ?? 'HEAD';
       const pins = user.source.ref ?? 'HEAD';
       if (follows !== pins)
@@ -282,43 +294,39 @@ async function installation(host: PluginHost, cwd: string): Promise<[Installatio
     }
     let configuredSource: unknown;
     for (const { value } of policies) {
-      const markets = value.extraKnownMarketplaces;
-      const market = object(markets) ? markets.celetis : value.celetis;
-      if (object(market) && Object.hasOwn(market, 'source')) configuredSource = market.source;
+      const market = fits(marketsOf, value) ? value.extraKnownMarketplaces.celetis : value.celetis;
+      if (fits(declared, market)) configuredSource = market.source;
     }
     configured = gitSource(user ? user.source : configuredSource);
     const registry = await jsonFile(join(configHome(host), 'plugins/installed_plugins.json'), true);
-    if (registry.version === 2 && object(registry.plugins)) {
-      const records = registry.plugins['celetis@celetis'];
-      if (Array.isArray(records)) {
-        const matches = await claudeRegistrations(records, record.scope, record.version, root);
-        if (matches.length > 1)
-          throw new HostError('update: native installed scope/path/version record is ambiguous', exits.prerequisite);
-        const matched = matches[0];
-        if (
-          matches.length === 1 &&
-          matched &&
-          typeof matched.gitCommitSha === 'string' &&
-          revision.test(matched.gitCommitSha)
-        ) {
-          const path = join(configHome(host), 'plugins/known_marketplaces.json');
-          const market = policies.find((record) => record.path === path)?.value.celetis;
-          let registered: ReturnType<typeof gitSource>;
-          try {
-            registered = gitSource(object(market) ? market.source : undefined);
-          } catch {
-            throw new HostError(
-              `update: native registered source is unavailable in ${path}; repair the native marketplace record`,
-              exits.prerequisite,
-            );
-          }
-          if (registered.source !== configured.source)
-            throw new HostError(
-              `update: native registered source does not match the effective configured source in ${path}; repair the native marketplace record`,
-              exits.prerequisite,
-            );
-          nativeRevision = matched.gitCommitSha;
+    if (fits(registryV2, registry)) {
+      const matches = await claudeRegistrations(
+        registry.plugins['celetis@celetis'],
+        record.scope,
+        record.version,
+        root,
+      );
+      if (matches.length > 1)
+        throw new HostError('update: native installed scope/path/version record is ambiguous', exits.prerequisite);
+      const matched = matches[0];
+      if (matches.length === 1 && fits(knownCommit, matched)) {
+        const path = join(configHome(host), 'plugins/known_marketplaces.json');
+        const market = policies.find((record) => record.path === path)?.value.celetis;
+        let registered: ReturnType<typeof gitSource>;
+        try {
+          registered = gitSource(fits(nativeObject, market) ? market.source : undefined);
+        } catch {
+          throw new HostError(
+            `update: native registered source is unavailable in ${path}; repair the native marketplace record`,
+            exits.prerequisite,
+          );
         }
+        if (registered.source !== configured.source)
+          throw new HostError(
+            `update: native registered source does not match the effective configured source in ${path}; repair the native marketplace record`,
+            exits.prerequisite,
+          );
+        nativeRevision = matched.gitCommitSha;
       }
     }
     installed = await installedRevision(host, root, configured.source, nativeRevision);
@@ -327,7 +335,7 @@ async function installation(host: PluginHost, cwd: string): Promise<[Installatio
     const metadata = await codexPlugin(cwd);
     root = metadata.root;
     const market = metadata.record.marketplaceSource;
-    if (!object(market) || market.sourceType !== 'git')
+    if (market.sourceType !== 'git')
       throw new HostError(
         'update: selected Codex marketplace is not a Git source; no remote update check is available',
         exits.prerequisite,
@@ -335,24 +343,23 @@ async function installation(host: PluginHost, cwd: string): Promise<[Installatio
     registeredSource = {
       source: metadata.record.source,
       marketplaceSource: market,
-      root: await realpath((metadata.record.source as { path: string }).path),
+      root: await realpath(metadata.record.source.path),
     };
     const reply = await codexRequest(cwd, 'config/read', { cwd, includeLayers: true }, metadata.home);
-    const config = object(reply) && object(reply.result) && object(reply.result.config) ? reply.result.config : null;
-    const markets = config?.marketplaces;
-    const effective = object(markets) ? markets.celetis : null;
-    if (!object(effective) || effective.source_type !== 'git' || effective.source !== market.source)
+    const config = fits(configReply, reply) ? reply.result.config : null;
+    if (!fits(effectiveMarket, config) || config.marketplaces.celetis.source !== market.source)
       throw new HostError(
         'update: Codex effective marketplace source differs from installed metadata; repair the native configuration',
         exits.prerequisite,
       );
+    const effective = config.marketplaces.celetis;
     configured = gitSource({ source: 'git', url: effective.source, ref: effective.ref });
-    if (config?.plugins !== undefined && !object(config.plugins))
+    if (!fits(pluginConfig, config))
       throw new HostError(
         'update: invalid effective Codex plugin configuration; inspect its native sources',
         exits.prerequisite,
       );
-    siblings = [...new Set([...metadata.marketplacePlugins, ...Object.keys(config?.plugins ?? {})])]
+    siblings = [...new Set([...metadata.marketplacePlugins, ...Object.keys(config.plugins ?? {})])]
       .filter((id) => id.endsWith('@celetis') && id !== 'celetis@celetis')
       .sort();
     installed = await codexRevision(metadata, configured.source);
@@ -419,14 +426,15 @@ async function inspectPlugin(
     if (process.env.CODEX_HOME === undefined && !(await lstat(home).catch(() => null)))
       return `Codex has no home folder ${home}`;
     const listed = await nativeJson(host, ['plugin', 'marketplace', 'list', '--json'], cwd);
-    if (!object(listed) || !Array.isArray(listed.marketplaces))
+    if (!fits(codexMarkets, listed))
       throw new HostError('celetis: invalid Codex marketplace source list', exits.blocked);
-    if (!listed.marketplaces.some((market) => object(market) && market.name === 'celetis'))
-      return 'Celetis is not installed in codex';
+    if (!listed.marketplaces.some((market) => fits(celetisName, market))) return 'Celetis is not installed in codex';
   }
   const decoded = (output: string): PluginUpdate | string => {
-    const value = JSON.parse(output) as PluginUpdate | { skipped: string };
-    return 'skipped' in value ? value.skipped : value;
+    const value: unknown = JSON.parse(output);
+    if (fits(skipped, value)) return value.skipped;
+    if (fits(pluginInspection, value)) return value;
+    throw new HostError(`update: the ${host} inspection printed an invalid answer`, exits.blocked);
   };
   const args = inspectArgs(host, request);
   if (ownerPid !== undefined) {
@@ -636,7 +644,7 @@ async function replaceClaudeMarketplace(
   const registry = await jsonFile(path);
   const current = registry.celetis;
   if (
-    !object(current) ||
+    !fits(nativeObject, current) ||
     !isDeepStrictEqual(current.source, expected.source) ||
     current.installLocation !== expected.installLocation
   )
@@ -668,13 +676,11 @@ async function moveClaude(
   if (ambiguousJSON(text))
     throw new HostError(`update: ${user.path} holds ambiguous JSON; repair it, then check again`, exits.prerequisite);
   const doc: unknown = JSON.parse(text);
-  const markets = object(doc) ? doc.extraKnownMarketplaces : undefined;
-  const market = object(markets) ? markets.celetis : undefined;
-  if (!object(market) || !isDeepStrictEqual(market.source, user.source))
+  if (!fits(userEntry, doc) || !isDeepStrictEqual(doc.extraKnownMarketplaces.celetis.source, user.source))
     throw new HostError(`update: the user entry of celetis in ${user.path} changed; check again`, exits.prerequisite);
   const arg = claudeArg(user.source);
   const source = { ...user.source, ref: name };
-  market.source = source;
+  doc.extraKnownMarketplaces.celetis.source = source;
   const next = editJSON(text, doc, jsonStyle(text, text), []);
   if (!isDeepStrictEqual(JSON.parse(next), doc))
     throw new HostError(`update: cannot keep the layout of ${user.path}; no change was written`, exits.internal);
@@ -707,9 +713,9 @@ async function moveClaude(
   const registryPath = join(config, 'plugins/known_marketplaces.json');
   const registered = (await jsonFile(registryPath)).celetis;
   if (
-    !object(registered) ||
+    !fits(nativeObject, registered) ||
     !isDeepStrictEqual(registered.source, source) ||
-    !object(target.registered) ||
+    !fits(nativeObject, target.registered) ||
     registered.installLocation !== target.registered.installLocation
   )
     throw new HostError(
@@ -786,8 +792,8 @@ async function updatePlugin(
         cwd: process.cwd(),
         env,
       });
-      const current = JSON.parse(output) as PluginUpdate;
-      if (!isDeepStrictEqual(current, expected))
+      const current: unknown = JSON.parse(output);
+      if (!fits(pluginInspection, current) || !isDeepStrictEqual(current, expected))
         throw new HostError(
           `update: offered installation identity or target changed; this attempt is consumed. Check again and obtain a new direct user response. Observed: ${JSON.stringify(current)}`,
           exits.prerequisite,
@@ -822,15 +828,11 @@ async function updatePlugin(
           details = await revalidate();
           operation = 'prepare native target';
         }
-        if (!['user', 'project', 'local'].includes(details.scope ?? '') || !object(details.registered))
+        if (!['user', 'project', 'local'].includes(details.scope ?? '') || !fits(nativeObject, details.registered))
           throw new HostError('update: native installed scope/source is unavailable', exits.prerequisite);
         const registryPath = join(config, 'plugins/known_marketplaces.json');
         const original = (await jsonFile(registryPath)).celetis;
-        if (
-          !object(original) ||
-          !object(original.source) ||
-          (original.source.source !== 'git' && original.source.source !== 'github')
-        )
+        if (!fits(cloneSource, original))
           throw new HostError(
             'update: native marketplace needs its original Git/GitHub source; recovery is required',
             exits.prerequisite,
@@ -847,8 +849,7 @@ async function updatePlugin(
           );
         const location = original.installLocation;
         if (
-          typeof location !== 'string' ||
-          !isAbsolute(location) ||
+          !fits(absolute, location) ||
           !(await lstat(location).catch(() => null))?.isDirectory() ||
           !(await lstat(join(location, '.claude-plugin')).catch(() => null))?.isDirectory()
         )
@@ -858,9 +859,8 @@ async function updatePlugin(
           );
         const originalCatalog = await jsonFile(join(location, '.claude-plugin/marketplace.json'));
         if (
-          originalCatalog.name !== 'celetis' ||
-          !Array.isArray(originalCatalog.plugins) ||
-          originalCatalog.plugins.filter((plugin) => object(plugin) && plugin.name === 'celetis').length !== 1
+          !fits(marketplaceCatalog, originalCatalog) ||
+          originalCatalog.plugins.filter((plugin) => fits(celetisName, plugin)).length !== 1
         )
           throw new HostError(`update: invalid native marketplace catalog in ${location}`, exits.prerequisite);
         operation = 'claude original marketplace catalog validation';
@@ -954,10 +954,7 @@ async function updatePlugin(
               try {
                 const remaining = (await jsonFile(registryPath)).celetis;
                 const owned = await stat(scratch);
-                const referenced =
-                  object(remaining) && typeof remaining.installLocation === 'string'
-                    ? await stat(remaining.installLocation)
-                    : null;
+                const referenced = fits(located, remaining) ? await stat(remaining.installLocation) : null;
                 retainScratch =
                   !referenced?.isDirectory() || (referenced.dev === owned.dev && referenced.ino === owned.ino);
               } catch {
@@ -1016,10 +1013,10 @@ async function updatePlugin(
         const fresh = await claudeInstallation(list, process.cwd());
         const enabled = fresh.root === root ? fresh.records.filter((record) => record.scope === details.scope) : [];
         const selected = enabled[0];
-        if (enabled.length !== 1 || !selected || typeof selected.version !== 'string')
+        if (enabled.length !== 1 || !fits(versioned, selected))
           throw new HostError('update: fresh native enabled scope/path/version is ambiguous', exits.blocked);
         const registry = await jsonFile(join(config, 'plugins/installed_plugins.json'));
-        const records = object(registry.plugins) ? registry.plugins['celetis@celetis'] : undefined;
+        const records = fits(pluginsOf, registry) ? registry.plugins['celetis@celetis'] : undefined;
         const matching = await claudeRegistrations(records, details.scope, selected.version, root);
         const registered = matching[0];
         if (matching.length !== 1 || !registered)
@@ -1027,10 +1024,10 @@ async function updatePlugin(
             'update: fresh native installed scope/path/version record does not match enabled discovery',
             exits.blocked,
           );
-        if (typeof registered.gitCommitSha === 'string') sha = registered.gitCommitSha;
+        if (fits(committed, registered)) sha = registered.gitCommitSha;
       }
       const manifest = await jsonFile(join(root, '.claude-plugin/plugin.json'));
-      if (manifest.name !== 'celetis')
+      if (!fits(celetisName, manifest))
         throw new HostError(`update: enabled target package is incomplete: ${root}`, exits.blocked);
       const installed = metadata
         ? await codexRevision(metadata, target.source, execute)
@@ -1040,13 +1037,14 @@ async function updatePlugin(
           `update: enabled revision is ${installed}, expected approved target ${target.target}`,
           exits.blocked,
         );
-      const fresh = JSON.parse(
+      const fresh: unknown = JSON.parse(
         await lock.run(process.execPath, inspectArgs(host, request), {
           cwd: process.cwd(),
           env,
         }),
-      ) as PluginUpdate;
+      );
       if (
+        !fits(pluginInspection, fresh) ||
         fresh.root !== root ||
         fresh.installed !== target.target ||
         !isDeepStrictEqual({ ...fresh, root: expected.root, installed: expected.installed }, expected)

@@ -10,8 +10,8 @@ import { engineSource, installedEngine, readEngine } from '../../lib/install/ins
 import { bunArgs, childEnv } from '../../lib/process/process.ts';
 import { containProcess, type Job } from '../../lib/process/windows.ts';
 import { recordEvent } from '../../lib/state/events.ts';
+import type { PreparedUpdate, UpdateCheck, UpdateResult } from '../../lib/update/offer.ts';
 import { pendingParts } from '../../lib/update/pending.ts';
-import type { PreparedUpdate, UpdateCheck, UpdateResult } from '../../lib/update/updater.ts';
 import type { BoardOffer, UpdateStage, UpdateView } from '../types.ts';
 import { isUpdateCheck, isUpdateResult, isWorkerRecord, UPDATE_PIPE_LIMIT } from './worker.ts';
 
