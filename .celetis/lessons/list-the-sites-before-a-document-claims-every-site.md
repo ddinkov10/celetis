@@ -2,7 +2,7 @@
 {
   "schema": 1,
   "name": "list-the-sites-before-a-document-claims-every-site",
-  "description": "Universal claims went past their evidence: ADR-0081 claimed one exception where the code has two, a #263 ruling scoped a two-file diff claim wider than its command, an ADR-0091 summary line dropped an exception of its own Decision, a #304 controller brief gave four presses a timeout that only one has, and #385 recorded an exception in one document and kept the absolute claim in two others",
+  "description": "Universal claims went past their evidence: ADR-0081 claimed one exception where the code has two, a #263 ruling scoped a two-file diff claim wider than its command, an ADR-0091 summary line dropped an exception of its own Decision, a #304 controller brief gave four presses a timeout that only one has, and #385 recorded an exception in one document and kept the absolute claim in two others, and #394 wrote that no engine can take over a refused run record, while a later engine can read a newer schema",
   "tags": [
     "process",
     "refix",
@@ -10,10 +10,33 @@
     "false-negative",
     "recurring"
   ],
-  "date": "2026-11-23",
+  "date": "2026-11-28",
   "status": "active",
-  "source": "The implement session of #385 on Claude Code, final whole-branch review, 2026-11-23\n\nThe implement session of ddinkov10/celetis#304 on Claude Code, task review of Task 3 (the decision record ADR-0099), 2026-11-11\n\nTask 4 review of ddinkov10/celetis#283 (commit 45fa8c9)\n\nTask 6 review of ddinkov10/celetis#263\n\nFinal review of ddinkov10/celetis#256 and its scoped re-review",
+  "source": "The implement session of #394 on Claude Code, final whole-branch review, 2026-11-28\n\nThe implement session of #385 on Claude Code, final whole-branch review, 2026-11-23\n\nThe implement session of ddinkov10/celetis#304 on Claude Code, task review of Task 3 (the decision record ADR-0099), 2026-11-11\n\nTask 4 review of ddinkov10/celetis#283 (commit 45fa8c9)\n\nTask 6 review of ddinkov10/celetis#263\n\nFinal review of ddinkov10/celetis#256 and its scoped re-review",
   "incidents": [
+    {
+      "id": "ab5b315f-0c7f-4dac-b6ea-c8b105d7a8b9",
+      "date": "2026-11-28",
+      "action": "Task 2 of #394 wrote in engine/README.md, \"The takeover\": \"No engine can take over such a record, so the daemon moves it\", for each refused run record, also one refused with `the record has another schema` or `the record is not a valid run record`.",
+      "expected": "A sentence that says that something cannot happen holds for each path that could make it happen: here a record of a newer engine (a schema above 5, or a new enum value) that a later engine can take over. The sentence names this engine only.",
+      "observed": "The final whole-branch reviewer read record.ts:333-335 and ADR-0070 and reported the claim as false for a downgrade; the fix 5066b2e changed it to \"This engine can never take over such a record\".",
+      "source": {
+        "kind": "tool-output",
+        "excerpt": "engine/README.md:714-715: \"No engine can take over such a record\" is too broad ... \"the record has another schema\" also covers a schema above 5 from a newer engine ... Fix: write \"This engine can never take over such a record\".",
+        "reference": "https://github.com/ddinkov10/celetis/issues/394#issuecomment-7229781958"
+      },
+      "inference": "Inferred: the spec text \"No engine of this or a later version can ever take over such a record\" described the schema-4 records of the problem, and the session carried it to every refusal reason. Alternative: the session read the rule as a rule for lists of sites only.",
+      "diagnosis": [
+        "not-followed"
+      ],
+      "revision": "b799cda",
+      "brief": "Task 2 of the plan of #394 carried the rule: \"for a statement that something cannot happen, list each path that could cause it\".",
+      "lesson": {
+        "name": "list-the-sites-before-a-document-claims-every-site",
+        "revision": "eed50cc",
+        "digest": "d65548fed8ceb327c4c9959ced6a58019ddcf8b2adee65a78ed2063d789c758b"
+      }
+    },
     {
       "id": "a21ae5e6-b989-46b4-9b10-ad1c92b2156f",
       "date": "2026-11-23",
@@ -124,7 +147,7 @@
       "revision": "d4c8ad1138dd47a82254de94f728647ce9de3cc5"
     }
   ],
-  "recurrences": 4,
+  "recurrences": 5,
   "reviews": [
     {
       "id": "2a530405-b476-4943-bcc6-863be4f41ee1",
@@ -199,6 +222,21 @@
         "state": "not-needed",
         "detail": "The rule stays text, because whether an exception limits a sentence is a judgment."
       }
+    },
+    {
+      "id": "164aee78-df8b-4863-a5af-15d387fe07b5",
+      "requestDigest": "c3465562d3f0b35f0d695da6cba708b6c4b549d49b1b1bffbf0fda724d72dff8",
+      "date": "2026-11-28",
+      "decision": "merge",
+      "source": "agent review: lesson curation in the landing of #394; claude child opus/high\n\nMerge under the reviewer rule for a proposal that states the same rule as an active lesson: the active lesson list-the-sites-before-a-document-claims-every-site already says \"for a statement that something cannot happen, list each path that could cause it\", the incident names it as the lesson not followed, and the proposal proposes this merge in its Fix. The incident is observed: in the lane, commit 5066b2e changes engine/README.md, \"The takeover\", from \"No engine can take over such a record\" to \"This engine can never take over such a record\". The survivor keeps the active name and every incident and review, adds the #394 incident first, and names an earlier or a later version of the program and the actor that the code decides in the fix and the rule. The cause stays labeled as inference with its alternative. The rule adds a check, weakens none, adds no network or credential act, and contradicts no skill, principle, or instruction file. The proposal is not kept as a second active lesson, because its rule is a part of the survivor rule.",
+      "related": [
+        "check-each-cannot-claim-of-a-new-document-against-a-newer-engine",
+        "list-the-sites-before-a-document-claims-every-site"
+      ],
+      "followUp": {
+        "state": "not-needed",
+        "detail": "The rule stays text: whether a sentence states an impossibility, and which versions or actors it covers, needs judgment that no gate can check."
+      }
     }
   ]
 }
@@ -217,6 +255,8 @@ In the implement session of #304, the task review of Task 1 recorded a risk: wit
 
 In #385, commit 25a81b8 wrote in `AGENTS.md`, `PRODUCT.md`, and ADR-0135 that GitHub Actions runs only the documentation deploy. The same commit listed five other active workflows in ADR-0135 and said that they cannot start. `AGENTS.md` and `PRODUCT.md` kept the absolute claim. The final review showed three paths that still start a workflow: a re-run of an old run, a new branch with a workflow file, and a fork pull request. Fix commit dce764c corrected the three documents.
 
+In #394, Task 2 wrote in `engine/README.md`, "The takeover", that no engine can take over a run record that the daemon refuses, for each reason of the refusal. The brief of the task carried this lesson. The final whole-branch review showed that a refusal for another schema also covers a record of a newer engine, which a later engine can take over, so the claim was false after a downgrade. Commit 5066b2e of the lane changed the sentence to "This engine can never take over such a record".
+
 ## Root cause
 
 Inferred, not proven: each writer generalized from the sites in view and did not list every call site or error path from the code before writing a universal claim. Alternative: the plan text framed the first claim.
@@ -229,10 +269,12 @@ In #304, inferred, not proven: the four presses share the open path of `openTab`
 
 In #385, inferred, not proven: the session added the exception as a new bullet and did not return to the sentences that the exception limits, and it judged "cannot start" from the current branches and tags only. Other causes are possible. The brief of Task 2 carried this rule.
 
+In #394, inferred, not proven: the spec sentence about the schema-4 records of the problem was carried to every reason of the refusal, and the list of paths left out a later version of the engine. Alternative: the session read the rule as a rule for lists of sites only. The incident names this lesson as not followed.
+
 ## Fix
 
-Proposed, needs no structural change: before a document states a property of every site, or names the only exception, list the sites from the code (for example a grep of the callers or of each method's error path) and the recorded results, and write the claim from that list. For a claim about the files that two commits differ in, run `git diff --name-only` with no path filter, or write the claim with the path scope of the command. A summary line (a Consequences bullet, a status line) that says a component is whole, complete, or in one place is such a claim too: compare it with each exception that the same text or its source keeps. A controller that turns a review finding into a brief claim names only the sites that the finding or a read of the code shows. When a check finds an exception to a claim that the task already wrote, search the changed documents for the claim and rewrite each match in the same edit. A statement that something cannot happen is such a claim: list each path that could cause it first. This stays text: which sites a claim covers needs judgment that no gate can check.
+Proposed, needs no structural change: before a document states a property of every site, or names the only exception, list the sites from the code (for example a grep of the callers or of each method's error path) and the recorded results, and write the claim from that list. For a claim about the files that two commits differ in, run `git diff --name-only` with no path filter, or write the claim with the path scope of the command. A summary line (a Consequences bullet, a status line) that says a component is whole, complete, or in one place is such a claim too: compare it with each exception that the same text or its source keeps. A controller that turns a review finding into a brief claim names only the sites that the finding or a read of the code shows. When a check finds an exception to a claim that the task already wrote, search the changed documents for the claim and rewrite each match in the same edit. A statement that something cannot happen is such a claim: list each path that could cause it first, also an earlier or a later version of the program, and write the claim for the actor that the code decides (for example "this engine"). This stays text: which sites a claim covers needs judgment that no gate can check.
 
 ## Rule
 
-Applies when a document, an ADR, a ruling, a brief, or a report states that every site, call, path, or file has a property, that a component is whole, complete, or in one place, names the one exception, states that something cannot happen, or states which files two commits differ in; a summary line such as a Consequences bullet counts, and so does a brief or a ruling that carries a review finding or a plan fact to more sites than its source names. Action: list each site from the code and the recorded results before writing the sentence, and write the claim so that it holds for each listed site, or name each exception, and name each site that is not checked; for a summary line, compare the claim with each exception that the same text or its source keeps; for a diff, take the file list from a diff with no path filter, or write the claim with the same path scope as the command (for example "no agent-text file differs"); for a statement that something cannot happen, list each path that could cause it; when a check finds an exception to a claim that the task already wrote, search the changed documents for each sentence of that claim and correct each one in the same edit. Check: a reader can map each site of the list to the sentence, no exception of the same text or its source contradicts the sentence, the diff holds no sentence that an exception found by a check contradicts, and a grep of the sites, or the command of the claim rerun with the scope that the sentence states, finds none that the sentence does not cover.
+Applies when a document, an ADR, a ruling, a brief, or a report states that every site, call, path, or file has a property, that a component is whole, complete, or in one place, names the one exception, states that something cannot happen, or states which files two commits differ in; a summary line such as a Consequences bullet counts, and so does a brief or a ruling that carries a review finding or a plan fact to more sites than its source names. Action: list each site from the code and the recorded results before writing the sentence, and write the claim so that it holds for each listed site, or name each exception, and name each site that is not checked; for a summary line, compare the claim with each exception that the same text or its source keeps; for a diff, take the file list from a diff with no path filter, or write the claim with the same path scope as the command (for example "no agent-text file differs"); for a statement that something cannot happen, list each path that could cause it, also an earlier or a later version of the program, and write the claim for the actor that the code decides; when a check finds an exception to a claim that the task already wrote, search the changed documents for each sentence of that claim and correct each one in the same edit. Check: a reader can map each site of the list to the sentence, no exception of the same text or its source contradicts the sentence, the diff holds no sentence that an exception found by a check contradicts, and a grep of the sites, or the command of the claim rerun with the scope that the sentence states, finds none that the sentence does not cover.

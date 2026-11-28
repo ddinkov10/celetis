@@ -401,8 +401,9 @@ value.
    its lines). A nonzero `Number(PORT)` of its environment is an exact port; else the board takes
    the first free port from `board.port` through 65535. A port that cannot open releases `daemon`
    and exits 6, before the takeover of a run;
-7. reads the run records and makes one adoption attempt for each record ("The takeover"), then
-   starts the loop of the coordinator session;
+7. reads the run records, moves aside each record that it can never take over, and makes one
+   adoption attempt for each record that it can take over ("The takeover"), then starts the loop of
+   the coordinator session;
 8. removes a socket file that a killed daemon left;
 9. serves on the socket;
 10. writes the identity file `daemon/daemon.json` (0600, a temporary file and a rename):
@@ -709,10 +710,27 @@ conversion keeps the exact original bytes in an immutable sibling archive
 records have no record lock.
 
 At its start, after it holds `daemon`, the daemon reads the records in the order of their file
-names. It does not take over a record that it cannot read, that is not valid JSON, that has another
-schema, or that does not validate: it prints the path and the cause, the file does not change, and
-its session stays in its tab. For each
-other record, the daemon adopts the issue lock with a new lock owner and the session identity of the
+names. It does not take over a record that is not valid JSON, that has another schema, that does not
+validate, whose ID differs from its file name, or that keeps the quota wait of an older engine. This
+engine can never take over such a record, so the daemon moves it by a rename, with its bytes and its mode,
+to `daemon/refused/<run ID>@<UTC time of the move>.json` (0700, made at the first move), with the
+time in the form `20261128T101112.345Z`. It never overwrites a file there. Before the move it reads
+the start barrier of the record (`session.barrier`), and gets one of four states:
+`gone`, `runs`, `unknown` for a failed read, or none for a record with no valid barrier. The line
+names the target and that state: `daemon: cannot take over <path>: <reason>; moved it to <target>;`
+and then `its session has ended`, `its session still runs in the tab <tab>: close the tab when its
+work is done`, `the state of its session in the tab <tab> is unknown`, or `it names no session`.
+The tab comes from `session.tab` with each control character as a space, cut at 4096 characters,
+or is `its tab` when the record has none. When the move fails (a file of the target name, a
+`refused` path that is not a private folder, or an error of the rename), the file stays:
+`daemon: cannot take over <path>: <reason>; cannot move it to <target>: <cause>; the next start tries
+again; its session stays in its tab`. A record that the daemon cannot read (an error of the read, of
+the storage check, or of the conversion) stays with its bytes, and gets the same read at the next
+start: `daemon: cannot take over <path>: <cause>; the next start reads it again; its session stays in
+its tab`. Each such line has one `run.refused` entry in the lifecycle log
+([The lifecycle log](#the-lifecycle-log)). A file that goes away between the list and the read
+gets no line. The daemon closes no tab of a refused record, and does not touch its start folder. For
+each other record, the daemon adopts the issue lock with a new lock owner and the session identity of the
 recorded barrier, else of the `pid` file of the start folder, else none. A queue run adopts the
 `queue` lock first, then the lock of its current issue. The adoption takes a free lock, and
 a lock whose owner record names no daemon or a gone daemon (a definite read), with no live session
@@ -774,8 +792,9 @@ again each 2 seconds. A quota wait continues with its recorded wait ID, step aut
 choice, and the usage records that it saw. The daemon prints the wait line again and makes no new
 wait ID, so `run retry <n> <wait id>` of that wait wakes it. A wait whose ID the recovery record no
 longer has ends its run. The usage records that a wait saw have one key for each host. A run record
-of an older engine has no `opencode` key there, so after the update the daemon refuses it:
-`daemon: cannot take over <path>: the record keeps the quota wait of an older engine; start the run again; its session stays in its tab`.
+of an older engine has no `opencode` key there, so after the update the daemon refuses it and moves
+it aside as above. Its line starts with
+`daemon: cannot take over <path>: the record keeps the quota wait of an older engine; start the run again; moved it to <target>;`.
 
 **Per-run failures.** A refusal line, a startup error, a failed queue save, a failed write of the
 run record, and an unexpected error end only their run. Its outcome is `stopped` with the line and the code. When the run
@@ -2040,6 +2059,7 @@ The types, in the order of the table:
 | `step.started` | A session becomes live: the machine goes from `opening` to `live`, for a step session and for an unwatched session (`run resume`, `run assist`) | `{step, host, tab, attempt}`: the work of the session, the host, the tab name, and the attempt ID or `null` |
 | `step.ended` | The machine leaves `live` for another state | `{step, host, event, code}`: the event that ended the session, and the exit code of the host when it is known, else `null` |
 | `run.ended` | The run reaches `finished` | `{end, code, reason}`: `closed`, `gate`, `stopped`, or `detached`, or `failed` for an unexpected error |
+| `run.refused` | The takeover at the start of the daemon refuses a run record or cannot read it ("The master daemon", "The takeover") | `{reason, moved, session}`: the cause of the line; the target path in `daemon/refused/`, or `null` when the file stays; `gone`, `runs`, or `unknown`, or `null` for a record with no valid barrier and for a record that the daemon cannot read. Its `run` is the run ID of the file name, and its `issue` is the `issue` of the record when it is an issue key, else `null` |
 | `landing.waits` | A landing of the daemon waits behind another landing | `{ahead}`: the issue key of that landing |
 | `landing.started` | A landing of the daemon runs | `{}` |
 | `landing.ended` | A landing of the daemon ends, also one that never ran | `{code}`: the exit code of the landing |

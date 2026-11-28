@@ -166,6 +166,7 @@ export function repositoryLayout(common: string) {
     coordinator: join(daemon.path, 'coordinator.json'),
     runs,
     runRecord: (id: string) => join(runs.path, `${id}.json`),
+    refused: owned(join(daemon.path, 'refused')),
     startPrefix: join(root.path, 'start.'),
   });
 }

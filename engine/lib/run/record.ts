@@ -18,7 +18,19 @@ import type { RunState } from './engine.ts';
 import { convertSession, matchesSession, sessionRecord, sessionRecord2 } from './session.ts';
 
 type Schema = 2 | 3;
-export type ReadRecord = { path: string; record: RunRecord } | { path: string; error: string };
+export type Barrier = Readonly<{ pid: number; start: string }>;
+export type ReadRecord =
+  | Readonly<{ kind: 'taken'; path: string; record: RunRecord }>
+  | Readonly<{
+      kind: 'refused';
+      path: string;
+      id: string;
+      reason: string;
+      issue: IssueKey | null;
+      barrier: Barrier | null;
+      tab: string | null;
+    }>
+  | Readonly<{ kind: 'unread'; path: string; id: string; reason: string }>;
 
 const file = /^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\.json$/;
 const runStates: Record<RunState, true> = {
@@ -210,6 +222,28 @@ const plain = z.custom<Record<string, unknown>>(
   (value) => typeof value === 'object' && value !== null && !Array.isArray(value),
 );
 const olderWait = z.looseObject({ wait: z.looseObject({ seen: plain }) });
+const looseIssue = z.looseObject({ issue: issueKey });
+const looseBarrier = z.looseObject({
+  session: z.looseObject({ barrier: z.looseObject({ pid: count, start: filled }) }),
+});
+const looseTab = z.looseObject({ session: z.looseObject({ tab: filled }) });
+
+function refusal(path: string, id: string, reason: string, value?: unknown): ReadRecord {
+  const issue = looseIssue.safeParse(value);
+  const barrier = looseBarrier.safeParse(value);
+  const tab = looseTab.safeParse(value);
+  return {
+    kind: 'refused',
+    path,
+    id,
+    reason,
+    issue: issue.success ? issue.data.issue : null,
+    barrier: barrier.success
+      ? { pid: barrier.data.session.barrier.pid, start: barrier.data.session.barrier.start }
+      : null,
+    tab: tab.success ? tab.data.session.tab : null,
+  };
+}
 
 export function validRunRecord(value: unknown): value is RunRecord {
   return runRecord.safeParse(value).success;
@@ -245,55 +279,60 @@ function keyed(value: unknown, schema: Schema): unknown {
   return { ...old, schema: 5, input, issue, session };
 }
 
-async function convert(path: string, name: string, folder: string): Promise<ReadRecord> {
+async function convert(path: string, name: string, id: string, folder: string): Promise<ReadRecord | null> {
   let source: LocalRecord | null;
   try {
     source = await readLocalRecord(path, [folder], 'private');
   } catch (error) {
-    return { path, error: (error as Error).message };
+    return { kind: 'unread', path, id, reason: (error as Error).message };
   }
-  if (!source) return { path, error: 'the record is missing' };
+  if (!source) return null;
+  const refused = (reason: string) => refusal(path, id, reason, source.value);
   const schema = versionOf(source.value);
-  if (schema !== 2 && schema !== 3) return { path, error: 'the record is not a valid run record' };
+  if (schema !== 2 && schema !== 3) return refused('the record is not a valid run record');
   const old = legacy[schema].safeParse(source.value);
-  if (!old.success) return { path, error: 'the record is not a valid run record' };
-  if (`${old.data.id}.json` !== name) return { path, error: 'the record ID differs from its file name' };
+  if (!old.success) return refused('the record is not a valid run record');
+  if (`${old.data.id}.json` !== name) return refused('the record ID differs from its file name');
   const record = keyed(source.value, schema);
-  if (!validRunRecord(record)) return { path, error: 'the record is not a valid run record' };
+  if (!validRunRecord(record)) return refused('the record is not a valid run record');
   try {
     await commitMigration(source, schema, `${JSON.stringify(record)}\n`);
   } catch (error) {
-    return { path, error: (error as Error).message };
+    return { kind: 'unread', path, id, reason: (error as Error).message };
   }
-  return { path, record };
+  return { kind: 'taken', path, record };
 }
 
 export async function readRunRecords(folder: string): Promise<ReadRecord[]> {
   const names = (await readdir(folder)).filter((name) => file.test(name)).sort();
-  return Promise.all(
-    names.map(async (name): Promise<ReadRecord> => {
+  const reads = await Promise.all(
+    names.map(async (name): Promise<ReadRecord | null> => {
       const path = join(folder, name);
+      const id = file.exec(name)?.[1] as string;
       let source: string;
       try {
         source = await readFile(path, 'utf8');
       } catch (error) {
-        return { path, error: (error as Error).message };
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+        return { kind: 'unread', path, id, reason: (error as Error).message };
       }
       let value: unknown;
       try {
         value = JSON.parse(source);
       } catch {
-        return { path, error: 'the record is not valid JSON' };
+        return refusal(path, id, 'the record is not valid JSON');
       }
+      const refused = (reason: string) => refusal(path, id, reason, value);
       const older = olderWait.safeParse(value);
       if (older.success && Object.keys(older.data.wait.seen).sort().join(',') !== seenKeys)
-        return { path, error: 'the record keeps the quota wait of an older engine; start the run again' };
+        return refused('the record keeps the quota wait of an older engine; start the run again');
       const schema = versionOf(value);
-      if (schema === 2 || schema === 3) return convert(path, name, folder);
-      if (schema !== 5) return { path, error: 'the record has another schema' };
-      if (!validRunRecord(value)) return { path, error: 'the record is not a valid run record' };
-      if (`${value.id}.json` !== name) return { path, error: 'the record ID differs from its file name' };
-      return { path, record: value };
+      if (schema === 2 || schema === 3) return convert(path, name, id, folder);
+      if (schema !== 5) return refused('the record has another schema');
+      if (!validRunRecord(value)) return refused('the record is not a valid run record');
+      if (`${value.id}.json` !== name) return refused('the record ID differs from its file name');
+      return { kind: 'taken', path, record: value };
     }),
   );
+  return reads.filter((read) => read !== null);
 }

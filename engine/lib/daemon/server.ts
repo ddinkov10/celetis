@@ -15,7 +15,7 @@ import { createCoordinator } from '../coordinator/coordinator.ts';
 import { type Engine, enginePaths } from '../install/installation.ts';
 import { versionFolderGone } from '../install/version-folder.ts';
 import { landingResult, type PressAnswer, type PressIo, pressDiscard, pressLand } from '../landing/press.ts';
-import { processStart, processState } from '../process/identity.ts';
+import { type ProcessState, processStart, processState } from '../process/identity.ts';
 import { childEnv } from '../process/process.ts';
 import { holdFolder, makePrivateFolder, privateFolderProblem } from '../process/windows.ts';
 import { admitQueue, failQueueLaunch, reconcileQueue } from '../queue/actions.ts';
@@ -38,7 +38,8 @@ import {
   unwatched,
 } from '../run/engine.ts';
 import { type QuotaRecovery, recoveryOwner, retryQuota } from '../run/quota-recovery.ts';
-import { type RunRecord, readRunRecords, removeRunRecord, writeRunRecord } from '../run/record.ts';
+import { type ReadRecord, type RunRecord, readRunRecords, removeRunRecord, writeRunRecord } from '../run/record.ts';
+import { type Disposal, disposeRunRecord, refusalSession } from '../run/refused.ts';
 import { installRecorder, recordEvent } from '../state/events.ts';
 import { createLockOwner, type Identity, issueLock, landLock } from '../state/locks.ts';
 import { daemonSockets, ensureFolder, privateState, writeAtomic } from '../state/state.ts';
@@ -133,6 +134,25 @@ const printable = (text: string) =>
   [...text]
     .map((character) => (character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127 ? ' ' : character))
     .join('');
+function refusalLine(
+  read: Extract<ReadRecord, { kind: 'refused' }>,
+  session: ProcessState | null,
+  disposal: Disposal,
+): string {
+  const head = `daemon: cannot take over ${read.path}: ${read.reason}`;
+  if (!disposal.moved)
+    return `${head}; cannot move it to ${disposal.target}: ${disposal.cause}; the next start tries again; its session stays in its tab`;
+  const tab = read.tab === null ? 'its tab' : `the tab ${clip(printable(read.tab))}`;
+  const state =
+    session === 'gone'
+      ? 'its session has ended'
+      : session === 'runs'
+        ? `its session still runs in ${tab}: close the tab when its work is done`
+        : session === 'unknown'
+          ? `the state of its session in ${tab} is unknown`
+          : 'it names no session';
+  return `${head}; moved it to ${disposal.target}; ${state}`;
+}
 const reply = (status: number, value: DaemonAnswer | QueueAnswer | CoordinatorAnswer | ScreenAnswer | DaemonStatus) =>
   Response.json(value, { status });
 const refused = (status: number, line: string, code: ExitCode): Said => ({
@@ -821,8 +841,25 @@ async function serve(
     });
     opened.resolve(board);
     for (const read of await readRunRecords(layout.runs.path)) {
-      if ('error' in read) {
-        console.error(`daemon: cannot take over ${read.path}: ${read.error}; its session stays in its tab`);
+      if (read.kind === 'unread') {
+        console.error(
+          `daemon: cannot take over ${read.path}: ${read.reason}; the next start reads it again; its session stays in its tab`,
+        );
+        lifecycle.record({ run: read.id, issue: null }, () => [
+          { type: 'run.refused', data: { reason: read.reason, moved: null, session: null } },
+        ]);
+        continue;
+      }
+      if (read.kind === 'refused') {
+        const session = await refusalSession(read.barrier);
+        const disposal = await disposeRunRecord(read.path, layout.refused, read.id, new Date());
+        console.error(refusalLine(read, session, disposal));
+        lifecycle.record({ run: read.id, issue: read.issue }, () => [
+          {
+            type: 'run.refused',
+            data: { reason: read.reason, moved: disposal.moved ? disposal.target : null, session },
+          },
+        ]);
         continue;
       }
       const { record } = read;

@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { ExitCode } from '../contract/contract.ts';
 import type { Host } from '../host/names.ts';
+import type { ProcessState } from '../process/identity.ts';
 import type { RunEnd, RunInput, RunState } from '../run/engine.ts';
 import type { Event, Kind } from '../run/machine.ts';
 import { appendLine, type LineLog, lineLimit, shorten } from '../state/lines.ts';
@@ -18,6 +19,7 @@ export type LifecycleData = {
   'step.started': { step: SessionWork; host: Host; tab: string; attempt: string | null };
   'step.ended': { step: SessionWork; host: Host; event: Event['kind']; code: number | null };
   'run.ended': { end: RunEnd['kind'] | 'failed'; code: ExitCode; reason: string };
+  'run.refused': { reason: string; moved: string | null; session: ProcessState | null };
   'landing.waits': { ahead: IssueKey };
   'landing.started': Record<never, never>;
   'landing.ended': { code: ExitCode };
